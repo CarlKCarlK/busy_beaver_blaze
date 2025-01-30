@@ -1,5 +1,6 @@
 use core::fmt;
-use derive_more::derive::{Display, Error, From};
+use derive_more::Error as DeriveError;
+use derive_more::derive::{Display, From};
 use std::{
     ops::{Index, IndexMut},
     str::FromStr,
@@ -12,13 +13,13 @@ const STATE_COUNT: usize = 5;
 const STATE_COUNT_U8: u8 = STATE_COUNT as u8;
 const SYMBOL_COUNT: usize = 2;
 
-fn main() {
-    let program = &Program::from_str(CHAMP_STRING).unwrap();
+fn main() -> Result<(), Error> {
+    let program: Program = CHAMP_STRING.parse()?;
 
     let mut machine = Machine {
         tape: Tape::default(),
         tape_index: 0,
-        program,
+        program: &program,
         state: 0,
     };
 
@@ -31,6 +32,8 @@ fn main() {
         machine,
         machine.tape.count_ones()
     );
+
+    Ok(())
 }
 
 const CHAMP_STRING: &str = "
@@ -107,7 +110,7 @@ impl Iterator for Machine<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         let input = self.tape[self.tape_index];
         let per_input = &self.program.0[self.state as usize][input as usize];
-        self.tape[self.tape_index] = per_input.next_value;
+        self.tape[self.tape_index] = per_input.next_symbol;
         self.tape_index += match per_input.direction {
             Direction::Left => -1,
             Direction::Right => 1,
@@ -125,8 +128,9 @@ struct Program([[PerInput; SYMBOL_COUNT]; STATE_COUNT]);
 // 0	1RB	1RC	1RD	1LA	1RH
 // 1	1LC	1RB	0LE	1LD	0LA"
 impl FromStr for Program {
-    type Err = CmkError;
+    type Err = Error;
 
+    #[allow(clippy::assertions_on_constants)]
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mut lines = input.lines();
 
@@ -137,42 +141,41 @@ impl FromStr for Program {
             }
         }
 
+        // Create a vector of vectors, e.g. 2 x 5
         let mut vec_of_vec: Vec<Vec<PerInput>> = lines
             .enumerate()
-            .map(|(value, line)| {
+            .map(|(symbol, line)| {
                 let mut parts = line.split_whitespace();
 
-                let value_again = parts.next().ok_or(CmkError::MissingField)?.parse::<u8>()?;
-                assert_eq!(value, value_again as usize);
+                let symbol_again = parts.next().ok_or(Error::MissingField)?.parse::<u8>()?;
+                if symbol != symbol_again as usize {
+                    return Err(Error::UnexpectedSymbol);
+                }
 
                 parts
                     .map(|part| {
-                        let next_value =
-                            part.chars()
-                                .nth(0)
-                                .ok_or(CmkError::MissingField)?
-                                .to_digit(10)
-                                .ok_or(CmkError::InvalidChar)? as u8;
-
-                        let direction = match part.chars().nth(1).ok_or(CmkError::MissingField)? {
-                            'L' => Direction::Left,
-                            'R' => Direction::Right,
-                            _ => return Err(CmkError::InvalidChar),
+                        let asciis = part.as_bytes();
+                        if asciis.len() != 3 {
+                            return Err(Error::MissingField);
+                        }
+                        let next_symbol = match asciis[0] {
+                            b'0' => 0,
+                            b'1' => 1,
+                            _ => return Err(Error::InvalidChar),
                         };
-
-                        let next_state = (part
-                            .chars()
-                            .nth(2)
-                            .ok_or(CmkError::MissingField)?
-                            .to_digit(36)
-                            .ok_or(CmkError::InvalidChar)?
-                            .checked_sub('A'.to_digit(36).unwrap())
-                            .ok_or(CmkError::InvalidChar)?)
-                            as u8;
+                        let direction = match asciis[1] {
+                            b'L' => Direction::Left,
+                            b'R' => Direction::Right,
+                            _ => return Err(Error::InvalidChar),
+                        };
+                        let next_state = match asciis[2] {
+                            b'A'..=b'Z' => asciis[2] - b'A',
+                            _ => return Err(Error::InvalidChar),
+                        };
 
                         Ok(PerInput {
                             next_state,
-                            next_value,
+                            next_symbol,
                             direction,
                         })
                     })
@@ -181,14 +184,12 @@ impl FromStr for Program {
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
         // Ensure proper dimensions (2 x STATE_COUNT)
-        if vec_of_vec.len() != SYMBOL_COUNT {
-            return Err(CmkError::InvalidLength);
-        }
-        if vec_of_vec[0].len() != STATE_COUNT {
-            return Err(CmkError::InvalidLength);
+        if vec_of_vec.len() != SYMBOL_COUNT || vec_of_vec[0].len() != STATE_COUNT {
+            return Err(Error::InvalidLength);
         }
 
         // Convert to fixed-size array
+        debug_assert!(SYMBOL_COUNT == 2);
         let (row_0, row_1) = vec_of_vec.split_at_mut(1);
 
         let program: [[PerInput; 2]; STATE_COUNT] =
@@ -198,7 +199,7 @@ impl FromStr for Program {
                 .map(|(a, b)| [a, b]) // Create fixed-size arrays
                 .collect::<Vec<_>>() // Collect into Vec<[PerInput; 2]>
                 .try_into() // Try to convert Vec into [[PerInput; 2]; STATE_COUNT]
-                .map_err(|_vec: Vec<[PerInput; 2]>| CmkError::ArrayConversionError)?; // Map error properly
+                .map_err(|_vec: Vec<[PerInput; 2]>| Error::ArrayConversionError)?; // Map error properly
 
         Ok(Program(program))
     }
@@ -207,7 +208,7 @@ impl FromStr for Program {
 #[derive(Debug)]
 struct PerInput {
     next_state: u8,
-    next_value: u8,
+    next_symbol: u8,
     direction: Direction,
 }
 
@@ -243,20 +244,23 @@ pub trait DebuggableIterator: Iterator {
 impl<T> DebuggableIterator for T where T: Iterator + std::fmt::Debug {}
 
 /// Error type for parsing a `Program` from a string.
-#[derive(Debug, Display, Error, From)]
-pub enum CmkError {
-    // #[display(fmt = "Invalid number format: {}", _0)]
+#[derive(Debug, Display, DeriveError, From)]
+pub enum Error {
+    #[display("Invalid number format: {}", _0)]
     ParseIntError(std::num::ParseIntError),
 
-    // #[display(fmt = "Invalid character encountered in part: '{}'", _0)]
-    InvalidChar, // (char),
+    #[display("Invalid character encountered in part")]
+    InvalidChar,
 
-    // #[display(fmt = "Unexpected empty field in input")]
+    #[display("Unexpected empty field in input")]
     MissingField,
 
-    // #[display(fmt = "Unexpected input length")]
+    #[display("Unexpected input length")]
     InvalidLength,
 
-    // #[display(fmt = "Failed to convert to array: {:?}", _0)]
+    #[display("Failed to convert to array")]
     ArrayConversionError,
+
+    #[display("Unexpected symbol encountered")]
+    UnexpectedSymbol,
 }

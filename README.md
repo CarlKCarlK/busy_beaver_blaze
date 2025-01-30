@@ -18,13 +18,13 @@ cargo run --release
 ```
 
 ```rust
-fn main() {
-    let program = &Program::from_string(CHAMP_STRING);
+fn main() -> Result<(), Error> {
+    let program: Program = CHAMP_STRING.parse()?;
 
     let mut machine = Machine {
         tape: Tape::default(),
         tape_index: 0,
-        program,
+        program: &program,
         state: 0,
     };
 
@@ -37,6 +37,8 @@ fn main() {
         machine,
         machine.tape.count_ones()
     );
+
+    Ok(())
 }
 ```
 
@@ -57,6 +59,8 @@ Final: Step 47,176,869: Machine { state: 7, tape_index: -12242}, #1's 4098
 - Work on other size problems
 - Visualizations
 - Timing
+- Testing, especially for parsing
+- See if tape could be more efficient with bit arrays
 
 ## License
 
