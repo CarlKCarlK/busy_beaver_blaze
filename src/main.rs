@@ -1,6 +1,9 @@
 use core::fmt;
-use std::ops::{Index, IndexMut};
-
+use derive_more::derive::{Display, Error, From};
+use std::{
+    ops::{Index, IndexMut},
+    str::FromStr,
+};
 use thousands::Separable;
 
 const STATE_COUNT: usize = 5;
@@ -10,7 +13,7 @@ const STATE_COUNT_U8: u8 = STATE_COUNT as u8;
 const SYMBOL_COUNT: usize = 2;
 
 fn main() {
-    let program = &Program::from_string(CHAMP_STRING);
+    let program = &Program::from_str(CHAMP_STRING).unwrap();
 
     let mut machine = Machine {
         tape: Tape::default(),
@@ -121,61 +124,83 @@ struct Program([[PerInput; SYMBOL_COUNT]; STATE_COUNT]);
 // "   A	B	C	D	E
 // 0	1RB	1RC	1RD	1LA	1RH
 // 1	1LC	1RB	0LE	1LD	0LA"
-impl Program {
-    #[allow(clippy::assertions_on_constants)]
-    fn from_string(input: &str) -> Self {
+impl FromStr for Program {
+    type Err = CmkError;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mut lines = input.lines();
-        while lines.next().unwrap() == "" {
-            // Skip empty lines
+
+        // Skip empty lines at the beginning
+        for line in lines.by_ref() {
+            if !line.trim().is_empty() {
+                break;
+            }
         }
-        let mut vec_of_vec = lines
+
+        let mut vec_of_vec: Vec<Vec<PerInput>> = lines
             .enumerate()
             .map(|(value, line)| {
                 let mut parts = line.split_whitespace();
-                // println!("Line {}: {:?}", value, line);
-                let value_again = parts.next().unwrap().parse::<u8>().unwrap();
+
+                let value_again = parts.next().ok_or(CmkError::MissingField)?.parse::<u8>()?;
                 assert_eq!(value, value_again as usize);
+
                 parts
                     .map(|part| {
-                        // println!("Part: {:?}", part);
-                        let next_value = part.chars().nth(0).unwrap() as u8 - b'0';
-                        let direction = match part.chars().nth(1).unwrap() {
+                        let next_value =
+                            part.chars()
+                                .nth(0)
+                                .ok_or(CmkError::MissingField)?
+                                .to_digit(10)
+                                .ok_or(CmkError::InvalidChar)? as u8;
+
+                        let direction = match part.chars().nth(1).ok_or(CmkError::MissingField)? {
                             'L' => Direction::Left,
                             'R' => Direction::Right,
-                            _ => panic!("Invalid direction"),
+                            _ => return Err(CmkError::InvalidChar),
                         };
-                        let next_state = part.chars().nth(2).unwrap() as u8 - b'A';
-                        PerInput {
+
+                        let next_state = (part
+                            .chars()
+                            .nth(2)
+                            .ok_or(CmkError::MissingField)?
+                            .to_digit(36)
+                            .ok_or(CmkError::InvalidChar)?
+                            .checked_sub('A'.to_digit(36).unwrap())
+                            .ok_or(CmkError::InvalidChar)?)
+                            as u8;
+
+                        Ok(PerInput {
                             next_state,
                             next_value,
                             direction,
-                        }
+                        })
                     })
-                    .collect::<Vec<_>>()
+                    .collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
             })
-            .collect::<Vec<_>>();
-        // Turn 2 x STATE_COUNT vec of vec into STATE_COUNT x 2 array of arrays
+            .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
-        assert_eq!(vec_of_vec.len(), SYMBOL_COUNT, "Expected 2 rows");
-        debug_assert!(SYMBOL_COUNT == 2, "Expected 2 symbols");
-        assert_eq!(
-            vec_of_vec[0].len(),
-            STATE_COUNT,
-            "Expected STATE_COUNT columns"
-        );
+        // Ensure proper dimensions (2 x STATE_COUNT)
+        if vec_of_vec.len() != SYMBOL_COUNT {
+            return Err(CmkError::InvalidLength);
+        }
+        if vec_of_vec[0].len() != STATE_COUNT {
+            return Err(CmkError::InvalidLength);
+        }
 
-        Program(
-            (0..STATE_COUNT)
-                .map(|_state| {
-                    [
-                        vec_of_vec[0].remove(0), // Remove first item, shifting the rest left
-                        vec_of_vec[1].remove(0), // Remove first item, shifting the rest left
-                    ]
-                })
-                .collect::<Vec<_>>() // Collect into Vec<PerState>
-                .try_into() // Convert Vec<PerState> into [PerState; STATE_COUNT]
-                .unwrap(), // Ensure length is exactly STATE_COUNT
-        )
+        // Convert to fixed-size array
+        let (row_0, row_1) = vec_of_vec.split_at_mut(1);
+
+        let program: [[PerInput; 2]; STATE_COUNT] =
+            row_0[0] // First row
+                .drain(..) // Moves out of the first vector
+                .zip(row_1[0].drain(..)) // Moves out of the second vector
+                .map(|(a, b)| [a, b]) // Create fixed-size arrays
+                .collect::<Vec<_>>() // Collect into Vec<[PerInput; 2]>
+                .try_into() // Try to convert Vec into [[PerInput; 2]; STATE_COUNT]
+                .map_err(|_vec: Vec<[PerInput; 2]>| CmkError::ArrayConversionError)?; // Map error properly
+
+        Ok(Program(program))
     }
 }
 
@@ -216,3 +241,22 @@ pub trait DebuggableIterator: Iterator {
 
 // Implement the trait for all Iterators
 impl<T> DebuggableIterator for T where T: Iterator + std::fmt::Debug {}
+
+/// Error type for parsing a `Program` from a string.
+#[derive(Debug, Display, Error, From)]
+pub enum CmkError {
+    // #[display(fmt = "Invalid number format: {}", _0)]
+    ParseIntError(std::num::ParseIntError),
+
+    // #[display(fmt = "Invalid character encountered in part: '{}'", _0)]
+    InvalidChar, // (char),
+
+    // #[display(fmt = "Unexpected empty field in input")]
+    MissingField,
+
+    // #[display(fmt = "Unexpected input length")]
+    InvalidLength,
+
+    // #[display(fmt = "Failed to convert to array: {:?}", _0)]
+    ArrayConversionError,
+}

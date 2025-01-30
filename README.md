@@ -42,7 +42,7 @@ fn main() {
 
 Outputs:
 
-```
+```text
 Step 0: Machine { state: 1, tape_index: 1}
 Step 10,000,000: Machine { state: 3, tape_index: -2351}
 Step 20,000,000: Machine { state: 1, tape_index: -5031}
@@ -56,6 +56,7 @@ Final: Step 47,176,869: Machine { state: 7, tape_index: -12242}, #1's 4098
 - WASM version
 - Work on other size problems
 - Visualizations
+- Timing
 
 ## License
 
