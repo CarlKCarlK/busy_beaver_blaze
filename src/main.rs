@@ -17,7 +17,7 @@ fn main() {
         if step_count % mod_base == 0 {
             println!("Step: {step_count}: Machine {machine:?}");
         }
-        machine.step();
+        machine.next();
         step_count += 1;
     }
     println!("Final: Step {}: {:?}", step_count, machine);
@@ -75,21 +75,19 @@ impl fmt::Debug for Machine<'_> {
     }
 }
 
-// define a step method for the machine
-impl Machine<'_> {
-    fn step(&mut self) {
+impl Iterator for Machine<'_> {
+    type Item = ();
+
+    fn next(&mut self) -> Option<Self::Item> {
         let input = self.tape[self.tape_index];
-        // println!(
-        //     "Debug: state={}, head={}, reading={}",
-        //     self.state, self.tape_index, input
-        // );
         let per_input = &self.program.0[self.state as usize].0[input as usize];
         self.state = per_input.next_state;
         self.tape[self.tape_index] = per_input.next_value;
-        match per_input.direction {
-            Direction::Left => self.tape_index -= 1,
-            Direction::Right => self.tape_index += 1,
-        }
+        self.tape_index += match per_input.direction {
+            Direction::Left => -1,
+            Direction::Right => 1,
+        };
+        Some(())
     }
 }
 
@@ -103,7 +101,9 @@ struct Program([PerState; 5]);
 impl Program {
     fn from_string(input: &str) -> Self {
         let mut lines = input.lines();
-        let _header = lines.next().unwrap();
+        while lines.next().unwrap() == "" {
+            // Skip empty lines
+        }
         let mut vec_of_vec = lines
             .enumerate()
             .map(|(value, line)| {
@@ -112,8 +112,7 @@ impl Program {
                 let value_again = parts.next().unwrap().parse::<u8>().unwrap();
                 assert_eq!(value, value_again as usize);
                 parts
-                    .enumerate()
-                    .map(|(_state, part)| {
+                    .map(|part| {
                         // println!("Part: {:?}", part);
                         let next_value = part.chars().nth(0).unwrap() as u8 - b'0';
                         let direction = match part.chars().nth(1).unwrap() {
@@ -695,7 +694,8 @@ static PROGRAM_BB5_CHAMPION: Program = Program([
     ]),
 ]);
 
-const CHAMP_STRING: &str = "   A	B	C	D	E
+const CHAMP_STRING: &str = "
+    A	B	C	D	E
 0	1RB	1RC	1RD	1LA	1RH
 1	1LC	1RB	0LE	1LD	0LA
 ";
