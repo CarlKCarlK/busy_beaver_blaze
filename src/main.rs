@@ -4,6 +4,9 @@ use std::ops::{Index, IndexMut};
 use thousands::Separable;
 
 const STATE_COUNT: usize = 5;
+
+// Don't change these constants
+const STATE_COUNT_U8: u8 = STATE_COUNT as u8;
 const SYMBOL_COUNT: usize = 2;
 
 fn main() {
@@ -16,22 +19,20 @@ fn main() {
         state: 0,
     };
 
-    let mut step_count = 0;
     let mod_base = 10_000;
-    while machine.state < 5 {
+    for (step_count, _) in (&mut machine).enumerate() {
         if step_count % mod_base == 0 {
             println!(
                 "Step: {}: Machine {machine:?}",
                 step_count.separate_with_commas()
             );
         }
-        machine.next();
-        step_count += 1;
     }
     println!(
-        "Final: Step {}: {:?}",
+        "Final: Step {}: {:?}, #1's {}",
         step_count.separate_with_commas(),
-        machine
+        machine,
+        machine.tape.count_ones()
     );
 }
 
@@ -70,6 +71,16 @@ impl IndexMut<i32> for Tape {
         &mut vec[index]
     }
 }
+impl Tape {
+    fn count_ones(&self) -> usize {
+        self.nonnegative
+            .iter()
+            .chain(self.negative.iter()) // Combine both vectors
+            .map(|&x| (x == 1) as usize)
+            .sum()
+    }
+}
+
 struct Machine<'a> {
     state: u8,
     tape_index: i32,
@@ -93,13 +104,13 @@ impl Iterator for Machine<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         let input = self.tape[self.tape_index];
         let per_input = &self.program.0[self.state as usize][input as usize];
-        self.state = per_input.next_state;
         self.tape[self.tape_index] = per_input.next_value;
         self.tape_index += match per_input.direction {
             Direction::Left => -1,
             Direction::Right => 1,
         };
-        Some(())
+        self.state = per_input.next_state;
+        (per_input.next_state < STATE_COUNT_U8).then_some(())
     }
 }
 
@@ -111,6 +122,7 @@ struct Program([[PerInput; SYMBOL_COUNT]; STATE_COUNT]);
 // 0	1RB	1RC	1RD	1LA	1RH
 // 1	1LC	1RB	0LE	1LD	0LA"
 impl Program {
+    #[allow(clippy::assertions_on_constants)]
     fn from_string(input: &str) -> Self {
         let mut lines = input.lines();
         while lines.next().unwrap() == "" {
@@ -142,10 +154,18 @@ impl Program {
                     .collect::<Vec<_>>()
             })
             .collect::<Vec<_>>();
-        // Turn 2 x 5 vec of vec into 5 x 2 array of arrays
+        // Turn 2 x STATE_COUNT vec of vec into STATE_COUNT x 2 array of arrays
+
+        assert_eq!(vec_of_vec.len(), SYMBOL_COUNT, "Expected 2 rows");
+        debug_assert!(SYMBOL_COUNT == 2, "Expected 2 symbols");
+        assert_eq!(
+            vec_of_vec[0].len(),
+            STATE_COUNT,
+            "Expected STATE_COUNT columns"
+        );
 
         Program(
-            (0..vec_of_vec[0].len()) // Iterate over 5 states
+            (0..STATE_COUNT)
                 .map(|_state| {
                     [
                         vec_of_vec[0].remove(0), // Remove first item, shifting the rest left
@@ -153,8 +173,8 @@ impl Program {
                     ]
                 })
                 .collect::<Vec<_>>() // Collect into Vec<PerState>
-                .try_into() // Convert Vec<PerState> into [PerState; 5]
-                .unwrap(), // Ensure length is exactly 5
+                .try_into() // Convert Vec<PerState> into [PerState; STATE_COUNT]
+                .unwrap(), // Ensure length is exactly STATE_COUNT
         )
     }
 }
