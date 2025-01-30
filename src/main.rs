@@ -19,15 +19,9 @@ fn main() {
         state: 0,
     };
 
-    let mod_base = 10_000;
-    for (step_count, _) in (&mut machine).enumerate() {
-        if step_count % mod_base == 0 {
-            println!(
-                "Step: {}: Machine {machine:?}",
-                step_count.separate_with_commas()
-            );
-        }
-    }
+    let debug_interval = 10_000_000;
+    let step_count = machine.debug_count(debug_interval);
+
     println!(
         "Final: Step {}: {:?}, #1's {}",
         step_count.separate_with_commas(),
@@ -35,6 +29,12 @@ fn main() {
         machine.tape.count_ones()
     );
 }
+
+const CHAMP_STRING: &str = "
+    A	B	C	D	E
+0	1RB	1RC	1RD	1LA	1RH
+1	1LC	1RB	0LE	1LD	0LA
+";
 
 #[derive(Default, Debug)]
 struct Tape {
@@ -192,8 +192,27 @@ enum Direction {
     Right,
 }
 
-const CHAMP_STRING: &str = "
-    A	B	C	D	E
-0	1RB	1RC	1RD	1LA	1RH
-1	1LC	1RB	0LE	1LD	0LA
-";
+/// A trait for iterators that can print debug output at intervals.
+pub trait DebuggableIterator: Iterator {
+    /// Runs the iterator while printing debug output at intervals.
+    #[inline]
+    fn debug_count(&mut self, debug_interval: usize) -> usize
+    where
+        Self: Sized + std::fmt::Debug, // ✅ Ensure Debug is implemented
+    {
+        let mut step_count = 0;
+
+        while let Some(_) = self.next() {
+            // ✅ Works for any iterator
+            if step_count % debug_interval == 0 {
+                println!("Step {}: {:?}", step_count.separate_with_commas(), self);
+            }
+            step_count += 1;
+        }
+
+        step_count
+    }
+}
+
+// Implement the trait for all Iterators
+impl<T> DebuggableIterator for T where T: Iterator + std::fmt::Debug {}
