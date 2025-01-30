@@ -1,22 +1,23 @@
 use core::fmt;
 use derive_more::Error as DeriveError;
-use derive_more::derive::{Display, From};
+use derive_more::derive::Display;
 use std::{
     ops::{Index, IndexMut},
     str::FromStr,
 };
 use thousands::Separable;
 
-const STATE_COUNT: usize = 5;
+// cmk const STATE_COUNT: usize = 5;
 
 // Don't change these constants
-const STATE_COUNT_U8: u8 = STATE_COUNT as u8;
+// cmk const STATE_COUNT_U8: u8 = STATE_COUNT as u8;
 const SYMBOL_COUNT: usize = 2;
 
 fn main() -> Result<(), Error> {
-    let program: Program = CHAMP_STRING.parse()?;
+    const STATE_COUNT: usize = 5;
+    let program: Program<STATE_COUNT> = BB5_CHAMP.parse()?;
 
-    let mut machine = Machine {
+    let mut machine: Machine<'_, STATE_COUNT> = Machine {
         tape: Tape::default(),
         tape_index: 0,
         program: &program,
@@ -36,10 +37,22 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-const CHAMP_STRING: &str = "
+const BB4_CHAMP: &str = "
+	A	B	C	D
+0	1RB	1LA	1RH	1RD
+1	1LB	0LC	1LD	0RA
+";
+
+const BB5_CHAMP: &str = "
     A	B	C	D	E
 0	1RB	1RC	1RD	1LA	1RH
 1	1LC	1RB	0LE	1LD	0LA
+";
+
+const BB6_CONTENDER: &str = "
+    	A	B	C	D	E	F
+0	1RB	1RC	1LC	0LE	1LF	0RC
+1	0LD	0RF	1LA	1RH	0RB	0RE
 ";
 
 #[derive(Default, Debug)]
@@ -87,14 +100,14 @@ impl Tape {
     }
 }
 
-struct Machine<'a> {
+struct Machine<'a, const STATE_COUNT: usize> {
     state: u8,
     tape_index: i32,
     tape: Tape,
-    program: &'a Program,
+    program: &'a Program<STATE_COUNT>,
 }
 
-impl fmt::Debug for Machine<'_> {
+impl<const STATE_COUNT: usize> fmt::Debug for Machine<'_, STATE_COUNT> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -104,7 +117,7 @@ impl fmt::Debug for Machine<'_> {
     }
 }
 
-impl Iterator for Machine<'_> {
+impl<const STATE_COUNT: usize> Iterator for Machine<'_, STATE_COUNT> {
     type Item = ();
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -116,18 +129,18 @@ impl Iterator for Machine<'_> {
             Direction::Right => 1,
         };
         self.state = per_input.next_state;
-        (per_input.next_state < STATE_COUNT_U8).then_some(())
+        (per_input.next_state < STATE_COUNT as u8).then_some(())
     }
 }
 
 #[derive(Debug)]
-struct Program([[PerInput; SYMBOL_COUNT]; STATE_COUNT]);
+struct Program<const STATE_COUNT: usize>([[PerInput; SYMBOL_COUNT]; STATE_COUNT]);
 
 // impl a parser for the strings like this
 // "   A	B	C	D	E
 // 0	1RB	1RC	1RD	1LA	1RH
 // 1	1LC	1RB	0LE	1LD	0LA"
-impl FromStr for Program {
+impl<const STATE_COUNT: usize> FromStr for Program<STATE_COUNT> {
     type Err = Error;
 
     #[allow(clippy::assertions_on_constants)]
@@ -184,8 +197,18 @@ impl FromStr for Program {
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
         // Ensure proper dimensions (2 x STATE_COUNT)
-        if vec_of_vec.len() != SYMBOL_COUNT || vec_of_vec[0].len() != STATE_COUNT {
-            return Err(Error::InvalidLength);
+        if vec_of_vec.len() != SYMBOL_COUNT {
+            return Err(Error::InvalidSymbolsCount {
+                expected: SYMBOL_COUNT,
+                got: vec_of_vec.len(),
+            });
+        }
+
+        if vec_of_vec[0].len() != STATE_COUNT {
+            return Err(Error::InvalidStatesCount {
+                expected: STATE_COUNT,
+                got: vec_of_vec[0].len(),
+            });
         }
 
         // Convert to fixed-size array
@@ -244,7 +267,7 @@ pub trait DebuggableIterator: Iterator {
 impl<T> DebuggableIterator for T where T: Iterator + std::fmt::Debug {}
 
 /// Error type for parsing a `Program` from a string.
-#[derive(Debug, Display, DeriveError, From)]
+#[derive(Debug, Display, DeriveError)]
 pub enum Error {
     #[display("Invalid number format: {}", _0)]
     ParseIntError(std::num::ParseIntError),
@@ -255,12 +278,22 @@ pub enum Error {
     #[display("Unexpected empty field in input")]
     MissingField,
 
-    #[display("Unexpected input length")]
-    InvalidLength,
+    #[display("Unexpected symbols count. Expected {} and got {}", expected, got)]
+    InvalidSymbolsCount { expected: usize, got: usize },
+
+    #[display("Unexpected states count. Expected {} and got {}", expected, got)]
+    InvalidStatesCount { expected: usize, got: usize },
 
     #[display("Failed to convert to array")]
     ArrayConversionError,
 
     #[display("Unexpected symbol encountered")]
     UnexpectedSymbol,
+}
+
+// Implement conversions manually where needed
+impl From<std::num::ParseIntError> for Error {
+    fn from(err: std::num::ParseIntError) -> Self {
+        Error::ParseIntError(err)
+    }
 }

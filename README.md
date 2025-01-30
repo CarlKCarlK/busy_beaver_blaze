@@ -6,7 +6,7 @@ This repository contains a Rust implementation of the [Busy Beaver](https://en.w
 
 The program simulates a Turing machine with the following characteristics:
 
-- 5 states
+- *N* states
 - 2 symbols (0 and 1)
 - A bidirectional infinite tape
 - Debugging output at configurable intervals
@@ -19,9 +19,10 @@ cargo run --release
 
 ```rust
 fn main() -> Result<(), Error> {
-    let program: Program = CHAMP_STRING.parse()?;
+    const STATE_COUNT: usize = 5;
+    let program: Program<STATE_COUNT> = BB5_CHAMP.parse()?;
 
-    let mut machine = Machine {
+    let mut machine: Machine<'_, STATE_COUNT> = Machine {
         tape: Tape::default(),
         tape_index: 0,
         program: &program,
@@ -56,7 +57,6 @@ Final: Step 47,176,869: Machine { state: 7, tape_index: -12242}, #1's 4098
 ## Wishlist
 
 - WASM version
-- Work on other size problems
 - Visualizations
 - Timing
 - Testing, especially for parsing
