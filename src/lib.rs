@@ -6,6 +6,7 @@ use std::{
     str::FromStr,
 };
 use thousands::Separable;
+use wasm_bindgen::prelude::*;
 
 const SYMBOL_COUNT: usize = 2;
 
@@ -72,14 +73,42 @@ impl Tape {
     }
 }
 
-struct Machine<'a, const STATE_COUNT: usize> {
+struct Machine<const STATE_COUNT: usize> {
     state: u8,
     tape_index: i32,
     tape: Tape,
-    program: &'a Program<STATE_COUNT>,
+    program: Program<STATE_COUNT>,
 }
 
-impl<const STATE_COUNT: usize> fmt::Debug for Machine<'_, STATE_COUNT> {
+// #[wasm_bindgen]
+// impl Machine {
+//     #[wasm_bindgen(constructor)]
+//     pub fn from_string(input: &str) -> Result<Machine, Error> {
+//         input.parse()
+//     }
+
+//     #[wasm_bindgen]
+//     pub fn step(&mut self) -> Option<()> {
+//         self.next()
+//     }
+// }
+impl<const STATE_COUNT: usize> FromStr for Machine<STATE_COUNT> {
+    type Err = Error;
+
+    #[allow(clippy::assertions_on_constants)]
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let program: Program<STATE_COUNT> = input.parse()?;
+
+        Ok(Machine {
+            tape: Tape::default(),
+            tape_index: 0,
+            program,
+            state: 0,
+        })
+    }
+}
+
+impl<const STATE_COUNT: usize> fmt::Debug for Machine<STATE_COUNT> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -89,7 +118,7 @@ impl<const STATE_COUNT: usize> fmt::Debug for Machine<'_, STATE_COUNT> {
     }
 }
 
-impl<const STATE_COUNT: usize> Iterator for Machine<'_, STATE_COUNT> {
+impl<const STATE_COUNT: usize> Iterator for Machine<STATE_COUNT> {
     type Item = ();
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -273,19 +302,14 @@ impl From<std::num::ParseIntError> for Error {
 // tests
 #[cfg(test)]
 mod tests {
+    use wasm_bindgen_test::wasm_bindgen_test;
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     use super::*;
 
+    #[wasm_bindgen_test]
     #[test]
     fn bb5_champ() -> Result<(), Error> {
-        const STATE_COUNT: usize = 5;
-        let program: Program<STATE_COUNT> = BB5_CHAMP.parse()?;
-
-        let mut machine: Machine<'_, STATE_COUNT> = Machine {
-            tape: Tape::default(),
-            tape_index: 0,
-            program: &program,
-            state: 0,
-        };
+        let mut machine: Machine<5> = BB5_CHAMP.parse()?;
 
         let debug_interval = 10_000_000;
         let step_count = machine.debug_count(debug_interval);
