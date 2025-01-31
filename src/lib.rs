@@ -8,8 +8,6 @@ use std::{
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 
-const SYMBOL_COUNT: usize = 2;
-
 const BB4_CHAMP: &str = "
 	A	B	C	D
 0	1RB	1LA	1RH	1RD
@@ -73,6 +71,7 @@ impl Tape {
     }
 }
 
+#[wasm_bindgen]
 struct Machine {
     state: u8,
     tape_index: i32,
@@ -80,18 +79,32 @@ struct Machine {
     program: Program,
 }
 
-// #[wasm_bindgen]
-// impl Machine {
-//     #[wasm_bindgen(constructor)]
-//     pub fn from_string(input: &str) -> Result<Machine, Error> {
-//         input.parse()
-//     }
+#[wasm_bindgen]
+impl Machine {
+    #[wasm_bindgen(constructor)]
+    pub fn from_string(input: &str) -> Result<Machine, String> {
+        input.parse().map_err(|e| format!("{:?}", e))
+    }
 
-//     #[wasm_bindgen]
-//     pub fn step(&mut self) -> Option<()> {
-//         self.next()
-//     }
-// }
+    #[wasm_bindgen]
+    pub fn step(&mut self) -> bool {
+        self.next().is_some()
+    }
+
+    #[wasm_bindgen]
+    pub fn count_js(&mut self, debug_interval: usize) -> usize {
+        let mut step_count = 0;
+
+        while self.step() {
+            // if step_count % debug_interval == 0 {
+            //     println!("Step {}: {:?}", step_count.separate_with_commas(), self);
+            // }
+            step_count += 1;
+        }
+
+        step_count + 1
+    }
+}
 impl FromStr for Machine {
     type Err = Error;
 
@@ -323,13 +336,35 @@ mod tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
     use super::*;
 
-    #[wasm_bindgen_test]
     #[test]
     fn bb5_champ() -> Result<(), Error> {
         let mut machine: Machine = BB5_CHAMP.parse()?;
 
         let debug_interval = 10_000_000;
         let step_count = machine.debug_count(debug_interval);
+
+        println!(
+            "Final: Steps {}: {:?}, #1's {}",
+            step_count.separate_with_commas(),
+            machine,
+            machine.tape.count_ones()
+        );
+
+        assert_eq!(step_count, 47_176_870);
+        assert_eq!(machine.tape.count_ones(), 4098);
+        assert_eq!(machine.state, 7);
+        assert_eq!(machine.tape_index, -12242);
+
+        Ok(())
+    }
+
+    #[wasm_bindgen_test]
+    #[test]
+    fn bb5_champ_js() -> Result<(), String> {
+        let mut machine: Machine = Machine::from_string(BB5_CHAMP)?;
+
+        let debug_interval = 10_000_000;
+        let step_count = machine.count_js(debug_interval);
 
         println!(
             "Final: Steps {}: {:?}, #1's {}",

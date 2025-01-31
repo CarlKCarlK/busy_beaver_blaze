@@ -56,6 +56,9 @@ Final: Step 47,176,869: Machine { state: 7, tape_index: -12242}, #1's 4098
 
 ## Wishlist
 
+- WASM features
+-- debug output at intervals
+-- optional end early
 - WASM version
 - Visualizations
 - Timing
