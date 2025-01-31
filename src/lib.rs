@@ -7,35 +7,7 @@ use std::{
 };
 use thousands::Separable;
 
-// cmk const STATE_COUNT: usize = 5;
-
-// Don't change these constants
-// cmk const STATE_COUNT_U8: u8 = STATE_COUNT as u8;
 const SYMBOL_COUNT: usize = 2;
-
-fn main() -> Result<(), Error> {
-    const STATE_COUNT: usize = 5;
-    let program: Program<STATE_COUNT> = BB5_CHAMP.parse()?;
-
-    let mut machine: Machine<'_, STATE_COUNT> = Machine {
-        tape: Tape::default(),
-        tape_index: 0,
-        program: &program,
-        state: 0,
-    };
-
-    let debug_interval = 10_000_000;
-    let step_count = machine.debug_count(debug_interval);
-
-    println!(
-        "Final: Step {}: {:?}, #1's {}",
-        step_count.separate_with_commas(),
-        machine,
-        machine.tape.count_ones()
-    );
-
-    Ok(())
-}
 
 const BB4_CHAMP: &str = "
 	A	B	C	D
@@ -259,7 +231,7 @@ pub trait DebuggableIterator: Iterator {
             step_count += 1;
         }
 
-        step_count
+        step_count + 1
     }
 }
 
@@ -295,5 +267,41 @@ pub enum Error {
 impl From<std::num::ParseIntError> for Error {
     fn from(err: std::num::ParseIntError) -> Self {
         Error::ParseIntError(err)
+    }
+}
+
+// tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bb5_champ() -> Result<(), Error> {
+        const STATE_COUNT: usize = 5;
+        let program: Program<STATE_COUNT> = BB5_CHAMP.parse()?;
+
+        let mut machine: Machine<'_, STATE_COUNT> = Machine {
+            tape: Tape::default(),
+            tape_index: 0,
+            program: &program,
+            state: 0,
+        };
+
+        let debug_interval = 10_000_000;
+        let step_count = machine.debug_count(debug_interval);
+
+        println!(
+            "Final: Steps {}: {:?}, #1's {}",
+            step_count.separate_with_commas(),
+            machine,
+            machine.tape.count_ones()
+        );
+
+        assert_eq!(step_count, 47_176_870);
+        assert_eq!(machine.tape.count_ones(), 4098);
+        assert_eq!(machine.state, 7);
+        assert_eq!(machine.tape_index, -12242);
+
+        Ok(())
     }
 }

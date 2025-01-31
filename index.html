@@ -1,0 +1,28 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Line Counter</title>
+</head>
+<body>
+    <h1>Line Counter</h1>
+    <input type="file" id="fileInput" />
+    <p id="lineCount">Lines in file: </p>
+    <script>
+        const output = document.getElementById('lineCount');
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) { output.innerHTML = ''; return } // No file selected
+            const reader = new FileReader();
+            // When the file is fully read
+            reader.onload = async (e) => {                
+                const content = e.target.result;
+                const lines = content.split(/\r\n|\n/).length;
+                output.textContent = `Lines in file: ${lines}`;
+            };
+            // Now start to read the file as text
+            reader.readAsText(file);
+        });
+    </script>
+</body>
+</html>
