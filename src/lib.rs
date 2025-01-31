@@ -73,11 +73,11 @@ impl Tape {
     }
 }
 
-struct Machine<const STATE_COUNT: usize> {
+struct Machine {
     state: u8,
     tape_index: i32,
     tape: Tape,
-    program: Program<STATE_COUNT>,
+    program: Program,
 }
 
 // #[wasm_bindgen]
@@ -92,12 +92,12 @@ struct Machine<const STATE_COUNT: usize> {
 //         self.next()
 //     }
 // }
-impl<const STATE_COUNT: usize> FromStr for Machine<STATE_COUNT> {
+impl FromStr for Machine {
     type Err = Error;
 
     #[allow(clippy::assertions_on_constants)]
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let program: Program<STATE_COUNT> = input.parse()?;
+        let program: Program = input.parse()?;
 
         Ok(Machine {
             tape: Tape::default(),
@@ -108,7 +108,7 @@ impl<const STATE_COUNT: usize> FromStr for Machine<STATE_COUNT> {
     }
 }
 
-impl<const STATE_COUNT: usize> fmt::Debug for Machine<STATE_COUNT> {
+impl fmt::Debug for Machine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -118,30 +118,35 @@ impl<const STATE_COUNT: usize> fmt::Debug for Machine<STATE_COUNT> {
     }
 }
 
-impl<const STATE_COUNT: usize> Iterator for Machine<STATE_COUNT> {
+impl Iterator for Machine {
     type Item = ();
 
     fn next(&mut self) -> Option<Self::Item> {
         let input = self.tape[self.tape_index];
-        let per_input = &self.program.0[self.state as usize][input as usize];
+        let program = &self.program;
+        let per_input = &program.inner[self.state as usize][input as usize];
         self.tape[self.tape_index] = per_input.next_symbol;
         self.tape_index += match per_input.direction {
             Direction::Left => -1,
             Direction::Right => 1,
         };
         self.state = per_input.next_state;
-        (per_input.next_state < STATE_COUNT as u8).then_some(())
+        (per_input.next_state < program.state_count as u8).then_some(())
     }
 }
 
 #[derive(Debug)]
-struct Program<const STATE_COUNT: usize>([[PerInput; SYMBOL_COUNT]; STATE_COUNT]);
+struct Program {
+    state_count: usize,
+    symbol_count: usize,
+    inner: Vec<Vec<PerInput>>,
+}
 
 // impl a parser for the strings like this
 // "   A	B	C	D	E
 // 0	1RB	1RC	1RD	1LA	1RH
 // 1	1LC	1RB	0LE	1LD	0LA"
-impl<const STATE_COUNT: usize> FromStr for Program<STATE_COUNT> {
+impl FromStr for Program {
     type Err = Error;
 
     #[allow(clippy::assertions_on_constants)]
@@ -198,34 +203,46 @@ impl<const STATE_COUNT: usize> FromStr for Program<STATE_COUNT> {
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
         // Ensure proper dimensions (2 x STATE_COUNT)
-        if vec_of_vec.len() != SYMBOL_COUNT {
+        let symbol_count = vec_of_vec.len();
+        if symbol_count == 0 {
             return Err(Error::InvalidSymbolsCount {
-                expected: SYMBOL_COUNT,
-                got: vec_of_vec.len(),
+                expected: 1,
+                got: 0,
             });
         }
 
-        if vec_of_vec[0].len() != STATE_COUNT {
+        let state_count = vec_of_vec[0].len();
+        if state_count == 0 {
             return Err(Error::InvalidStatesCount {
-                expected: STATE_COUNT,
-                got: vec_of_vec[0].len(),
+                expected: 1,
+                got: 0,
             });
         }
 
-        // Convert to fixed-size array
-        debug_assert!(SYMBOL_COUNT == 2);
-        let (row_0, row_1) = vec_of_vec.split_at_mut(1);
+        // Preallocate transposed vec_of_vec (state_count x symbol_count)
+        let mut inner: Vec<Vec<PerInput>> = (0..state_count)
+            .map(|_| Vec::with_capacity(symbol_count))
+            .collect();
 
-        let program: [[PerInput; 2]; STATE_COUNT] =
-            row_0[0] // First row
-                .drain(..) // Moves out of the first vector
-                .zip(row_1[0].drain(..)) // Moves out of the second vector
-                .map(|(a, b)| [a, b]) // Create fixed-size arrays
-                .collect::<Vec<_>>() // Collect into Vec<[PerInput; 2]>
-                .try_into() // Try to convert Vec into [[PerInput; 2]; STATE_COUNT]
-                .map_err(|_vec: Vec<[PerInput; 2]>| Error::ArrayConversionError)?; // Map error properly
+        // Drain and fill the transposed matrix
+        for mut row in vec_of_vec.drain(..) {
+            if row.len() != state_count {
+                return Err(Error::InvalidStatesCount {
+                    expected: state_count,
+                    got: row.len(),
+                });
+            }
 
-        Ok(Program(program))
+            for (i, item) in row.drain(..).enumerate() {
+                inner[i].push(item); // Move item into transposed[i]
+            }
+        }
+
+        Ok(Program {
+            state_count,
+            symbol_count,
+            inner,
+        })
     }
 }
 
@@ -309,7 +326,7 @@ mod tests {
     #[wasm_bindgen_test]
     #[test]
     fn bb5_champ() -> Result<(), Error> {
-        let mut machine: Machine<5> = BB5_CHAMP.parse()?;
+        let mut machine: Machine = BB5_CHAMP.parse()?;
 
         let debug_interval = 10_000_000;
         let step_count = machine.debug_count(debug_interval);
