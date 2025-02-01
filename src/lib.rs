@@ -103,7 +103,7 @@ impl Machine {
             step_count += 1;
         }
 
-        step_count + 1
+        step_count
     }
 
     #[inline]
@@ -151,16 +151,16 @@ impl Iterator for Machine {
     type Item = ();
 
     fn next(&mut self) -> Option<Self::Item> {
-        let input = self.tape[self.tape_index];
         let program = &self.program;
+        if self.state as usize >= program.state_count {
+            return None;
+        }
+        let input = self.tape[self.tape_index];
         let per_input = &program.inner[self.state as usize][input as usize];
         self.tape[self.tape_index] = per_input.next_symbol;
-        self.tape_index += match per_input.direction {
-            Direction::Left => -1,
-            Direction::Right => 1,
-        };
+        self.tape_index += per_input.direction as i32;
         self.state = per_input.next_state;
-        (per_input.next_state < program.state_count as u8).then_some(())
+        Some(())
     }
 }
 
@@ -168,7 +168,7 @@ impl Iterator for Machine {
 struct Program {
     state_count: usize,
     symbol_count: usize,
-    inner: Vec<Vec<PerInput>>,
+    inner: Vec<Vec<Action>>,
 }
 
 // impl a parser for the strings like this
@@ -190,7 +190,7 @@ impl FromStr for Program {
         }
 
         // Create a vector of vectors, e.g. 2 x 5
-        let mut vec_of_vec: Vec<Vec<PerInput>> = lines
+        let mut vec_of_vec: Vec<Vec<Action>> = lines
             .enumerate()
             .map(|(symbol, line)| {
                 let mut parts = line.split_whitespace();
@@ -212,8 +212,8 @@ impl FromStr for Program {
                             _ => return Err(Error::InvalidChar),
                         };
                         let direction = match asciis[1] {
-                            b'L' => Direction::Left,
-                            b'R' => Direction::Right,
+                            b'L' => -1,
+                            b'R' => 1,
                             _ => return Err(Error::InvalidChar),
                         };
                         let next_state = match asciis[2] {
@@ -221,7 +221,7 @@ impl FromStr for Program {
                             _ => return Err(Error::InvalidChar),
                         };
 
-                        Ok(PerInput {
+                        Ok(Action {
                             next_state,
                             next_symbol,
                             direction,
@@ -249,7 +249,7 @@ impl FromStr for Program {
         }
 
         // Preallocate transposed vec_of_vec (state_count x symbol_count)
-        let mut inner: Vec<Vec<PerInput>> = (0..state_count)
+        let mut inner: Vec<Vec<Action>> = (0..state_count)
             .map(|_| Vec::with_capacity(symbol_count))
             .collect();
 
@@ -276,16 +276,10 @@ impl FromStr for Program {
 }
 
 #[derive(Debug)]
-struct PerInput {
+struct Action {
     next_state: u8,
     next_symbol: u8,
-    direction: Direction,
-}
-
-#[derive(Debug)]
-enum Direction {
-    Left,
-    Right,
+    direction: i8,
 }
 
 /// A trait for iterators that can print debug output at intervals.
@@ -308,7 +302,7 @@ pub trait DebuggableIterator: Iterator {
             step_count += 1;
         }
 
-        step_count + 1
+        step_count
     }
 }
 
