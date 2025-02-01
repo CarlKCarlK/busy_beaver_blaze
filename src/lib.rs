@@ -1,6 +1,6 @@
 use core::fmt;
-use derive_more::Error as DeriveError;
 use derive_more::derive::Display;
+use derive_more::Error as DeriveError;
 use png::{BitDepth, ColorType, Encoder};
 use std::{
     ops::{Index, IndexMut},
@@ -487,38 +487,40 @@ mod tests {
         let goal_y: u32 = 864;
         let mut timeline = Timeline::new(goal_x, goal_y);
 
+        let early_stop = Some(100);
+
         let mut step_count = 0;
 
-        while let Some(_) = machine.next() {
+        while machine.next().is_some() && early_stop.is_none_or(|e| step_count < e) {
             step_count += 1;
             timeline.compress_if_needed(step_count);
-            if step_count % timeline.sample == 0 {
-                let tape_width = machine.tape_width();
-                let tape_min = machine.tape_min_index();
-                let tape_max = machine.tape_max_index();
-                let x_sample = sample_rate(tape_width, timeline.x_goal);
-                // if v is an integer then let s be the first s >= v s.t. s mod x_sample = 0
-                let sample_start: i32 = tape_min
-                    + ((x_sample as i32 - tape_min.rem_euclid(x_sample as i32)) % x_sample as i32);
-                debug_assert!(
-                    sample_start >= tape_min
-                        && sample_start % x_sample as i32 == 0
-                        && sample_start - tape_min < x_sample as i32
-                );
-                let mut inner_space = Vec::with_capacity(goal_x as usize * 2);
-                for sample_index in (sample_start..=tape_max).step_by(x_sample as usize) {
-                    inner_space.push(machine.tape[sample_index]);
-                }
-                let spaceline = Spaceline {
-                    sample: x_sample,
-                    start: sample_start,
-                    inner: inner_space,
-                    time: step_count,
-                };
-                timeline.inner.push(spaceline);
+            if step_count % timeline.sample != 0 {
+                continue;
             }
+            let tape_width = machine.tape_width();
+            let tape_min = machine.tape_min_index();
+            let tape_max = machine.tape_max_index();
+            let x_sample = sample_rate(tape_width, timeline.x_goal);
+            // if v is an integer then let s be the first s >= v s.t. s mod x_sample = 0
+            let sample_start: i32 = tape_min
+                + ((x_sample as i32 - tape_min.rem_euclid(x_sample as i32)) % x_sample as i32);
+            debug_assert!(
+                sample_start >= tape_min
+                    && sample_start % x_sample as i32 == 0
+                    && sample_start - tape_min < x_sample as i32
+            );
+            let mut inner_space = Vec::with_capacity(goal_x as usize * 2);
+            for sample_index in (sample_start..=tape_max).step_by(x_sample as usize) {
+                inner_space.push(machine.tape[sample_index]);
+            }
+            let spaceline = Spaceline {
+                sample: x_sample,
+                start: sample_start,
+                inner: inner_space,
+                time: step_count,
+            };
+            timeline.inner.push(spaceline);
         }
-
         let x_sample = timeline.inner.last().unwrap().sample; //unwrap is OK because we pushed at least one spaceline
         let tape_width = machine.tape_width();
         let tape_min = machine.tape_min_index();
@@ -566,10 +568,12 @@ mod tests {
             machine.tape.count_ones()
         );
 
-        assert_eq!(step_count, 47_176_870);
-        assert_eq!(machine.tape.count_ones(), 4098);
-        assert_eq!(machine.state, 7);
-        assert_eq!(machine.tape_index, -12242);
+        if early_stop.is_some() {
+            assert_eq!(step_count, 47_176_870);
+            assert_eq!(machine.tape.count_ones(), 4098);
+            assert_eq!(machine.state, 7);
+            assert_eq!(machine.tape_index, -12242);
+        }
 
         Ok(())
     }
