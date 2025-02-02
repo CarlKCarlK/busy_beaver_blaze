@@ -514,12 +514,12 @@ mod tests {
         // let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
         let mut machine: Machine = BB5_CHAMP.parse()?;
 
-        let goal_x: u32 = 5000;
+        let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
         let mut timeline = Timeline::new(goal_x, goal_y);
 
-        let early_stop = Some(10_500_000);
-        let debug_interval = Some(500_000);
+        let early_stop = Some(100_500_000);
+        let debug_interval = Some(5_000_000);
 
         let mut step_count = 0;
 
@@ -545,51 +545,68 @@ mod tests {
             let tape_min_index = machine.tape.min_index();
             let tape_max_index = machine.tape.max_index();
             let x_sample = sample_rate(tape_width, timeline.x_goal);
+            // println!("tape_width: {}, x_sample: {}", tape_width, x_sample);
             // if v is an integer then let s be the first s >= v s.t. s mod x_sample = 0
             let sample_start: i32 = tape_min_index
                 + ((x_sample as i32 - tape_min_index.rem_euclid(x_sample as i32))
                     % x_sample as i32);
+            // println!(
+            //     "tape_min_index: {}, tape_min_index_max: {}, sample_start: {}",
+            //     tape_min_index, tape_max_index, sample_start
+            // );
             debug_assert!(
                 sample_start >= tape_min_index
                     && sample_start % x_sample as i32 == 0
                     && sample_start - tape_min_index < x_sample as i32
             );
-            let mut inner_space = Vec::with_capacity(goal_x as usize * 2);
+            let mut values = Vec::with_capacity(goal_x as usize * 2);
             for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-                inner_space.push(machine.tape[sample_index]);
+                // println!("...sample_index: {}", sample_index);
+                values.push(machine.tape[sample_index]);
             }
             let spaceline = Spaceline {
                 sample: x_sample,
                 start: sample_start,
-                values: inner_space,
+                values,
                 time: step_count,
             };
             timeline.spacelines.push(spaceline);
         }
-        let x_sample = timeline.spacelines.last().unwrap().sample; //unwrap is OK because we pushed at least one spaceline
-        let tape_width = machine.tape.width();
-        let tape_min = machine.tape.min_index();
-        let x_actual = tape_width / x_sample;
+
+        let last = timeline.spacelines.last().unwrap(); //unwrap is OK because we pushed at least one spaceline
+        let x_sample: u32 = last.sample;
+        let tape_width: u32 = last.values.len() as u32 * x_sample;
+        let tape_min_index = last.start;
+        let x_actual: u32 = tape_width / x_sample;
         let y_actual = timeline.spacelines.len() as u32;
         // cmk assuming 1 color per bit
         let row_bytes = ((x_actual as usize) + 7) / 8;
         let mut packed_data = vec![0u8; row_bytes * (y_actual as usize)];
-        for y in 0..y_actual {
+        // first row is always empty, so start at 1
+        for y in 1..y_actual {
             let spaceline = &timeline.spacelines[y as usize];
             let local_start = spaceline.start;
             // println!("cmk: local_start: {}", local_start);
             let local_sample = spaceline.sample;
             let row_start_byte_index: u32 = y * row_bytes as u32;
-            let x_start = int_div_ceil(local_start - tape_min, local_sample as i32);
+            let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i32);
+            // println!("y: {}, x_start: {}", y, x_start);
             for x in x_start as u32..x_actual {
-                let tape_index: i32 = (x * local_sample) as i32 + tape_min;
+                let tape_index: i32 = (x * x_sample) as i32 + tape_min_index;
+                // if tape_index < local_start {
+                //     continue;
+                // }
                 debug_assert!(
                     tape_index >= local_start,
-                    "real assert if x_start is correct"
+                    "real assert sif x_start is correct"
                 );
-                if tape_index % x_sample as i32 != 0 {
-                    continue;
-                }
+                // println!(
+                //     "y: {}, x: {}, tape_index: {}, x_sample: {}, local_sample: {}",
+                //     y, x, tape_index, x_sample, local_sample
+                // );
+                // if (tape_index - tape_min) % x_sample as i32 != 0 {
+                //     continue;
+                // }
                 let local_spaceline_index: i32 = (tape_index - local_start) / local_sample as i32;
                 if local_spaceline_index >= spaceline.values.len() as i32 {
                     break;
