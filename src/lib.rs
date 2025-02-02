@@ -9,6 +9,17 @@ use std::{
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 
+const BB2_CHAMP: &str = "
+	A	B
+0	1RB	1LA
+1	1LB	1RH
+";
+
+const BB3_CHAMP: &str = "
+	A	B	C
+0	1RB	0RC	1LC
+1	1RH	1RB	1LA
+";
 const BB4_CHAMP: &str = "
 	A	B	C	D
 0	1RB	1LA	1RH	1RD
@@ -70,6 +81,29 @@ impl Tape {
             .map(|&x| (x == 1) as usize)
             .sum()
     }
+
+    fn index_to_string(&self, index: i32) -> String {
+        let mut s = format!("{}: ", index);
+        for i in -10..=self.max_index() {
+            s.push_str(&self[i].to_string());
+        }
+        s
+    }
+
+    #[inline]
+    pub fn min_index(&self) -> i32 {
+        -(self.negative.len() as i32)
+    }
+
+    #[inline]
+    pub fn max_index(&self) -> i32 {
+        self.nonnegative.len() as i32 - 1
+    }
+
+    #[inline]
+    pub fn width(&self) -> u32 {
+        (self.max_index() - self.min_index() + 1) as u32
+    }
 }
 
 #[wasm_bindgen]
@@ -104,21 +138,6 @@ impl Machine {
         }
 
         step_count
-    }
-
-    #[inline]
-    pub fn tape_min_index(&self) -> i32 {
-        -(self.tape.negative.len() as i32)
-    }
-
-    #[inline]
-    pub fn tape_max_index(&self) -> i32 {
-        self.tape.nonnegative.len() as i32 - 1
-    }
-
-    #[inline]
-    pub fn tape_width(&self) -> u32 {
-        (self.tape_max_index() - self.tape_min_index() + 1) as u32
     }
 }
 impl FromStr for Machine {
@@ -366,7 +385,7 @@ struct Timeline {
     x_goal: u32,
     y_goal: u32,
     sample: u32,
-    inner: Vec<Spaceline>,
+    spacelines: Vec<Spaceline>,
 }
 
 /// Create a new in which you give the x_goal (space)
@@ -379,14 +398,14 @@ impl Timeline {
             x_goal: x_goal,
             y_goal: y_goal,
             sample: 1,
-            inner: vec![Spaceline::default()],
+            spacelines: vec![Spaceline::default()],
         }
     }
 
     fn compress_if_needed(&mut self, step_count: u32) {
         let new_sample = sample_rate(step_count, self.y_goal);
         if new_sample != self.sample {
-            self.inner
+            self.spacelines
                 .retain(|spaceline| spaceline.time % new_sample == 0);
             self.sample = new_sample;
         }
@@ -410,8 +429,10 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
         let mut encoder = Encoder::new(&mut buf, width, height);
         encoder.set_color(ColorType::Indexed);
         encoder.set_depth(BitDepth::One);
-        // Set a palette—for example, black and white.
-        encoder.set_palette(vec![0, 0, 0, 255, 255, 255]);
+        encoder.set_palette(vec![
+            255, 255, 255, // White (Background, 0)
+            255, 165, 0, // Orange (Foreground, 1)
+        ]);
 
         // Instead of using the stream writer, get a writer that can encode
         // the entire image data in one go.
@@ -479,38 +500,56 @@ mod tests {
         Ok(())
     }
 
+    // cmk: really need to understand i32/u32/usize/isize/u64/i64
+
+    /// See https://en.wikipedia.org/wiki/Busy_beaver
     #[test]
     fn bb5_champ_space_time() -> Result<(), Error> {
-        let mut machine: Machine = BB5_CHAMP.parse()?;
+        // let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
+        let mut machine: Machine = BB3_CHAMP.parse()?;
 
-        let goal_x: u32 = 720;
-        let goal_y: u32 = 864;
+        let goal_x: u32 = 100;
+        let goal_y: u32 = 1000;
         let mut timeline = Timeline::new(goal_x, goal_y);
 
         let early_stop = Some(100);
+        let debug_interval = Some(1);
 
         let mut step_count = 0;
 
-        while machine.next().is_some() && early_stop.is_none_or(|e| step_count < e) {
+        while machine.next().is_some()
+            && early_stop.is_none_or(|early_stop| step_count < early_stop)
+        {
             step_count += 1;
+
+            if debug_interval.is_none_or(|debug_interval| step_count % debug_interval == 0) {
+                println!(
+                    "Step {}: {:?},\t{}",
+                    step_count.separate_with_commas(),
+                    machine,
+                    machine.tape.index_to_string(-10)
+                );
+            }
+
             timeline.compress_if_needed(step_count);
             if step_count % timeline.sample != 0 {
                 continue;
             }
-            let tape_width = machine.tape_width();
-            let tape_min = machine.tape_min_index();
-            let tape_max = machine.tape_max_index();
+            let tape_width = machine.tape.width();
+            let tape_min_index = machine.tape.min_index();
+            let tape_max_index = machine.tape.max_index();
             let x_sample = sample_rate(tape_width, timeline.x_goal);
             // if v is an integer then let s be the first s >= v s.t. s mod x_sample = 0
-            let sample_start: i32 = tape_min
-                + ((x_sample as i32 - tape_min.rem_euclid(x_sample as i32)) % x_sample as i32);
+            let sample_start: i32 = tape_min_index
+                + ((x_sample as i32 - tape_min_index.rem_euclid(x_sample as i32))
+                    % x_sample as i32);
             debug_assert!(
-                sample_start >= tape_min
+                sample_start >= tape_min_index
                     && sample_start % x_sample as i32 == 0
-                    && sample_start - tape_min < x_sample as i32
+                    && sample_start - tape_min_index < x_sample as i32
             );
             let mut inner_space = Vec::with_capacity(goal_x as usize * 2);
-            for sample_index in (sample_start..=tape_max).step_by(x_sample as usize) {
+            for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
                 inner_space.push(machine.tape[sample_index]);
             }
             let spaceline = Spaceline {
@@ -519,34 +558,34 @@ mod tests {
                 inner: inner_space,
                 time: step_count,
             };
-            timeline.inner.push(spaceline);
+            timeline.spacelines.push(spaceline);
         }
-        let x_sample = timeline.inner.last().unwrap().sample; //unwrap is OK because we pushed at least one spaceline
-        let tape_width = machine.tape_width();
-        let tape_min = machine.tape_min_index();
+        let x_sample = timeline.spacelines.last().unwrap().sample; //unwrap is OK because we pushed at least one spaceline
+        let tape_width = machine.tape.width();
+        let tape_min = machine.tape.min_index();
         let x_actual = tape_width / x_sample;
-        let y_actual = timeline.inner.len() as u32;
+        let y_actual = timeline.spacelines.len() as u32;
         // cmk assuming 1 color per bit
         let row_bytes = ((x_actual as usize) + 7) / 8;
         let mut packed_data = vec![0u8; row_bytes * (y_actual as usize)];
         for y in 0..y_actual {
-            let spaceline = &timeline.inner[y as usize];
+            let spaceline = &timeline.spacelines[y as usize];
             let local_start = spaceline.start;
+            println!("cmk: local_start: {}", local_start);
             let local_sample = spaceline.sample;
             let row_start_byte_index: u32 = y * row_bytes as u32;
             for x in 0..x_actual {
                 let bit_index = 7 - (x % 8); // PNG is backwards
                 let byte_index: u32 = x / 8 + row_start_byte_index;
-                let local_tape_index: i32 = local_start + (x * local_sample) as i32;
-                if local_tape_index < local_start {
+                let tape_index: i32 = (x * local_sample) as i32 + tape_min;
+                if tape_index < local_start {
                     continue;
                 }
-                if local_tape_index % x_sample as i32 != 0 {
+                if tape_index % x_sample as i32 != 0 {
                     // cmk better to use positive modulo?
                     continue;
                 }
-                let local_spaceline_index: i32 =
-                    (local_tape_index - local_start) / local_sample as i32;
+                let local_spaceline_index: i32 = (tape_index - local_start) / local_sample as i32;
                 if local_spaceline_index >= spaceline.inner.len() as i32 {
                     continue;
                 }
@@ -568,7 +607,7 @@ mod tests {
             machine.tape.count_ones()
         );
 
-        if early_stop.is_some() {
+        if early_stop.is_none() {
             assert_eq!(step_count, 47_176_870);
             assert_eq!(machine.tape.count_ones(), 4098);
             assert_eq!(machine.state, 7);

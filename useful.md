@@ -6,3 +6,9 @@
 set RUSTFLAGS=-C target-cpu=native -C opt-level=3
 cargo build --release
 ```
+
+## Rust image test
+
+```bash
+cargo test bb5_champ_space_time --release -- --nocapture
+```
