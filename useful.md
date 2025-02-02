@@ -12,3 +12,9 @@ cargo build --release
 ```bash
 cargo test bb5_champ_space_time --release -- --nocapture
 ```
+
+## Package for WASM
+
+```bash
+wasm-pack build --target web --release
+```

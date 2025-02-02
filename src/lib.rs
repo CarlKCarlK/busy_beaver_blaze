@@ -82,9 +82,9 @@ impl Tape {
             .sum()
     }
 
-    fn index_to_string(&self, index: i32) -> String {
-        let mut s = format!("{}: ", index);
-        for i in -10..=self.max_index() {
+    fn index_range_to_string(&self, range: std::ops::RangeInclusive<i32>) -> String {
+        let mut s = String::new();
+        for i in range {
             s.push_str(&self[i].to_string());
         }
         s
@@ -127,13 +127,25 @@ impl Machine {
     }
 
     #[wasm_bindgen]
-    pub fn count_js(&mut self, debug_interval: usize) -> usize {
+    pub fn space_time_js(&mut self, goal_x: u32, goal_y: u32, early_stop: Option<u32>) -> Vec<u8> {
+        let mut sampled_space_time = SampledSpaceTime::new(goal_x, goal_y);
+
+        while self.next().is_some()
+            && early_stop.is_none_or(|early_stop| sampled_space_time.step_count < early_stop)
+        {
+            sampled_space_time.snapshot(&self);
+        }
+
+        sampled_space_time
+            .to_png()
+            .unwrap_or_else(|e| format!("{:?}", e).into_bytes())
+    }
+
+    #[wasm_bindgen]
+    pub fn count_js(&mut self, early_stop: Option<u32>) -> u32 {
         let mut step_count = 0;
 
-        while self.step() {
-            // if step_count % debug_interval == 0 {
-            //     println!("Step {}: {:?}", step_count.separate_with_commas(), self);
-            // }
+        while self.next().is_some() && early_stop.is_none_or(|early_stop| step_count < early_stop) {
             step_count += 1;
         }
 
@@ -171,15 +183,16 @@ impl Iterator for Machine {
 
     fn next(&mut self) -> Option<Self::Item> {
         let program = &self.program;
-        if self.state as usize >= program.state_count {
-            return None;
-        }
         let input = self.tape[self.tape_index];
         let per_input = &program.inner[self.state as usize][input as usize];
         self.tape[self.tape_index] = per_input.next_symbol;
         self.tape_index += per_input.direction as i32;
         self.state = per_input.next_state;
-        Some(())
+        if (self.state as usize) < program.state_count {
+            Some(())
+        } else {
+            None
+        }
     }
 }
 
@@ -381,7 +394,8 @@ impl Default for Spaceline {
     }
 }
 
-struct Timeline {
+struct SampledSpaceTime {
+    step_count: u32,
     x_goal: u32,
     y_goal: u32,
     sample: u32,
@@ -392,23 +406,104 @@ struct Timeline {
 /// and the y_goal (time). The sample starts at 1 and
 /// inner is a vector of one spaceline
 
-impl Timeline {
+impl SampledSpaceTime {
     fn new(x_goal: u32, y_goal: u32) -> Self {
-        Timeline {
-            x_goal: x_goal,
-            y_goal: y_goal,
+        SampledSpaceTime {
+            step_count: 0,
+            x_goal,
+            y_goal,
             sample: 1,
             spacelines: vec![Spaceline::default()],
         }
     }
 
-    fn compress_if_needed(&mut self, step_count: u32) {
-        let new_sample = sample_rate(step_count, self.y_goal);
+    fn compress_if_needed(&mut self) {
+        let new_sample = sample_rate(self.step_count, self.y_goal);
         if new_sample != self.sample {
             self.spacelines
                 .retain(|spaceline| spaceline.time % new_sample == 0);
             self.sample = new_sample;
         }
+    }
+
+    fn snapshot(&mut self, machine: &Machine) {
+        self.step_count += 1;
+
+        if self.step_count % self.sample != 0 {
+            return;
+        }
+        self.compress_if_needed();
+
+        let tape = &machine.tape;
+        let tape_width = tape.width();
+        let tape_min_index = tape.min_index();
+        let tape_max_index = tape.max_index();
+        let x_sample = sample_rate(tape_width, self.x_goal);
+
+        let sample_start: i32 = tape_min_index
+            + ((x_sample as i32 - tape_min_index.rem_euclid(x_sample as i32)) % x_sample as i32);
+
+        debug_assert!(
+            sample_start >= tape_min_index
+                && sample_start % x_sample as i32 == 0
+                && sample_start - tape_min_index < x_sample as i32
+        );
+
+        let mut values = Vec::with_capacity(self.x_goal as usize * 2);
+        for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
+            values.push(tape[sample_index]);
+        }
+
+        self.spacelines.push(Spaceline {
+            sample: x_sample,
+            start: sample_start,
+            values,
+            time: self.step_count,
+        });
+    }
+
+    fn to_png(&self) -> Result<Vec<u8>, Error> {
+        let last = self.spacelines.last().unwrap(); // Safe because we always have at least one
+        let x_sample: u32 = last.sample;
+        let tape_width: u32 = last.values.len() as u32 * x_sample;
+        let tape_min_index = last.start;
+        let x_actual: u32 = tape_width / x_sample;
+        let y_actual = self.spacelines.len() as u32;
+
+        let row_bytes = ((x_actual as usize) + 7) / 8;
+        let mut packed_data = vec![0u8; row_bytes * (y_actual as usize)];
+
+        // First row is always empty, so start at 1
+        for y in 1..y_actual {
+            let spaceline = &self.spacelines[y as usize];
+            let local_start = spaceline.start;
+            let local_sample = spaceline.sample;
+            let row_start_byte_index: u32 = y * row_bytes as u32;
+            let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i32);
+
+            for x in x_start as u32..x_actual {
+                let tape_index: i32 = (x * x_sample) as i32 + tape_min_index;
+                debug_assert!(
+                    tape_index >= local_start,
+                    "real assert if x_start is correct"
+                );
+
+                let local_spaceline_index: i32 = (tape_index - local_start) / local_sample as i32;
+                if local_spaceline_index >= spaceline.values.len() as i32 {
+                    break;
+                }
+
+                let value = spaceline.values[local_spaceline_index as usize];
+                if value != 0 {
+                    debug_assert!(value == 1);
+                    let bit_index = 7 - (x % 8); // PNG is backwards
+                    let byte_index: u32 = x / 8 + row_start_byte_index;
+                    packed_data[byte_index as usize] |= 1 << bit_index;
+                }
+            }
+        }
+
+        encode_png(x_actual, y_actual, &packed_data)
     }
 }
 
@@ -486,8 +581,8 @@ mod tests {
     fn bb5_champ_js() -> Result<(), String> {
         let mut machine: Machine = Machine::from_string(BB5_CHAMP)?;
 
-        let debug_interval = 10_000_000;
-        let step_count = machine.count_js(debug_interval);
+        let early_stop = Some(10_000_000);
+        let step_count = machine.count_js(early_stop);
 
         println!(
             "Final: Steps {}: {:?}, #1's {}",
@@ -511,128 +606,45 @@ mod tests {
     /// See https://en.wikipedia.org/wiki/Busy_beaver
     #[test]
     fn bb5_champ_space_time() -> Result<(), Error> {
-        // let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
-        let mut machine: Machine = BB5_CHAMP.parse()?;
+        let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
+                                                       // let mut machine: Machine = BB6_CONTENDER.parse()?;
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let mut timeline = Timeline::new(goal_x, goal_y);
+        let mut sample_space_time = SampledSpaceTime::new(goal_x, goal_y);
 
-        let early_stop = Some(100_500_000);
-        let debug_interval = Some(5_000_000);
-
-        let mut step_count = 0;
+        let early_stop = Some(10_500_000);
+        let debug_interval = Some(1_000_000);
 
         while machine.next().is_some()
-            && early_stop.is_none_or(|early_stop| step_count < early_stop)
+            && early_stop.is_none_or(|early_stop| sample_space_time.step_count < early_stop)
         {
-            step_count += 1;
-
-            if debug_interval.is_none_or(|debug_interval| step_count % debug_interval == 0) {
+            if debug_interval
+                .is_none_or(|debug_interval| sample_space_time.step_count % debug_interval == 0)
+            {
                 println!(
                     "Step {}: {:?},\t{}",
-                    step_count.separate_with_commas(),
+                    sample_space_time.step_count.separate_with_commas(),
                     machine,
-                    machine.tape.index_to_string(-10)
+                    machine.tape.index_range_to_string(-10..=10)
                 );
             }
 
-            timeline.compress_if_needed(step_count);
-            if step_count % timeline.sample != 0 {
-                continue;
-            }
-            let tape_width = machine.tape.width();
-            let tape_min_index = machine.tape.min_index();
-            let tape_max_index = machine.tape.max_index();
-            let x_sample = sample_rate(tape_width, timeline.x_goal);
-            // println!("tape_width: {}, x_sample: {}", tape_width, x_sample);
-            // if v is an integer then let s be the first s >= v s.t. s mod x_sample = 0
-            let sample_start: i32 = tape_min_index
-                + ((x_sample as i32 - tape_min_index.rem_euclid(x_sample as i32))
-                    % x_sample as i32);
-            // println!(
-            //     "tape_min_index: {}, tape_min_index_max: {}, sample_start: {}",
-            //     tape_min_index, tape_max_index, sample_start
-            // );
-            debug_assert!(
-                sample_start >= tape_min_index
-                    && sample_start % x_sample as i32 == 0
-                    && sample_start - tape_min_index < x_sample as i32
-            );
-            let mut values = Vec::with_capacity(goal_x as usize * 2);
-            for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-                // println!("...sample_index: {}", sample_index);
-                values.push(machine.tape[sample_index]);
-            }
-            let spaceline = Spaceline {
-                sample: x_sample,
-                start: sample_start,
-                values,
-                time: step_count,
-            };
-            timeline.spacelines.push(spaceline);
+            sample_space_time.snapshot(&machine);
         }
 
-        let last = timeline.spacelines.last().unwrap(); //unwrap is OK because we pushed at least one spaceline
-        let x_sample: u32 = last.sample;
-        let tape_width: u32 = last.values.len() as u32 * x_sample;
-        let tape_min_index = last.start;
-        let x_actual: u32 = tape_width / x_sample;
-        let y_actual = timeline.spacelines.len() as u32;
-        // cmk assuming 1 color per bit
-        let row_bytes = ((x_actual as usize) + 7) / 8;
-        let mut packed_data = vec![0u8; row_bytes * (y_actual as usize)];
-        // first row is always empty, so start at 1
-        for y in 1..y_actual {
-            let spaceline = &timeline.spacelines[y as usize];
-            let local_start = spaceline.start;
-            // println!("cmk: local_start: {}", local_start);
-            let local_sample = spaceline.sample;
-            let row_start_byte_index: u32 = y * row_bytes as u32;
-            let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i32);
-            // println!("y: {}, x_start: {}", y, x_start);
-            for x in x_start as u32..x_actual {
-                let tape_index: i32 = (x * x_sample) as i32 + tape_min_index;
-                // if tape_index < local_start {
-                //     continue;
-                // }
-                debug_assert!(
-                    tape_index >= local_start,
-                    "real assert sif x_start is correct"
-                );
-                // println!(
-                //     "y: {}, x: {}, tape_index: {}, x_sample: {}, local_sample: {}",
-                //     y, x, tape_index, x_sample, local_sample
-                // );
-                // if (tape_index - tape_min) % x_sample as i32 != 0 {
-                //     continue;
-                // }
-                let local_spaceline_index: i32 = (tape_index - local_start) / local_sample as i32;
-                if local_spaceline_index >= spaceline.values.len() as i32 {
-                    break;
-                }
-                let value = spaceline.values[local_spaceline_index as usize];
-                if value != 0 {
-                    debug_assert!(value == 1);
-                    let bit_index = 7 - (x % 8); // PNG is backwards
-                    let byte_index: u32 = x / 8 + row_start_byte_index;
-                    packed_data[byte_index as usize] |= 1 << bit_index;
-                }
-            }
-        }
-
-        let png_data = encode_png(x_actual, y_actual, &packed_data)?;
+        let png_data = sample_space_time.to_png()?;
         fs::write("test.png", &png_data).unwrap(); // cmk handle error
 
         println!(
             "Final: Steps {}: {:?}, #1's {}",
-            step_count.separate_with_commas(),
+            sample_space_time.step_count.separate_with_commas(),
             machine,
             machine.tape.count_ones()
         );
 
         if early_stop.is_none() {
-            assert_eq!(step_count, 47_176_870);
+            assert_eq!(sample_space_time.step_count, 47_176_870);
             assert_eq!(machine.tape.count_ones(), 4098);
             assert_eq!(machine.state, 7);
             assert_eq!(machine.tape_index, -12242);

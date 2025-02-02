@@ -20,7 +20,9 @@
 0	1RB	1RC	1RD	1LA	1RH
 1	1LC	1RB	0LE	1LD	0LA</textarea>
     <button id="runButton">Run</button>
-    <p id="result">Steps: </p>
+    <div>
+        <img id="resultImage" alt="Space-time diagram" style="max-width: 100%;">
+    </div>
     <script type="module">
         import init, { Machine } from './pkg/busy_beaver.js';
 
@@ -28,15 +30,17 @@
             await init();
             
             const textarea = document.getElementById('programInput');
-            const result = document.getElementById('result');
+            const resultImage = document.getElementById('resultImage');
             
             document.getElementById('runButton').addEventListener('click', () => {
                 try {
                     const machine = new Machine(textarea.value);
-                    const steps = machine.count_js(10_000_000);
-                    result.textContent = `Steps: ${steps.toLocaleString()}`;
+                    const png_data = machine.space_time_js(720, 864, null);
+                    const blob = new Blob([png_data], { type: 'image/png' });
+                    resultImage.src = URL.createObjectURL(blob);
                 } catch (e) {
-                    result.textContent = `Error: ${e}`;
+                    console.error(e);
+                    resultImage.alt = `Error: ${e}`;
                 }
             });
         }
