@@ -501,19 +501,21 @@ mod tests {
     }
 
     // cmk: really need to understand i32/u32/usize/isize/u64/i64
+    // cmk: Bug -- displays an extra time step
+    // cmk00: -- y sampling is working, but x sampling is not
 
     /// See https://en.wikipedia.org/wiki/Busy_beaver
     #[test]
     fn bb5_champ_space_time() -> Result<(), Error> {
         // let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
-        let mut machine: Machine = BB3_CHAMP.parse()?;
+        let mut machine: Machine = BB5_CHAMP.parse()?;
 
-        let goal_x: u32 = 100;
+        let goal_x: u32 = 5000;
         let goal_y: u32 = 1000;
         let mut timeline = Timeline::new(goal_x, goal_y);
 
-        let early_stop = Some(100);
-        let debug_interval = Some(1);
+        let early_stop = Some(10_500_000);
+        let debug_interval = Some(500_000);
 
         let mut step_count = 0;
 
@@ -571,7 +573,7 @@ mod tests {
         for y in 0..y_actual {
             let spaceline = &timeline.spacelines[y as usize];
             let local_start = spaceline.start;
-            println!("cmk: local_start: {}", local_start);
+            // println!("cmk: local_start: {}", local_start);
             let local_sample = spaceline.sample;
             let row_start_byte_index: u32 = y * row_bytes as u32;
             for x in 0..x_actual {
