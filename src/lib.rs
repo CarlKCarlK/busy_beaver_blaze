@@ -366,7 +366,7 @@ impl From<std::num::ParseIntError> for Error {
 struct Spaceline {
     sample: u32,
     start: i32,
-    inner: Vec<u8>,
+    values: Vec<u8>,
     time: u32,
 }
 
@@ -375,7 +375,7 @@ impl Default for Spaceline {
         Spaceline {
             sample: 1,
             start: 0,
-            inner: vec![0; 1],
+            values: vec![0; 1],
             time: 0,
         }
     }
@@ -412,6 +412,10 @@ impl Timeline {
     }
 }
 
+#[inline]
+fn int_div_ceil(a: i32, b: i32) -> i32 {
+    (a + b - 1) / b
+}
 fn sample_rate(row: u32, goal: u32) -> u32 {
     let threshold = 2 * goal;
     let ratio = (row + 1) as f64 / threshold as f64;
@@ -557,7 +561,7 @@ mod tests {
             let spaceline = Spaceline {
                 sample: x_sample,
                 start: sample_start,
-                inner: inner_space,
+                values: inner_space,
                 time: step_count,
             };
             timeline.spacelines.push(spaceline);
@@ -576,24 +580,25 @@ mod tests {
             // println!("cmk: local_start: {}", local_start);
             let local_sample = spaceline.sample;
             let row_start_byte_index: u32 = y * row_bytes as u32;
-            for x in 0..x_actual {
-                let bit_index = 7 - (x % 8); // PNG is backwards
-                let byte_index: u32 = x / 8 + row_start_byte_index;
+            let x_start = int_div_ceil(local_start - tape_min, local_sample as i32);
+            for x in x_start as u32..x_actual {
                 let tape_index: i32 = (x * local_sample) as i32 + tape_min;
-                if tape_index < local_start {
-                    continue;
-                }
+                debug_assert!(
+                    tape_index >= local_start,
+                    "real assert if x_start is correct"
+                );
                 if tape_index % x_sample as i32 != 0 {
-                    // cmk better to use positive modulo?
                     continue;
                 }
                 let local_spaceline_index: i32 = (tape_index - local_start) / local_sample as i32;
-                if local_spaceline_index >= spaceline.inner.len() as i32 {
-                    continue;
+                if local_spaceline_index >= spaceline.values.len() as i32 {
+                    break;
                 }
-                let value = spaceline.inner[local_spaceline_index as usize];
+                let value = spaceline.values[local_spaceline_index as usize];
                 if value != 0 {
                     debug_assert!(value == 1);
+                    let bit_index = 7 - (x % 8); // PNG is backwards
+                    let byte_index: u32 = x / 8 + row_start_byte_index;
                     packed_data[byte_index as usize] |= 1 << bit_index;
                 }
             }
