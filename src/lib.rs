@@ -121,28 +121,43 @@ impl Machine {
         input.parse().map_err(|e| format!("{:?}", e))
     }
 
-    #[wasm_bindgen]
-    pub fn step(&mut self) -> bool {
-        self.next().is_some()
-    }
-
-    #[wasm_bindgen]
-    pub fn space_time_js(&mut self, goal_x: u32, goal_y: u32, early_stop: Option<u32>) -> Vec<u8> {
+    #[wasm_bindgen(js_name = "space_time")]
+    pub fn space_time_js(
+        &mut self,
+        goal_x: u32,
+        goal_y: u32,
+        early_stop: Option<u32>,
+    ) -> SpaceTimeResult {
         let mut sampled_space_time = SampledSpaceTime::new(goal_x, goal_y);
 
         while self.next().is_some()
             && early_stop.is_none_or(|early_stop| sampled_space_time.step_count < early_stop)
         {
-            sampled_space_time.snapshot(&self);
+            sampled_space_time.snapshot(self);
         }
 
-        sampled_space_time
+        let png_data = sampled_space_time
             .to_png()
-            .unwrap_or_else(|e| format!("{:?}", e).into_bytes())
+            .unwrap_or_else(|e| format!("{:?}", e).into_bytes());
+
+        SpaceTimeResult {
+            png_data,
+            step_count: sampled_space_time.step_count,
+        }
     }
 
     #[wasm_bindgen]
-    pub fn count_js(&mut self, early_stop: Option<u32>) -> u32 {
+    pub fn count_ones(&self) -> u32 {
+        self.tape.count_ones() as u32
+    }
+
+    #[wasm_bindgen]
+    pub fn is_halted(&self) -> bool {
+        self.program.state_count <= self.state as usize
+    }
+
+    #[wasm_bindgen(js_name = "count_steps")]
+    pub fn count_steps_js(&mut self, early_stop: Option<u32>) -> u32 {
         let mut step_count = 0;
 
         while self.next().is_some() && early_stop.is_none_or(|early_stop| step_count < early_stop) {
@@ -521,7 +536,7 @@ fn sample_rate(row: u32, goal: u32) -> u32 {
 
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
     // assert!(image_data.len() == (width * height) as usize);
-    println!("cmk {:?}, {width}x{height}", image_data.len());
+    // println!("cmk {:?}, {width}x{height}", image_data.len());
     let mut buf = Vec::new();
     {
         // Create an encoder that writes directly into `buf`
@@ -538,11 +553,30 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
         let mut writer = encoder.write_header().map_err(|_| Error::EncodingError)?;
         // This method writes all the image data at once.
         let result = writer.write_image_data(image_data);
-        println!("cmk {:?}", result);
+        // println!("cmk {:?}", result);
         result.map_err(|_| Error::EncodingError)?; // cmk define a From
     }
     // At this point, `buf` contains the PNG data.
     Ok(buf)
+}
+
+#[wasm_bindgen]
+pub struct SpaceTimeResult {
+    png_data: Vec<u8>,
+    step_count: u32,
+}
+
+#[wasm_bindgen]
+impl SpaceTimeResult {
+    #[wasm_bindgen]
+    pub fn png_data(&self) -> Vec<u8> {
+        self.png_data.clone()
+    }
+
+    #[wasm_bindgen]
+    pub fn step_count(&self) -> u32 {
+        self.step_count
+    }
 }
 
 // tests
@@ -600,14 +634,11 @@ mod tests {
     }
 
     // cmk: really need to understand i32/u32/usize/isize/u64/i64
-    // cmk: Bug -- displays an extra time step
-    // cmk00: -- y sampling is working, but x sampling is not
 
     /// See https://en.wikipedia.org/wiki/Busy_beaver
     #[test]
     fn bb5_champ_space_time() -> Result<(), Error> {
-        let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
-                                                       // let mut machine: Machine = BB6_CONTENDER.parse()?;
+        let mut machine: Machine = BB5_CHAMP.parse()?;
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;

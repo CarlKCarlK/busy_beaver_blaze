@@ -1,79 +1,34 @@
-# Busy Beaver Implementation in Rust
+# Busy Beaver Blaze
 
-This repository contains a Rust implementation of the [Busy Beaver](https://en.wikipedia.org/wiki/Busy_beaver) Turing machine simulator.
+This repository contains a Turing machine interpreter and space-time visualization. It is implemented in Rust and compiled to WebAssembly.
 
-## Overview
+* [Run this program in your own browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
+* Within the program, run the champion [Busy Beaver](https://en.wikipedia.org/wiki/Busy_beaver) Turing machines for millions of steps in less than a second.
+* Run your own Turing machines.
+* Visualize Turing machines with space time diagrams.
+* Visualize millions of steps in less than a second. Visualize a billion steps in about 5 seconds.
 
-The program simulates a Turing machine with the following characteristics:
+## Techniques
 
-- *N* states
-- 2 symbols (0 and 1)
-- A bidirectional infinite tape
-- Debugging output at configurable intervals
+* The Turing machine interpreter is a straight forward implementation in Rust.
+* The space-time visualization is implemented via adaptive sampling. The sampler starts by recording the whole tape at every machine step. Whenever the tape or steps grows beyond twice the size of the desired image, the sampler reduces the sampling rate by half. Total memory and time used is, thus, proportional to the size of the desired image, not the number of machine steps or width of tape visited.
+* Tips on porting Rust to WASM: [Nine Rules for Running Rust in the Browser](https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1) in *Towards Data Science*.
 
-## Usage
+## Screenshot
 
-```bash
-cargo run --release
-```
+![Busy Beaver Space-Time Diagram](Screenshot.png)
 
-```rust
-fn main() -> Result<(), Error> {
-    const STATE_COUNT: usize = 5;
-    let program: Program<STATE_COUNT> = BB5_CHAMP.parse()?;
-
-    let mut machine: Machine<'_, STATE_COUNT> = Machine {
-        tape: Tape::default(),
-        tape_index: 0,
-        program: &program,
-        state: 0,
-    };
-
-    let debug_interval = 10_000_000;
-    let step_count = machine.debug_count(debug_interval);
-
-    println!(
-        "Final: Step {}: {:?}, #1's {}",
-        step_count.separate_with_commas(),
-        machine,
-        machine.tape.count_ones()
-    );
-
-    Ok(())
-}
-```
-
-Outputs:
-
-```text
-Step 0: Machine { state: 1, tape_index: 1}
-Step 10,000,000: Machine { state: 3, tape_index: -2351}
-Step 20,000,000: Machine { state: 1, tape_index: -5031}
-Step 30,000,000: Machine { state: 1, tape_index: -4427}
-Step 40,000,000: Machine { state: 1, tape_index: -6559}
-Final: Step 47,176,869: Machine { state: 7, tape_index: -12242}, #1's 4098
-```
-
-## Wishlist
-
-- WASM features
--- debug output at intervals
--- optional end early
-- WASM version
-- Visualizations
-- Timing
-- Testing, especially for parsing
-- See if tape could be more efficient with bit arrays
+A space-time diagram for the best known 6-state busy beaver after running for exactly 1 billion steps. Each vertical slice shows the Turing machine tape at one point in time, with dark pixels representing 1s and light pixels representing 0s. Time flows down.
 
 ## License
 
 This project is dual-licensed under either:
 
-- MIT License ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/licenses/MIT>)
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <https://www.apache.org/licenses/LICENSE-2.0>)
+* MIT License ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/licenses/MIT>)
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <https://www.apache.org/licenses/LICENSE-2.0>)
 
 at your option.
 
 ## Contributing
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project shall be dual-licensed as above, without any additional terms or conditions.
+Contributing to this project is welcome. Feature and bug reports are appreciated.

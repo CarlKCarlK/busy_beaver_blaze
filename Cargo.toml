@@ -1,5 +1,5 @@
 [package]
-name = "busy_beaver"
+name = "busy_beaver_blaze"
 version = "0.1.0"
 edition = "2021"
 
