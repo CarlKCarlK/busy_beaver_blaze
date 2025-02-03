@@ -1,0 +1,15 @@
+{
+  "name": "busy_beaver",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "busy_beaver_bg.wasm",
+    "busy_beaver.js",
+    "busy_beaver.d.ts"
+  ],
+  "main": "busy_beaver.js",
+  "types": "busy_beaver.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
