@@ -11,9 +11,9 @@
     <div class="header-container">
         <h1>Busy Beaver Blaze</h1>
         <div class="subtitle">
-            <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank">Made with Rust WASM</a>
-            <a href="https://github.com/CarlKCarlK/busy_beaver_blaze/" target="_blank">GitHub</a>
-            <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank">Wikipedia</a>
+            <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank" rel="noopener">Made with Rust WASM</a>
+            <a href="https://github.com/CarlKCarlK/busy_beaver_blaze/" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank" rel="noopener">Wikipedia</a>
         </div>
     </div>
     <div class="controls">
@@ -21,8 +21,10 @@
             <input type="checkbox" id="useEarlyStop" checked>
             Stop Early at
         </label>
-        <input type="number" id="earlyStopValue" value="50000000" min="1">
-        steps
+        <label for="earlyStopValue">
+            <input type="number" id="earlyStopValue" value="50000000" min="1">
+            steps
+        </label>
     </div>
     <div style="display: flex; align-items: start; gap: 1em;">
         <label for="programInput">Turing Machine Program:</label>
@@ -64,6 +66,8 @@
     <div id="status" class="status">Worker status: initializing...</div>
     <script type="module">
         let worker = null;
+        let isRunning = false;
+        let progressTimer = null;  // Move this to global scope
         
         async function run() {
             // Remove init() call since it's now in the worker
@@ -120,21 +124,40 @@
             let currentController = null;
             
             async function runMachine() {
+                if (isRunning) {
+                    if (worker) {
+                        worker.terminate();
+                        worker = null;
+                    }
+                    if (progressTimer) {
+                        clearTimeout(progressTimer);
+                        progressTimer = null;
+                    }
+                    isRunning = false;
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Run';
+                    runButton.classList.remove('loading');
+                    container.textContent = 'Cancelled';
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.remove('disabled'));
+                    return;
+                }
+
                 const status = document.getElementById('status');
                 status.textContent = 'Worker status: starting...';
                 status.classList.add('visible');
 
+                isRunning = true;
                 if (worker) {
                     worker.terminate();
                 }
                 worker = new Worker('./worker.js', { type: 'module' });
                 
-                let progressTimer = null;
                 try {
                     const controls = document.querySelectorAll('.controls');
                     controls.forEach(c => c.classList.add('disabled'));
                     const runButton = document.getElementById('runButton');
-                    runButton.textContent = 'Running...';
+                    runButton.textContent = 'Cancel';
                     runButton.classList.add('loading');
                     container.textContent = 'Computing...';
                     
@@ -143,6 +166,10 @@
                     const [goal_x, goal_y] = updateSize();
 
                     const updateProgress = () => {
+                        if (!isRunning) {  // Add check for running state
+                            clearTimeout(progressTimer);
+                            return;
+                        }
                         const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
                         container.textContent = `Computing... ${elapsed}s`;
                         progressTimer = setTimeout(updateProgress, 100);
@@ -193,6 +220,7 @@
                     document.getElementById('onesCount').textContent = '-';
                     document.getElementById('haltedStatus').textContent = '-';
                 } finally {
+                    isRunning = false;
                     setTimeout(() => status.classList.remove('visible'), 2000);
                     if (worker) {
                         worker.terminate();
