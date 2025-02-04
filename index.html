@@ -95,7 +95,7 @@
             <input type="checkbox" id="useEarlyStop" checked>
             Stop Early at
         </label>
-        <input type="number" id="earlyStopValue" value="50000000" min="1">
+        <input type="number" id="earlyStopValue" value="50000000" min="1" max="18446744073709551615" step="1000000">
         steps
     </div>
     <div style="display: flex; align-items: start; gap: 1em;">
@@ -193,7 +193,7 @@
             function runMachine() {
                 try {
                     const startTime = performance.now();
-                    const early_stop = useEarlyStop.checked ? Number(earlyStopValue.value) : null;
+                    const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : null;
                     const [goal_x, goal_y] = updateSize();
                     const machine = new Machine(textarea.value);
                     const result = machine.space_time(goal_x, goal_y, early_stop);
@@ -202,8 +202,9 @@
                     container.querySelector('img').src = URL.createObjectURL(blob);
                     const endTime = performance.now();
                     document.getElementById('runTime').textContent = `${((endTime - startTime) / 1000).toFixed(2)}s`;
-                    document.getElementById('stepCount').textContent = result.step_count().toLocaleString();
-                    document.getElementById('onesCount').textContent = machine.count_ones().toLocaleString();
+                    // Convert BigInt to string before using toLocaleString
+                    document.getElementById('stepCount').textContent = result.step_count().toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,");
+                    document.getElementById('onesCount').textContent = machine.count_ones().toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,");
                     document.getElementById('haltedStatus').textContent = machine.is_halted() ? 'Halted' : 'Not Halted';
                 } catch (e) {
                     console.error(e);

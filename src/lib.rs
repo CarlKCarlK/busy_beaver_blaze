@@ -45,10 +45,10 @@ struct Tape {
 }
 
 // Immutable access with `[]`
-impl Index<i32> for Tape {
+impl Index<i64> for Tape {
     type Output = u8;
 
-    fn index(&self, index: i32) -> &u8 {
+    fn index(&self, index: i64) -> &u8 {
         if index >= 0 {
             self.nonnegative.get(index as usize).unwrap_or(&0)
         } else {
@@ -58,8 +58,8 @@ impl Index<i32> for Tape {
 }
 
 // Mutable access with `[]`, ensuring growth
-impl IndexMut<i32> for Tape {
-    fn index_mut(&mut self, index: i32) -> &mut u8 {
+impl IndexMut<i64> for Tape {
+    fn index_mut(&mut self, index: i64) -> &mut u8 {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)
         } else {
@@ -82,7 +82,7 @@ impl Tape {
             .sum()
     }
 
-    fn index_range_to_string(&self, range: std::ops::RangeInclusive<i32>) -> String {
+    fn index_range_to_string(&self, range: std::ops::RangeInclusive<i64>) -> String {
         let mut s = String::new();
         for i in range {
             s.push_str(&self[i].to_string());
@@ -91,25 +91,25 @@ impl Tape {
     }
 
     #[inline]
-    pub fn min_index(&self) -> i32 {
-        -(self.negative.len() as i32)
+    pub fn min_index(&self) -> i64 {
+        -(self.negative.len() as i64)
     }
 
     #[inline]
-    pub fn max_index(&self) -> i32 {
-        self.nonnegative.len() as i32 - 1
+    pub fn max_index(&self) -> i64 {
+        self.nonnegative.len() as i64 - 1
     }
 
     #[inline]
-    pub fn width(&self) -> u32 {
-        (self.max_index() - self.min_index() + 1) as u32
+    pub fn width(&self) -> u64 {
+        (self.max_index() - self.min_index() + 1) as u64
     }
 }
 
 #[wasm_bindgen]
 struct Machine {
     state: u8,
-    tape_index: i32,
+    tape_index: i64,
     tape: Tape,
     program: Program,
 }
@@ -121,50 +121,35 @@ impl Machine {
         input.parse().map_err(|e| format!("{:?}", e))
     }
 
-    #[wasm_bindgen(js_name = "space_time")]
-    pub fn space_time_js(
-        &mut self,
-        goal_x: u32,
-        goal_y: u32,
-        early_stop: Option<u32>,
-    ) -> SpaceTimeResult {
+    #[wasm_bindgen]
+    pub fn step(&mut self) -> bool {
+        self.next().is_some()
+    }
+
+    #[wasm_bindgen]
+    pub fn space_time_js(&mut self, goal_x: u32, goal_y: u32, early_stop: Option<u64>) -> Vec<u8> {
         let mut sampled_space_time = SampledSpaceTime::new(goal_x, goal_y);
 
         while self.next().is_some()
             && early_stop.is_none_or(|early_stop| sampled_space_time.step_count < early_stop)
         {
-            sampled_space_time.snapshot(self);
+            sampled_space_time.snapshot(&self);
         }
 
-        let png_data = sampled_space_time
+        sampled_space_time
             .to_png()
-            .unwrap_or_else(|e| format!("{:?}", e).into_bytes());
-
-        SpaceTimeResult {
-            png_data,
-            step_count: sampled_space_time.step_count,
-        }
+            .unwrap_or_else(|e| format!("{:?}", e).into_bytes())
     }
 
     #[wasm_bindgen]
-    pub fn count_ones(&self) -> u32 {
-        self.tape.count_ones() as u32
-    }
-
-    #[wasm_bindgen]
-    pub fn is_halted(&self) -> bool {
-        self.program.state_count <= self.state as usize
-    }
-
-    #[wasm_bindgen(js_name = "count_steps")]
-    pub fn count_steps_js(&mut self, early_stop: Option<u32>) -> u32 {
+    pub fn count_js(&mut self, early_stop_some: bool, early_stop_number: u64) -> u64 {
         let mut step_count = 0;
 
-        while self.next().is_some() && early_stop.is_none_or(|early_stop| step_count < early_stop) {
+        while self.next().is_some() && (!early_stop_some || step_count < early_stop_number) {
             step_count += 1;
         }
 
-        step_count
+        step_count + 1 // turn last index into count
     }
 }
 impl FromStr for Machine {
@@ -201,7 +186,7 @@ impl Iterator for Machine {
         let input = self.tape[self.tape_index];
         let per_input = &program.inner[self.state as usize][input as usize];
         self.tape[self.tape_index] = per_input.next_symbol;
-        self.tape_index += per_input.direction as i32;
+        self.tape_index += per_input.direction as i64;
         self.state = per_input.next_state;
         if (self.state as usize) < program.state_count {
             Some(())
@@ -339,17 +324,14 @@ pub trait DebuggableIterator: Iterator {
     {
         let mut step_count = 0;
 
-        loop {
+        while self.next().is_some() {
+            step_count += 1;
             if step_count % debug_interval == 0 {
                 println!("Step {}: {:?}", step_count.separate_with_commas(), self);
             }
-            if self.next().is_none() {
-                break;
-            }
-            step_count += 1;
         }
 
-        step_count
+        step_count + 1 // turn last index into count
     }
 }
 
@@ -392,10 +374,10 @@ impl From<std::num::ParseIntError> for Error {
 }
 
 struct Spaceline {
-    sample: u32,
-    start: i32,
+    sample: u64,
+    start: i64,
     values: Vec<u8>,
-    time: u32,
+    time: u64,
 }
 
 impl Default for Spaceline {
@@ -410,10 +392,10 @@ impl Default for Spaceline {
 }
 
 struct SampledSpaceTime {
-    step_count: u32,
+    step_count: u64,
     x_goal: u32,
     y_goal: u32,
-    sample: u32,
+    sample: u64,
     spacelines: Vec<Spaceline>,
 }
 
@@ -455,13 +437,13 @@ impl SampledSpaceTime {
         let tape_max_index = tape.max_index();
         let x_sample = sample_rate(tape_width, self.x_goal);
 
-        let sample_start: i32 = tape_min_index
-            + ((x_sample as i32 - tape_min_index.rem_euclid(x_sample as i32)) % x_sample as i32);
+        let sample_start: i64 = tape_min_index
+            + ((x_sample as i64 - tape_min_index.rem_euclid(x_sample as i64)) % x_sample as i64);
 
         debug_assert!(
             sample_start >= tape_min_index
-                && sample_start % x_sample as i32 == 0
-                && sample_start - tape_min_index < x_sample as i32
+                && sample_start % x_sample as i64 == 0
+                && sample_start - tape_min_index < x_sample as i64
         );
 
         let mut values = Vec::with_capacity(self.x_goal as usize * 2);
@@ -479,11 +461,11 @@ impl SampledSpaceTime {
 
     fn to_png(&self) -> Result<Vec<u8>, Error> {
         let last = self.spacelines.last().unwrap(); // Safe because we always have at least one
-        let x_sample: u32 = last.sample;
-        let tape_width: u32 = last.values.len() as u32 * x_sample;
+        let x_sample: u64 = last.sample;
+        let tape_width: u64 = last.values.len() as u64 * x_sample;
         let tape_min_index = last.start;
-        let x_actual: u32 = tape_width / x_sample;
-        let y_actual = self.spacelines.len() as u32;
+        let x_actual: u32 = (tape_width / x_sample) as u32;
+        let y_actual: u32 = self.spacelines.len() as u32;
 
         let row_bytes = ((x_actual as usize) + 7) / 8;
         let mut packed_data = vec![0u8; row_bytes * (y_actual as usize)];
@@ -494,24 +476,24 @@ impl SampledSpaceTime {
             let local_start = spaceline.start;
             let local_sample = spaceline.sample;
             let row_start_byte_index: u32 = y * row_bytes as u32;
-            let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i32);
+            let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i64);
 
             for x in x_start as u32..x_actual {
-                let tape_index: i32 = (x * x_sample) as i32 + tape_min_index;
+                let tape_index: i64 = x as i64 * x_sample as i64 + tape_min_index;
                 debug_assert!(
                     tape_index >= local_start,
                     "real assert if x_start is correct"
                 );
 
-                let local_spaceline_index: i32 = (tape_index - local_start) / local_sample as i32;
-                if local_spaceline_index >= spaceline.values.len() as i32 {
+                let local_spaceline_index: i64 = (tape_index - local_start) / local_sample as i64;
+                if local_spaceline_index >= spaceline.values.len() as i64 {
                     break;
                 }
 
                 let value = spaceline.values[local_spaceline_index as usize];
                 if value != 0 {
                     debug_assert!(value == 1);
-                    let bit_index = 7 - (x % 8); // PNG is backwards
+                    let bit_index: u32 = 7 - (x % 8); // PNG is backwards
                     let byte_index: u32 = x / 8 + row_start_byte_index;
                     packed_data[byte_index as usize] |= 1 << bit_index;
                 }
@@ -523,20 +505,20 @@ impl SampledSpaceTime {
 }
 
 #[inline]
-fn int_div_ceil(a: i32, b: i32) -> i32 {
+fn int_div_ceil(a: i64, b: i64) -> i64 {
     (a + b - 1) / b
 }
-fn sample_rate(row: u32, goal: u32) -> u32 {
+fn sample_rate(row: u64, goal: u32) -> u64 {
     let threshold = 2 * goal;
     let ratio = (row + 1) as f64 / threshold as f64;
     // For rows < threshold, ratio < 1, log2(ratio) is negative, and the ceil clamps to 0.
     let exponent = ratio.log2().ceil().max(0.0) as u32;
-    2_u32.pow(exponent)
+    2_u64.pow(exponent)
 }
 
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
     // assert!(image_data.len() == (width * height) as usize);
-    // println!("cmk {:?}, {width}x{height}", image_data.len());
+    println!("cmk {:?}, {width}x{height}", image_data.len());
     let mut buf = Vec::new();
     {
         // Create an encoder that writes directly into `buf`
@@ -553,30 +535,11 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
         let mut writer = encoder.write_header().map_err(|_| Error::EncodingError)?;
         // This method writes all the image data at once.
         let result = writer.write_image_data(image_data);
-        // println!("cmk {:?}", result);
+        println!("cmk {:?}", result);
         result.map_err(|_| Error::EncodingError)?; // cmk define a From
     }
     // At this point, `buf` contains the PNG data.
     Ok(buf)
-}
-
-#[wasm_bindgen]
-pub struct SpaceTimeResult {
-    png_data: Vec<u8>,
-    step_count: u32,
-}
-
-#[wasm_bindgen]
-impl SpaceTimeResult {
-    #[wasm_bindgen]
-    pub fn png_data(&self) -> Vec<u8> {
-        self.png_data.clone()
-    }
-
-    #[wasm_bindgen]
-    pub fn step_count(&self) -> u32 {
-        self.step_count
-    }
 }
 
 // tests
@@ -615,8 +578,9 @@ mod tests {
     fn bb5_champ_js() -> Result<(), String> {
         let mut machine: Machine = Machine::from_string(BB5_CHAMP)?;
 
-        let early_stop = Some(10_000_000);
-        let step_count = machine.count_js(early_stop);
+        let early_stop_some = true;
+        let early_stop_number = 50_000_000;
+        let step_count = machine.count_js(early_stop_some, early_stop_number);
 
         println!(
             "Final: Steps {}: {:?}, #1's {}",
@@ -633,12 +597,15 @@ mod tests {
         Ok(())
     }
 
-    // cmk: really need to understand i32/u32/usize/isize/u64/i64
+    // cmk: really need to understand i64/u64/usize/isize/u64/i64
+    // cmk: Bug -- displays an extra time step
+    // cmk00: -- y sampling is working, but x sampling is not
 
     /// See https://en.wikipedia.org/wiki/Busy_beaver
     #[test]
     fn bb5_champ_space_time() -> Result<(), Error> {
-        let mut machine: Machine = BB5_CHAMP.parse()?;
+        let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
+                                                       // let mut machine: Machine = BB6_CONTENDER.parse()?;
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
