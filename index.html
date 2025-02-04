@@ -179,11 +179,25 @@
                     status.textContent = 'Worker status: computing...';
                     const result = await new Promise((resolve, reject) => {
                         worker.onmessage = (e) => {
-                            if (e.data.success) {
-                                resolve(e.data);
-                            } else {
+                            if (!e.data.success) {
                                 reject(new Error(e.data.error));
+                                return;
                             }
+
+                            // Handle intermediate updates
+                            if (e.data.intermediate) {
+                                const blob = new Blob([e.data.png_data], { type: 'image/png' });
+                                container.innerHTML = '<img alt="Space-time diagram">';
+                                container.querySelector('img').src = URL.createObjectURL(blob);
+                                
+                                document.getElementById('stepCount').textContent = e.data.step_count.toLocaleString();
+                                document.getElementById('onesCount').textContent = e.data.ones_count.toLocaleString();
+                                document.getElementById('haltedStatus').textContent = e.data.is_halted ? 'Halted' : 'Running';
+                                return;
+                            }
+
+                            // Final result
+                            resolve(e.data);
                         };
                         worker.onerror = reject;
                         
