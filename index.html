@@ -166,12 +166,12 @@
                     const [goal_x, goal_y] = updateSize();
 
                     const updateProgress = () => {
-                        if (!isRunning) {  // Add check for running state
+                        if (!isRunning) {
                             clearTimeout(progressTimer);
                             return;
                         }
-                        const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
-                        container.textContent = `Computing... ${elapsed}s`;
+                        document.getElementById('runTime').textContent = 
+                            `${((performance.now() - startTime) / 1000).toFixed(2)}s`;
                         progressTimer = setTimeout(updateProgress, 100);
                     };
                     updateProgress();
