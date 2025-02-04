@@ -126,31 +126,6 @@ impl Machine {
         self.next().is_some()
     }
 
-    #[wasm_bindgen(js_name = "space_time")]
-    pub fn space_time_js(
-        &mut self,
-        goal_x: u32,
-        goal_y: u32,
-        early_stop: Option<u64>,
-    ) -> SpaceTimeResult {
-        let mut sampled_space_time = SampledSpaceTime::new(goal_x, goal_y);
-
-        while self.next().is_some()
-            && early_stop.is_none_or(|early_stop| sampled_space_time.step_index + 1 < early_stop)
-        {
-            sampled_space_time.snapshot(self);
-        }
-
-        let png_data = sampled_space_time
-            .to_png()
-            .unwrap_or_else(|e| format!("{:?}", e).into_bytes());
-
-        SpaceTimeResult {
-            png_data,
-            step_index: sampled_space_time.step_index, // turn last index into count
-        }
-    }
-
     #[wasm_bindgen]
     pub fn count_ones(&self) -> u32 {
         self.tape.count_ones() as u32
@@ -565,21 +540,62 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
 }
 
 #[wasm_bindgen]
-pub struct SpaceTimeResult {
-    png_data: Vec<u8>,
-    step_index: u64,
+pub struct SpaceTimeMachine {
+    machine: Machine,
+    space_time: SampledSpaceTime,
+}
+
+// impl iterator for spacetime machine
+impl Iterator for SpaceTimeMachine {
+    type Item = ();
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.machine.next()?;
+        self.space_time.snapshot(&self.machine);
+        Some(())
+    }
 }
 
 #[wasm_bindgen]
-impl SpaceTimeResult {
+impl SpaceTimeMachine {
+    #[wasm_bindgen(constructor)]
+    pub fn from_string(s: &str, goal_x: u32, goal_y: u32) -> Result<SpaceTimeMachine, String> {
+        Ok(SpaceTimeMachine {
+            machine: Machine::from_string(s)?,
+            space_time: SampledSpaceTime::new(goal_x, goal_y),
+        })
+    }
+
+    #[wasm_bindgen(js_name = "nth")]
+    pub fn nth_js(&mut self, n: u64) -> bool {
+        for _ in 0..n {
+            if self.next().is_none() {
+                return false;
+            }
+        }
+        true
+    }
+
     #[wasm_bindgen]
     pub fn png_data(&self) -> Vec<u8> {
-        self.png_data.clone()
+        self.space_time
+            .to_png()
+            .unwrap_or_else(|e| format!("{:?}", e).into_bytes())
     }
 
     #[wasm_bindgen]
     pub fn step_count(&self) -> u64 {
-        self.step_index + 1
+        self.space_time.step_index + 1
+    }
+
+    #[wasm_bindgen]
+    pub fn count_ones(&self) -> u32 {
+        self.machine.count_ones()
+    }
+
+    #[wasm_bindgen]
+    pub fn is_halted(&self) -> bool {
+        self.machine.is_halted()
     }
 }
 
@@ -637,10 +653,6 @@ mod tests {
         Ok(())
     }
 
-    // cmk: really need to understand i64/u64/usize/isize/u64/i64
-    // cmk: Bug -- displays an extra time step
-    // cmk00: -- y sampling is working, but x sampling is not
-
     /// See https://en.wikipedia.org/wiki/Busy_beaver
     #[test]
     fn bb5_champ_space_time() -> Result<(), Error> {
@@ -693,29 +705,42 @@ mod tests {
 
     #[wasm_bindgen_test]
     #[test]
-    fn bb5_champ_space_time_js() -> Result<(), Error> {
-        let mut machine: Machine = BB5_CHAMP.parse()?;
+    fn bb5_champ_space_time_js() -> Result<(), String> {
+        let s = BB5_CHAMP;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let early_stop = Some(50_000_000);
-        let result = machine.space_time_js(goal_x, goal_y, early_stop);
-        let step_count = result.step_count();
-        let png_data = result.png_data;
-        fs::write("test_js.png", &png_data).unwrap(); // cmk handle error
+        let n = 1_000_000;
+        let mut space_time_machine = SpaceTimeMachine::from_string(s, goal_x, goal_y)?;
+
+        while space_time_machine.nth_js(n) {
+            println!(
+                "Index {}: {:?}, #1's {}",
+                space_time_machine
+                    .space_time
+                    .step_index
+                    .separate_with_commas(),
+                space_time_machine.machine,
+                space_time_machine.machine.count_ones()
+            );
+        }
 
         println!(
             "Final: Steps {}: {:?}, #1's {}",
-            result.step_index.separate_with_commas(),
-            machine,
-            machine.tape.count_ones()
+            space_time_machine
+                .space_time
+                .step_index
+                .separate_with_commas(),
+            space_time_machine.machine,
+            space_time_machine.machine.count_ones()
         );
 
-        if early_stop.map_or(true, |stop| stop >= 47_176_870) {
-            assert_eq!(step_count, 47_176_870);
-            assert_eq!(machine.tape.count_ones(), 4098);
-            assert_eq!(machine.state, 7);
-            assert_eq!(machine.tape_index, -12242);
-        }
+        let png_data = space_time_machine.png_data();
+        fs::write("test_js.png", &png_data).map_err(|e| e.to_string())?;
+
+        assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
+        assert_eq!(space_time_machine.machine.count_ones(), 4098);
+        assert_eq!(space_time_machine.machine.state, 7);
+        assert_eq!(space_time_machine.machine.tape_index, -12242);
 
         Ok(())
     }

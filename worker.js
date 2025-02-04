@@ -1,4 +1,4 @@
-import init, { Machine } from './pkg/busy_beaver_blaze.js';
+import init, { Machine, SpaceTimeMachine } from './pkg/busy_beaver_blaze.js';
 
 let wasmReady = init();
 
@@ -9,15 +9,16 @@ self.onmessage = async function(e) {
         
         // Capture any WASM errors
         try {
-            const machine = new Machine(programText);
-            const result = machine.space_time(goal_x, goal_y, early_stop);  // Changed from space_time_js to space_time
+            const space_time_machine = new SpaceTimeMachine(programText, goal_x, goal_y);
+
+            space_time_machine.nth(early_stop);
             
             self.postMessage({
                 success: true,
-                png_data: result.png_data(),
-                step_count: result.step_count(),
-                ones_count: machine.count_ones(),
-                is_halted: machine.is_halted()
+                png_data: space_time_machine.png_data(),
+                step_count: space_time_machine.step_count(),
+                ones_count: space_time_machine.count_ones(),
+                is_halted: space_time_machine.is_halted()
             });
         } catch (wasmError) {
             throw new Error(wasmError.toString());
