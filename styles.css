@@ -11,17 +11,19 @@ textarea {
     background: #fff;
     border: 1px solid #ccc;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;    /* Change from center */
+    justify-content: flex-start;  /* Change from center */
     font-family: sans-serif;
     color: #666;
     font-style: italic;
+    text-align: left;
 }
 
 .image-container img {
     width: 100%;
     height: 100%;
     object-fit: contain;
+    object-position: left top;  /* Add this to align image content */
     image-rendering: pixelated;
     image-rendering: crisp-edges;
 }
