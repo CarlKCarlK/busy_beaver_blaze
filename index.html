@@ -16,54 +16,56 @@
             <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank" rel="noopener">Wikipedia</a>
         </div>
     </div>
-    <div class="controls">
-        <label>
-            <input type="checkbox" id="useEarlyStop" checked>
-            Stop Early at
-        </label>
-        <label for="earlyStopValue">
-            <input type="number" id="earlyStopValue" value="50000000" min="1">
-            steps
-        </label>
-    </div>
-    <div style="display: flex; align-items: start; gap: 1em;">
-        <label for="programInput">Turing Machine Program:</label>
-        <select id="programSelect">
-            <option value="custom">Custom Program</option>
-            <option value="bb2">2-State Champion</option>
-            <option value="bb3">3-State Champion</option>
-            <option value="bb4">4-State Champion</option>
-            <option value="bb5" selected>5-State Champion</option>
-            <option value="bb6">6-State Contender</option>
-        </select>
-    </div>
-    <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E
+    <div>
+        <div class="controls">
+            <label>
+                <input type="checkbox" id="useEarlyStop" checked>
+                Stop Early at
+            </label>
+            <label for="earlyStopValue">
+                <input type="number" id="earlyStopValue" value="50000000" min="1">
+                steps
+            </label>
+        </div>
+        <div style="display: flex; align-items: start; gap: 1em;">
+            <label for="programInput">Turing Machine Program:</label>
+            <select id="programSelect">
+                <option value="custom">Custom Program</option>
+                <option value="bb2">2-State Champion</option>
+                <option value="bb3">3-State Champion</option>
+                <option value="bb4">4-State Champion</option>
+                <option value="bb5" selected>5-State Champion</option>
+                <option value="bb6">6-State Contender</option>
+            </select>
+        </div>
+        <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E
 0	1RB	1RC	1RD	1LA	1RH
 1	1LC	1RB	0LE	1LD	0LA</textarea>
-    <div class="controls">
-        Size: 
-        <select id="sizePreset">
-            <option value="360,432">Small (360×432)</option>
-            <option value="720,864">Medium (720×864)</option>
-            <option value="1440,1728">Large (1440×1728)</option>
-            <option value="custom">Custom Size...</option>
-        </select>
-        <span id="customSize" class="custom-size">
-            Width: <input type="number" id="customWidth" value="360" min="100" max="2000">
-            Height: <input type="number" id="customHeight" value="432" min="100" max="2000">
-        </span>
+        <div class="controls">
+            Size: 
+            <select id="sizePreset">
+                <option value="360,432">Small (360×432)</option>
+                <option value="720,864">Medium (720×864)</option>
+                <option value="1440,1728">Large (1440×1728)</option>
+                <option value="custom">Custom Size...</option>
+            </select>
+            <span id="customSize" class="custom-size">
+                Width: <input type="number" id="customWidth" value="360" min="100" max="2000">
+                Height: <input type="number" id="customHeight" value="432" min="100" max="2000">
+            </span>
+        </div>
+        <button id="runButton">Run</button>
+        <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
+            Time: <span id="runTime">not run yet</span>
+            • Steps: <span id="stepCount">-</span>
+            • Ones: <span id="onesCount">-</span>
+            • <span id="haltedStatus">-</span>
+        </div>
+        <div>
+            <div id="imageContainer" class="image-container" style="text-align: left;">No diagram yet</div>
+        </div>
+        <div id="status" class="status">Worker status: initializing...</div>
     </div>
-    <button id="runButton">Run</button>
-    <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
-        Time: <span id="runTime">not run yet</span>
-        • Steps: <span id="stepCount">-</span>
-        • Ones: <span id="onesCount">-</span>
-        • <span id="haltedStatus">-</span>
-    </div>
-    <div>
-        <div id="imageContainer" class="image-container" style="text-align: left;">No diagram yet</div>
-    </div>
-    <div id="status" class="status">Worker status: initializing...</div>
     <script type="module">
         let worker = null;
         let isRunning = false;
