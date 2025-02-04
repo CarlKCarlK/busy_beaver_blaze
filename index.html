@@ -79,6 +79,39 @@
         .subtitle a:last-child::after {
             content: none;
         }
+        .controls {
+            opacity: 1;
+            transition: opacity 0.2s;
+        }
+        .controls.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        #runButton {
+            min-width: 100px;
+        }
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .status {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            display: none;
+        }
+        .status.visible {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -135,11 +168,12 @@
     <div>
         <div id="imageContainer" class="image-container">No diagram yet</div>
     </div>
+    <div id="status" class="status">Worker status: initializing...</div>
     <script type="module">
-        import init, { Machine, SpaceTimeResult } from './pkg/busy_beaver_blaze.js';
-
+        let worker = null;
+        
         async function run() {
-            await init();
+            // Remove init() call since it's now in the worker
             
             const PROGRAMS = {
                 bb2: `	A	B
@@ -158,14 +192,14 @@
 0	1RB	1RC	1LC	0LE	1LF	0RC
 1	0LD	0RF	1LA	1RH	0RB	0RE`,
             };
-            
+
             const textarea = document.getElementById('programInput');
             const programSelect = document.getElementById('programSelect');
             
             programSelect.addEventListener('change', () => {
                 const selected = programSelect.value;
                 textarea.value = selected === 'custom' ? textarea.value : PROGRAMS[selected];
-                runMachine();
+                runMachine().catch(console.error);
             });
             
             const useEarlyStop = document.getElementById('useEarlyStop');
@@ -190,35 +224,99 @@
                 return [width, height];
             }
 
-            function runMachine() {
+            let currentController = null;
+            
+            async function runMachine() {
+                const status = document.getElementById('status');
+                status.textContent = 'Worker status: starting...';
+                status.classList.add('visible');
+
+                if (worker) {
+                    worker.terminate();
+                }
+                worker = new Worker('./worker.js', { type: 'module' });
+                
+                let progressTimer = null;
                 try {
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.add('disabled'));
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Running...';
+                    runButton.classList.add('loading');
+                    container.textContent = 'Computing...';
+                    
                     const startTime = performance.now();
                     const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : null;
                     const [goal_x, goal_y] = updateSize();
-                    const machine = new Machine(textarea.value);                    
-                    const result = machine.space_time(goal_x, goal_y, early_stop);
-                    const blob = new Blob([result.png_data()], { type: 'image/png' });
+
+                    const updateProgress = () => {
+                        const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+                        container.textContent = `Computing... ${elapsed}s`;
+                        progressTimer = setTimeout(updateProgress, 100);
+                    };
+                    updateProgress();
+
+                    status.textContent = 'Worker status: computing...';
+                    const result = await new Promise((resolve, reject) => {
+                        worker.onmessage = (e) => {
+                            if (e.data.success) {
+                                resolve(e.data);
+                            } else {
+                                reject(new Error(e.data.error));
+                            }
+                        };
+                        worker.onerror = reject;
+                        
+                        worker.postMessage({
+                            programText: textarea.value,
+                            goal_x,
+                            goal_y,
+                            early_stop
+                        });
+                    });
+
+                    status.textContent = 'Worker status: completed';
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    clearTimeout(progressTimer);
+                    
+                    const blob = new Blob([result.png_data], { type: 'image/png' });
                     container.innerHTML = '<img alt="Space-time diagram">';
                     container.querySelector('img').src = URL.createObjectURL(blob);
+                    
                     const endTime = performance.now();
                     document.getElementById('runTime').textContent = `${((endTime - startTime) / 1000).toFixed(2)}s`;
-                    document.getElementById('stepCount').textContent = result.step_count().toLocaleString();
-                    document.getElementById('onesCount').textContent = machine.count_ones().toLocaleString();
-                    document.getElementById('haltedStatus').textContent = machine.is_halted() ? 'Halted' : 'Not Halted';
+                    document.getElementById('stepCount').textContent = result.step_count.toLocaleString();
+                    document.getElementById('onesCount').textContent = result.ones_count.toLocaleString();
+                    document.getElementById('haltedStatus').textContent = result.is_halted ? 'Halted' : 'Not Halted';
                 } catch (e) {
-                    console.error(e);
-                    container.textContent = `Error: ${e}`;
+                    status.textContent = 'Worker status: error';
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    clearTimeout(progressTimer);
+                    const errorMessage = e.message || e.toString();
+                    console.error('Error:', errorMessage);
+                    container.textContent = `Error: ${errorMessage}`;
                     document.getElementById('runTime').textContent = 'error';
                     document.getElementById('stepCount').textContent = '-';
                     document.getElementById('onesCount').textContent = '-';
                     document.getElementById('haltedStatus').textContent = '-';
+                } finally {
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    if (worker) {
+                        worker.terminate();
+                        worker = null;
+                    }
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.remove('disabled'));
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Run';
+                    runButton.classList.remove('loading');
                 }
             }
             
-            sizePreset.addEventListener('change', runMachine);
-            customWidth.addEventListener('change', runMachine);
-            customHeight.addEventListener('change', runMachine);
-            document.getElementById('runButton').addEventListener('click', runMachine);
+            sizePreset.addEventListener('change', () => runMachine().catch(console.error));
+            customWidth.addEventListener('change', () => runMachine().catch(console.error));
+            customHeight.addEventListener('change', () => runMachine().catch(console.error));
+            document.getElementById('runButton').addEventListener('click', () => runMachine().catch(console.error));
             
             // Initial size setup only, don't run yet
             updateSize();
