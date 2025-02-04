@@ -38,6 +38,15 @@ const BB6_CONTENDER: &str = "
 1	0LD	0RF	1LA	1RH	0RB	0RE
 ";
 
+const Machine_7_135_505: &str = "   
+0	1
+A	1RB	0LD
+B	1RC	---
+C	1LD	1RA
+D	1RE	1LC
+E	0LA	0RE
+";
+
 #[derive(Default, Debug)]
 struct Tape {
     nonnegative: Vec<u8>,
@@ -179,7 +188,7 @@ impl Iterator for Machine {
     fn next(&mut self) -> Option<Self::Item> {
         let program = &self.program;
         let input = self.tape[self.tape_index];
-        let per_input = &program.inner[self.state as usize][input as usize];
+        let per_input = &program.state_to_symbol_to_action[self.state as usize][input as usize];
         self.tape[self.tape_index] = per_input.next_symbol;
         self.tape_index += per_input.direction as i64;
         self.state = per_input.next_state;
@@ -195,7 +204,7 @@ impl Iterator for Machine {
 struct Program {
     state_count: usize,
     symbol_count: usize,
-    inner: Vec<Vec<Action>>,
+    state_to_symbol_to_action: Vec<Vec<Action>>,
 }
 
 // impl a parser for the strings like this
@@ -206,8 +215,127 @@ impl FromStr for Program {
     type Err = Error;
 
     #[allow(clippy::assertions_on_constants)]
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let mut lines = input.lines();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let count_lines = s.lines().count();
+        let is_first_non_space_a_numeral = s
+            .trim()
+            .chars()
+            .next()
+            .map_or(false, |c| c.is_ascii_digit());
+
+        match (count_lines, is_first_non_space_a_numeral) {
+            // (1, _) => Self:parse_standard_format(s),
+            (2.., false) => Self::parse_symbol_to_state(s),
+            (2.., true) => Self::parse_state_to_symbol(s),
+            _ => Err(Error::UnexpectedFormat),
+        }
+    }
+}
+
+impl Program {
+    fn parse_state(input: &str) -> Result<char, Error> {
+        let mut chars = input.chars();
+        match (chars.next(), chars.next()) {
+            (Some(c @ 'A'..='Z'), None) => Ok(c), // Ensure single uppercase letter
+            _ => Err(Error::UnexpectedState),
+        }
+    }
+
+    fn parse_action(part: &str) -> Result<Action, Error> {
+        let asciis = part.as_bytes();
+        if asciis.len() != 3 {
+            return Err(Error::MissingField);
+        }
+        if asciis == b"---" {
+            return Ok(Action {
+                next_state: 25,
+                next_symbol: 0,
+                direction: -1,
+            });
+        }
+        let next_symbol = match asciis[0] {
+            b'0' => 0,
+            b'1' => 1,
+            _ => return Err(Error::InvalidChar),
+        };
+        let direction = match asciis[1] {
+            b'L' => -1,
+            b'R' => 1,
+            _ => return Err(Error::InvalidChar),
+        };
+        let next_state = match asciis[2] {
+            b'A'..=b'Z' => asciis[2] - b'A',
+            _ => return Err(Error::InvalidChar),
+        };
+
+        Ok(Action {
+            next_state,
+            next_symbol,
+            direction,
+        })
+    }
+
+    #[allow(clippy::assertions_on_constants)]
+    fn parse_state_to_symbol(s: &str) -> Result<Self, Error> {
+        let mut lines = s.lines();
+
+        // Skip empty lines at the beginning
+        for line in lines.by_ref() {
+            if !line.trim().is_empty() {
+                break;
+            }
+        }
+
+        // Create a vector of vectors, e.g. 5 x 2
+        let state_to_symbol_to_action: Vec<Vec<Action>> = lines
+            .zip('A'..)
+            .map(|(line, state)| {
+                let mut parts = line.split_whitespace();
+
+                let state_again = parts
+                    .next()
+                    .ok_or(Error::MissingField)
+                    .and_then(Program::parse_state)?;
+
+                if state != state_again {
+                    return Err(Error::UnexpectedState);
+                }
+
+                parts
+                    .map(Program::parse_action)
+                    .collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
+            })
+            .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
+
+        // Ensure proper dimensions (STATE_COUNT x 2)
+        let state_count = state_to_symbol_to_action.len();
+        if state_count == 0 {
+            return Err(Error::InvalidStatesCount {
+                expected: 1,
+                got: 0,
+            });
+        }
+
+        let symbol_count = state_to_symbol_to_action[0].len();
+        if symbol_count == 0 {
+            return Err(Error::InvalidSymbolsCount {
+                expected: 1,
+                got: 0,
+            });
+        }
+
+        // println!("cmk {:?}", state_to_symbol_to_action);
+
+        Ok(Program {
+            state_count,
+            symbol_count,
+            state_to_symbol_to_action,
+        })
+    }
+
+    #[allow(clippy::assertions_on_constants)]
+    fn parse_symbol_to_state(s: &str) -> Result<Self, Error> {
+        let mut lines = s.lines();
 
         // Skip empty lines at the beginning
         for line in lines.by_ref() {
@@ -228,32 +356,7 @@ impl FromStr for Program {
                 }
 
                 parts
-                    .map(|part| {
-                        let asciis = part.as_bytes();
-                        if asciis.len() != 3 {
-                            return Err(Error::MissingField);
-                        }
-                        let next_symbol = match asciis[0] {
-                            b'0' => 0,
-                            b'1' => 1,
-                            _ => return Err(Error::InvalidChar),
-                        };
-                        let direction = match asciis[1] {
-                            b'L' => -1,
-                            b'R' => 1,
-                            _ => return Err(Error::InvalidChar),
-                        };
-                        let next_state = match asciis[2] {
-                            b'A'..=b'Z' => asciis[2] - b'A',
-                            _ => return Err(Error::InvalidChar),
-                        };
-
-                        Ok(Action {
-                            next_state,
-                            next_symbol,
-                            direction,
-                        })
-                    })
+                    .map(Program::parse_action)
                     .collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
             })
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
@@ -276,7 +379,7 @@ impl FromStr for Program {
         }
 
         // Preallocate transposed vec_of_vec (state_count x symbol_count)
-        let mut inner: Vec<Vec<Action>> = (0..state_count)
+        let mut state_to_symbol_to_action: Vec<Vec<Action>> = (0..state_count)
             .map(|_| Vec::with_capacity(symbol_count))
             .collect();
 
@@ -290,14 +393,14 @@ impl FromStr for Program {
             }
 
             for (i, item) in row.drain(..).enumerate() {
-                inner[i].push(item); // Move item into transposed[i]
+                state_to_symbol_to_action[i].push(item); // Move item into transposed[i]
             }
         }
 
         Ok(Program {
             state_count,
             symbol_count,
-            inner,
+            state_to_symbol_to_action,
         })
     }
 }
@@ -359,8 +462,14 @@ pub enum Error {
     #[display("Unexpected symbol encountered")]
     UnexpectedSymbol,
 
+    #[display("Unexpected state encountered")]
+    UnexpectedState,
+
     #[display("Invalid encoding encountered")]
     EncodingError,
+
+    #[display("Unexpected format")]
+    UnexpectedFormat,
 }
 
 // Implement conversions manually where needed
@@ -559,7 +668,7 @@ impl Iterator for SpaceTimeMachine {
 #[wasm_bindgen]
 impl SpaceTimeMachine {
     #[wasm_bindgen(constructor)]
-    pub fn from_string(s: &str, goal_x: u32, goal_y: u32) -> Result<SpaceTimeMachine, String> {
+    pub fn from_str(s: &str, goal_x: u32, goal_y: u32) -> Result<SpaceTimeMachine, String> {
         Ok(SpaceTimeMachine {
             machine: Machine::from_string(s)?,
             space_time: SampledSpaceTime::new(goal_x, goal_y),
@@ -710,7 +819,7 @@ mod tests {
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
         let n = 1_000_000;
-        let mut space_time_machine = SpaceTimeMachine::from_string(s, goal_x, goal_y)?;
+        let mut space_time_machine = SpaceTimeMachine::from_str(s, goal_x, goal_y)?;
 
         while space_time_machine.nth_js(n) {
             println!(
@@ -742,6 +851,13 @@ mod tests {
         assert_eq!(space_time_machine.machine.state, 7);
         assert_eq!(space_time_machine.machine.tape_index, -12242);
 
+        Ok(())
+    }
+
+    #[wasm_bindgen_test]
+    #[test]
+    fn machine_7_135_505() -> Result<(), Error> {
+        let _: Machine = Machine_7_135_505.parse()?;
         Ok(())
     }
 }
