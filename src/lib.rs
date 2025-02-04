@@ -126,26 +126,38 @@ impl Machine {
         self.next().is_some()
     }
 
-    #[wasm_bindgen]
-    pub fn space_time_js(&mut self, goal_x: u32, goal_y: u32, early_stop: Option<u64>) -> Vec<u8> {
+    #[wasm_bindgen(js_name = "space_time")]
+    pub fn space_time_js(
+        &mut self,
+        goal_x: u32,
+        goal_y: u32,
+        early_stop_is_some: bool,
+        early_stop_number: u32,
+    ) -> SpaceTimeResult {
+        let early_stop_number = early_stop_number as u64;
         let mut sampled_space_time = SampledSpaceTime::new(goal_x, goal_y);
 
         while self.next().is_some()
-            && early_stop.is_none_or(|early_stop| sampled_space_time.step_count < early_stop)
+            && (!early_stop_is_some || sampled_space_time.step_count < early_stop_number)
         {
             sampled_space_time.snapshot(&self);
         }
 
-        sampled_space_time
+        let png_data = sampled_space_time
             .to_png()
-            .unwrap_or_else(|e| format!("{:?}", e).into_bytes())
+            .unwrap_or_else(|e| format!("{:?}", e).into_bytes());
+
+        SpaceTimeResult {
+            png_data,
+            step_count: sampled_space_time.step_count + 1,
+        }
     }
 
-    #[wasm_bindgen]
-    pub fn count_js(&mut self, early_stop_some: bool, early_stop_number: u64) -> u64 {
+    #[wasm_bindgen(js_name = "count")]
+    pub fn count_js(&mut self, early_stop_is_some: bool, early_stop_number: u64) -> u64 {
         let mut step_count = 0;
 
-        while self.next().is_some() && (!early_stop_some || step_count < early_stop_number) {
+        while self.next().is_some() && (!early_stop_is_some || step_count < early_stop_number) {
             step_count += 1;
         }
 
@@ -542,7 +554,25 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
     Ok(buf)
 }
 
-// tests
+#[wasm_bindgen]
+pub struct SpaceTimeResult {
+    png_data: Vec<u8>,
+    step_count: u64,
+}
+
+#[wasm_bindgen]
+impl SpaceTimeResult {
+    #[wasm_bindgen]
+    pub fn png_data(&self) -> Vec<u8> {
+        self.png_data.clone()
+    }
+
+    #[wasm_bindgen]
+    pub fn step_count(&self) -> u64 {
+        self.step_count
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -643,6 +673,35 @@ mod tests {
 
         if early_stop.is_none() {
             assert_eq!(sample_space_time.step_count, 47_176_870);
+            assert_eq!(machine.tape.count_ones(), 4098);
+            assert_eq!(machine.state, 7);
+            assert_eq!(machine.tape_index, -12242);
+        }
+
+        Ok(())
+    }
+
+    #[wasm_bindgen_test]
+    #[test]
+    fn bb5_champ_space_time_js() -> Result<(), Error> {
+        let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
+        let goal_x: u32 = 1000;
+        let goal_y: u32 = 1000;
+        let early_stop_is_some = true;
+        let early_stop_number = 50_000_000;
+        let result = machine.space_time_js(goal_x, goal_y, early_stop_is_some, early_stop_number);
+        let png_data = result.png_data;
+        fs::write("test_js.png", &png_data).unwrap(); // cmk handle error
+
+        println!(
+            "Final: Steps {}: {:?}, #1's {}",
+            result.step_count.separate_with_commas(),
+            machine,
+            machine.tape.count_ones()
+        );
+
+        if !early_stop_is_some || early_stop_number >= 47_176_870 {
+            assert_eq!(result.step_count, 47_176_870);
             assert_eq!(machine.tape.count_ones(), 4098);
             assert_eq!(machine.state, 7);
             assert_eq!(machine.tape_index, -12242);
