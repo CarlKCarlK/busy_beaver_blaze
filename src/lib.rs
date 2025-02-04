@@ -131,12 +131,13 @@ impl Machine {
         &mut self,
         goal_x: u32,
         goal_y: u32,
-        early_stop: Option<u32>,
+        early_stop_is_some: bool,
+        early_stop_number: u64,
     ) -> SpaceTimeResult {
         let mut sampled_space_time = SampledSpaceTime::new(goal_x, goal_y);
 
         while self.next().is_some()
-            && early_stop.is_none_or(|early_stop| sampled_space_time.step_count < early_stop as u64)
+            && (!early_stop_is_some || sampled_space_time.step_count < early_stop_number)
         {
             sampled_space_time.snapshot(self);
         }
