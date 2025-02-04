@@ -193,11 +193,10 @@
             function runMachine() {
                 try {
                     const startTime = performance.now();
-                    const early_stop_is_some = useEarlyStop.checked;
-                    const early_stop_number = BigInt(earlyStopValue.value);
+                    const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : null;
                     const [goal_x, goal_y] = updateSize();
-                    const machine = new Machine(textarea.value);
-                    const result = machine.space_time(goal_x, goal_y, early_stop_is_some, early_stop_number);
+                    const machine = new Machine(textarea.value);                    
+                    const result = machine.space_time(goal_x, goal_y, early_stop);
                     const blob = new Blob([result.png_data()], { type: 'image/png' });
                     container.innerHTML = '<img alt="Space-time diagram">';
                     container.querySelector('img').src = URL.createObjectURL(blob);

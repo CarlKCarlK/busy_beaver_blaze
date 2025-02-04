@@ -131,13 +131,12 @@ impl Machine {
         &mut self,
         goal_x: u32,
         goal_y: u32,
-        early_stop_is_some: bool,
-        early_stop_number: u64,
+        early_stop: Option<u64>,
     ) -> SpaceTimeResult {
         let mut sampled_space_time = SampledSpaceTime::new(goal_x, goal_y);
 
         while self.next().is_some()
-            && (!early_stop_is_some || sampled_space_time.step_count < early_stop_number)
+            && early_stop.is_none_or(|early_stop| sampled_space_time.step_index + 1 < early_stop)
         {
             sampled_space_time.snapshot(self);
         }
@@ -148,7 +147,7 @@ impl Machine {
 
         SpaceTimeResult {
             png_data,
-            step_count: sampled_space_time.step_count + 1, // turn last index into count
+            step_index: sampled_space_time.step_index, // turn last index into count
         }
     }
 
@@ -164,13 +163,13 @@ impl Machine {
 
     #[wasm_bindgen(js_name = "count")]
     pub fn count_js(&mut self, early_stop_is_some: bool, early_stop_number: u64) -> u64 {
-        let mut step_count = 0;
+        let mut step_index = 0;
 
-        while self.next().is_some() && (!early_stop_is_some || step_count < early_stop_number) {
-            step_count += 1;
+        while self.next().is_some() && (!early_stop_is_some || step_index < early_stop_number) {
+            step_index += 1;
         }
 
-        step_count + 1 // turn last index into count
+        step_index + 1 // turn last index into count
     }
 }
 impl FromStr for Machine {
@@ -343,16 +342,18 @@ pub trait DebuggableIterator: Iterator {
     where
         Self: Sized + std::fmt::Debug, // ✅ Ensure Debug is implemented
     {
-        let mut step_count = 0;
+        let mut step_index = 0;
+
+        println!("Step {}: {:?}", step_index.separate_with_commas(), self);
 
         while self.next().is_some() {
-            step_count += 1;
-            if step_count % debug_interval == 0 {
-                println!("Step {}: {:?}", step_count.separate_with_commas(), self);
+            step_index += 1;
+            if step_index % debug_interval == 0 {
+                println!("Step {}: {:?}", step_index.separate_with_commas(), self);
             }
         }
 
-        step_count + 1 // turn last index into count
+        step_index + 1 // turn last index into count
     }
 }
 
@@ -413,7 +414,7 @@ impl Default for Spaceline {
 }
 
 struct SampledSpaceTime {
-    step_count: u64,
+    step_index: u64,
     x_goal: u32,
     y_goal: u32,
     sample: u64,
@@ -427,7 +428,7 @@ struct SampledSpaceTime {
 impl SampledSpaceTime {
     fn new(x_goal: u32, y_goal: u32) -> Self {
         SampledSpaceTime {
-            step_count: 0,
+            step_index: 0,
             x_goal,
             y_goal,
             sample: 1,
@@ -436,7 +437,7 @@ impl SampledSpaceTime {
     }
 
     fn compress_if_needed(&mut self) {
-        let new_sample = sample_rate(self.step_count, self.y_goal);
+        let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.sample {
             self.spacelines
                 .retain(|spaceline| spaceline.time % new_sample == 0);
@@ -445,9 +446,9 @@ impl SampledSpaceTime {
     }
 
     fn snapshot(&mut self, machine: &Machine) {
-        self.step_count += 1;
+        self.step_index += 1;
 
-        if self.step_count % self.sample != 0 {
+        if self.step_index % self.sample != 0 {
             return;
         }
         self.compress_if_needed();
@@ -476,7 +477,7 @@ impl SampledSpaceTime {
             sample: x_sample,
             start: sample_start,
             values,
-            time: self.step_count,
+            time: self.step_index,
         });
     }
 
@@ -566,7 +567,7 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
 #[wasm_bindgen]
 pub struct SpaceTimeResult {
     png_data: Vec<u8>,
-    step_count: u64,
+    step_index: u64,
 }
 
 #[wasm_bindgen]
@@ -578,7 +579,7 @@ impl SpaceTimeResult {
 
     #[wasm_bindgen]
     pub fn step_count(&self) -> u64 {
-        self.step_count
+        self.step_index + 1
     }
 }
 
@@ -654,14 +655,14 @@ mod tests {
         let debug_interval = Some(1_000_000);
 
         while machine.next().is_some()
-            && early_stop.is_none_or(|early_stop| sample_space_time.step_count < early_stop)
+            && early_stop.is_none_or(|early_stop| sample_space_time.step_index + 1 < early_stop)
         {
             if debug_interval
-                .is_none_or(|debug_interval| sample_space_time.step_count % debug_interval == 0)
+                .is_none_or(|debug_interval| sample_space_time.step_index % debug_interval == 0)
             {
                 println!(
                     "Step {}: {:?},\t{}",
-                    sample_space_time.step_count.separate_with_commas(),
+                    sample_space_time.step_index.separate_with_commas(),
                     machine,
                     machine.tape.index_range_to_string(-10..=10)
                 );
@@ -675,13 +676,13 @@ mod tests {
 
         println!(
             "Final: Steps {}: {:?}, #1's {}",
-            sample_space_time.step_count.separate_with_commas(),
+            sample_space_time.step_index.separate_with_commas(),
             machine,
             machine.tape.count_ones()
         );
 
         if early_stop.is_none() {
-            assert_eq!(sample_space_time.step_count, 47_176_870);
+            assert_eq!(sample_space_time.step_index, 47_176_870);
             assert_eq!(machine.tape.count_ones(), 4098);
             assert_eq!(machine.state, 7);
             assert_eq!(machine.tape_index, -12242);
@@ -693,24 +694,24 @@ mod tests {
     #[wasm_bindgen_test]
     #[test]
     fn bb5_champ_space_time_js() -> Result<(), Error> {
-        let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
+        let mut machine: Machine = BB5_CHAMP.parse()?;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let early_stop_is_some = true;
-        let early_stop_number = 50_000_000;
-        let result = machine.space_time_js(goal_x, goal_y, early_stop_is_some, early_stop_number);
+        let early_stop = Some(50_000_000);
+        let result = machine.space_time_js(goal_x, goal_y, early_stop);
+        let step_count = result.step_count();
         let png_data = result.png_data;
         fs::write("test_js.png", &png_data).unwrap(); // cmk handle error
 
         println!(
             "Final: Steps {}: {:?}, #1's {}",
-            result.step_count.separate_with_commas(),
+            result.step_index.separate_with_commas(),
             machine,
             machine.tape.count_ones()
         );
 
-        if !early_stop_is_some || early_stop_number >= 47_176_870 {
-            assert_eq!(result.step_count, 47_176_870);
+        if early_stop.map_or(true, |stop| stop >= 47_176_870) {
+            assert_eq!(step_count, 47_176_870);
             assert_eq!(machine.tape.count_ones(), 4098);
             assert_eq!(machine.state, 7);
             assert_eq!(machine.tape_index, -12242);
