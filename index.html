@@ -53,6 +53,10 @@
                 Width: <input type="number" id="customWidth" value="360" min="100" max="2000">
                 Height: <input type="number" id="customHeight" value="432" min="100" max="2000">
             </span>
+            <label style="margin-left: 1em;">
+                <input type="checkbox" id="stretchImage" checked>
+                Stretch Image
+            </label>
         </div>
         <button id="runButton">Run</button>
         <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
@@ -61,23 +65,20 @@
             • Ones: <span id="onesCount">-</span>
             • <span id="haltedStatus">-</span>
         </div>
-        <div>
-            <div id="imageContainer" class="image-container" style="text-align: left;">No diagram yet</div>
-        </div>
+        <div id="imageContainer" class="image-container" style="text-align: left;">No diagram yet</div>
         <div id="status" class="status">Worker status: initializing...</div>
     </div>
     <script type="module">
         let worker = null;
         let isRunning = false;
         let progressTimer = null;  // Move this to global scope
-        
+
         async function run() {
             // Remove init() call since it's now in the worker
-            
             const PROGRAMS = {
                 bb2: `	A	B
 0	1RB	1LA
-1	1LB	1RH`,
+1	1LB	1RH`, 
                 bb3: `	A	B	C
 0	1RB	0RC	1LC
 1	1RH	1RB	1LA`,
@@ -94,13 +95,12 @@
 
             const textarea = document.getElementById('programInput');
             const programSelect = document.getElementById('programSelect');
-            
             programSelect.addEventListener('change', () => {
                 const selected = programSelect.value;
                 textarea.value = selected === 'custom' ? textarea.value : PROGRAMS[selected];
                 runMachine().catch(console.error);
             });
-            
+
             const useEarlyStop = document.getElementById('useEarlyStop');
             const earlyStopValue = document.getElementById('earlyStopValue');
             const sizePreset = document.getElementById('sizePreset');
@@ -108,23 +108,28 @@
             const customWidth = document.getElementById('customWidth');
             const customHeight = document.getElementById('customHeight');
             const container = document.getElementById('imageContainer');
-            
+            const stretchImage = document.getElementById('stretchImage');
+
+            // Add handler for stretch toggle
+            stretchImage.addEventListener('change', () => {
+                const img = container.querySelector('img');
+                if (img) {
+                    img.classList.toggle('stretch', stretchImage.checked);
+                }
+            });
+
+            // Update stretch class when creating new images
+            function updateImageStretch(img) {
+                img.classList.toggle('stretch', stretchImage.checked);
+            }
+
             function updateSize() {
-                const isCustom = sizePreset.value === 'custom';
-                customSize.classList.toggle('visible', isCustom);
-                
-                let [width, height] = isCustom 
-                    ? [Number(customWidth.value), Number(customHeight.value)]
-                    : sizePreset.value.split(',').map(Number);
-                
+                const [width, height] = sizePreset.value === 'custom' ? [customWidth.value, customHeight.value] : sizePreset.value.split(',').map(Number);
                 container.style.width = width + 'px';
                 container.style.height = height + 'px';
-                
                 return [width, height];
             }
 
-            let currentController = null;
-            
             async function runMachine() {
                 if (isRunning) {
                     if (worker) {
@@ -153,7 +158,7 @@
                     worker.terminate();
                 }
                 worker = new Worker('./worker.js', { type: 'module' });
-                
+
                 try {
                     const controls = document.querySelectorAll('.controls');
                     controls.forEach(c => c.classList.add('disabled'));
@@ -161,11 +166,10 @@
                     runButton.textContent = 'Cancel';
                     runButton.classList.add('loading');
                     container.textContent = 'Computing...';
-                    
                     const startTime = performance.now();
                     const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : null;
                     const [goal_x, goal_y] = updateSize();
-
+                    
                     const updateProgress = () => {
                         if (!isRunning) {
                             clearTimeout(progressTimer);
@@ -189,7 +193,9 @@
                             if (e.data.intermediate) {
                                 const blob = new Blob([e.data.png_data], { type: 'image/png' });
                                 container.innerHTML = '<img alt="Space-time diagram">';
-                                container.querySelector('img').src = URL.createObjectURL(blob);
+                                const img = container.querySelector('img');
+                                img.src = URL.createObjectURL(blob);
+                                updateImageStretch(img);
                                 
                                 document.getElementById('stepCount').textContent = e.data.step_count.toLocaleString();
                                 document.getElementById('onesCount').textContent = e.data.ones_count.toLocaleString();
@@ -216,7 +222,9 @@
                     
                     const blob = new Blob([result.png_data], { type: 'image/png' });
                     container.innerHTML = '<img alt="Space-time diagram">';
-                    container.querySelector('img').src = URL.createObjectURL(blob);
+                    const img = container.querySelector('img');
+                    img.src = URL.createObjectURL(blob);
+                    updateImageStretch(img);
                     
                     const endTime = performance.now();
                     document.getElementById('runTime').textContent = `${((endTime - startTime) / 1000).toFixed(2)}s`;
@@ -253,7 +261,7 @@
             customWidth.addEventListener('change', () => runMachine().catch(console.error));
             customHeight.addEventListener('change', () => runMachine().catch(console.error));
             document.getElementById('runButton').addEventListener('click', () => runMachine().catch(console.error));
-            
+                        
             // Initial size setup only, don't run yet
             updateSize();
         }

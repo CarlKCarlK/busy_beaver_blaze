@@ -41,15 +41,20 @@ textarea {
     color: #666;
     font-style: italic;
     text-align: left;
+    overflow: auto;  /* Add scrolling when not stretched */
 }
 
 .image-container img {
     width: 100%;
     height: 100%;
-    object-fit: fill;  /* Changed from contain to fill */
+    object-fit: contain;  /* Changed from none to contain */
     object-position: left top;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+}
+
+.image-container img.stretch {
+    object-fit: fill;  /* Apply stretching when class is present */
 }
 
 #earlyStopValue {
