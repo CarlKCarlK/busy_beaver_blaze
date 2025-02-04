@@ -147,8 +147,18 @@ impl Machine {
 
         SpaceTimeResult {
             png_data,
-            step_count: sampled_space_time.step_count,
+            step_count: sampled_space_time.step_count + 1, // turn last index into count
         }
+    }
+
+    #[wasm_bindgen]
+    pub fn count_ones(&self) -> u32 {
+        self.tape.count_ones() as u32
+    }
+
+    #[wasm_bindgen]
+    pub fn is_halted(&self) -> bool {
+        self.program.state_count <= self.state as usize
     }
 
     #[wasm_bindgen(js_name = "count")]
