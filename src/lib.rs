@@ -38,7 +38,7 @@ const BB6_CONTENDER: &str = "
 1	0LD	0RF	1LA	1RH	0RB	0RE
 ";
 
-const Machine_7_135_505: &str = "   
+const Machine_7_135_505_A: &str = "   
 0	1
 A	1RB	0LD
 B	1RC	---
@@ -46,6 +46,7 @@ C	1LD	1RA
 D	1RE	1LC
 E	0LA	0RE
 ";
+const Machine_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
 
 #[derive(Default, Debug)]
 struct Tape {
@@ -224,7 +225,7 @@ impl FromStr for Program {
             .map_or(false, |c| c.is_ascii_digit());
 
         match (count_lines, is_first_non_space_a_numeral) {
-            // (1, _) => Self:parse_standard_format(s),
+            (1, _) => Self::parse_standard_format(s),
             (2.., false) => Self::parse_symbol_to_state(s),
             (2.., true) => Self::parse_state_to_symbol(s),
             _ => Err(Error::UnexpectedFormat),
@@ -233,15 +234,16 @@ impl FromStr for Program {
 }
 
 impl Program {
-    fn parse_state(input: &str) -> Result<char, Error> {
-        let mut chars = input.chars();
+    fn parse_state(input: impl AsRef<str>) -> Result<char, Error> {
+        // println!("cmk {:?}", input.as_ref());
+        let mut chars = input.as_ref().chars();
         match (chars.next(), chars.next()) {
             (Some(c @ 'A'..='Z'), None) => Ok(c), // Ensure single uppercase letter
             _ => Err(Error::UnexpectedState),
         }
     }
-
-    fn parse_action(part: &str) -> Result<Action, Error> {
+    fn parse_action(part: impl AsRef<str>) -> Result<Action, Error> {
+        let part = part.as_ref();
         let asciis = part.as_bytes();
         if asciis.len() != 3 {
             return Err(Error::MissingField);
@@ -324,7 +326,52 @@ impl Program {
             });
         }
 
-        // println!("cmk {:?}", state_to_symbol_to_action);
+        Ok(Program {
+            state_count,
+            symbol_count,
+            state_to_symbol_to_action,
+        })
+    }
+
+    #[allow(clippy::assertions_on_constants)]
+    fn parse_standard_format(s: &str) -> Result<Self, Error> {
+        let sections = s.trim().split('_');
+
+        // Create a vector of vectors, e.g. 5 x 2
+        let state_to_symbol_to_action: Vec<Vec<Action>> = sections
+            .zip('A'..)
+            .map(|(section, _state)| {
+                // split section into groups of 3 char
+                let parts: Vec<String> = section
+                    .chars()
+                    .collect::<Vec<_>>() // Collect into Vec<char>
+                    .chunks(3) // Chunk it into groups
+                    .map(|chunk| chunk.iter().collect()) // Convert each chunk back into a String
+                    .collect();
+
+                parts
+                    .into_iter()
+                    .map(Program::parse_action)
+                    .collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
+            })
+            .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
+
+        // Ensure proper dimensions (STATE_COUNT x 2)
+        let state_count = state_to_symbol_to_action.len();
+        if state_count == 0 {
+            return Err(Error::InvalidStatesCount {
+                expected: 1,
+                got: 0,
+            });
+        }
+
+        let symbol_count = state_to_symbol_to_action[0].len();
+        if symbol_count == 0 {
+            return Err(Error::InvalidSymbolsCount {
+                expected: 1,
+                got: 0,
+            });
+        }
 
         Ok(Program {
             state_count,
@@ -624,7 +671,7 @@ fn sample_rate(row: u64, goal: u32) -> u64 {
 
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
     // assert!(image_data.len() == (width * height) as usize);
-    println!("cmk {:?}, {width}x{height}", image_data.len());
+    // println!("cmk {:?}, {width}x{height}", image_data.len());
     let mut buf = Vec::new();
     {
         // Create an encoder that writes directly into `buf`
@@ -857,7 +904,8 @@ mod tests {
     #[wasm_bindgen_test]
     #[test]
     fn machine_7_135_505() -> Result<(), Error> {
-        let _: Machine = Machine_7_135_505.parse()?;
+        let _machine_a: Machine = Machine_7_135_505_A.parse()?;
+        let _machine_b: Machine = Machine_7_135_505_B.parse()?;
         Ok(())
     }
 }
