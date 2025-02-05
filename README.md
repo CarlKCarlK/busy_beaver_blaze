@@ -27,9 +27,11 @@
 
 A space-time diagram for the best known 6-state busy beaver after running for exactly 10 billion steps. Each vertical slice shows the Turing machine tape at one point in time, with dark pixels representing 1s and light pixels representing 0s. Time flows down.
 
-## Other Web-Based Turing Machine Visualizers
+## Related Work
 
 * Fiery created a very nice, fast [full-featured visualizer](https://fiery.pages.dev/turing/1RB1LC_0RD0RB_1RA0LC_1LD1RA) with TypeScript. It powers the diagrams of the [Busy Beaver Challenge](https://bbchallenge.org/). It seems to be limited to about 4 billion steps. It displays the diagram all at once rather than showing the diagram's development.
+
+* If you want to run a Turing machine beyond trillions of steps, look at this thread on [math.stackexchange.com](https://math.stackexchange.com/questions/1202334/how-was-the-busy-beaver-candidate-for-6-states-calculated).
 
 ## License
 
