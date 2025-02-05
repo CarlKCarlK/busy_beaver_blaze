@@ -35,13 +35,15 @@ textarea {
     background: #fff;
     border: 1px solid #ccc;
     display: flex;
-    align-items: flex-start;
+    flex-direction: column;  /* Add this */
+    align-items: flex-start;  /* Change from center to flex-start */
     justify-content: flex-start;
     font-family: sans-serif;
     color: #666;
     font-style: italic;
-    text-align: left;
+    text-align: left;      /* Change from center to left */
     overflow: auto;  /* Add scrolling when not stretched */
+    padding: 1em;            /* Add padding for better spacing */
 }
 
 .image-container img {
