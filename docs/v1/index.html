@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Busy Beaver</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        textarea {
+            width: 100%;
+            min-height: 50px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        .image-container {
+            width: 360px;
+            height: 432px;
+            background: #fff;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: sans-serif;
+            color: #666;
+            font-style: italic;
+        }
+        .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        #earlyStopValue {
+            font-family: monospace;
+            text-align: right;
+            width: 10em;
+        }
+        .custom-size {
+            display: none;
+            margin-left: 1em;
+        }
+        .custom-size.visible {
+            display: inline;
+        }
+        .header-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2em;
+        }
+        .header-container h1 {
+            margin: 0;
+        }
+        .subtitle {
+            flex-shrink: 0;
+            font-size: 0.85em;
+            color: #666;
+            font-weight: 500;
+            margin-left: auto;
+        }
+        .subtitle a {
+            color: #0366d6;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .subtitle a:hover {
+            text-decoration: underline;
+            color: #1a7f37;
+        }
+        .subtitle a::after {
+            content: "•";
+            color: #666;
+            margin: 0 0.5em;
+            font-weight: normal;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .subtitle a:last-child::after {
+            content: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-container">
+        <h1>Busy Beaver Blaze</h1>
+        <div class="subtitle">
+            <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank">Made with Rust WASM</a>
+            <a href="https://github.com/CarlKCarlK/busy_beaver_blaze/" target="_blank">GitHub</a>
+            <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank">Wikipedia</a>
+        </div>
+    </div>
+    <div class="controls">
+        <label>
+            <input type="checkbox" id="useEarlyStop" checked>
+            Stop Early at
+        </label>
+        <input type="number" id="earlyStopValue" value="50000000" min="1">
+        steps
+    </div>
+    <div style="display: flex; align-items: start; gap: 1em;">
+        <label for="programInput">Turing Machine Program:</label>
+        <select id="programSelect">
+            <option value="custom">Custom Program</option>
+            <option value="bb2">2-State Champion</option>
+            <option value="bb3">3-State Champion</option>
+            <option value="bb4">4-State Champion</option>
+            <option value="bb5" selected>5-State Champion</option>
+            <option value="bb6">6-State Contender</option>
+        </select>
+    </div>
+    <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E
+0	1RB	1RC	1RD	1LA	1RH
+1	1LC	1RB	0LE	1LD	0LA</textarea>
+    <div class="controls">
+        Size: 
+        <select id="sizePreset">
+            <option value="360,432">Small (360×432)</option>
+            <option value="720,864">Medium (720×864)</option>
+            <option value="1440,1728">Large (1440×1728)</option>
+            <option value="custom">Custom Size...</option>
+        </select>
+        <span id="customSize" class="custom-size">
+            Width: <input type="number" id="customWidth" value="360" min="100" max="2000">
+            Height: <input type="number" id="customHeight" value="432" min="100" max="2000">
+        </span>
+    </div>
+    <button id="runButton">Run</button>
+    <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
+        Time: <span id="runTime">not run yet</span>
+        • Steps: <span id="stepCount">-</span>
+        • Ones: <span id="onesCount">-</span>
+        • <span id="haltedStatus">-</span>
+    </div>
+    <div>
+        <div id="imageContainer" class="image-container">No diagram yet</div>
+    </div>
+    <script type="module">
+        import init, { Machine, SpaceTimeResult } from './pkg/busy_beaver.js';
+
+        async function run() {
+            await init();
+            
+            const PROGRAMS = {
+                bb2: `	A	B
+0	1RB	1LA
+1	1LB	1RH`,
+                bb3: `	A	B	C
+0	1RB	0RC	1LC
+1	1RH	1RB	1LA`,
+                bb4: `	A	B	C	D
+0	1RB	1LA	1RH	1RD
+1	1LB	0LC	1LD	0RA`,
+                bb5: `	A	B	C	D	E
+0	1RB	1RC	1RD	1LA	1RH
+1	1LC	1RB	0LE	1LD	0LA`,
+                bb6: `	A	B	C	D	E	F
+0	1RB	1RC	1LC	0LE	1LF	0RC
+1	0LD	0RF	1LA	1RH	0RB	0RE`,
+            };
+            
+            const textarea = document.getElementById('programInput');
+            const programSelect = document.getElementById('programSelect');
+            
+            programSelect.addEventListener('change', () => {
+                const selected = programSelect.value;
+                textarea.value = selected === 'custom' ? textarea.value : PROGRAMS[selected];
+                runMachine();
+            });
+            
+            const useEarlyStop = document.getElementById('useEarlyStop');
+            const earlyStopValue = document.getElementById('earlyStopValue');
+            const sizePreset = document.getElementById('sizePreset');
+            const customSize = document.getElementById('customSize');
+            const customWidth = document.getElementById('customWidth');
+            const customHeight = document.getElementById('customHeight');
+            const container = document.getElementById('imageContainer');
+            
+            function updateSize() {
+                const isCustom = sizePreset.value === 'custom';
+                customSize.classList.toggle('visible', isCustom);
+                
+                let [width, height] = isCustom 
+                    ? [Number(customWidth.value), Number(customHeight.value)]
+                    : sizePreset.value.split(',').map(Number);
+                
+                container.style.width = width + 'px';
+                container.style.height = height + 'px';
+                
+                return [width, height];
+            }
+
+            function runMachine() {
+                try {
+                    const startTime = performance.now();
+                    const early_stop = useEarlyStop.checked ? Number(earlyStopValue.value) : null;
+                    const [goal_x, goal_y] = updateSize();
+                    const machine = new Machine(textarea.value);
+                    const result = machine.space_time(goal_x, goal_y, early_stop);
+                    const blob = new Blob([result.png_data()], { type: 'image/png' });
+                    container.innerHTML = '<img alt="Space-time diagram">';
+                    container.querySelector('img').src = URL.createObjectURL(blob);
+                    const endTime = performance.now();
+                    document.getElementById('runTime').textContent = `${((endTime - startTime) / 1000).toFixed(2)}s`;
+                    document.getElementById('stepCount').textContent = result.step_count().toLocaleString();
+                    document.getElementById('onesCount').textContent = machine.count_ones().toLocaleString();
+                    document.getElementById('haltedStatus').textContent = machine.is_halted() ? 'Halted' : 'Not Halted';
+                } catch (e) {
+                    console.error(e);
+                    container.textContent = `Error: ${e}`;
+                    document.getElementById('runTime').textContent = 'error';
+                    document.getElementById('stepCount').textContent = '-';
+                    document.getElementById('onesCount').textContent = '-';
+                    document.getElementById('haltedStatus').textContent = '-';
+                }
+            }
+            
+            sizePreset.addEventListener('change', runMachine);
+            customWidth.addEventListener('change', runMachine);
+            customHeight.addEventListener('change', runMachine);
+            document.getElementById('runButton').addEventListener('click', runMachine);
+            
+            // Initial size setup only, don't run yet
+            updateSize();
+        }
+
+        run();
+    </script>
+</body>
+</html>

@@ -5,146 +5,83 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Busy Beaver</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <style>
-        textarea {
-            width: 100%;
-            min-height: 50px;
-            font-family: monospace;
-            margin: 10px 0;
-        }
-        .image-container {
-            width: 360px;
-            height: 432px;
-            background: #fff;
-            border: 1px solid #ccc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: sans-serif;
-            color: #666;
-            font-style: italic;
-        }
-        .image-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-        }
-        #earlyStopValue {
-            font-family: monospace;
-            text-align: right;
-            width: 10em;
-        }
-        .custom-size {
-            display: none;
-            margin-left: 1em;
-        }
-        .custom-size.visible {
-            display: inline;
-        }
-        .header-container {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 2em;
-        }
-        .header-container h1 {
-            margin: 0;
-        }
-        .subtitle {
-            flex-shrink: 0;
-            font-size: 0.85em;
-            color: #666;
-            font-weight: 500;
-            margin-left: auto;
-        }
-        .subtitle a {
-            color: #0366d6;
-            text-decoration: none;
-            white-space: nowrap;
-        }
-        .subtitle a:hover {
-            text-decoration: underline;
-            color: #1a7f37;
-        }
-        .subtitle a::after {
-            content: "•";
-            color: #666;
-            margin: 0 0.5em;
-            font-weight: normal;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .subtitle a:last-child::after {
-            content: none;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="header-container">
         <h1>Busy Beaver Blaze</h1>
         <div class="subtitle">
-            <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank">Made with Rust WASM</a>
-            <a href="https://github.com/CarlKCarlK/busy_beaver_blaze/" target="_blank">GitHub</a>
-            <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank">Wikipedia</a>
+            <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank" rel="noopener">Made with Rust WASM</a>
+            <a href="https://github.com/CarlKCarlK/busy_beaver_blaze/" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank" rel="noopener">Wikipedia</a>
         </div>
     </div>
-    <div class="controls">
-        <label>
-            <input type="checkbox" id="useEarlyStop" checked>
-            Stop Early at
-        </label>
-        <input type="number" id="earlyStopValue" value="50000000" min="1">
-        steps
-    </div>
-    <div style="display: flex; align-items: start; gap: 1em;">
-        <label for="programInput">Turing Machine Program:</label>
-        <select id="programSelect">
-            <option value="custom">Custom Program</option>
-            <option value="bb2">2-State Champion</option>
-            <option value="bb3">3-State Champion</option>
-            <option value="bb4">4-State Champion</option>
-            <option value="bb5" selected>5-State Champion</option>
-            <option value="bb6">6-State Contender</option>
-        </select>
-    </div>
-    <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E
+    <div>
+        <div class="controls">
+            <label>
+                <input type="checkbox" id="useEarlyStop" checked>
+                Stop Early at
+            </label>
+            <label for="earlyStopValue">
+                <input type="number" id="earlyStopValue" value="50000000" min="1">
+                steps
+            </label>
+        </div>
+        <div style="display: flex; align-items: start; gap: 1em;">
+            <label for="programInput">Turing Machine Program:</label>
+            <select id="programSelect">
+                <option value="custom">Custom Program</option>
+                <option value="bb2">2-State Champion</option>
+                <option value="bb3">3-State Champion</option>
+                <option value="bb4">4-State Champion</option>
+                <option value="bb5" selected>5-State Champion</option>
+                <option value="bb5_69_420_121">5-State #69,420,121</option>
+                <option value="bb6">6-State Contender</option>
+                <option value="bb6_no_name1">6-State no name</option>
+            </select>
+            <a href="https://bbchallenge.org/#zoology" target="_blank" rel="noopener" style="margin-left: 1em;">Visit the BB Challenge Zoo</a>
+        </div>
+        <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E
 0	1RB	1RC	1RD	1LA	1RH
 1	1LC	1RB	0LE	1LD	0LA</textarea>
-    <div class="controls">
-        Size: 
-        <select id="sizePreset">
-            <option value="360,432">Small (360×432)</option>
-            <option value="720,864">Medium (720×864)</option>
-            <option value="1440,1728">Large (1440×1728)</option>
-            <option value="custom">Custom Size...</option>
-        </select>
-        <span id="customSize" class="custom-size">
-            Width: <input type="number" id="customWidth" value="360" min="100" max="2000">
-            Height: <input type="number" id="customHeight" value="432" min="100" max="2000">
-        </span>
-    </div>
-    <button id="runButton">Run</button>
-    <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
-        Time: <span id="runTime">not run yet</span>
-        • Steps: <span id="stepCount">-</span>
-        • Ones: <span id="onesCount">-</span>
-        • <span id="haltedStatus">-</span>
-    </div>
-    <div>
-        <div id="imageContainer" class="image-container">No diagram yet</div>
+        <div class="controls">
+            Size: 
+            <select id="sizePreset">
+                <option value="360,432">Small (360×432)</option>
+                <option value="720,864">Medium (720×864)</option>
+                <option value="1440,1728">Large (1440×1728)</option>
+                <option value="custom">Custom Size...</option>
+            </select>
+            <span id="customSize" class="custom-size">
+                Width: <input type="number" id="customWidth" value="360" min="100" max="2000">
+                Height: <input type="number" id="customHeight" value="432" min="100" max="2000">
+            </span>
+            <label style="margin-left: 1em;">
+                <input type="checkbox" id="stretchImage" checked>
+                Stretch Image
+            </label>
+        </div>
+        <button id="runButton">Run</button>
+        <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
+            Time: <span id="runTime">not run yet</span>
+            • Steps: <span id="stepCount">-</span>
+            • Ones: <span id="onesCount">-</span>
+            • <span id="haltedStatus">-</span>
+        </div>
+        <div id="imageContainer" class="image-container" style="text-align: left;">No diagram yet</div>
+        <div id="status" class="status">Worker status: initializing...</div>
     </div>
     <script type="module">
-        import init, { Machine, SpaceTimeResult } from './pkg/busy_beaver.js';
+        let worker = null;
+        let isRunning = false;
+        let progressTimer = null;  // Move this to global scope
 
         async function run() {
-            await init();
-            
+            // Remove init() call since it's now in the worker
             const PROGRAMS = {
                 bb2: `	A	B
 0	1RB	1LA
-1	1LB	1RH`,
+1	1LB	1RH`, 
                 bb3: `	A	B	C
 0	1RB	0RC	1LC
 1	1RH	1RB	1LA`,
@@ -157,17 +94,19 @@
                 bb6: `	A	B	C	D	E	F
 0	1RB	1RC	1LC	0LE	1LF	0RC
 1	0LD	0RF	1LA	1RH	0RB	0RE`,
+bb5_69_420_121: `1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---`,
+bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
+
             };
-            
+
             const textarea = document.getElementById('programInput');
             const programSelect = document.getElementById('programSelect');
-            
             programSelect.addEventListener('change', () => {
                 const selected = programSelect.value;
                 textarea.value = selected === 'custom' ? textarea.value : PROGRAMS[selected];
-                runMachine();
+                runMachine().catch(console.error);
             });
-            
+
             const useEarlyStop = document.getElementById('useEarlyStop');
             const earlyStopValue = document.getElementById('earlyStopValue');
             const sizePreset = document.getElementById('sizePreset');
@@ -175,51 +114,160 @@
             const customWidth = document.getElementById('customWidth');
             const customHeight = document.getElementById('customHeight');
             const container = document.getElementById('imageContainer');
-            
+            const stretchImage = document.getElementById('stretchImage');
+
+            // Add handler for stretch toggle
+            stretchImage.addEventListener('change', () => {
+                const img = container.querySelector('img');
+                if (img) {
+                    img.classList.toggle('stretch', stretchImage.checked);
+                }
+            });
+
+            // Update stretch class when creating new images
+            function updateImageStretch(img) {
+                img.classList.toggle('stretch', stretchImage.checked);
+            }
+
             function updateSize() {
-                const isCustom = sizePreset.value === 'custom';
-                customSize.classList.toggle('visible', isCustom);
-                
-                let [width, height] = isCustom 
-                    ? [Number(customWidth.value), Number(customHeight.value)]
-                    : sizePreset.value.split(',').map(Number);
-                
+                const [width, height] = sizePreset.value === 'custom' ? [customWidth.value, customHeight.value] : sizePreset.value.split(',').map(Number);
                 container.style.width = width + 'px';
                 container.style.height = height + 'px';
-                
                 return [width, height];
             }
 
-            function runMachine() {
+            async function runMachine() {
+                if (isRunning) {
+                    if (worker) {
+                        worker.terminate();
+                        worker = null;
+                    }
+                    if (progressTimer) {
+                        clearTimeout(progressTimer);
+                        progressTimer = null;
+                    }
+                    isRunning = false;
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Run';
+                    runButton.classList.remove('loading');
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.remove('disabled'));
+                    return;
+                }
+
+                const status = document.getElementById('status');
+                status.textContent = 'Worker status: starting...';
+                status.classList.add('visible');
+
+                isRunning = true;
+                if (worker) {
+                    worker.terminate();
+                }
+                worker = new Worker('./worker.js', { type: 'module' });
+
                 try {
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.add('disabled'));
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Cancel';
+                    runButton.classList.add('loading');
+                    container.textContent = 'Computing...';
                     const startTime = performance.now();
-                    const early_stop = useEarlyStop.checked ? Number(earlyStopValue.value) : null;
+                    const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : null;
                     const [goal_x, goal_y] = updateSize();
-                    const machine = new Machine(textarea.value);
-                    const result = machine.space_time(goal_x, goal_y, early_stop);
-                    const blob = new Blob([result.png_data()], { type: 'image/png' });
+                    
+                    const updateProgress = () => {
+                        if (!isRunning) {
+                            clearTimeout(progressTimer);
+                            return;
+                        }
+                        document.getElementById('runTime').textContent = 
+                            `${((performance.now() - startTime) / 1000).toFixed(2)}s`;
+                        progressTimer = setTimeout(updateProgress, 100);
+                    };
+                    updateProgress();
+
+                    status.textContent = 'Worker status: computing...';
+                    const result = await new Promise((resolve, reject) => {
+                        worker.onmessage = (e) => {
+                            if (!e.data.success) {
+                                reject(new Error(e.data.error));
+                                return;
+                            }
+
+                            // Handle intermediate updates
+                            if (e.data.intermediate) {
+                                const blob = new Blob([e.data.png_data], { type: 'image/png' });
+                                container.innerHTML = '<img alt="Space-time diagram">';
+                                const img = container.querySelector('img');
+                                img.src = URL.createObjectURL(blob);
+                                updateImageStretch(img);
+                                
+                                document.getElementById('stepCount').textContent = e.data.step_count.toLocaleString();
+                                document.getElementById('onesCount').textContent = e.data.ones_count.toLocaleString();
+                                document.getElementById('haltedStatus').textContent = e.data.is_halted ? 'Halted' : 'Running';
+                                return;
+                            }
+
+                            // Final result
+                            resolve(e.data);
+                        };
+                        worker.onerror = reject;
+                        
+                        worker.postMessage({
+                            programText: textarea.value,
+                            goal_x,
+                            goal_y,
+                            early_stop
+                        });
+                    });
+
+                    status.textContent = 'Worker status: completed';
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    clearTimeout(progressTimer);
+                    
+                    const blob = new Blob([result.png_data], { type: 'image/png' });
                     container.innerHTML = '<img alt="Space-time diagram">';
-                    container.querySelector('img').src = URL.createObjectURL(blob);
+                    const img = container.querySelector('img');
+                    img.src = URL.createObjectURL(blob);
+                    updateImageStretch(img);
+                    
                     const endTime = performance.now();
                     document.getElementById('runTime').textContent = `${((endTime - startTime) / 1000).toFixed(2)}s`;
-                    document.getElementById('stepCount').textContent = result.step_count().toLocaleString();
-                    document.getElementById('onesCount').textContent = machine.count_ones().toLocaleString();
-                    document.getElementById('haltedStatus').textContent = machine.is_halted() ? 'Halted' : 'Not Halted';
+                    document.getElementById('stepCount').textContent = result.step_count.toLocaleString();
+                    document.getElementById('onesCount').textContent = result.ones_count.toLocaleString();
+                    document.getElementById('haltedStatus').textContent = result.is_halted ? 'Halted' : 'Not Halted';
                 } catch (e) {
-                    console.error(e);
-                    container.textContent = `Error: ${e}`;
+                    status.textContent = 'Worker status: error';
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    clearTimeout(progressTimer);
+                    const errorMessage = e.message || e.toString();
+                    console.error('Error:', errorMessage);
+                    container.textContent = `Error: ${errorMessage}`;
                     document.getElementById('runTime').textContent = 'error';
                     document.getElementById('stepCount').textContent = '-';
                     document.getElementById('onesCount').textContent = '-';
                     document.getElementById('haltedStatus').textContent = '-';
+                } finally {
+                    isRunning = false;
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    if (worker) {
+                        worker.terminate();
+                        worker = null;
+                    }
+                    const controls = document.querySelectorAll('.controls');
+                    controls.forEach(c => c.classList.remove('disabled'));
+                    const runButton = document.getElementById('runButton');
+                    runButton.textContent = 'Run';
+                    runButton.classList.remove('loading');
                 }
             }
             
-            sizePreset.addEventListener('change', runMachine);
-            customWidth.addEventListener('change', runMachine);
-            customHeight.addEventListener('change', runMachine);
-            document.getElementById('runButton').addEventListener('click', runMachine);
-            
+            sizePreset.addEventListener('change', () => runMachine().catch(console.error));
+            customWidth.addEventListener('change', () => runMachine().catch(console.error));
+            customHeight.addEventListener('change', () => runMachine().catch(console.error));
+            document.getElementById('runButton').addEventListener('click', () => runMachine().catch(console.error));
+                        
             // Initial size setup only, don't run yet
             updateSize();
         }

@@ -3,19 +3,16 @@
 export class Machine {
   free(): void;
   constructor(input: string);
-  step(): boolean;
+  space_time(goal_x: number, goal_y: number, early_stop?: number | null): SpaceTimeResult;
   count_ones(): number;
   is_halted(): boolean;
-  count(early_stop_is_some: boolean, early_stop_number: bigint): bigint;
+  count_steps(early_stop?: number | null): number;
 }
-export class SpaceTimeMachine {
+export class SpaceTimeResult {
+  private constructor();
   free(): void;
-  constructor(s: string, goal_x: number, goal_y: number);
-  nth(n: bigint): boolean;
   png_data(): Uint8Array;
-  step_count(): bigint;
-  count_ones(): number;
-  is_halted(): boolean;
+  step_count(): number;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -24,17 +21,13 @@ export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_machine_free: (a: number, b: number) => void;
   readonly machine_from_string: (a: number, b: number) => [number, number, number];
-  readonly machine_step: (a: number) => number;
+  readonly machine_space_time: (a: number, b: number, c: number, d: number) => number;
   readonly machine_count_ones: (a: number) => number;
   readonly machine_is_halted: (a: number) => number;
-  readonly machine_count: (a: number, b: number, c: bigint) => bigint;
-  readonly __wbg_spacetimemachine_free: (a: number, b: number) => void;
-  readonly spacetimemachine_from_str: (a: number, b: number, c: number, d: number) => [number, number, number];
-  readonly spacetimemachine_nth: (a: number, b: bigint) => number;
-  readonly spacetimemachine_png_data: (a: number) => [number, number];
-  readonly spacetimemachine_step_count: (a: number) => bigint;
-  readonly spacetimemachine_count_ones: (a: number) => number;
-  readonly spacetimemachine_is_halted: (a: number) => number;
+  readonly machine_count_steps: (a: number, b: number) => number;
+  readonly __wbg_spacetimeresult_free: (a: number, b: number) => void;
+  readonly spacetimeresult_png_data: (a: number) => [number, number];
+  readonly spacetimeresult_step_count: (a: number) => number;
   readonly __wbindgen_export_0: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

@@ -80,6 +80,10 @@ function takeFromExternrefTable0(idx) {
     return value;
 }
 
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
@@ -117,11 +121,14 @@ export class Machine {
         return this;
     }
     /**
-     * @returns {boolean}
+     * @param {number} goal_x
+     * @param {number} goal_y
+     * @param {number | null} [early_stop]
+     * @returns {SpaceTimeResult}
      */
-    step() {
-        const ret = wasm.machine_step(this.__wbg_ptr);
-        return ret !== 0;
+    space_time(goal_x, goal_y, early_stop) {
+        const ret = wasm.machine_space_time(this.__wbg_ptr, goal_x, goal_y, isLikeNone(early_stop) ? 0x100000001 : (early_stop) >>> 0);
+        return SpaceTimeResult.__wrap(ret);
     }
     /**
      * @returns {number}
@@ -138,86 +145,55 @@ export class Machine {
         return ret !== 0;
     }
     /**
-     * @param {boolean} early_stop_is_some
-     * @param {bigint} early_stop_number
-     * @returns {bigint}
+     * @param {number | null} [early_stop]
+     * @returns {number}
      */
-    count(early_stop_is_some, early_stop_number) {
-        const ret = wasm.machine_count(this.__wbg_ptr, early_stop_is_some, early_stop_number);
-        return BigInt.asUintN(64, ret);
+    count_steps(early_stop) {
+        const ret = wasm.machine_count_steps(this.__wbg_ptr, isLikeNone(early_stop) ? 0x100000001 : (early_stop) >>> 0);
+        return ret >>> 0;
     }
 }
 
-const SpaceTimeMachineFinalization = (typeof FinalizationRegistry === 'undefined')
+const SpaceTimeResultFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_spacetimemachine_free(ptr >>> 0, 1));
+    : new FinalizationRegistry(ptr => wasm.__wbg_spacetimeresult_free(ptr >>> 0, 1));
 
-export class SpaceTimeMachine {
+export class SpaceTimeResult {
+
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(SpaceTimeResult.prototype);
+        obj.__wbg_ptr = ptr;
+        SpaceTimeResultFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
 
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
-        SpaceTimeMachineFinalization.unregister(this);
+        SpaceTimeResultFinalization.unregister(this);
         return ptr;
     }
 
     free() {
         const ptr = this.__destroy_into_raw();
-        wasm.__wbg_spacetimemachine_free(ptr, 0);
-    }
-    /**
-     * @param {string} s
-     * @param {number} goal_x
-     * @param {number} goal_y
-     */
-    constructor(s, goal_x, goal_y) {
-        const ptr0 = passStringToWasm0(s, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.spacetimemachine_from_str(ptr0, len0, goal_x, goal_y);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        this.__wbg_ptr = ret[0] >>> 0;
-        SpaceTimeMachineFinalization.register(this, this.__wbg_ptr, this);
-        return this;
-    }
-    /**
-     * @param {bigint} n
-     * @returns {boolean}
-     */
-    nth(n) {
-        const ret = wasm.spacetimemachine_nth(this.__wbg_ptr, n);
-        return ret !== 0;
+        wasm.__wbg_spacetimeresult_free(ptr, 0);
     }
     /**
      * @returns {Uint8Array}
      */
     png_data() {
-        const ret = wasm.spacetimemachine_png_data(this.__wbg_ptr);
+        const ret = wasm.spacetimeresult_png_data(this.__wbg_ptr);
         var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v1;
     }
     /**
-     * @returns {bigint}
-     */
-    step_count() {
-        const ret = wasm.spacetimemachine_step_count(this.__wbg_ptr);
-        return BigInt.asUintN(64, ret);
-    }
-    /**
      * @returns {number}
      */
-    count_ones() {
-        const ret = wasm.spacetimemachine_count_ones(this.__wbg_ptr);
+    step_count() {
+        const ret = wasm.spacetimeresult_step_count(this.__wbg_ptr);
         return ret >>> 0;
-    }
-    /**
-     * @returns {boolean}
-     */
-    is_halted() {
-        const ret = wasm.spacetimemachine_is_halted(this.__wbg_ptr);
-        return ret !== 0;
     }
 }
 
