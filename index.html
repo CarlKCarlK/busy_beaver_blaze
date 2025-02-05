@@ -11,9 +11,9 @@
     <div class="header-container">
         <h1>Busy Beaver Blaze</h1>
         <div class="subtitle" style="text-align: center; display: flex; justify-content: center; gap: 1em;">
-            <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank" rel="noopener">Made with Rust WASM</a>
             <a href="https://github.com/CarlKCarlK/busy_beaver_blaze/" target="_blank" rel="noopener">GitHub</a>
             <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank" rel="noopener">Wikipedia</a>
+            <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank" rel="noopener">Made with Rust WASM</a>
         </div>
     </div>
     <div>
@@ -34,9 +34,9 @@
                 <option value="bb2">2-State Champion</option>
                 <option value="bb3">3-State Champion</option>
                 <option value="bb4">4-State Champion</option>
-                <option value="bb5" selected>5-State Champion</option>
+                <option value="bb5">5-State Champion</option>
                 <option value="bb5_69_420_121">5-State #69,420,121</option>
-                <option value="bb6">6-State Contender</option>
+                <option value="bb6" selected>6-State Contender</option>
                 <option value="bb6_no_name1">6-State no name</option>
             </select>
             <a href="https://bbchallenge.org/#zoology" target="_blank" rel="noopener" style="margin-left: 1em;">Visit the BB Challenge Zoo</a>
@@ -68,7 +68,23 @@
             • Ones: <span id="onesCount">-</span>
             • <span id="haltedStatus">-</span>
         </div>
-        <div id="imageContainer" class="image-container" style="text-align: left;">No diagram yet</div>
+        <div id="imageContainer" class="image-container">No diagram yet
+            <br><br>
+            Tips:
+            <ul style="margin-top: 0.5em; text-align: left;">
+                <li>Press "Run" to start.</li>
+                <li>Try changing the Stop Early steps.</li>
+                <li>Select programs or edit/paste them.</li>
+                <li>It accepts programs in 3 popular formats:
+                    <ul>
+                        <li>Symbol Major</li>
+                        <li>State Major</li>
+                        <li>BB Challenge Standard Format</li>
+                    </ul>
+                </li>
+                <li>Supports billions and billions of steps. OK, to turn off Stop Early.</li>
+            </ul>
+        </div>
         <div id="status" class="status">Worker status: initializing...</div>
     </div>
     <script type="module">
