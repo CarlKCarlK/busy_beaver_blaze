@@ -10,7 +10,7 @@
 <body>
     <div class="header-container">
         <h1>Busy Beaver Blaze</h1>
-        <div class="subtitle">
+        <div class="subtitle" style="text-align: center; display: flex; justify-content: center; gap: 1em;">
             <a href="https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1" target="_blank" rel="noopener">Made with Rust WASM</a>
             <a href="https://github.com/CarlKCarlK/busy_beaver_blaze/" target="_blank" rel="noopener">GitHub</a>
             <a href="https://en.wikipedia.org/wiki/Busy_beaver" target="_blank" rel="noopener">Wikipedia</a>
@@ -23,7 +23,7 @@
                 Stop Early at
             </label>
             <label for="earlyStopValue">
-                <input type="number" id="earlyStopValue" value="50000000" min="1">
+                <input type="number" id="earlyStopValue" value="500000000" min="1">
                 steps
             </label>
         </div>
@@ -41,9 +41,9 @@
             </select>
             <a href="https://bbchallenge.org/#zoology" target="_blank" rel="noopener" style="margin-left: 1em;">Visit the BB Challenge Zoo</a>
         </div>
-        <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E
-0	1RB	1RC	1RD	1LA	1RH
-1	1LC	1RB	0LE	1LD	0LA</textarea>
+        <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E	F
+0	1RB	1RC	1LC	0LE	1LF	0RC
+1	0LD	0RF	1LA	1RH	0RB	0RE</textarea>
         <div class="controls">
             Size: 
             <select id="sizePreset">
