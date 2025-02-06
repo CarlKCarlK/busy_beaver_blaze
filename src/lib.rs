@@ -2,10 +2,8 @@ use core::fmt;
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
 use png::{BitDepth, ColorType, Encoder};
-use std::{
-    ops::{Index, IndexMut},
-    str::FromStr,
-};
+use range_set_blaze::RangeSetBlaze;
+use std::str::FromStr;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 
@@ -49,65 +47,44 @@ E	0LA	0RE
 const Machine_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
 
 #[derive(Default, Debug)]
-struct Tape {
-    nonnegative: Vec<u8>,
-    negative: Vec<u8>,
-}
+struct Tape(RangeSetBlaze<i64>);
 
-// Immutable access with `[]`
-impl Index<i64> for Tape {
-    type Output = u8;
-
-    fn index(&self, index: i64) -> &u8 {
-        if index >= 0 {
-            self.nonnegative.get(index as usize).unwrap_or(&0)
-        } else {
-            self.negative.get((-index - 1) as usize).unwrap_or(&0)
-        }
-    }
-}
-
-// Mutable access with `[]`, ensuring growth
-impl IndexMut<i64> for Tape {
-    fn index_mut(&mut self, index: i64) -> &mut u8 {
-        let (index, vec) = if index >= 0 {
-            (index as usize, &mut self.nonnegative)
-        } else {
-            ((-index - 1) as usize, &mut self.negative)
-        };
-
-        if vec.len() <= index {
-            vec.resize(index + 1, 0);
-        }
-
-        &mut vec[index]
-    }
-}
 impl Tape {
-    fn count_ones(&self) -> usize {
-        self.nonnegative
-            .iter()
-            .chain(self.negative.iter()) // Combine both vectors
-            .map(|&x| (x == 1) as usize)
-            .sum()
+    #[inline]
+    pub fn read(&self, index: i64) -> bool {
+        self.0.contains(index)
+    }
+
+    #[inline]
+    pub fn write(&mut self, index: i64, value: bool) {
+        if value {
+            self.0.insert(index);
+        } else {
+            self.0.remove(index);
+        }
+    }
+
+    #[inline]
+    pub fn count_ones(&self) -> u64 {
+        self.0.len() as u64
     }
 
     fn index_range_to_string(&self, range: std::ops::RangeInclusive<i64>) -> String {
         let mut s = String::new();
         for i in range {
-            s.push_str(&self[i].to_string());
+            s.push_str(if self.read(i) { "1" } else { "0" });
         }
         s
     }
 
     #[inline]
     pub fn min_index(&self) -> i64 {
-        -(self.negative.len() as i64)
+        self.0.first().unwrap_or(0)
     }
 
     #[inline]
     pub fn max_index(&self) -> i64 {
-        self.nonnegative.len() as i64 - 1
+        self.0.last().unwrap_or(0)
     }
 
     #[inline]
@@ -188,9 +165,9 @@ impl Iterator for Machine {
 
     fn next(&mut self) -> Option<Self::Item> {
         let program = &self.program;
-        let input = self.tape[self.tape_index];
+        let input = self.tape.read(self.tape_index);
         let per_input = &program.state_to_symbol_to_action[self.state as usize][input as usize];
-        self.tape[self.tape_index] = per_input.next_symbol;
+        self.tape.write(self.tape_index, per_input.next_symbol);
         self.tape_index += per_input.direction as i64;
         self.state = per_input.next_state;
         if (self.state as usize) < program.state_count {
@@ -251,13 +228,13 @@ impl Program {
         if asciis == b"---" {
             return Ok(Action {
                 next_state: 25,
-                next_symbol: 0,
+                next_symbol: false,
                 direction: -1,
             });
         }
         let next_symbol = match asciis[0] {
-            b'0' => 0,
-            b'1' => 1,
+            b'0' => false,
+            b'1' => true,
             _ => return Err(Error::InvalidChar),
         };
         let direction = match asciis[1] {
@@ -455,7 +432,7 @@ impl Program {
 #[derive(Debug)]
 struct Action {
     next_state: u8,
-    next_symbol: u8,
+    next_symbol: bool,
     direction: i8,
 }
 
@@ -601,7 +578,7 @@ impl SampledSpaceTime {
 
         let mut values = Vec::with_capacity(self.x_goal as usize * 2);
         for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            values.push(tape[sample_index]);
+            values.push(if tape.read(sample_index) { 1 } else { 0 });
         }
 
         self.spacelines.push(Spaceline {
