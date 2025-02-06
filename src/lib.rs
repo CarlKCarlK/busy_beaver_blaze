@@ -908,4 +908,21 @@ mod tests {
         let _machine_b: Machine = Machine_7_135_505_B.parse()?;
         Ok(())
     }
+
+    // Create a test that runs bb5 champ to halting and then prints the time it took
+    // to run the test
+    #[wasm_bindgen_test]
+    #[test]
+    fn bb5_champ_time() -> Result<(), String> {
+        let start = std::time::Instant::now();
+        let step_count = 1 + BB5_CHAMP.parse::<Machine>().unwrap().count();
+        let duration = start.elapsed();
+        println!(
+            "Steps: {}, Duration: {:?}",
+            step_count.separate_with_commas(),
+            duration
+        );
+        assert_eq!(step_count, 47_176_870);
+        Ok(())
+    }
 }
