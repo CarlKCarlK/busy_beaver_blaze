@@ -576,6 +576,14 @@ impl SampledSpaceTime {
         }
     }
 
+    // ideas
+    // use
+    //       debug_assert!(self.sample.is_power_of_two(), "Sample must be a power of two");
+    //       // Use bitwise AND for fast divisibility check
+    //       if self.step_index & (self.sample - 1) != 0 {
+    //  Also: Inline the top part of the function.
+    //  Maybe presubtract 1 from sample
+
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
 
