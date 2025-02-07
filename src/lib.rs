@@ -2,10 +2,7 @@ use core::fmt;
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
 use png::{BitDepth, ColorType, Encoder};
-use std::{
-    ops::{Index, IndexMut},
-    str::FromStr,
-};
+use std::str::FromStr;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 
@@ -54,36 +51,39 @@ struct Tape {
     negative: Vec<u8>,
 }
 
-// Immutable access with `[]`
-impl Index<i64> for Tape {
-    type Output = u8;
-
-    fn index(&self, index: i64) -> &u8 {
+impl Tape {
+    #[inline]
+    fn read(&self, index: i64) -> u8 {
         if index >= 0 {
-            self.nonnegative.get(index as usize).unwrap_or(&0)
+            self.nonnegative.get(index as usize).copied().unwrap_or(0)
         } else {
-            self.negative.get((-index - 1) as usize).unwrap_or(&0)
+            self.negative
+                .get((-index - 1) as usize)
+                .copied()
+                .unwrap_or(0)
         }
     }
-}
 
-// Mutable access with `[]`, ensuring growth
-impl IndexMut<i64> for Tape {
-    fn index_mut(&mut self, index: i64) -> &mut u8 {
+    #[inline]
+    fn write(&mut self, index: i64, value: u8) {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)
         } else {
             ((-index - 1) as usize, &mut self.negative)
         };
 
-        if vec.len() <= index {
-            vec.resize(index + 1, 0);
+        if index == vec.len() {
+            // We are exactly one index beyond the current length
+            vec.push(value);
+        } else {
+            // Assert that we're never more than one index beyond
+            debug_assert!(
+                index < vec.len(),
+                "Index is more than one beyond current length!"
+            );
+            vec[index] = value;
         }
-
-        &mut vec[index]
     }
-}
-impl Tape {
     fn count_ones(&self) -> usize {
         self.nonnegative
             .iter()
@@ -95,7 +95,7 @@ impl Tape {
     fn index_range_to_string(&self, range: std::ops::RangeInclusive<i64>) -> String {
         let mut s = String::new();
         for i in range {
-            s.push_str(&self[i].to_string());
+            s.push_str(&self.read(i).to_string());
         }
         s
     }
@@ -188,9 +188,9 @@ impl Iterator for Machine {
 
     fn next(&mut self) -> Option<Self::Item> {
         let program = &self.program;
-        let input = self.tape[self.tape_index];
+        let input = self.tape.read(self.tape_index);
         let per_input = &program.state_to_symbol_to_action[self.state as usize][input as usize];
-        self.tape[self.tape_index] = per_input.next_symbol;
+        self.tape.write(self.tape_index, per_input.next_symbol);
         self.tape_index += per_input.direction as i64;
         self.state = per_input.next_state;
         if (self.state as usize) < program.state_count {
@@ -601,7 +601,7 @@ impl SampledSpaceTime {
 
         let mut values = Vec::with_capacity(self.x_goal as usize * 2);
         for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            values.push(tape[sample_index]);
+            values.push(tape.read(sample_index));
         }
 
         self.spacelines.push(Spaceline {
