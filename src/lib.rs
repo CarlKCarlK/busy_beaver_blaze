@@ -143,7 +143,7 @@ impl Machine {
 
     #[wasm_bindgen]
     pub fn is_halted(&self) -> bool {
-        self.program.state_count <= self.state as usize
+        self.program.state_count <= self.state
     }
 
     #[wasm_bindgen(js_name = "count")]
@@ -193,7 +193,7 @@ impl Iterator for Machine {
         self.tape.write(self.tape_index, per_input.next_symbol);
         self.tape_index += per_input.direction as i64;
         self.state = per_input.next_state;
-        if (self.state as usize) < program.state_count {
+        if self.state < program.state_count {
             Some(())
         } else {
             None
@@ -203,8 +203,8 @@ impl Iterator for Machine {
 
 #[derive(Debug)]
 struct Program {
-    state_count: usize,
-    symbol_count: usize,
+    state_count: u8,
+    symbol_count: u8,
     state_to_symbol_to_action: Vec<Vec<Action>>,
 }
 
@@ -310,7 +310,7 @@ impl Program {
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
         // Ensure proper dimensions (STATE_COUNT x 2)
-        let state_count = state_to_symbol_to_action.len();
+        let state_count = state_to_symbol_to_action.len() as u8;
         if state_count == 0 {
             return Err(Error::InvalidStatesCount {
                 expected: 1,
@@ -318,7 +318,7 @@ impl Program {
             });
         }
 
-        let symbol_count = state_to_symbol_to_action[0].len();
+        let symbol_count = state_to_symbol_to_action[0].len() as u8;
         if symbol_count == 0 {
             return Err(Error::InvalidSymbolsCount {
                 expected: 1,
@@ -357,7 +357,7 @@ impl Program {
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
         // Ensure proper dimensions (STATE_COUNT x 2)
-        let state_count = state_to_symbol_to_action.len();
+        let state_count = state_to_symbol_to_action.len() as u8;
         if state_count == 0 {
             return Err(Error::InvalidStatesCount {
                 expected: 1,
@@ -365,7 +365,7 @@ impl Program {
             });
         }
 
-        let symbol_count = state_to_symbol_to_action[0].len();
+        let symbol_count = state_to_symbol_to_action[0].len() as u8;
         if symbol_count == 0 {
             return Err(Error::InvalidSymbolsCount {
                 expected: 1,
@@ -445,8 +445,8 @@ impl Program {
         }
 
         Ok(Program {
-            state_count,
-            symbol_count,
+            state_count: state_count as u8,
+            symbol_count: symbol_count as u8,
             state_to_symbol_to_action,
         })
     }
