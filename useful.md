@@ -18,3 +18,9 @@ cargo test bb5_champ_space_time --release -- --nocapture
 ```bash
 wasm-pack build --target web --release
 ```
+
+## Make movie frames
+
+```bash
+cargo run --example movie --release
+```

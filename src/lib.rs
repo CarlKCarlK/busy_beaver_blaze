@@ -29,7 +29,7 @@ const BB5_CHAMP: &str = "
 1	1LC	1RB	0LE	1LD	0LA
 ";
 
-const BB6_CONTENDER: &str = "
+pub const BB6_CONTENDER: &str = "
     	A	B	C	D	E	F
 0	1RB	1RC	1LC	0LE	1LF	0RC
 1	0LD	0RF	1LA	1RH	0RB	0RE
@@ -117,7 +117,7 @@ impl Tape {
 }
 
 #[wasm_bindgen]
-struct Machine {
+pub struct Machine {
     state: u8,
     tape_index: i64,
     tape: Tape,
@@ -544,7 +544,7 @@ impl Default for Spaceline {
     }
 }
 
-struct SampledSpaceTime {
+pub struct SampledSpaceTime {
     step_index: u64,
     x_goal: u32,
     y_goal: u32,
@@ -555,9 +555,8 @@ struct SampledSpaceTime {
 /// Create a new in which you give the x_goal (space)
 /// and the y_goal (time). The sample starts at 1 and
 /// inner is a vector of one spaceline
-
 impl SampledSpaceTime {
-    fn new(x_goal: u32, y_goal: u32) -> Self {
+    pub fn new(x_goal: u32, y_goal: u32) -> Self {
         SampledSpaceTime {
             step_index: 0,
             x_goal,
@@ -696,7 +695,7 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
         let mut writer = encoder.write_header().map_err(|_| Error::EncodingError)?;
         // This method writes all the image data at once.
         let result = writer.write_image_data(image_data);
-        println!("cmk {:?}", result);
+        // println!("cmk {:?}", result);
         result.map_err(|_| Error::EncodingError)?; // cmk define a From
     }
     // At this point, `buf` contains the PNG data.
