@@ -731,7 +731,7 @@ impl SpaceTimeMachine {
 
     #[wasm_bindgen(js_name = "nth")]
     pub fn nth_js(&mut self, n: u64) -> bool {
-        for _ in 0..n {
+        for _ in 0..=n {
             if self.next().is_none() {
                 return false;
             }
@@ -759,6 +759,53 @@ impl SpaceTimeMachine {
     #[wasm_bindgen]
     pub fn is_halted(&self) -> bool {
         self.machine.is_halted()
+    }
+}
+
+/// A logarithmic iterator that generates `num_frames` steps between 0 and `max_value`, inclusive.
+/// The steps are spaced approximately logarithmically, but constrained to integers.
+pub struct LogStepIterator {
+    current_frame: u32,
+    total_frames: u32,
+    max_value: u64,
+}
+
+impl LogStepIterator {
+    pub fn new(max_value: u64, total_frames: u32) -> Self {
+        // if total_frames < 2 {
+        //     panic!("Number of frames must be at least 2.");
+        // }
+        Self {
+            current_frame: 0,
+            total_frames,
+            max_value,
+        }
+    }
+}
+
+impl Iterator for LogStepIterator {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_frame >= self.total_frames {
+            return None;
+        }
+
+        // Normalized frame index from 0 to 1
+        let t = self.current_frame as f64 / (self.total_frames - 1) as f64;
+
+        // Apply logarithmic-like spacing using an exponential function
+        let value = if t == 0.0 {
+            0
+        } else if t == 1.0 {
+            self.max_value - 1
+        } else {
+            let log_value = ((self.max_value as f64).ln() * t).exp();
+            log_value.round().min((self.max_value - 1) as f64) as u64
+        };
+
+        self.current_frame += 1;
+        Some(value)
     }
 }
 
@@ -875,7 +922,7 @@ mod tests {
         let n = 1_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(s, goal_x, goal_y)?;
 
-        while space_time_machine.nth_js(n) {
+        while space_time_machine.nth_js(n - 1) {
             println!(
                 "Index {}: {:?}, #1's {}",
                 space_time_machine

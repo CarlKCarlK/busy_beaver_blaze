@@ -23,7 +23,7 @@ self.onmessage = async function(e) {
                 }
 
                 // Run the next chunk
-                const continues = space_time_machine.nth(next_chunk);
+                const continues = space_time_machine.nth(next_chunk-1);
                 total_steps += next_chunk;
                 
                 // Send intermediate update

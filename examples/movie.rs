@@ -1,5 +1,5 @@
-use ab_glyph::{FontArc, PxScale, ScaleFont};
-use busy_beaver_blaze::{SpaceTimeMachine, BB6_CONTENDER};
+use ab_glyph::{FontArc, PxScale};
+use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB6_CONTENDER};
 use image::{imageops::FilterType, Rgb};
 use imageproc::drawing::draw_text_mut;
 use std::{
@@ -14,56 +14,35 @@ fn main() -> Result<(), String> {
     let mut space_time_machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
 
     let num_frames = 2000;
-    let start_step = 0f64;
-    let end_step = 1e12f64; // billion, trillion, etc
+    let end_step = 1_000_000_000_000u64; // billion, trillion, etc
 
-    // Calculate logarithmic step positions
-    let log_start = start_step.max(1.0).ln();
-    let log_end = end_step.ln();
-    let log_step = (log_end - log_start) / (num_frames - 1) as f64;
+    let log_iter = LogStepIterator::new(end_step, num_frames);
 
     let (output_dir, run_id) =
         create_sequential_subdir(r"m:\deldir\bb6_contender").map_err(|e| e.to_string())?;
-    let mut prev_steps = 0u64;
 
-    // Capture initial frame
-    save_frame(
-        &space_time_machine,
-        &output_dir,
-        run_id,
-        0,
-        prev_steps + 1,
-        goal_x,
-        goal_y,
-    )?;
-
-    // Capture remaining frames with logarithmic spacing
-    for frame in 1..num_frames {
-        let target_steps = (log_start + frame as f64 * log_step).exp().floor() as u64;
-        let steps_to_take = target_steps - prev_steps;
-
-        if !space_time_machine.nth_js(steps_to_take) {
-            println!("Machine halted at step {}", prev_steps + steps_to_take);
+    for (frame_index, goal_step_index) in log_iter.enumerate() {
+        let actual_step_index = space_time_machine.step_count() - 1;
+        if goal_step_index > actual_step_index
+            && !space_time_machine.nth_js(goal_step_index - actual_step_index - 1)
+        {
             break;
         }
-
+        let actual_step_index = space_time_machine.step_count() - 1;
         println!(
-            "Run_id: {}, Step: {}, Writing frame {:?}",
-            run_id,
-            space_time_machine.step_count().separate_with_commas(),
-            frame
+            "run_id: {}, Frame {}: goal {}, actual {}",
+            run_id, frame_index, goal_step_index, actual_step_index
         );
 
         save_frame(
             &space_time_machine,
             &output_dir,
             run_id,
-            frame,
-            prev_steps + 1,
+            frame_index as u32,
+            actual_step_index + 1,
             goal_x,
             goal_y,
         )?;
-        prev_steps = target_steps;
     }
 
     Ok(())
@@ -73,7 +52,7 @@ fn save_frame(
     machine: &SpaceTimeMachine,
     output_dir: &Path,
     run_id: u32,
-    frame: usize,
+    frame: u32,
     step: u64,
     goal_x: u32,
     goal_y: u32,
