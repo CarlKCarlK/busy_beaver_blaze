@@ -11,29 +11,57 @@ fn main() -> Result<(), String> {
     let goal_y: u32 = 1080;
     let mut space_time_machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
 
-    let n = 10_000_000;
+    let num_frames = 1000;
+    let start_step = 0f64;
+    let end_step = 1e12f64; // 1 trillion
 
-    let top_dir = r"m:\deldir\bb6_contender";
-    let output_dir = create_sequential_subdir(top_dir).unwrap();
+    // Calculate logarithmic step positions
+    let log_start = start_step.max(1.0).ln();
+    let log_end = end_step.ln();
+    let log_step = (log_end - log_start) / (num_frames - 1) as f64;
 
-    let mut image_number = 0;
+    let output_dir = create_sequential_subdir(r"m:\deldir\bb6_contender").unwrap();
+    let mut prev_steps = 0u64;
 
-    while space_time_machine.nth_js(n) {
-        let file_name = output_dir.join(format!("{:07}.png", image_number));
-        println!("Writing {:?}", file_name);
+    // Capture initial frame
+    save_frame(&space_time_machine, &output_dir, 0, goal_x, goal_y)?;
 
-        // Get PNG data and convert to image
-        let png_data = space_time_machine.png_data();
-        let img = image::load_from_memory(&png_data).map_err(|e| e.to_string())?;
+    // Capture remaining frames with logarithmic spacing
+    for frame in 1..num_frames {
+        let target_steps = (log_start + frame as f64 * log_step).exp().floor() as u64;
+        let steps_to_take = target_steps - prev_steps;
 
-        // Resize to goal dimensions
-        let resized = img.resize_exact(goal_x, goal_y, image::imageops::FilterType::Nearest);
+        if !space_time_machine.nth_js(steps_to_take) {
+            println!("Machine halted at step {}", prev_steps + steps_to_take);
+            break;
+        }
 
-        // Save the resized image
-        resized.save(&file_name).map_err(|e| e.to_string())?;
+        println!(
+            "Step: {}, Writing frame {:?}",
+            space_time_machine.step_count().thousands_sep(),
+            frame
+        );
 
-        image_number += 1;
+        save_frame(&space_time_machine, &output_dir, frame, goal_x, goal_y)?;
+        prev_steps = target_steps;
     }
+
+    Ok(())
+}
+
+fn save_frame(
+    machine: &SpaceTimeMachine,
+    output_dir: &Path,
+    frame: usize,
+    goal_x: u32,
+    goal_y: u32,
+) -> Result<(), String> {
+    let file_name = output_dir.join(format!("{:07}.png", frame));
+
+    let png_data = machine.png_data();
+    let img = image::load_from_memory(&png_data).map_err(|e| e.to_string())?;
+    let resized = img.resize_exact(goal_x, goal_y, image::imageops::FilterType::Nearest);
+    resized.save(&file_name).map_err(|e| e.to_string())?;
 
     Ok(())
 }
