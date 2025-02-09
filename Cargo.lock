@@ -135,6 +135,8 @@ dependencies = [
  "derive_more",
  "image",
  "imageproc",
+ "num-bigint",
+ "num-traits",
  "png",
  "thousands",
  "wasm-bindgen",
