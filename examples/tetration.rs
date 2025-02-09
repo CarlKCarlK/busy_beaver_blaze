@@ -5,59 +5,54 @@ fn two_tetration(x: BigInt) -> BigInt {
     if x.is_zero() {
         return BigInt::from(1);
     }
-    let x_less_one: BigInt = x - 1;
-    if x_less_one.is_zero() {
-        return BigInt::from(2);
+    two_raised_to_the_power(two_tetration(x - 1))
+}
+
+fn two_raised_to_the_power(x: BigInt) -> BigInt {
+    if x.is_zero() {
+        return BigInt::from(1);
     }
 
-    let less_one = two_tetration(x_less_one);
+    two_times(two_raised_to_the_power(x - 1))
+}
+
+fn two_times(mut x: BigInt) -> BigInt {
     let mut result = BigInt::from(0);
-    let mut x = less_one.clone();
     while !x.is_zero() {
         x -= 1;
-        let mut y = less_one.clone();
-        while !y.is_zero() {
-            y -= 1;
-            result += 1;
-        }
+        result = two_plus(result);
     }
     result
 }
 
-// fn two_raised_to_the_power(x: BigInt, steps: &mut BigInt) {
-//     if x == 0 {
-//         *steps += 1;
-//         return;
-//     }
-//     for _ in 0..2 {
-//         two_raised_to_the_power(x - 1, steps);
-//     }
-// }
-// fn two_times(x: BigInt, steps: &mut BigInt) {
-//     for _ in 0..2 {
-//         for _ in 0..x {
-//             *steps += 1;
-//         }
-//     }
-//
+fn two_plus(x: BigInt) -> BigInt {
+    let mut result = x;
+    for _ in 0..2 {
+        result += 1;
+    }
+    result
+}
 
 fn main() -> Result<(), String> {
-    // // 2  x 2 = 4
-    // let mut steps = 0;
-    // let x = 3;
-    // two_times(x, &mut steps);
-    // println!("2 x {x} = {steps}");
+    // 2 + 5 = 7
+    let x = BigInt::from(5);
+    let result = two_plus(x.clone());
+    println!("2+{x} = {result}");
 
-    // // 2^3 = 8
-    // let mut steps = 0;
-    // let x = 3;
-    // two_raised_to_the_power(x, &mut steps);
-    // println!("2^{x} = {steps}");
+    // 2  x 2 = 4
+    let x = BigInt::from(2);
+    let result = two_times(x.clone());
+    println!("2×{x} = {result}");
+
+    // 2^3 = 8
+    let x = BigInt::from(3);
+    let result = two_raised_to_the_power(x.clone());
+    println!("2^{x} = {result}");
 
     // 2^^3 = 16
-    let x = BigInt::from(6);
+    let x = BigInt::from(4);
     let result = two_tetration(x.clone());
-    println!("2^^{x} = {result}");
+    println!("2↑↑{x} = {result}");
 
     Ok(())
 }
