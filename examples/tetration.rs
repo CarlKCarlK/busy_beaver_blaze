@@ -87,29 +87,40 @@ fn power_i(a: u32, mut b: BigUint, skip_work_count: &mut BigUint) -> BigUint {
 }
 
 #[inline]
-fn tetration_i(a: u32, b: u32) -> BigUint {
-    let mut running_total = BigUint::ZERO;
-    let mut total_total = BigUint::ZERO;
-    let mut zero = BigUint::ZERO;
-    increment(&mut running_total, &mut zero);
-    for _ in 0..b {
-        total_total += &running_total;
-        running_total = power_i(a, running_total, &mut total_total);
+fn power_fast(a: u32, mut b: BigUint) -> BigUint {
+    let mut running_total = BigUint::from(1u32);
+    if a == 0 {
+        // Some leave 0^0 as undefined, but we'll define it as 1
+        return running_total;
+    }
+    let a_less_one = a - 1;
+    while !b.is_zero() {
+        b -= 1u32;
+        running_total += &running_total * a_less_one;
     }
     running_total
 }
 
-// #[inline]
-// fn tetration_i(base: u32, mut x: BigInt) {
-//     increment();
-//     while !x.is_zero() {
-//         x -= 1;
-//         power_i(
-//             base,
-//             RESULT.load(std::sync::atomic::Ordering::Relaxed).into(),
-//         );
-//     }
-// }
+#[inline]
+fn tetration_fast(a: u32, b: u32) -> BigUint {
+    let mut running_total = BigUint::from(1u32);
+    for _ in 0..b {
+        running_total = power_fast(a, running_total);
+    }
+    running_total
+}
+
+#[inline]
+fn tetration_i(a: u32, b: u32) -> BigUint {
+    let mut running_total = BigUint::ZERO;
+    let mut zero = BigUint::ZERO;
+    if b == 0 {
+        increment(&mut running_total, &mut zero);
+        return running_total;
+    }
+    let tetration_a_b_less_1 = tetration_fast(a, b - 1);
+    power_i(a, tetration_a_b_less_1, &mut zero)
+}
 
 fn main() -> Result<(), String> {
     let base = 2;
@@ -165,29 +176,28 @@ fn main() -> Result<(), String> {
         RESULT.load(std::sync::atomic::Ordering::Relaxed)
     );
 
+    // test power_fast
+    for x in 0u32..=4 {
+        let power = power_fast(base, x.into());
+        println!("Power_fast {base}^{x} = {}", power,);
+    }
+
+    // test tetration_fast
+    for x in 0u32..=5 {
+        let tetration = tetration_fast(base, x);
+        println!("Tetration_fast {base}^^{x} = {}", tetration,);
+    }
+
     // Test tetration_i
     for x in 0u32..=4 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
         let running_total = tetration_i(base, x);
         println!(
-            "Tetration_r {base}^^{x}: after = {}, work_item_count = {}",
+            "Tetration {base}^^{x}: after = {}, work_item_count = {}",
             running_total,
             RESULT.load(std::sync::atomic::Ordering::Relaxed)
         );
     }
-    // let x = BigInt::from(3);
-    // let base = 2;
-    // println!("\nTetration:");
-    // TOTAL_WORK.store(0, Ordering::Relaxed);
-    // println!(
-    //     "  Recursive: {base}↑↑{x} = {}",
-    //     tetration_r(base, x.clone())
-    // );
-    // TOTAL_WORK.store(0, Ordering::Relaxed);
-    // println!(
-    //     "  Iterative: {base}↑↑{x} = {}",
-    //     tetration_i(base, x.clone())
-    // );
 
     Ok(())
 }
