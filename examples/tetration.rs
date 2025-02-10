@@ -56,18 +56,13 @@ fn power_r(base: u32, x: BigInt) {
 
 #[inline]
 fn power_i(base: u32, mut x: BigInt) {
-    if x.is_zero() {
-        increment();
-        return;
-    }
-    x -= 1;
-    if x.is_zero() {
-        plus_i(base);
-        return;
-    }
+    increment();
     while !x.is_zero() {
         x -= 1;
-        multiply_i(base, x.clone());
+        multiply_i(
+            base - 1,
+            RESULT.load(std::sync::atomic::Ordering::Relaxed).into(),
+        );
     }
 }
 
@@ -162,11 +157,24 @@ fn main() -> Result<(), String> {
         );
         power_r(base, BigInt::from(x));
         println!(
-            "Power_r{base}^{x}: after = {}",
+            "Power_r {base}^{x}: after = {}",
             RESULT.load(std::sync::atomic::Ordering::Relaxed)
         );
     }
 
+    // Test power_i
+    for x in 0..5 {
+        RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+        println!(
+            "Power: before = {}",
+            RESULT.load(std::sync::atomic::Ordering::Relaxed)
+        );
+        power_i(base, BigInt::from(x));
+        println!(
+            "Power_i {base}^{x}: after = {}",
+            RESULT.load(std::sync::atomic::Ordering::Relaxed)
+        );
+    }
     // let x = BigInt::from(3);
     // println!("\nPower:");
     // TOTAL_WORK.store(0, Ordering::Relaxed);
