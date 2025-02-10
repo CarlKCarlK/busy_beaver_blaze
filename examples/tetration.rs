@@ -87,17 +87,16 @@ fn power_i(a: u32, mut b: BigUint, skip_work_count: &mut BigUint) -> BigUint {
 }
 
 #[inline]
-fn tetration_r(a: u32, b: BigUint) -> BigUint {
+fn tetration_i(a: u32, b: u32) -> BigUint {
     let mut running_total = BigUint::ZERO;
-    if b.is_zero() {
-        let mut zero = BigUint::zero();
-        increment(&mut running_total, &mut zero);
-        return running_total;
+    let mut total_total = BigUint::ZERO;
+    let mut zero = BigUint::ZERO;
+    increment(&mut running_total, &mut zero);
+    for _ in 0..b {
+        total_total += &running_total;
+        running_total = power_i(a, running_total, &mut total_total);
     }
-    let start = RESULT.load(std::sync::atomic::Ordering::Relaxed);
-    let exp = tetration_r(a, b - 1u32);
-    let change = RESULT.load(std::sync::atomic::Ordering::Relaxed) - start;
-    power_i(a, exp, &mut BigUint::from(change))
+    running_total
 }
 
 // #[inline]
@@ -113,7 +112,7 @@ fn tetration_r(a: u32, b: BigUint) -> BigUint {
 // }
 
 fn main() -> Result<(), String> {
-    let base = 3;
+    let base = 2;
     let mut skip_work_count = BigUint::ZERO;
 
     // Test increment
@@ -169,7 +168,7 @@ fn main() -> Result<(), String> {
     // Test tetration_i
     for x in 0u32..=4 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-        let running_total = tetration_r(base, BigUint::from(x));
+        let running_total = tetration_i(base, x);
         println!(
             "Tetration_r {base}^^{x}: after = {}, work_item_count = {}",
             running_total,
