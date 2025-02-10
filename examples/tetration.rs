@@ -1,122 +1,180 @@
+use std::sync::atomic::AtomicU64;
+
 use num_bigint::BigInt;
 use num_traits::identities::Zero;
-use std::sync::atomic::{AtomicU64, Ordering};
 
-static TOTAL_WORK: AtomicU64 = AtomicU64::new(0);
+// atomic::AtomicUsize;
+static RESULT: AtomicU64 = AtomicU64::new(0);
 
-fn increment(x: BigInt) -> BigInt {
-    let count = TOTAL_WORK.fetch_add(1, Ordering::Relaxed);
-    if count % 1 == 0 {
-        println!("\tIncrements index: {}", count);
-    }
-    x + 1
+#[inline]
+fn increment() {
+    RESULT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
-fn plus_r(base: u32, x: BigInt) -> BigInt {
+fn plus_r(base: u32) {
     if base == 0 {
-        return x;
+        return;
     }
-    plus_r(base - 1, increment(x))
+    increment();
+    plus_r(base - 1);
 }
 
 #[inline]
-fn plus_i(base: u32, x: BigInt) -> BigInt {
-    let mut result = x;
+fn plus_i(base: u32) {
     for _ in 0..base {
-        result = increment(result);
+        increment();
     }
-    result
 }
-fn multiply_r(base: u32, x: BigInt) -> BigInt {
+
+fn multiply_r(base: u32, x: BigInt) {
     if x.is_zero() {
-        return BigInt::from(0);
+        return;
     }
-    let increment_by = plus_r(base, BigInt::from(0)); // Calculate once
-    multiply_r(base, x - 1) + increment_by // Reuse the pre-calculated value
+    plus_i(base);
+    multiply_r(base, x - 1);
 }
 
 #[inline]
-fn multiply_i(base: u32, mut x: BigInt) -> BigInt {
-    let mut result = BigInt::from(0);
+fn multiply_i(base: u32, mut x: BigInt) {
     while !x.is_zero() {
         x -= 1;
-        result = plus_i(base, result);
+        plus_i(base);
     }
-    result
 }
 
-fn power_r(base: u32, x: BigInt) -> BigInt {
+fn power_r(base: u32, x: BigInt) {
     if x.is_zero() {
-        return BigInt::from(1);
+        increment();
+        return;
     }
-    multiply_r(base, power_r(base, x - 1))
+    power_r(base, x - 1);
+    multiply_r(
+        base - 1,
+        RESULT.load(std::sync::atomic::Ordering::Relaxed).into(),
+    );
 }
 
 #[inline]
-fn power_i(base: u32, mut x: BigInt) -> BigInt {
-    let mut result = BigInt::from(1);
-    while !x.is_zero() {
-        x -= 1;
-        println!("--");
-        result = multiply_i(base, BigInt::from(1));
-    }
-    result
-}
-
-fn tetration_r(base: u32, x: BigInt) -> BigInt {
+fn power_i(base: u32, mut x: BigInt) {
     if x.is_zero() {
-        return BigInt::from(1);
+        increment();
+        return;
     }
-    power_r(base, tetration_r(base, x - 1))
-}
-
-#[inline]
-fn tetration_i(base: u32, mut x: BigInt) -> BigInt {
-    let mut result = BigInt::from(1);
+    x -= 1;
+    if x.is_zero() {
+        plus_i(base);
+        return;
+    }
     while !x.is_zero() {
         x -= 1;
-        result = power_i(base, result);
+        multiply_i(base, x.clone());
     }
-    result
 }
+
+// fn tetration_r(base: u32, x: BigInt) -> BigInt {
+//     if x.is_zero() {
+//         return BigInt::from(1);
+//     }
+//     power_r(base, tetration_r(base, x - 1))
+// }
+
+// #[inline]
+// fn tetration_i(base: u32, mut x: BigInt) -> BigInt {
+//     let mut result = BigInt::from(1);
+//     while !x.is_zero() {
+//         x -= 1;
+//         result = power_i(base, result);
+//     }
+//     result
+// }
 
 fn main() -> Result<(), String> {
     let base = 2;
 
     // Test increment
-    let x = BigInt::from(5);
-    println!("Increment:");
-    TOTAL_WORK.store(0, Ordering::Relaxed);
-    println!("  Recursive: {x}++ = {}", increment(x.clone()));
-    println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
+    RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+    println!(
+        "Increment: before = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
+    increment();
+    println!(
+        "Increment: after = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
 
-    // Test both recursive and iterative versions
-    let x = BigInt::from(5);
-    println!("Plus:");
-    TOTAL_WORK.store(0, Ordering::Relaxed);
-    println!("  Iterative: {base}+{x} = {}", plus_i(base, x.clone()));
-    println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
-    TOTAL_WORK.store(0, Ordering::Relaxed);
-    println!("  Recursive: {base}+{x} = {}", plus_r(base, x.clone()));
-    println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
+    // Test plus_i
+    RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+    println!(
+        "Plus: before = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
+    plus_i(base);
+    println!(
+        "Plus_i +{base}: after = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
 
+    // Test plus_r
+    RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+    println!(
+        "Plus: before = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
+    plus_r(base);
+    println!(
+        "Plus_r +{base}: after = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
+
+    // Test multiply_i
+    RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+    println!(
+        "Multiply: before = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
     let x = BigInt::from(3);
-    println!("\nMultiply:");
-    TOTAL_WORK.store(0, Ordering::Relaxed);
-    println!("  Iterative: {base}×{x} = {}", multiply_i(base, x.clone()));
-    println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
-    TOTAL_WORK.store(0, Ordering::Relaxed);
-    println!("  Recursive: {base}×{x} = {}", multiply_r(base, x.clone()));
-    println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
+    multiply_i(base, x.clone());
+    println!(
+        "Multiply_i {base}x{x}: after = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
 
+    // Test multiply_r
+    RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+    println!(
+        "Multiply: before = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
     let x = BigInt::from(3);
-    println!("\nPower:");
-    TOTAL_WORK.store(0, Ordering::Relaxed);
-    println!("  Iterative: {base}^{x} = {}", power_i(base, x.clone()));
-    println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
-    TOTAL_WORK.store(0, Ordering::Relaxed);
-    println!("  Recursive: {base}^{x} = {}", power_r(base, x.clone()));
-    println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
+    multiply_r(base, x.clone());
+    println!(
+        "Multiply_r {base}x{x}: after = {}",
+        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+    );
+
+    // Test power_r
+    for x in 0..5 {
+        RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+        println!(
+            "Power: before = {}",
+            RESULT.load(std::sync::atomic::Ordering::Relaxed)
+        );
+        power_r(base, BigInt::from(x));
+        println!(
+            "Power_r{base}^{x}: after = {}",
+            RESULT.load(std::sync::atomic::Ordering::Relaxed)
+        );
+    }
+
+    // let x = BigInt::from(3);
+    // println!("\nPower:");
+    // TOTAL_WORK.store(0, Ordering::Relaxed);
+    // println!("  Iterative: {base}^{x} = {}", power_i(base, x.clone()));
+    // println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
+    // TOTAL_WORK.store(0, Ordering::Relaxed);
+    // println!("  Recursive: {base}^{x} = {}", power_r(base, x.clone()));
+    // println!("Total increments: {}", TOTAL_WORK.load(Ordering::Relaxed));
 
     // let x = BigInt::from(3);
     // let base = 2;
