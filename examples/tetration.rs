@@ -1,7 +1,7 @@
-use std::sync::atomic::AtomicU64;
+use std::{clone, sync::atomic::AtomicU64};
 
 use num_bigint::BigUint;
-use num_traits::{identities::Zero, Pow};
+use num_traits::identities::Zero;
 
 // atomic::AtomicUsize;
 static RESULT: AtomicU64 = AtomicU64::new(0);
@@ -11,11 +11,20 @@ fn work_item() {
     RESULT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 enum ProductSkips {
     None,
     Column,
     ColumnPlusOne,
+}
+
+impl From<PowerSkips> for ProductSkips {
+    fn from(skip: PowerSkips) -> Self {
+        match skip {
+            PowerSkips::PlusOne => ProductSkips::ColumnPlusOne,
+            PowerSkips::None => ProductSkips::Column,
+        }
+    }
 }
 
 #[inline]
@@ -42,6 +51,7 @@ fn product(a: u32, mut b: BigUint, mut product_skips: ProductSkips) -> BigUint {
     result
 }
 
+#[derive(Copy, Clone, Debug)]
 enum PowerSkips {
     None,
     PlusOne,
@@ -54,12 +64,9 @@ fn power(a: u32, mut b: BigUint, power_skips: PowerSkips) -> BigUint {
     if a == 0 {
         return result; // Rust says 0^0 is 1
     }
+    let product_skips = ProductSkips::from(power_skips);
     while !b.is_zero() {
         b -= 1u32;
-        let product_skips = match power_skips {
-            PowerSkips::PlusOne => ProductSkips::ColumnPlusOne,
-            PowerSkips::None => ProductSkips::Column,
-        };
         result = product(a, result, product_skips);
     }
     result
