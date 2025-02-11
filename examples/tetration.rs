@@ -60,19 +60,29 @@ impl Iterator for Product {
             if self.b.is_zero() {
                 return None;
             }
-            let next_a = self.a_range.next();
-            if next_a.is_some() {
-                self.result += 1u32;
-                return Some(());
+            let Some(a) = self.a_range.next() else {
+                self.a_range = 0..self.a;
+                self.b -= 1u32;
+                continue;
+            };
+            self.result += 1u32;
+            match self.product_skips {
+                ProductSkips::None => return Some(()),
+                ProductSkips::Column if a > 0 => return Some(()),
+                ProductSkips::ColumnPlusOne if a > 0 => {
+                    self.product_skips = ProductSkips::Column;
+                }
+                ProductSkips::Column | ProductSkips::ColumnPlusOne => {
+                    debug_assert!(a == 0, "real assert")
+                    // do nothing but loop
+                }
             }
-            self.a_range = 0..self.a;
-            self.b -= 1u32;
         }
     }
 }
 
 #[inline]
-fn product_new(a: u32, b: BigUint, product_skips: ProductSkips) -> BigUint {
+fn product(a: u32, b: BigUint, product_skips: ProductSkips) -> BigUint {
     debug_assert!(a > 0);
     let mut iter = Product::new(a, b, product_skips);
     for _ in iter.by_ref() {
@@ -82,7 +92,7 @@ fn product_new(a: u32, b: BigUint, product_skips: ProductSkips) -> BigUint {
 }
 
 #[inline]
-fn product(a: u32, mut b: BigUint, mut product_skips: ProductSkips) -> BigUint {
+fn product_old(a: u32, mut b: BigUint, mut product_skips: ProductSkips) -> BigUint {
     debug_assert!(a > 0); // cmk
     let mut result = BigUint::ZERO;
     while !b.is_zero() {
