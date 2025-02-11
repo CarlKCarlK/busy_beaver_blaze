@@ -51,13 +51,15 @@ fn power(a: u32, mut b: BigUint, skimp_work: bool) -> BigUint {
 
 #[inline]
 fn tetration(a: u32, b: u32) -> BigUint {
-    debug_assert!(a > 0); // cmk
-    if b == 0 {
-        work_item();
-        return BigUint::from(1u32);
+    debug_assert!(a > 0);
+    let mut result = BigUint::from(1u32);
+    work_item();
+
+    for _ in 0..b {
+        result = power(a, result, true);
     }
-    let tetration_a_b_less_1 = tetration(a, b - 1);
-    power(a, tetration_a_b_less_1, true)
+
+    result
 }
 
 fn main() -> Result<(), String> {
