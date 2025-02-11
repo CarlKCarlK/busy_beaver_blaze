@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicU64;
 
 use num_bigint::BigUint;
-use num_traits::identities::Zero;
+use num_traits::{identities::Zero, Pow};
 
 // atomic::AtomicUsize;
 static RESULT: AtomicU64 = AtomicU64::new(0);
@@ -11,23 +11,30 @@ fn work_item() {
     RESULT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
+#[derive(PartialEq)]
+enum ProductSkips {
+    None,
+    Column,
+    ColumnPlusOne,
+}
+
 #[inline]
-fn product(a: u32, mut b: BigUint, skimp_b: bool, mut skimp_one_more: bool) -> BigUint {
-    debug_assert!(a > 0);
+fn product(a: u32, mut b: BigUint, mut product_skips: ProductSkips) -> BigUint {
+    debug_assert!(a > 0); // cmk
     let mut result = BigUint::ZERO;
     while !b.is_zero() {
         b -= 1u32;
 
         // a=0
         result += 1u32;
-        if !skimp_b {
+        if product_skips == ProductSkips::None {
             work_item();
         }
         for _ in 1..a {
-            if !skimp_one_more {
-                work_item();
+            if product_skips == ProductSkips::ColumnPlusOne {
+                product_skips = ProductSkips::Column;
             } else {
-                skimp_one_more = false;
+                work_item();
             }
             result += 1u32;
         }
@@ -35,8 +42,13 @@ fn product(a: u32, mut b: BigUint, skimp_b: bool, mut skimp_one_more: bool) -> B
     result
 }
 
+enum PowerSkips {
+    None,
+    PlusOne,
+}
+
 #[inline]
-fn power(a: u32, mut b: BigUint, skimp_work: bool) -> BigUint {
+fn power(a: u32, mut b: BigUint, power_skips: PowerSkips) -> BigUint {
     let mut result = BigUint::from(1u32);
     work_item();
     if a == 0 {
@@ -44,7 +56,11 @@ fn power(a: u32, mut b: BigUint, skimp_work: bool) -> BigUint {
     }
     while !b.is_zero() {
         b -= 1u32;
-        result = product(a, result, true, skimp_work);
+        let product_skips = match power_skips {
+            PowerSkips::PlusOne => ProductSkips::ColumnPlusOne,
+            PowerSkips::None => ProductSkips::Column,
+        };
+        result = product(a, result, product_skips);
     }
     result
 }
@@ -56,7 +72,7 @@ fn tetration(a: u32, b: u32) -> BigUint {
     work_item();
 
     for _ in 0..b {
-        result = power(a, result, true);
+        result = power(a, result, PowerSkips::PlusOne);
     }
 
     result
@@ -76,7 +92,7 @@ fn main() -> Result<(), String> {
     RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
 
     let x = 3u32;
-    let running_total = product(base, BigUint::from(x), false, false);
+    let running_total = product(base, BigUint::from(x), ProductSkips::None);
     println!(
         "Multiply_i {base}x{x}={}:  work_item_count = {}",
         running_total,
@@ -86,7 +102,7 @@ fn main() -> Result<(), String> {
     // Test power_i
     for x in 0u32..=10 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-        let result = power(base, BigUint::from(x), false);
+        let result = power(base, BigUint::from(x), PowerSkips::None);
         println!(
             "Power_i {base}^{x}: {result} work_item_count = {}",
             RESULT.load(std::sync::atomic::Ordering::Relaxed)
