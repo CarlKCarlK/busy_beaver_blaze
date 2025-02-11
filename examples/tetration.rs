@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicU64;
+use std::{ops::Range, sync::atomic::AtomicU64};
 
 use num_bigint::BigUint;
 use num_traits::identities::Zero;
@@ -25,6 +25,60 @@ impl From<PowerSkips> for ProductSkips {
             PowerSkips::None => ProductSkips::Column,
         }
     }
+}
+
+struct Product {
+    a: u32,
+    a_range: Range<u32>,
+    b: BigUint,
+    product_skips: ProductSkips,
+    result: BigUint,
+}
+
+impl Product {
+    fn new(a: u32, b: BigUint, product_skips: ProductSkips) -> Self {
+        debug_assert!(a > 0); // cmk
+        Product {
+            a,
+            a_range: 0..a,
+            b,
+            product_skips,
+            result: BigUint::ZERO,
+        }
+    }
+
+    fn into_result(self) -> BigUint {
+        self.result
+    }
+}
+
+impl Iterator for Product {
+    type Item = ();
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.b.is_zero() {
+                return None;
+            }
+            let next_a = self.a_range.next();
+            if next_a.is_some() {
+                self.result += 1u32;
+                return Some(());
+            }
+            self.a_range = 0..self.a;
+            self.b -= 1u32;
+        }
+    }
+}
+
+#[inline]
+fn product_new(a: u32, b: BigUint, product_skips: ProductSkips) -> BigUint {
+    debug_assert!(a > 0);
+    let mut iter = Product::new(a, b, product_skips);
+    for _ in iter.by_ref() {
+        work_item();
+    }
+    iter.into_result()
 }
 
 #[inline]
@@ -85,6 +139,7 @@ fn tetration(a: u32, b: u32) -> BigUint {
     result
 }
 
+// cmk!!!! BUGBUG can't run tests in parallel because of Global
 fn main() -> Result<(), String> {
     let base = 2;
     // Test increment
@@ -132,7 +187,6 @@ fn main() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_bigint::BigInt;
     use num_traits::ToPrimitive;
     use std::sync::atomic::Ordering;
 
@@ -144,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiply() {
+    fn test_product() {
         let base = 2;
         let x = 3u32;
         RESULT.store(0, Ordering::Relaxed);
@@ -153,6 +207,23 @@ mod tests {
             .unwrap();
         assert_eq!(result, (base * x).into());
         assert_eq!(RESULT.load(Ordering::Relaxed), result);
+    }
+
+    #[test]
+    fn test_product_new() {
+        let base = 2;
+        for x in 0u32..=10 {
+            RESULT.store(0, Ordering::Relaxed);
+            let result = product_new(base, BigUint::from(x), ProductSkips::None)
+                .to_u64()
+                .unwrap();
+            println!(
+                "{base}x{x}={result}:  work_item_count = {}",
+                RESULT.load(Ordering::Relaxed)
+            );
+            assert_eq!(result, (base * x).into());
+            assert_eq!(RESULT.load(Ordering::Relaxed), result);
+        }
     }
 
     #[test]
@@ -171,10 +242,11 @@ mod tests {
     #[test]
     fn test_tetration() {
         let base: u32 = 2;
-        let mut expecteds: [u64; 5] = [1, 2, 4, 16, 65536];
+        let expecteds: [u64; 5] = [1, 2, 4, 16, 65536];
         for (x, expected) in (0u32..=4).zip(expecteds.iter()) {
             RESULT.store(0, Ordering::Relaxed);
             let result = tetration(base, x).to_u64().unwrap();
+            assert_eq!(result, *expected);
             assert_eq!(RESULT.load(Ordering::Relaxed), result);
         }
     }
