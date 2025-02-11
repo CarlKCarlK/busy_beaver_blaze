@@ -27,20 +27,17 @@ fn multiply_skimp_work(a: u32, mut b: BigUint) -> BigUint {
 }
 
 #[inline]
-fn power_i(a: u32, mut b: BigUint) -> BigUint {
-    let mut running_total = BigUint::from(1u32);
+fn power(a: u32, mut b: BigUint) -> BigUint {
+    let mut result = BigUint::from(1u32);
     work_item();
     if a == 0 {
-        // Some leave 0^0 as undefined, but we'll define it as 1
-        return running_total;
+        return result; // Rust says 0^0 is 1
     }
     while !b.is_zero() {
         b -= 1u32;
-        print!("{}*{} = ", a, running_total);
-        running_total = multiply_skimp_work(a, running_total);
-        println!("rt{}", running_total);
+        result = multiply_skimp_work(a, result);
     }
-    running_total
+    result
 }
 
 // #[inline]
@@ -77,9 +74,9 @@ fn main() -> Result<(), String> {
     // Test power_i
     for x in 0u32..=10 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-        power_i(base, BigUint::from(x));
+        let result = power(base, BigUint::from(x));
         println!(
-            "Power_i {base}^{x}:  work_item_count = {}",
+            "Power_i {base}^{x}: {result} work_item_count = {}",
             RESULT.load(std::sync::atomic::Ordering::Relaxed)
         );
     }
