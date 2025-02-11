@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicU64;
 
 use num_bigint::BigUint;
-use num_traits::{identities::Zero, ConstZero};
+use num_traits::identities::Zero;
 
 // atomic::AtomicUsize;
 static RESULT: AtomicU64 = AtomicU64::new(0);
@@ -12,14 +12,23 @@ fn work_item() {
 }
 
 #[inline]
-fn multiply_skimp_work(a: u32, mut b: BigUint) -> BigUint {
+fn product(a: u32, mut b: BigUint, skimp_b: bool, mut skimp_one_more: bool) -> BigUint {
     debug_assert!(a > 0);
     let mut result = BigUint::ZERO;
     while !b.is_zero() {
         b -= 1u32;
+
+        // a=0
         result += 1u32;
-        for _ in 1..a {
+        if !skimp_b {
             work_item();
+        }
+        for _ in 1..a {
+            if !skimp_one_more {
+                work_item();
+            } else {
+                skimp_one_more = false;
+            }
             result += 1u32;
         }
     }
@@ -27,7 +36,7 @@ fn multiply_skimp_work(a: u32, mut b: BigUint) -> BigUint {
 }
 
 #[inline]
-fn power(a: u32, mut b: BigUint) -> BigUint {
+fn power(a: u32, mut b: BigUint, skimp_work: bool) -> BigUint {
     let mut result = BigUint::from(1u32);
     work_item();
     if a == 0 {
@@ -35,20 +44,21 @@ fn power(a: u32, mut b: BigUint) -> BigUint {
     }
     while !b.is_zero() {
         b -= 1u32;
-        result = multiply_skimp_work(a, result);
+        result = product(a, result, true, skimp_work);
     }
     result
 }
 
-// #[inline]
-// fn tetration_i(a: u32, b: u32) {
-//     if b == 0 {
-//         work_item();
-//         return;
-//     }
-//     let tetration_a_b_less_1 = tetration_fast(a, b - 1);
-//     power_i(a, tetration_a_b_less_1);
-// }
+#[inline]
+fn tetration(a: u32, b: u32) -> BigUint {
+    debug_assert!(a > 0); // cmk
+    if b == 0 {
+        work_item();
+        return BigUint::from(1u32);
+    }
+    let tetration_a_b_less_1 = tetration(a, b - 1);
+    power(a, tetration_a_b_less_1, true)
+}
 
 fn main() -> Result<(), String> {
     let base = 2;
@@ -64,7 +74,7 @@ fn main() -> Result<(), String> {
     RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
 
     let x = 3u32;
-    let running_total = multiply_skimp_work(base, BigUint::from(x));
+    let running_total = product(base, BigUint::from(x), false, false);
     println!(
         "Multiply_i {base}x{x}={}:  work_item_count = {}",
         running_total,
@@ -74,22 +84,22 @@ fn main() -> Result<(), String> {
     // Test power_i
     for x in 0u32..=10 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-        let result = power(base, BigUint::from(x));
+        let result = power(base, BigUint::from(x), false);
         println!(
             "Power_i {base}^{x}: {result} work_item_count = {}",
             RESULT.load(std::sync::atomic::Ordering::Relaxed)
         );
     }
 
-    // // Test tetration_i
-    // for x in 0u32..=4 {
-    //     RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-    //     tetration_i(base, x);
-    //     println!(
-    //         "Tetration {base}^^{x}:  work_item_count = {}",
-    //         RESULT.load(std::sync::atomic::Ordering::Relaxed)
-    //     );
-    // }
+    // Test tetration_i
+    for x in 0u32..=4 {
+        RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+        let result = tetration(base, x);
+        println!(
+            "Tetration {base}^^{x}={result}:  work_item_count = {}",
+            RESULT.load(std::sync::atomic::Ordering::Relaxed)
+        );
+    }
 
     Ok(())
 }
