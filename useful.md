@@ -24,3 +24,10 @@ wasm-pack build --target web --release
 ```bash
 cargo run --example movie --release
 ```
+
+## Tetration
+
+```bash
+ cargo run --example tetration --release
+ cargo test --example tetration --release -- --nocapture
+```
