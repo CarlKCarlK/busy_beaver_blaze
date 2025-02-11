@@ -3,12 +3,87 @@ use std::{default, mem, ops::Range, sync::atomic::AtomicU64};
 use num_bigint::BigUint;
 use num_traits::identities::Zero;
 
+struct BigRange {
+    current: BigUint,
+}
+
+impl Iterator for BigRange {
+    type Item = ();
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_zero() {
+            None
+        } else {
+            self.current -= 1u32;
+            Some(())
+        }
+    }
+}
+
+trait IntoBigRange {
+    fn into_big_range(self) -> BigRange;
+}
+
+impl IntoBigRange for BigUint {
+    fn into_big_range(self) -> BigRange {
+        BigRange { current: self }
+    }
+}
+
 // atomic::AtomicUsize;
 static RESULT: AtomicU64 = AtomicU64::new(0);
 
 #[inline]
 fn work_item() {
     RESULT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+#[inline]
+fn tetration_s(a: u32, b: u32) -> BigUint {
+    debug_assert!(a > 0);
+    let mut result = BigUint::from(1u32);
+    for _ in 0..b {
+        result = power_s(a, result);
+    }
+
+    result
+}
+
+#[inline]
+fn power_s(a: u32, b: BigUint) -> BigUint {
+    debug_assert!(a > 0);
+    let mut result = BigUint::from(1u32);
+    for _ in b.into_big_range() {
+        result = product_s(a, result);
+    }
+    result
+}
+
+#[inline]
+fn product_s(a: u32, b: BigUint) -> BigUint {
+    debug_assert!(a > 0); // cmk
+    let mut result = BigUint::ZERO;
+    for _ in b.into_big_range() {
+        result = add_s(a, result);
+    }
+    result
+}
+
+#[inline]
+fn add_s(a: u32, b: BigUint) -> BigUint {
+    let mut result = b;
+    for _ in 0..a {
+        result = increment_s(result);
+    }
+    result
+}
+
+#[inline]
+fn increment_s(a: BigUint) -> BigUint {
+    let mut result = a;
+    result += 1u32;
+    result
 }
 
 fn simple_tetration(base: u32, height: u32) -> BigUint {
@@ -20,12 +95,14 @@ fn simple_tetration(base: u32, height: u32) -> BigUint {
             let mut product = BigUint::zero();
             while !power.is_zero() {
                 power -= 1u32;
-                // let mut sum = BigUint::zero();
+                let mut sum = product;
                 for _ in 0..base {
-                    product += 1u32;
+                    let mut increment = sum;
+                    increment += 1u32;
                     work_item();
+                    sum = increment;
                 }
-                // product = sum;
+                product = sum;
             }
             power = product;
         }
@@ -121,12 +198,10 @@ fn product(a: u32, b: BigUint, product_skips: ProductSkips) -> BigUint {
 }
 
 #[inline]
-fn product_old(a: u32, mut b: BigUint, mut product_skips: ProductSkips) -> BigUint {
+fn product_old(a: u32, b: BigUint, mut product_skips: ProductSkips) -> BigUint {
     debug_assert!(a > 0); // cmk
     let mut result = BigUint::ZERO;
-    while !b.is_zero() {
-        b -= 1u32;
-
+    for _ in b.into_big_range() {
         // a=0
         result += 1u32;
         if product_skips == ProductSkips::None {
@@ -211,15 +286,14 @@ fn power_new(a: u32, b: BigUint, power_skips: PowerSkips) -> BigUint {
 }
 
 #[inline]
-fn power(a: u32, mut b: BigUint, power_skips: PowerSkips) -> BigUint {
+fn power(a: u32, b: BigUint, power_skips: PowerSkips) -> BigUint {
     let mut result = BigUint::from(1u32);
     work_item();
     if a == 0 {
         return result; // Rust says 0^0 is 1
     }
     let product_skips = ProductSkips::from(power_skips);
-    while !b.is_zero() {
-        b -= 1u32;
+    for _ in b.into_big_range() {
         result = product(a, result, product_skips);
     }
     result
@@ -240,6 +314,18 @@ fn tetration(a: u32, b: u32) -> BigUint {
 
 // cmk!!!! BUGBUG can't run tests in parallel because of Global
 fn main() -> Result<(), String> {
+    // add
+    let s = add_s(2, BigUint::from(3u32));
+    println!("add_s(2, 3) = {}", s);
+    // product
+    let p = product_s(2, BigUint::from(3u32));
+    println!("product_s(2, 3) = {}", p);
+    // power
+    let p = power_s(2, BigUint::from(4u32));
+    println!("power_s(2, 4) = {}", p);
+    let t = tetration_s(2, 4);
+    println!("tetration_s(2, 4) = {}", t);
+
     let base = 2;
     for x in 0..5 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
