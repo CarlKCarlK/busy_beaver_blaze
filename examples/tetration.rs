@@ -1,4 +1,4 @@
-use std::{default, mem, ops::Range, sync::atomic::AtomicU64};
+use std::{mem, ops::Range, sync::atomic::AtomicU64};
 
 use num_bigint::BigUint;
 use num_traits::identities::Zero;
@@ -35,66 +35,80 @@ impl IntoBigRange for BigUint {
 static RESULT: AtomicU64 = AtomicU64::new(0);
 
 #[inline]
-fn work_item() {
+fn work_item_a() {
     RESULT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 #[inline]
 fn tetration_s(a: u32, b: u32) -> BigUint {
     debug_assert!(a > 0);
+    let f = format!("| {a}^^{b} = ");
+    println!("{f}?");
     let mut result = BigUint::from(1u32);
     for _ in 0..b {
         result = power_s(a, result);
     }
-
+    println!("{f}{result}");
     result
 }
 
 #[inline]
 fn power_s(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0);
+    let f = format!("|\t{a}^{b} = ");
+    println!("{f}?");
     let mut result = BigUint::from(1u32);
     for _ in b.into_big_range() {
         result = product_s(a, result);
     }
+    println!("{f}{result}");
     result
 }
 
 #[inline]
 fn product_s(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0); // cmk
+    let f = format!("|\t\t{a}*{b} = ");
     let mut result = BigUint::ZERO;
     for _ in b.into_big_range() {
         result = add_s(a, result);
     }
+    println!("{f}{result}");
     result
 }
 
 #[inline]
 fn add_s(a: u32, b: BigUint) -> BigUint {
+    // let f = format!("|\t\t\t{a}+{b} = ");
     let mut result = b;
     for _ in 0..a {
         result = increment_s(result);
     }
+    // println!("{f}{result}");
     result
 }
 
+// notice ownership passing
 #[inline]
 fn increment_s(a: BigUint) -> BigUint {
+    // let f = format!("|\t\t\t\t{a}++ = ");
     let mut result = a;
     result += 1u32;
+    // println!("{f}{result}");
     result
 }
 
-fn simple_tetration(base: u32, height: u32) -> BigUint {
+// no cloning of BigUint. Lots of ownership passing.
+fn simple_tetration<F>(base: u32, height: u32, mut work_item: F) -> BigUint
+where
+    F: FnMut(),
+{
     let mut tetration = BigUint::from(1u32);
     for _ in 0..height {
         let mut power = BigUint::from(1u32);
-        while !tetration.is_zero() {
-            tetration -= 1u32;
+        for _ in tetration.into_big_range() {
             let mut product = BigUint::zero();
-            while !power.is_zero() {
-                power -= 1u32;
+            for _ in power.into_big_range() {
                 let mut sum = product;
                 for _ in 0..base {
                     let mut increment = sum;
@@ -192,7 +206,7 @@ fn product(a: u32, b: BigUint, product_skips: ProductSkips) -> BigUint {
     debug_assert!(a > 0);
     let mut iter = Product::new(a, b, product_skips);
     for _ in iter.by_ref() {
-        work_item();
+        work_item_a();
     }
     iter.into_result()
 }
@@ -205,13 +219,13 @@ fn product_old(a: u32, b: BigUint, mut product_skips: ProductSkips) -> BigUint {
         // a=0
         result += 1u32;
         if product_skips == ProductSkips::None {
-            work_item();
+            work_item_a();
         }
         for _ in 1..a {
             if product_skips == ProductSkips::ColumnPlusOne {
                 product_skips = ProductSkips::Column;
             } else {
-                work_item();
+                work_item_a();
             }
             result += 1u32;
         }
@@ -280,7 +294,7 @@ impl Iterator for Power {
 fn power_new(a: u32, b: BigUint, power_skips: PowerSkips) -> BigUint {
     let mut iter = Power::new(a, b, power_skips);
     for _ in iter.by_ref() {
-        work_item();
+        work_item_a();
     }
     iter.into_result()
 }
@@ -288,7 +302,7 @@ fn power_new(a: u32, b: BigUint, power_skips: PowerSkips) -> BigUint {
 #[inline]
 fn power(a: u32, b: BigUint, power_skips: PowerSkips) -> BigUint {
     let mut result = BigUint::from(1u32);
-    work_item();
+    work_item_a();
     if a == 0 {
         return result; // Rust says 0^0 is 1
     }
@@ -303,7 +317,7 @@ fn power(a: u32, b: BigUint, power_skips: PowerSkips) -> BigUint {
 fn tetration(a: u32, b: u32) -> BigUint {
     debug_assert!(a > 0);
     let mut result = BigUint::from(1u32);
-    work_item();
+    work_item_a();
 
     for _ in 0..b {
         result = power(a, result, PowerSkips::PlusOne);
@@ -314,23 +328,23 @@ fn tetration(a: u32, b: u32) -> BigUint {
 
 // cmk!!!! BUGBUG can't run tests in parallel because of Global
 fn main() -> Result<(), String> {
-    // add
-    let s = add_s(2, BigUint::from(3u32));
-    println!("add_s(2, 3) = {}", s);
-    // product
-    let p = product_s(2, BigUint::from(3u32));
-    println!("product_s(2, 3) = {}", p);
-    // power
-    let p = power_s(2, BigUint::from(4u32));
-    println!("power_s(2, 4) = {}", p);
+    // // add
+    // let s = add_s(2, BigUint::from(3u32));
+    // println!("add_s(2, 3) = {}", s);
+    // // product
+    // let p = product_s(2, BigUint::from(3u32));
+    // println!("product_s(2, 3) = {}", p);
+    // // power
+    // let p = power_s(2, BigUint::from(4u32));
+    // println!("power_s(2, 4) = {}", p);
     let t = tetration_s(2, 4);
     println!("tetration_s(2, 4) = {}", t);
 
     let base = 2;
     for x in 0..5 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-        let simple = simple_tetration(base, x);
-        work_item();
+
+        let simple = simple_tetration(base, x, work_item_a);
         println!(
             "simple({x}): {simple} work_item_count = {}",
             RESULT.load(std::sync::atomic::Ordering::Relaxed)
@@ -339,7 +353,7 @@ fn main() -> Result<(), String> {
 
     // Test increment
     RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-    work_item();
+    work_item_a();
     println!(
         "Increment:  work_item_count = {}",
         RESULT.load(std::sync::atomic::Ordering::Relaxed)
@@ -388,7 +402,7 @@ mod tests {
     #[test]
     fn test_increment() {
         RESULT.store(0, Ordering::Relaxed);
-        work_item();
+        work_item_a();
         assert_eq!(RESULT.load(Ordering::Relaxed), 1);
     }
 
