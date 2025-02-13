@@ -1,5 +1,5 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB6_CONTENDER};
+use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
 use image::{imageops::FilterType, Rgb};
 use imageproc::drawing::draw_text_mut;
 use std::{
@@ -11,15 +11,19 @@ use thousands::Separable;
 fn main() -> Result<(), String> {
     let goal_x: u32 = 1920;
     let goal_y: u32 = 1080;
-    let mut space_time_machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
+    // let mut space_time_machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
+    // let end_step = 1_000_000_000_000u64; // billion, trillion, etc
+    // let num_frames = 2000;
+    // let (output_dir, run_id) =
+    //     create_sequential_subdir(r"m:\deldir\bb6_contender").map_err(|e| e.to_string())?;
 
-    let num_frames = 2000;
-    let end_step = 1_000_000_000_000u64; // billion, trillion, etc
+    let mut space_time_machine = SpaceTimeMachine::from_str(BB5_CHAMP, goal_x, goal_y)?;
+    let end_step = 47_176_870;
+    let num_frames = 1000;
+    let (output_dir, run_id) =
+        create_sequential_subdir(r"m:\deldir\bb5_champ").map_err(|e| e.to_string())?;
 
     let log_iter = LogStepIterator::new(end_step, num_frames);
-
-    let (output_dir, run_id) =
-        create_sequential_subdir(r"m:\deldir\bb6_contender").map_err(|e| e.to_string())?;
 
     for (frame_index, goal_step_index) in log_iter.enumerate() {
         let actual_step_index = space_time_machine.step_count() - 1;
@@ -78,7 +82,7 @@ fn save_frame(
 
     draw_text_mut(
         &mut resized,
-        Rgb([211, 211, 211]),
+        Rgb([110, 110, 110]),
         25,                // X position (keep same padding from edge)
         y_position as i32, // Y position now near bottom
         scale,
@@ -91,6 +95,9 @@ fn save_frame(
 }
 
 fn create_sequential_subdir(top_dir: &str) -> std::io::Result<(PathBuf, u32)> {
+    // create top_dir if it doesn't exist
+    fs::create_dir_all(top_dir)?;
+
     // Read all entries in the top directory
     let entries = fs::read_dir(top_dir)?;
 

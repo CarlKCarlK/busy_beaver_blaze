@@ -1,13 +1,19 @@
-use std::{mem, ops::Range, sync::atomic::AtomicU64};
+use std::sync::atomic::AtomicU64;
 
 use num_bigint::BigUint;
-use num_traits::identities::Zero;
+use num_traits::{identities::Zero, One};
+use std::ops::SubAssign;
 
-struct BigRange {
-    current: BigUint,
+trait Decrementable: Zero + One + SubAssign<u32> {}
+
+// Blanket implementation for any type that meets the requirements
+impl<T: Zero + One + SubAssign<u32>> Decrementable for T {}
+
+struct CountDown<T: Decrementable> {
+    current: T,
 }
 
-impl Iterator for BigRange {
+impl<T: Decrementable> Iterator for CountDown<T> {
     type Item = ();
 
     #[inline]
@@ -21,13 +27,16 @@ impl Iterator for BigRange {
     }
 }
 
-trait IntoBigRange {
-    fn into_big_range(self) -> BigRange;
+trait IntoCountDown {
+    fn into_count_down(self) -> CountDown<Self>
+    where
+        Self: Sized + Decrementable;
 }
 
-impl IntoBigRange for BigUint {
-    fn into_big_range(self) -> BigRange {
-        BigRange { current: self }
+impl<T: Decrementable> IntoCountDown for T {
+    #[inline]
+    fn into_count_down(self) -> CountDown<T> {
+        CountDown { current: self }
     }
 }
 
@@ -42,39 +51,95 @@ fn work_item_a() {
 #[inline]
 fn tetration_s(a: u32, b: u32) -> BigUint {
     debug_assert!(a > 0);
-    let f = format!("| {a}^^{b} = ");
-    println!("{f}?");
+    // let f = format!("| {a}^^{b} = ");
+    // println!("{f}?");
     let mut result = BigUint::from(1u32);
     for _ in 0..b {
         result = power_s(a, result);
     }
-    println!("{f}{result}");
+    // println!("{f}{result}");
     result
+}
+
+#[inline]
+fn tetration_f(a: u32, b: u32) -> BigUint {
+    debug_assert!(a > 0);
+    (0..b).fold(BigUint::from(1u32), |acc, _| power_f(a, acc))
+}
+
+#[inline]
+fn tetration_f_simple(a: u32, b: u32) -> BigUint {
+    debug_assert!(a > 0);
+    (0..b).fold(BigUint::from(1u32), |tetration, _| {
+        tetration
+            .into_count_down()
+            .fold(BigUint::from(1u32), |power, _| {
+                power.into_count_down().fold(BigUint::ZERO, |product, _| {
+                    (0..a).fold(product, |sum, _| {
+                        let mut increment = sum;
+                        increment += 1u32;
+                        increment
+                    })
+                })
+            })
+    })
+}
+
+#[inline]
+fn tetration_f_vector_simple(a: u32, b: u32) -> Vec<()> {
+    debug_assert!(a > 0);
+    let zero = vec![];
+    let one = vec![()];
+    (0..b).fold(one.clone(), |tetration, _| {
+        tetration.into_iter().fold(one.clone(), |power, _| {
+            power.into_iter().fold(zero.clone(), |product, _| {
+                (0..a).fold(product, |sum, _| {
+                    let mut increment = sum;
+                    increment.push(());
+                    increment
+                })
+            })
+        })
+    })
 }
 
 #[inline]
 fn power_s(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0);
-    let f = format!("|\t{a}^{b} = ");
-    println!("{f}?");
+    // let f = format!("|\t{a}^{b} = ");
+    // println!("{f}?");
     let mut result = BigUint::from(1u32);
-    for _ in b.into_big_range() {
+    for _ in b.into_count_down() {
         result = product_s(a, result);
     }
-    println!("{f}{result}");
+    // println!("{f}{result}");
     result
+}
+
+#[inline]
+fn power_f(a: u32, b: BigUint) -> BigUint {
+    debug_assert!(a > 0);
+    b.into_count_down()
+        .fold(BigUint::from(1u32), |acc, _| product_f(a, acc))
 }
 
 #[inline]
 fn product_s(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0); // cmk
-    let f = format!("|\t\t{a}*{b} = ");
+                          // let f = format!("|\t\t{a}*{b} = ");
     let mut result = BigUint::ZERO;
-    for _ in b.into_big_range() {
+    for _ in b.into_count_down() {
         result = add_s(a, result);
     }
-    println!("{f}{result}");
+    // println!("{f}{result}");
     result
+}
+
+#[inline]
+fn product_f(a: u32, b: BigUint) -> BigUint {
+    debug_assert!(a > 0);
+    b.into_count_down()
+        .fold(BigUint::ZERO, |acc, _| add_f(a, acc))
 }
 
 #[inline]
@@ -88,6 +153,12 @@ fn add_s(a: u32, b: BigUint) -> BigUint {
     result
 }
 
+// cmk does this generate new BigUint each time?
+#[inline]
+fn add_f(a: u32, b: BigUint) -> BigUint {
+    (0..a).fold(b, |acc, _| increment_f(acc))
+}
+
 // notice ownership passing
 #[inline]
 fn increment_s(a: BigUint) -> BigUint {
@@ -98,6 +169,12 @@ fn increment_s(a: BigUint) -> BigUint {
     result
 }
 
+#[inline]
+fn increment_f(mut a: BigUint) -> BigUint {
+    a += 1u32;
+    a
+}
+
 // no cloning of BigUint. Lots of ownership passing.
 fn simple_tetration<F>(base: u32, height: u32, mut work_item: F) -> BigUint
 where
@@ -106,9 +183,9 @@ where
     let mut tetration = BigUint::from(1u32);
     for _ in 0..height {
         let mut power = BigUint::from(1u32);
-        for _ in tetration.into_big_range() {
+        for _ in tetration.into_count_down() {
             let mut product = BigUint::zero();
-            for _ in power.into_big_range() {
+            for _ in power.into_count_down() {
                 let mut sum = product;
                 for _ in 0..base {
                     let mut increment = sum;
@@ -141,91 +218,24 @@ impl From<PowerSkips> for ProductSkips {
     }
 }
 
-struct Product {
-    a: u32,
-    a_range: Range<u32>,
-    b: BigUint,
-    product_skips: ProductSkips,
-    result: BigUint,
-}
-
-impl Product {
-    fn new(a: u32, b: BigUint, product_skips: ProductSkips) -> Self {
-        debug_assert!(a > 0); // cmk
-        Product {
-            a,
-            a_range: 0..a,
-            b,
-            product_skips,
-            result: BigUint::ZERO,
-        }
-    }
-
-    fn into_result(self) -> BigUint {
-        self.result
-    }
-}
-
-impl Default for Product {
-    fn default() -> Self {
-        Self::new(1, BigUint::from(1u32), ProductSkips::None)
-    }
-}
-
-impl Iterator for Product {
-    type Item = ();
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.b.is_zero() {
-                return None;
-            }
-            let Some(a) = self.a_range.next() else {
-                self.a_range = 0..self.a;
-                self.b -= 1u32;
-                continue;
-            };
-            self.result += 1u32;
-            match self.product_skips {
-                ProductSkips::None => return Some(()),
-                ProductSkips::Column if a > 0 => return Some(()),
-                ProductSkips::ColumnPlusOne if a > 0 => {
-                    self.product_skips = ProductSkips::Column;
-                }
-                ProductSkips::Column | ProductSkips::ColumnPlusOne => {
-                    debug_assert!(a == 0, "real assert")
-                    // do nothing but loop
-                }
-            }
-        }
-    }
-}
-
 #[inline]
-fn product(a: u32, b: BigUint, product_skips: ProductSkips) -> BigUint {
-    debug_assert!(a > 0);
-    let mut iter = Product::new(a, b, product_skips);
-    for _ in iter.by_ref() {
-        work_item_a();
-    }
-    iter.into_result()
-}
-
-#[inline]
-fn product_old(a: u32, b: BigUint, mut product_skips: ProductSkips) -> BigUint {
+fn product<F>(a: u32, b: BigUint, mut product_skips: ProductSkips, mut work_item: F) -> BigUint
+where
+    F: FnMut(),
+{
     debug_assert!(a > 0); // cmk
     let mut result = BigUint::ZERO;
-    for _ in b.into_big_range() {
+    for _ in b.into_count_down() {
         // a=0
         result += 1u32;
         if product_skips == ProductSkips::None {
-            work_item_a();
+            work_item();
         }
         for _ in 1..a {
             if product_skips == ProductSkips::ColumnPlusOne {
                 product_skips = ProductSkips::Column;
             } else {
-                work_item_a();
+                work_item();
             }
             result += 1u32;
         }
@@ -238,96 +248,56 @@ enum PowerSkips {
     None,
     PlusOne,
 }
-
-struct Power {
-    is_first: bool,
-    a: u32,
-    b: BigUint,
-    product_skips: ProductSkips,
-    product_iter: Product,
-}
-
-impl Power {
-    fn new(a: u32, b: BigUint, power_skips: PowerSkips) -> Self {
-        assert!(a > 0); // cmk
-        let product_skips = ProductSkips::from(power_skips);
-        let mut product = Product::default();
-        product.next().unwrap(); // cmk
-        Power {
-            is_first: true,
-            a,
-            b,
-            product_skips,
-            product_iter: product,
-        }
-    }
-
-    fn into_result(self) -> BigUint {
-        self.product_iter.into_result()
-    }
-}
-
-impl Iterator for Power {
-    type Item = ();
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.is_first {
-            self.is_first = false;
-            return Some(());
-        }
-        loop {
-            if self.b.is_zero() {
-                return None;
-            }
-            let Some(b) = self.product_iter.by_ref().next() else {
-                let result = mem::take(&mut self.product_iter).into_result();
-                self.product_iter = Product::new(self.a, result, self.product_skips);
-                self.b -= 1u32;
-                continue;
-            };
-            return Some(());
-        }
-    }
-}
-
 #[inline]
-fn power_new(a: u32, b: BigUint, power_skips: PowerSkips) -> BigUint {
-    let mut iter = Power::new(a, b, power_skips);
-    for _ in iter.by_ref() {
-        work_item_a();
-    }
-    iter.into_result()
-}
-
-#[inline]
-fn power(a: u32, b: BigUint, power_skips: PowerSkips) -> BigUint {
+fn power<F>(a: u32, b: BigUint, power_skips: PowerSkips, mut work_item: F) -> BigUint
+where
+    F: FnMut(),
+{
     let mut result = BigUint::from(1u32);
-    work_item_a();
+    work_item();
     if a == 0 {
         return result; // Rust says 0^0 is 1
     }
     let product_skips = ProductSkips::from(power_skips);
-    for _ in b.into_big_range() {
-        result = product(a, result, product_skips);
+    for _ in b.into_count_down() {
+        result = product(a, result, product_skips, &mut work_item);
     }
     result
 }
 
 #[inline]
-fn tetration(a: u32, b: u32) -> BigUint {
+fn tetration<F>(a: u32, b: u32, mut work_item: F) -> BigUint
+where
+    F: FnMut(),
+{
     debug_assert!(a > 0);
     let mut result = BigUint::from(1u32);
-    work_item_a();
+    work_item();
 
     for _ in 0..b {
-        result = power(a, result, PowerSkips::PlusOne);
+        result = power(a, result, PowerSkips::PlusOne, &mut work_item);
     }
 
     result
 }
 
+fn slow_enough() {
+    for a in 0..u128::MAX {
+        for b in 0..u128::MAX {
+            for c in 0..u128::MAX {
+                for d in 0..u128::MAX {
+                    if d % 1_000_000_000 == 0 {
+                        println!("{} {} {} {}", a, b, c, d);
+                    }
+                }
+            }
+        }
+    }
+}
+
 // cmk!!!! BUGBUG can't run tests in parallel because of Global
 fn main() -> Result<(), String> {
+    slow_enough();
     // // add
     // let s = add_s(2, BigUint::from(3u32));
     // println!("add_s(2, 3) = {}", s);
@@ -337,6 +307,16 @@ fn main() -> Result<(), String> {
     // // power
     // let p = power_s(2, BigUint::from(4u32));
     // println!("power_s(2, 4) = {}", p);
+
+    let t = tetration_f_vector_simple(2, 4).len();
+    println!("tetration_f_vector(2, 4) = {}", t);
+
+    let t = tetration_f_simple(2, 4);
+    println!("tetration_f_simple(2, 4) = {}", t);
+
+    let t = tetration_f(2, 4);
+    println!("tetration_f(2, 4) = {}", t);
+
     let t = tetration_s(2, 4);
     println!("tetration_s(2, 4) = {}", t);
 
@@ -363,7 +343,7 @@ fn main() -> Result<(), String> {
     RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
 
     let x = 3u32;
-    let running_total = product(base, BigUint::from(x), ProductSkips::None);
+    let running_total = product(base, BigUint::from(x), ProductSkips::None, work_item_a);
     println!(
         "Multiply_i {base}x{x}={}:  work_item_count = {}",
         running_total,
@@ -373,7 +353,7 @@ fn main() -> Result<(), String> {
     // Test power_i
     for x in 0u32..=10 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-        let result = power(base, BigUint::from(x), PowerSkips::None);
+        let result = power(base, BigUint::from(x), PowerSkips::None, work_item_a);
         println!(
             "Power_i {base}^{x}: {result} work_item_count = {}",
             RESULT.load(std::sync::atomic::Ordering::Relaxed)
@@ -383,7 +363,7 @@ fn main() -> Result<(), String> {
     // Test tetration_i
     for x in 0u32..=4 {
         RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
-        let result = tetration(base, x);
+        let result = tetration(base, x, work_item_a);
         println!(
             "Tetration {base}^^{x}={result}:  work_item_count = {}",
             RESULT.load(std::sync::atomic::Ordering::Relaxed)
@@ -411,7 +391,7 @@ mod tests {
         let base = 2;
         let x = 3u32;
         RESULT.store(0, Ordering::Relaxed);
-        let result = product_old(base, BigUint::from(x), ProductSkips::None)
+        let result = product(base, BigUint::from(x), ProductSkips::None, work_item_a)
             .to_u64()
             .unwrap();
         assert_eq!(result, (base * x).into());
@@ -419,47 +399,13 @@ mod tests {
     }
 
     #[test]
-    fn test_product_new() {
-        let base = 2;
-        for x in 0u32..=10 {
-            RESULT.store(0, Ordering::Relaxed);
-            let result = product(base, BigUint::from(x), ProductSkips::None)
-                .to_u64()
-                .unwrap();
-            println!(
-                "{base}x{x}={result}:  work_item_count = {}",
-                RESULT.load(Ordering::Relaxed)
-            );
-            assert_eq!(result, (base * x).into());
-            assert_eq!(RESULT.load(Ordering::Relaxed), result);
-        }
-    }
-
-    #[test]
     fn test_power() {
         let base = 2;
         for x in 0u32..=10 {
             RESULT.store(0, Ordering::Relaxed);
-            let result: u64 = power(base, BigUint::from(x), PowerSkips::None)
+            let result: u64 = power(base, BigUint::from(x), PowerSkips::None, work_item_a)
                 .to_u64()
                 .unwrap();
-            assert_eq!(result, base.pow(x).into());
-            assert_eq!(RESULT.load(Ordering::Relaxed), result);
-        }
-    }
-
-    #[test]
-    fn test_power_new() {
-        let base = 2;
-        for x in 0u32..=10 {
-            RESULT.store(0, Ordering::Relaxed);
-            let result: u64 = power_new(base, BigUint::from(x), PowerSkips::None)
-                .to_u64()
-                .unwrap();
-            println!(
-                "{base}^{x}={result}:  work_item_count = {}",
-                RESULT.load(Ordering::Relaxed)
-            );
             assert_eq!(result, base.pow(x).into());
             assert_eq!(RESULT.load(Ordering::Relaxed), result);
         }
@@ -471,7 +417,7 @@ mod tests {
         let expecteds: [u64; 5] = [1, 2, 4, 16, 65536];
         for (x, expected) in (0u32..=4).zip(expecteds.iter()) {
             RESULT.store(0, Ordering::Relaxed);
-            let result = tetration(base, x).to_u64().unwrap();
+            let result = tetration(base, x, work_item_a).to_u64().unwrap();
             assert_eq!(result, *expected);
             assert_eq!(RESULT.load(Ordering::Relaxed), result);
         }

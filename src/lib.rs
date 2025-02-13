@@ -23,7 +23,7 @@ const BB4_CHAMP: &str = "
 1	1LB	0LC	1LD	0RA
 ";
 
-const BB5_CHAMP: &str = "
+pub const BB5_CHAMP: &str = "
     A	B	C	D	E
 0	1RB	1RC	1RD	1LA	1RH
 1	1LC	1RB	0LE	1LD	0LA
