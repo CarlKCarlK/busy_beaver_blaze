@@ -129,7 +129,7 @@ checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
 name = "busy_beaver_blaze"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "ab_glyph",
  "derive_more",
