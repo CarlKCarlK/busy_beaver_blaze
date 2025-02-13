@@ -99,7 +99,12 @@
             
             // Capture all UI state
             const programSelect = document.getElementById('programSelect');
-            if (programSelect.value !== 'bb6') params.set('program', programSelect.value);
+            const textarea = document.getElementById('programInput');
+            if (programSelect.value === 'custom') {
+                params.set('customProgram', textarea.value);
+            } else if (programSelect.value !== 'bb6') {
+                params.set('program', programSelect.value);
+            }
             
             const useEarlyStop = document.getElementById('useEarlyStop');
             if (!useEarlyStop.checked) params.set('earlyStop', 'false');
@@ -121,7 +126,12 @@
             const params = getHashParams();
             
             // Apply params to UI elements
-            if (params.has('program')) {
+            if (params.has('customProgram')) {
+                const programSelect = document.getElementById('programSelect');
+                const textarea = document.getElementById('programInput');
+                programSelect.value = 'custom';
+                textarea.value = params.get('customProgram');
+            } else if (params.has('program')) {
                 const programSelect = document.getElementById('programSelect');
                 programSelect.value = params.get('program');
                 programSelect.dispatchEvent(new Event('change'));
@@ -175,11 +185,18 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
 
             const textarea = document.getElementById('programInput');
             const programSelect = document.getElementById('programSelect');
+            
+            // Update programSelect change to NOT auto-run
             programSelect.addEventListener('change', () => {
                 const selected = programSelect.value;
                 textarea.value = selected === 'custom' ? textarea.value : PROGRAMS[selected];
                 updateHashFromUI();
-                runMachine().catch(console.error);
+            });
+
+            // Add textarea input handler to switch to custom program
+            textarea.addEventListener('input', () => {
+                programSelect.value = 'custom';
+                updateHashFromUI();
             });
 
             const useEarlyStop = document.getElementById('useEarlyStop');
@@ -339,28 +356,45 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 }
             }
             
+            // Update size-related changes to NOT auto-run
             sizePreset.addEventListener('change', () => {
+                const customSize = document.getElementById('customSize');
+                customSize.classList.toggle('visible', sizePreset.value === 'custom');
                 updateHashFromUI();
-                runMachine().catch(console.error);
+                updateSize();
             });
             customWidth.addEventListener('change', () => {
                 updateHashFromUI();
-                runMachine().catch(console.error);
+                updateSize();
             });
             customHeight.addEventListener('change', () => {
                 updateHashFromUI();
-                runMachine().catch(console.error);
+                updateSize();
             });
-            document.getElementById('runButton').addEventListener('click', () => runMachine().catch(console.error));
-                        
-            // Initial size setup only, don't run yet
-            updateSize();
 
-            // Apply initial state from URL if present
+            // Add event listeners for early stop controls
+            useEarlyStop.addEventListener('change', () => {
+                updateHashFromUI();
+            });
+            earlyStopValue.addEventListener('change', () => {
+                updateHashFromUI();
+            });
+
+            // Initial custom size visibility
+            customSize.classList.toggle('visible', sizePreset.value === 'custom');
+
+            // Apply initial state from URL without running
             applyHashToUI();
+            updateSize();
             
-            // Listen for hash changes
-            window.addEventListener('hashchange', applyHashToUI);
+            // Listen for hash changes without running
+            window.addEventListener('hashchange', () => {
+                applyHashToUI();
+                updateSize();
+            });
+
+            // Only run button triggers the machine
+            document.getElementById('runButton').addEventListener('click', () => runMachine().catch(console.error));
         }
 
         run();
