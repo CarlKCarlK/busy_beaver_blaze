@@ -1,13 +1,13 @@
 use std::sync::atomic::AtomicU64;
 
 use num_bigint::BigUint;
-use num_traits::{identities::Zero, One};
+use num_traits::identities::Zero;
 use std::ops::SubAssign;
 
-trait Decrementable: Zero + One + SubAssign<u32> {}
+trait Decrementable: Zero + SubAssign<u32> {}
 
 // Blanket implementation for any type that meets the requirements
-impl<T: Zero + One + SubAssign<u32>> Decrementable for T {}
+impl<T: Zero + SubAssign<u32>> Decrementable for T {}
 
 struct CountDown<T: Decrementable> {
     current: T,
@@ -37,6 +37,37 @@ impl<T: Decrementable> IntoCountDown for T {
     #[inline]
     fn into_count_down(self) -> CountDown<T> {
         CountDown { current: self }
+    }
+}
+
+struct CountDownMutRef<'a, T: Decrementable> {
+    current: &'a mut T,
+}
+
+impl<T: Decrementable> Iterator for CountDownMutRef<'_, T> {
+    type Item = ();
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_zero() {
+            None
+        } else {
+            *self.current -= 1u32;
+            Some(())
+        }
+    }
+}
+
+trait CountDownMut {
+    fn count_down(&mut self) -> CountDownMutRef<Self>
+    where
+        Self: Sized + Decrementable;
+}
+
+impl<T: Decrementable> CountDownMut for T {
+    #[inline]
+    fn count_down(&mut self) -> CountDownMutRef<T> {
+        CountDownMutRef { current: self }
     }
 }
 
@@ -129,7 +160,7 @@ fn product_s(a: u32, b: BigUint) -> BigUint {
                           // let f = format!("|\t\t{a}*{b} = ");
     let mut result = BigUint::ZERO;
     for _ in b.into_count_down() {
-        result = add_s(a, result);
+        result = add_ownership(a, result);
     }
     // println!("{f}{result}");
     result
@@ -139,38 +170,57 @@ fn product_s(a: u32, b: BigUint) -> BigUint {
 fn product_f(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0);
     b.into_count_down()
-        .fold(BigUint::ZERO, |acc, _| add_f(a, acc))
+        .fold(BigUint::ZERO, |acc, _| add_functional(a, acc))
 }
 
 #[inline]
-fn add_s(a: u32, b: BigUint) -> BigUint {
-    // let f = format!("|\t\t\t{a}+{b} = ");
+fn add(a: u32, acc: &mut BigUint) {
+    for _ in 0..a {
+        increment(acc);
+    }
+}
+
+#[inline]
+fn increment(acc: &mut BigUint) {
+    *acc += 1u32;
+}
+
+#[inline]
+fn multiply(a: u32, acc0: &mut BigUint) {
+    assert!(a > 0, "a must be greater than 0");
+
+    let mut acc1 = BigUint::ZERO;
+    increment(&mut acc1);
+
+    for _ in acc0.count_down() {
+        add(a, &mut acc1);
+    }
+    *acc0 = acc1;
+}
+
+#[inline]
+fn add_ownership(a: u32, b: BigUint) -> BigUint {
     let mut result = b;
     for _ in 0..a {
-        result = increment_s(result);
+        result = increment_ownership(result);
     }
-    // println!("{f}{result}");
     result
 }
 
-// cmk does this generate new BigUint each time?
 #[inline]
-fn add_f(a: u32, b: BigUint) -> BigUint {
-    (0..a).fold(b, |acc, _| increment_f(acc))
-}
-
-// notice ownership passing
-#[inline]
-fn increment_s(a: BigUint) -> BigUint {
-    // let f = format!("|\t\t\t\t{a}++ = ");
+fn increment_ownership(a: BigUint) -> BigUint {
     let mut result = a;
     result += 1u32;
-    // println!("{f}{result}");
     result
 }
 
 #[inline]
-fn increment_f(mut a: BigUint) -> BigUint {
+fn add_functional(a: u32, b: BigUint) -> BigUint {
+    (0..a).fold(b, |acc, _| increment_functional(acc))
+}
+
+#[inline]
+fn increment_functional(mut a: BigUint) -> BigUint {
     a += 1u32;
     a
 }
@@ -295,8 +345,22 @@ fn slow_enough() {
     }
 }
 
-// cmk!!!! BUGBUG can't run tests in parallel because of Global
+// cmk!!!! BUG BUG can't run tests in parallel because of Global
 fn main() -> Result<(), String> {
+    let mut b = BigUint::ZERO;
+    add(2, &mut b);
+    assert_eq!(b, BigUint::from(2u32));
+
+    let mut b = BigUint::from(3u32);
+    multiply(2, &mut b);
+    assert_eq!(b, BigUint::from(6u32));
+
+    let c = add_ownership(2, BigUint::ZERO);
+    assert_eq!(c, BigUint::from(2u32));
+
+    let c = add_functional(2, BigUint::ZERO);
+    assert_eq!(c, BigUint::from(2u32));
+
     slow_enough();
     // // add
     // let s = add_s(2, BigUint::from(3u32));

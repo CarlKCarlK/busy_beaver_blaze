@@ -140,7 +140,7 @@
         function applyHashToUI() {
             const params = getHashParams();
             
-            // Apply params to UI elements
+            // Apply params to UI elements first
             if (params.has('customProgram')) {
                 const programSelect = document.getElementById('programSelect');
                 const textarea = document.getElementById('programInput');
@@ -169,6 +169,9 @@
             if (params.has('stretch')) {
                 document.getElementById('stretchImage').checked = params.get('stretch') === 'true';
             }
+
+            // Return whether we should auto-run
+            return params.get('run') === 'true';
         }
 
         let worker = null;
@@ -398,10 +401,15 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             // Initial custom size visibility
             customSize.classList.toggle('visible', sizePreset.value === 'custom');
 
-            // Apply initial state from URL without running
-            applyHashToUI();
+            // Apply initial state from URL and check if we should auto-run
+            const shouldAutoRun = applyHashToUI();
             updateSize();
             
+            // Auto-run if specified in URL
+            if (shouldAutoRun) {
+                runMachine().catch(console.error);
+            }
+
             // Listen for hash changes without running
             window.addEventListener('hashchange', () => {
                 applyHashToUI();
