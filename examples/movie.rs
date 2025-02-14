@@ -49,27 +49,45 @@ fn main() -> Result<(), String> {
         .map(|arg| Resolution::from_str(&arg))
         .transpose()?
         .unwrap_or(Resolution::TwoK);
-
     let (goal_x, goal_y) = resolution.dimensions();
-    println!("Using resolution: {:?} ({}x{})", resolution, goal_x, goal_y);
-    println!("Using machine: {}", machine_name);
 
-    let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) =
-        match machine_name.as_str() {
-            "bb5_champ" => {
-                let machine = SpaceTimeMachine::from_str(BB5_CHAMP, goal_x, goal_y)?;
-                let dir_info =
-                    create_sequential_subdir(r"m:\deldir\bb5_champ").map_err(|e| e.to_string())?;
-                (machine, 47_176_870, 1000, dir_info)
-            }
-            "bb6_contender" => {
-                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
-                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")
+    let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) = match machine_name
+        .as_str()
+    {
+        "bb5_champ" => {
+            let machine = SpaceTimeMachine::from_str(BB5_CHAMP, goal_x, goal_y)?;
+            let dir_info =
+                create_sequential_subdir(r"m:\deldir\bb5_champ").map_err(|e| e.to_string())?;
+            (machine, 47_176_870, 1000, dir_info)
+        }
+        "bb6_contender" => {
+            let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
+            let dir_info =
+                create_sequential_subdir(r"m:\deldir\bb6_contender").map_err(|e| e.to_string())?;
+            (machine, 1_000_000_000_000u64, 2000, dir_info)
+        }
+        "bb6_contender2" => {
+            let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
+            let dir_info =
+                create_sequential_subdir(r"m:\deldir\bb6_contender2").map_err(|e| e.to_string())?;
+            (machine, 1_000_000_000u64, 1000, dir_info)
+        }
+        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
+            let machine =
+                SpaceTimeMachine::from_str("1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---", goal_x, goal_y)?;
+            let dir_info =
+                create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")
                     .map_err(|e| e.to_string())?;
-                (machine, 1_000_000_000_000u64, 2000, dir_info)
-            }
-            _ => Err(format!("Unknown machine: {}", machine_name))?,
-        };
+            (machine, 1_000_000_000u64, 1000, dir_info)
+        }
+        _ => Err(format!("Unknown machine: {}", machine_name))?,
+    };
+
+    println!(
+        "Using machine: {} with output in {:?}",
+        machine_name, &output_dir
+    );
+    println!("Using resolution: {:?} ({}x{})", resolution, goal_x, goal_y);
 
     let log_iter = LogStepIterator::new(end_step, num_frames);
 
@@ -81,10 +99,7 @@ fn main() -> Result<(), String> {
             break;
         }
         let actual_step_index = space_time_machine.step_count() - 1;
-        println!(
-            "run_id: {}, Frame {}: goal {}, actual {}",
-            run_id, frame_index, goal_step_index, actual_step_index
-        );
+        println!("run_id: {}, Frame {}", run_id, frame_index);
 
         save_frame(
             &space_time_machine,
