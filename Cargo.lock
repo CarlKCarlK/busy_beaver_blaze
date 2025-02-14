@@ -133,13 +133,11 @@ version = "0.2.2"
 dependencies = [
  "ab_glyph",
  "derive_more",
- "getrandom",
  "image",
  "imageproc",
  "num-bigint",
  "num-traits",
  "png",
- "rand",
  "thousands",
  "wasm-bindgen",
  "wasm-bindgen-test",

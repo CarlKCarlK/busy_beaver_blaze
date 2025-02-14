@@ -35,9 +35,7 @@ export interface InitOutput {
   readonly spacetimemachine_step_count: (a: number) => bigint;
   readonly spacetimemachine_count_ones: (a: number) => number;
   readonly spacetimemachine_is_halted: (a: number) => number;
-  readonly __wbindgen_exn_store: (a: number) => void;
-  readonly __externref_table_alloc: () => number;
-  readonly __wbindgen_export_2: WebAssembly.Table;
+  readonly __wbindgen_export_0: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __externref_table_dealloc: (a: number) => void;

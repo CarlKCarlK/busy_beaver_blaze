@@ -2,7 +2,6 @@ use core::fmt;
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
 use png::{BitDepth, ColorType, Encoder};
-use rand::Rng;
 use std::str::FromStr;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
@@ -551,7 +550,6 @@ pub struct SampledSpaceTime {
     y_goal: u32,
     sample: u64,
     spacelines: Vec<Spaceline>,
-    random_offset: u64,
 }
 
 /// Create a new in which you give the x_goal (space)
@@ -565,44 +563,14 @@ impl SampledSpaceTime {
             y_goal,
             sample: 1,
             spacelines: vec![Spaceline::default()],
-            random_offset: 0,
         }
     }
 
     fn compress_if_needed(&mut self) {
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.sample {
-            assert_eq!(
-                new_sample,
-                self.sample * 2,
-                "cmk Expected doubling of sample rate"
-            );
-
-            // Create a new vector with half the capacity
-            let compressed = {
-                let mut compressed = Vec::with_capacity(self.spacelines.len() / 2 + 1);
-                let lines = self.spacelines.drain(..);
-
-                // Process pairs of items
-                let mut lines = lines.peekable();
-                while let Some(first) = lines.next() {
-                    if lines.peek().is_some() {
-                        let second = lines.next().unwrap();
-                        // Randomly choose one of the two items
-                        // cmk add a seed
-                        if rand::random() {
-                            compressed.push(first);
-                        } else {
-                            compressed.push(second);
-                        }
-                    } else {
-                        // If we have an odd number of items, keep the last one
-                        compressed.push(first);
-                    }
-                }
-                compressed
-            };
-            self.spacelines = compressed;
+            self.spacelines
+                .retain(|spaceline| spaceline.time % new_sample == 0);
             self.sample = new_sample;
         }
     }
@@ -617,12 +585,7 @@ impl SampledSpaceTime {
 
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
-        if self.step_index % self.sample == 0 {
-            // pick a random offset between 0 and sample
-            self.random_offset = rand::thread_rng().gen_range(0..self.sample);
-        }
-
-        if (self.step_index + self.random_offset) % self.sample != 0 {
+        if self.step_index % self.sample != 0 {
             return;
         }
         self.compress_if_needed();
@@ -644,8 +607,7 @@ impl SampledSpaceTime {
 
         let mut values = Vec::with_capacity(self.x_goal as usize * 2);
         for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            let x_random_offset = rand::thread_rng().gen_range(0..x_sample) as i64;
-            values.push(tape.read(sample_index + x_random_offset));
+            values.push(tape.read(sample_index));
         }
 
         self.spacelines.push(Spaceline {
@@ -676,8 +638,7 @@ impl SampledSpaceTime {
             let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i64);
 
             for x in x_start as u32..x_actual {
-                let random_offset = rand::thread_rng().gen_range(0..x_sample) as i64;
-                let tape_index: i64 = x as i64 * x_sample as i64 + random_offset + tape_min_index;
+                let tape_index: i64 = x as i64 * x_sample as i64 + tape_min_index;
                 debug_assert!(
                     tape_index >= local_start,
                     "real assert if x_start is correct"
