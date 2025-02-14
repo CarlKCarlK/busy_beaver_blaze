@@ -174,6 +174,10 @@ fn product_f(a: u32, b: BigUint) -> BigUint {
 }
 
 #[inline]
+fn increment(acc: &mut BigUint) {
+    *acc += 1u32;
+}
+#[inline]
 fn add(a: u32, acc: &mut BigUint) {
     for _ in 0..a {
         increment(acc);
@@ -181,19 +185,36 @@ fn add(a: u32, acc: &mut BigUint) {
 }
 
 #[inline]
-fn increment(acc: &mut BigUint) {
-    *acc += 1u32;
+fn multiply(a: u32, acc0: &mut BigUint) {
+    let mut acc1 = BigUint::ZERO;
+    for _ in acc0.count_down() {
+        add(a, &mut acc1);
+    }
+    *acc0 = acc1;
 }
 
 #[inline]
-fn multiply(a: u32, acc0: &mut BigUint) {
+fn raise(a: u32, acc0: &mut BigUint) {
     assert!(a > 0, "a must be greater than 0");
 
     let mut acc1 = BigUint::ZERO;
     increment(&mut acc1);
 
     for _ in acc0.count_down() {
-        add(a, &mut acc1);
+        multiply(a, &mut acc1);
+    }
+    *acc0 = acc1;
+}
+
+#[inline]
+fn tetrate(a: u32, acc0: &mut BigUint) {
+    assert!(a > 0, "a must be greater than 0");
+
+    let mut acc1 = BigUint::ZERO;
+    increment(&mut acc1);
+
+    for _ in acc0.count_down() {
+        raise(a, &mut acc1);
     }
     *acc0 = acc1;
 }
@@ -346,7 +367,7 @@ fn slow_enough() {
 }
 
 // cmk!!!! BUG BUG can't run tests in parallel because of Global
-fn main() -> Result<(), String> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut b = BigUint::ZERO;
     add(2, &mut b);
     assert_eq!(b, BigUint::from(2u32));
@@ -354,6 +375,14 @@ fn main() -> Result<(), String> {
     let mut b = BigUint::from(3u32);
     multiply(2, &mut b);
     assert_eq!(b, BigUint::from(6u32));
+
+    let mut b = BigUint::from(3u32);
+    raise(2, &mut b);
+    assert_eq!(b, BigUint::from(8u32));
+
+    let mut b = BigUint::from(4u32);
+    tetrate(2, &mut b);
+    assert_eq!(b, BigUint::from(65536u32));
 
     let c = add_ownership(2, BigUint::ZERO);
     assert_eq!(c, BigUint::from(2u32));

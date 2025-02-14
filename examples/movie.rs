@@ -2,26 +2,74 @@ use ab_glyph::{FontArc, PxScale};
 use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
 use image::{imageops::FilterType, Rgb};
 use imageproc::drawing::draw_text_mut;
+use std::str::FromStr;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
 use thousands::Separable;
 
-fn main() -> Result<(), String> {
-    let goal_x: u32 = 1920;
-    let goal_y: u32 = 1080;
-    // let mut space_time_machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
-    // let end_step = 1_000_000_000_000u64; // billion, trillion, etc
-    // let num_frames = 2000;
-    // let (output_dir, run_id) =
-    //     create_sequential_subdir(r"m:\deldir\bb6_contender").map_err(|e| e.to_string())?;
+#[derive(Debug)]
+enum Resolution {
+    TwoK,   // 1920x1080
+    FourK,  // 3840x2160
+    EightK, // 7680x4320
+}
 
-    let mut space_time_machine = SpaceTimeMachine::from_str(BB5_CHAMP, goal_x, goal_y)?;
-    let end_step = 47_176_870;
-    let num_frames = 1000;
-    let (output_dir, run_id) =
-        create_sequential_subdir(r"m:\deldir\bb5_champ").map_err(|e| e.to_string())?;
+impl FromStr for Resolution {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "2k" => Ok(Resolution::TwoK),
+            "4k" => Ok(Resolution::FourK),
+            "8k" => Ok(Resolution::EightK),
+            _ => Err(format!("Unknown resolution: {}. Use 2k, 4k, or 8k", s)),
+        }
+    }
+}
+
+impl Resolution {
+    fn dimensions(&self) -> (u32, u32) {
+        match self {
+            Resolution::TwoK => (1920, 1080),
+            Resolution::FourK => (3840, 2160),
+            Resolution::EightK => (7680, 4320),
+        }
+    }
+}
+
+fn main() -> Result<(), String> {
+    let machine_name = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "bb5_champ".to_string());
+
+    let resolution = std::env::args()
+        .nth(2)
+        .map(|arg| Resolution::from_str(&arg))
+        .transpose()?
+        .unwrap_or(Resolution::TwoK);
+
+    let (goal_x, goal_y) = resolution.dimensions();
+    println!("Using resolution: {:?} ({}x{})", resolution, goal_x, goal_y);
+    println!("Using machine: {}", machine_name);
+
+    let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) =
+        match machine_name.as_str() {
+            "bb5_champ" => {
+                let machine = SpaceTimeMachine::from_str(BB5_CHAMP, goal_x, goal_y)?;
+                let dir_info =
+                    create_sequential_subdir(r"m:\deldir\bb5_champ").map_err(|e| e.to_string())?;
+                (machine, 47_176_870, 1000, dir_info)
+            }
+            "bb6_contender" => {
+                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
+                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")
+                    .map_err(|e| e.to_string())?;
+                (machine, 1_000_000_000_000u64, 2000, dir_info)
+            }
+            _ => Err(format!("Unknown machine: {}", machine_name))?,
+        };
 
     let log_iter = LogStepIterator::new(end_step, num_frames);
 
