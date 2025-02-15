@@ -134,9 +134,17 @@ fn save_frame(
 
     let png_data = machine.png_data();
     let img = image::load_from_memory(&png_data).map_err(|e| e.to_string())?;
-    let mut resized = img
-        .resize_exact(goal_x, goal_y, FilterType::Nearest)
-        .into_rgb8();
+    let mut resized = img // cmk0000
+        .resize_exact(
+            goal_x,
+            goal_y,
+            if img.width() > goal_x && img.height() > goal_y {
+                FilterType::CatmullRom
+            } else {
+                FilterType::Nearest
+            },
+        )
+        .into_rgb16();
 
     // Calculate text position for lower right corner
     let text = format!("{:>75}", step.separate_with_commas());
