@@ -526,10 +526,22 @@ impl From<std::num::ParseIntError> for Error {
     }
 }
 
+#[derive(Debug, Default, Display, Copy, Clone)]
+struct Pixel(u8);
+
+impl From<u8> for Pixel {
+    fn from(value: u8) -> Self {
+        debug_assert!(value <= 1, "Input value must be 0 or 1, got {}", value);
+        Pixel(value * 255)
+    }
+}
+
+const PIXEL_WHITE: Pixel = Pixel(0);
+
 struct Spaceline {
     sample: u64,
     start: i64,
-    values: Vec<u8>,
+    values: Vec<Pixel>,
     time: u64,
 }
 
@@ -538,7 +550,7 @@ impl Default for Spaceline {
         Spaceline {
             sample: 1,
             start: 0,
-            values: vec![0; 1],
+            values: vec![PIXEL_WHITE; 1],
             time: 0,
         }
     }
@@ -607,7 +619,7 @@ impl SampledSpaceTime {
 
         let mut values = Vec::with_capacity(self.x_goal as usize * 2);
         for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            values.push(tape.read(sample_index));
+            values.push(tape.read(sample_index).into());
         }
 
         self.spacelines.push(Spaceline {
@@ -626,8 +638,8 @@ impl SampledSpaceTime {
         let x_actual: u32 = (tape_width / x_sample) as u32;
         let y_actual: u32 = self.spacelines.len() as u32;
 
-        let row_bytes = ((x_actual as usize) + 7) / 8;
-        let mut packed_data = vec![0u8; row_bytes * (y_actual as usize)];
+        let row_bytes = x_actual;
+        let mut packed_data = Vec::<u8>::with_capacity(row_bytes as usize * y_actual as usize);
 
         // First row is always empty, so start at 1
         for y in 1..y_actual {
@@ -650,12 +662,7 @@ impl SampledSpaceTime {
                 }
 
                 let value = spaceline.values[local_spaceline_index as usize];
-                if value != 0 {
-                    debug_assert!(value == 1);
-                    let bit_index: u32 = 7 - (x % 8); // PNG is backwards
-                    let byte_index: u32 = x / 8 + row_start_byte_index;
-                    packed_data[byte_index as usize] |= 1 << bit_index;
-                }
+                packed_data.push(value.0);
             }
         }
 
