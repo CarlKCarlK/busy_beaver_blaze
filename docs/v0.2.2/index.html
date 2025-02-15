@@ -235,8 +235,13 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 }
             });
 
-            // Update stretch class when creating new images
-            function updateImageStretch(img) {
+            function updateImageScaling(img, originalWidth, originalHeight, targetWidth, targetHeight) {
+                console.log(`Scaling image: ${originalWidth}x${originalHeight} -> ${targetWidth}x${targetHeight}`);
+                if (originalWidth <= targetWidth || originalHeight <= targetHeight || !stretchImage.checked) {
+                    img.style.imageRendering = 'pixelated';
+                } else {
+                    img.style.imageRendering = 'auto';
+                }
                 img.classList.toggle('stretch', stretchImage.checked);
             }
 
@@ -311,8 +316,11 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                                 const blob = new Blob([e.data.png_data], { type: 'image/png' });
                                 container.innerHTML = '<img alt="Space-time diagram">';
                                 const img = container.querySelector('img');
+                                img.onload = () => {
+                                    // Once image loads, we can access its original dimensions
+                                    updateImageScaling(img, img.naturalWidth, img.naturalHeight, goal_x, goal_y);
+                                };
                                 img.src = URL.createObjectURL(blob);
-                                updateImageStretch(img);
                                 
                                 document.getElementById('stepCount').textContent = e.data.step_count.toLocaleString();
                                 document.getElementById('onesCount').textContent = e.data.ones_count.toLocaleString();
@@ -340,8 +348,10 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     const blob = new Blob([result.png_data], { type: 'image/png' });
                     container.innerHTML = '<img alt="Space-time diagram">';
                     const img = container.querySelector('img');
+                    img.onload = () => {
+                        updateImageScaling(img, img.naturalWidth, img.naturalHeight, goal_x, goal_y);
+                    };
                     img.src = URL.createObjectURL(blob);
-                    updateImageStretch(img);
                     
                     const endTime = performance.now();
                     document.getElementById('runTime').textContent = `${((endTime - startTime) / 1000).toFixed(2)}s`;
