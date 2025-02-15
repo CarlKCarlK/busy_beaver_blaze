@@ -639,16 +639,15 @@ impl SampledSpaceTime {
         let y_actual: u32 = self.spacelines.len() as u32;
 
         let row_bytes = x_actual;
-        let mut packed_data = Vec::<u8>::with_capacity(row_bytes as usize * y_actual as usize);
+        let mut packed_data = vec![0u8; row_bytes as usize * y_actual as usize];
 
         // First row is always empty, so start at 1
         for y in 1..y_actual {
             let spaceline = &self.spacelines[y as usize];
             let local_start = spaceline.start;
             let local_sample = spaceline.sample;
-            let row_start_byte_index: u32 = y * row_bytes as u32;
+            let row_start_byte_index: u32 = y * row_bytes;
             let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i64);
-
             for x in x_start as u32..x_actual {
                 let tape_index: i64 = x as i64 * x_sample as i64 + tape_min_index;
                 debug_assert!(
@@ -661,8 +660,11 @@ impl SampledSpaceTime {
                     break;
                 }
 
-                let value = spaceline.values[local_spaceline_index as usize];
-                packed_data.push(value.0);
+                let value = spaceline.values[local_spaceline_index as usize].0;
+                if value != 0 {
+                    let byte_index: u32 = x + row_start_byte_index;
+                    packed_data[byte_index as usize] = value;
+                }
             }
         }
 
@@ -683,28 +685,31 @@ fn sample_rate(row: u64, goal: u32) -> u64 {
 }
 
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
-    // assert!(image_data.len() == (width * height) as usize);
-    // println!("cmk {:?}, {width}x{height}", image_data.len());
     let mut buf = Vec::new();
     {
-        // Create an encoder that writes directly into `buf`
+        if image_data.len() != (width * height) as usize {
+            return Err(Error::EncodingError);
+        }
         let mut encoder = Encoder::new(&mut buf, width, height);
         encoder.set_color(ColorType::Indexed);
-        encoder.set_depth(BitDepth::One);
-        encoder.set_palette(vec![
-            255, 255, 255, // White (Background, 0)
-            255, 165, 0, // Orange (Foreground, 1)
-        ]);
+        encoder.set_depth(BitDepth::Eight);
 
-        // Instead of using the stream writer, get a writer that can encode
-        // the entire image data in one go.
+        // Generate a palette with 256 shades from white (255,255,255) to bright orange (255,165,0)
+        let mut palette = Vec::with_capacity(256 * 3);
+        for i in 0..256 {
+            let g = 255 - ((255 - 165) * i / 255); // Green fades from 255 to 165
+            let b = 255 - (255 * i / 255); // Blue fades from 255 to 0
+            palette.extend_from_slice(&[255, g as u8, b as u8]);
+        }
+
+        // Set the palette before writing the header
+        encoder.set_palette(palette);
+
         let mut writer = encoder.write_header().map_err(|_| Error::EncodingError)?;
-        // This method writes all the image data at once.
-        let result = writer.write_image_data(image_data);
-        // println!("cmk {:?}", result);
-        result.map_err(|_| Error::EncodingError)?; // cmk define a From
+        writer
+            .write_image_data(image_data)
+            .map_err(|_| Error::EncodingError)?;
     }
-    // At this point, `buf` contains the PNG data.
     Ok(buf)
 }
 
