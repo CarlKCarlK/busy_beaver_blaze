@@ -220,6 +220,29 @@ fn tetrate(a: u32, acc0: &mut BigUint) {
 }
 
 #[inline]
+fn tetrate_simple(a: u32, tetration: &mut BigUint) {
+    assert!(a > 0, "a must be greater than 0");
+
+    let mut power = BigUint::ZERO;
+    power += 1u32;
+    for _ in tetration.count_down() {
+        let mut product = BigUint::ZERO;
+        product += 1u32;
+        for _ in power.count_down() {
+            let mut sum = BigUint::ZERO;
+            for _ in product.count_down() {
+                for _ in 0..a {
+                    sum += 1u32;
+                }
+            }
+            product = sum;
+        }
+        power = product;
+    }
+    *tetration = power;
+}
+
+#[inline]
 fn add_ownership(a: u32, b: BigUint) -> BigUint {
     let mut result = b;
     for _ in 0..a {
@@ -382,6 +405,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut b = BigUint::from(4u32);
     tetrate(2, &mut b);
+    assert_eq!(b, BigUint::from(65536u32));
+
+    let mut b = BigUint::from(4u32);
+    tetrate_simple(2, &mut b);
     assert_eq!(b, BigUint::from(65536u32));
 
     let c = add_ownership(2, BigUint::ZERO);
