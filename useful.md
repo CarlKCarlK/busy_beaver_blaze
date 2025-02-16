@@ -22,7 +22,7 @@ wasm-pack build --out-dir docs/v0.2.3/pkg --target web
 ## Make movie frames
 
 ```bash
-cargo run --example movie --release bb5_champ 4K
+cargo run --example movie --release bb5_champ 2K
 ```
 
 ## Tetration

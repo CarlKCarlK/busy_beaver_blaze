@@ -135,7 +135,7 @@ fn save_frame(
     let png_data = machine.png_data();
     let img = image::load_from_memory(&png_data).map_err(|e| e.to_string())?;
     let mut resized = img
-        .resize_exact(goal_x, goal_y, FilterType::Nearest)
+        .resize_exact(goal_x, goal_y, FilterType::CatmullRom)
         .into_rgb8();
 
     // Calculate text position for lower right corner
