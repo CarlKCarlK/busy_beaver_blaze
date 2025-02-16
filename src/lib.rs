@@ -671,15 +671,15 @@ impl Spaceline {
             "real assert b1"
         );
 
-        let mut values = Vec::with_capacity(x_goal as usize * 2);
+        let mut pixels = Vec::with_capacity(x_goal as usize * 2);
         for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            values.push(tape.read(sample_index).into());
+            pixels.push(tape.read(sample_index).into());
         }
 
         Spaceline {
             sample: x_sample,
             start: sample_start,
-            pixels: values,
+            pixels,
             time: step_index,
         }
     }
@@ -778,17 +778,17 @@ impl SampledSpaceTime {
         if inside_index % 2 == 0 {
             self.buffer.push(spaceline);
         } else {
-            if self.step_index == 17466319 {
-                {
-                    for (index, item) in self.buffer.iter().enumerate() {
-                        // index and start
-                        println!(
-                            "cmk 1 index {}, start {}, sample {}, time {}",
-                            index, item.start, item.sample, item.time
-                        );
-                    }
-                }
-            }
+            // if self.step_index == 17466319 {
+            //     {
+            //         for (index, item) in self.buffer.iter().enumerate() {
+            //             // index and start
+            //             println!(
+            //                 "cmk 1 index {}, start {}, sample {}, time {}",
+            //                 index, item.start, item.sample, item.time
+            //             );
+            //         }
+            //     }
+            // }
 
             let a = self.buffer.last_mut().unwrap();
             assert!(a.start >= spaceline.start, "cmk real assert 4b");
@@ -829,7 +829,7 @@ impl SampledSpaceTime {
         let mut packed_data = vec![0u8; row_bytes as usize * y_actual as usize];
 
         // First row is always empty, so start at 1
-        for y in 1..y_actual {
+        for y in 0..y_actual {
             let spaceline = &self.spacelines[y as usize];
             let local_start = spaceline.start;
             let local_sample = spaceline.sample;
