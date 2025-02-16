@@ -1,6 +1,6 @@
 use ab_glyph::{FontArc, PxScale};
 use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
-use image::{imageops::FilterType, Rgb};
+use image::{imageops::FilterType, DynamicImage, ImageBuffer, Rgb};
 use imageproc::drawing::draw_text_mut;
 use std::str::FromStr;
 use std::{
@@ -137,22 +137,54 @@ fn save_frame(
     let file_name2 = output_dir.join(format!("base{run_id}_{frame:07}.png"));
     img.save(&file_name2).map_err(|e| e.to_string())?;
 
-    // Check if we are downscaling
-    let mut resized = //if img.width() > goal_x && img.height() > goal_y {
-        // Downscaling branch: Apply blur before resizing
-        // let downscale_factor = (img.width().max(img.height()) as f32) / goal_x.max(goal_y) as f32;
-        // let sigma = 1000.0; // downscale_factor * 0.5; // Adaptive blur based on downscaling ratio
+    // Compute independent scale factors
+    let scale_x = img.width() as f32 / goal_x as f32;
+    let scale_y = img.height() as f32 / goal_y as f32;
 
-        //let blurred = image::imageops::blur(&img, sigma);
-        image::DynamicImage::ImageRgba8(image::imageops::blur(&img, 1.0))
-            .resize_exact(goal_x, goal_y, FilterType::Lanczos3)
-            .into_rgb16()
-    // } else {
-    //     // Upscaling or same-size branch: Use `Nearest` without blur
-    //     img.resize_exact(goal_x, goal_y, FilterType::Nearest)
-    //         .into_rgb16()
-    // };
-    ;
+    // Compute different blur sigmas per axis
+    let sigma_x = if scale_x > 1.0 { scale_x * 0.5 } else { 0.0 }; // Horizontal blur strength
+    let sigma_y = if scale_y > 1.0 { scale_y * 0.5 } else { 0.0 }; // Vertical blur strength
+
+    println!("sigma_x: {}, sigma_y: {}", sigma_x, sigma_y);
+
+    // Step 1: Resize to an intermediate width but keep the original height
+    let intermediate_x = img.resize_exact(
+        goal_x,
+        img.height(),
+        if sigma_x > 0.0 {
+            FilterType::Lanczos3
+        } else {
+            FilterType::Nearest
+        },
+    );
+
+    // Step 2: Apply horizontal blur
+    let blurred_x = if sigma_x > 0.0 {
+        image::imageops::blur(&intermediate_x, sigma_x)
+    } else {
+        intermediate_x.to_rgba8()
+    };
+
+    // Step 3: Resize to final height while keeping the intermediate width
+    let intermediate_y = image::DynamicImage::ImageRgba8(blurred_x).resize_exact(
+        goal_x,
+        goal_y,
+        if sigma_y > 0.0 {
+            FilterType::Lanczos3
+        } else {
+            FilterType::Nearest
+        },
+    );
+
+    // Step 4: Apply vertical blur
+    let blurred_y = if sigma_y > 0.0 {
+        image::imageops::blur(&intermediate_y, sigma_y)
+    } else {
+        intermediate_y.to_rgba8()
+    };
+
+    // Step 5: Convert to final format
+    let mut resized: ImageBuffer<Rgb<u8>, Vec<u8>> = DynamicImage::ImageRgba8(blurred_y).to_rgb8();
 
     // Calculate text position for lower right corner
     let text = format!("{:>75}", step.separate_with_commas());
