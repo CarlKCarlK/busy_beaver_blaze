@@ -51,7 +51,7 @@ fn main() -> Result<(), String> {
         .unwrap_or(Resolution::TwoK);
     let (goal_x, goal_y) = resolution.dimensions();
 
-    let (up_x, up_y) = (goal_x * 2, goal_y * 2);
+    let (up_x, up_y) = (goal_x, goal_y);
     let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) =
         match machine_name.as_str() {
             "bb5_champ" => {
@@ -134,17 +134,25 @@ fn save_frame(
 
     let png_data = machine.png_data();
     let img = image::load_from_memory(&png_data).map_err(|e| e.to_string())?;
-    let mut resized = img // cmk0000
-        .resize_exact(
-            goal_x,
-            goal_y,
-            if img.width() > goal_x && img.height() > goal_y {
-                FilterType::CatmullRom
-            } else {
-                FilterType::Nearest
-            },
-        )
-        .into_rgb16();
+    let file_name2 = output_dir.join(format!("base{run_id}_{frame:07}.png"));
+    img.save(&file_name2).map_err(|e| e.to_string())?;
+
+    // Check if we are downscaling
+    let mut resized = //if img.width() > goal_x && img.height() > goal_y {
+        // Downscaling branch: Apply blur before resizing
+        // let downscale_factor = (img.width().max(img.height()) as f32) / goal_x.max(goal_y) as f32;
+        // let sigma = 1000.0; // downscale_factor * 0.5; // Adaptive blur based on downscaling ratio
+
+        //let blurred = image::imageops::blur(&img, sigma);
+        image::DynamicImage::ImageRgba8(image::imageops::blur(&img, 1.0))
+            .resize_exact(goal_x, goal_y, FilterType::Lanczos3)
+            .into_rgb16()
+    // } else {
+    //     // Upscaling or same-size branch: Use `Nearest` without blur
+    //     img.resize_exact(goal_x, goal_y, FilterType::Nearest)
+    //         .into_rgb16()
+    // };
+    ;
 
     // Calculate text position for lower right corner
     let text = format!("{:>75}", step.separate_with_commas());
