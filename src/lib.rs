@@ -557,6 +557,7 @@ impl From<u8> for Pixel {
 
 const PIXEL_WHITE: Pixel = Pixel(0);
 
+#[derive(Clone, Debug)]
 struct Spaceline {
     sample: u64,
     start: i64,
@@ -608,10 +609,13 @@ impl Spaceline {
     }
 
     fn merge(&mut self, other: Spaceline) {
+        assert!(other.start % other.sample as i64 == 0, "real assert 6d");
         assert!(self.time < other.time, "real assert 2");
         assert!(self.sample <= other.sample, "real assert 3");
         assert!(self.start >= other.start, "real assert 4");
+        assert!(self.start >= other.start, "real assert 6b");
         self.resample_if_needed(other.sample);
+        assert!(self.start >= other.start, "real assert 6c");
 
         let sample = other.sample;
         let mut values = other.pixels;
@@ -714,10 +718,6 @@ impl Spacelines {
         self.main.len() + if self.buffer.is_empty() { 0 } else { 1 }
     }
 
-    fn last(&self) -> &Spaceline {
-        self.buffer.last().unwrap() // safe because we always have at least one
-    }
-
     fn get<'a>(&'a self, index: usize, last: &'a Spaceline) -> &'a Spaceline {
         if index == self.len() - 1 {
             last
@@ -750,11 +750,58 @@ impl Spacelines {
             .collect();
     }
 
-    fn push(&mut self, inside_index: u64, spaceline: Spaceline) {
+    fn last(&self, step_index: u64, y_sample: u64) -> Spaceline {
+        if self.buffer.is_empty() {
+            // cmk00 would be nice to remove this clone
+            return self.main.last().unwrap().clone();
+        }
+        // cmk00 in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
+
+        let buffer_last = self.buffer.last().unwrap();
+        let time = buffer_last.time;
+        let start = buffer_last.start;
+        let x_sample = buffer_last.sample;
+        let last_inside_index = step_index % y_sample;
+
+        let mut buffer = self.buffer.clone();
+        // println!("cmk in last");
+        // for (i, spaceline) in buffer.iter().enumerate() {
+        //     println!("cmk spaceline {i} {spaceline:?}");
+        // }
+
+        // print len of buffer and inside_index and sample
+        // println!(
+        //     "cmk000 buffer len {}, last_inside_index {}, y_sample {} time {}",
+        //     buffer.len(),
+        //     last_inside_index,
+        //     y_sample,
+        //     time
+        // );
+
+        for inside_index in last_inside_index + 1..y_sample {
+            let empty = Spaceline {
+                sample: x_sample,
+                start,
+                pixels: vec![PIXEL_WHITE; buffer_last.pixels.len()],
+                time: time + inside_index - last_inside_index,
+            };
+            Spacelines::push_internal(&mut buffer, inside_index, empty);
+            // print inside_index and buffer len
+            // println!(
+            //     "cmk000 inside_index {}, buffer len {}",
+            //     inside_index,
+            //     buffer.len()
+            // );
+        }
+        assert!(buffer.len() == 1, "real assert b3");
+        buffer.pop().unwrap()
+    }
+
+    fn push_internal(buffer: &mut Vec<Spaceline>, inside_index: u64, spaceline: Spaceline) {
         if inside_index % 2 == 0 {
-            self.buffer.push(spaceline);
+            buffer.push(spaceline);
         } else {
-            let a = self.buffer.last_mut().unwrap();
+            let a = buffer.last_mut().unwrap();
             assert!(a.start >= spaceline.start, "cmk real assert 4b");
             a.merge(spaceline);
             let mut inside_inside = inside_index;
@@ -764,12 +811,16 @@ impl Spacelines {
                 if inside_inside % 2 == 0 {
                     break;
                 }
-                let last = self.buffer.pop().unwrap();
-                let a = self.buffer.last_mut().unwrap();
+                let last = buffer.pop().unwrap();
+                let a = buffer.last_mut().unwrap();
                 assert!(a.start >= last.start, "cmk real assert 4c");
                 a.merge(last);
             }
         }
+    }
+
+    fn push(&mut self, inside_index: u64, spaceline: Spaceline) {
+        Spacelines::push_internal(&mut self.buffer, inside_index, spaceline);
     }
 }
 
@@ -827,7 +878,7 @@ impl SampledSpaceTime {
     }
 
     fn to_png(&self) -> Result<Vec<u8>, Error> {
-        let last = self.spacelines.last();
+        let last = self.spacelines.last(self.step_index, self.sample);
         let x_sample: u64 = last.sample;
         let tape_width: u64 = last.pixels.len() as u64 * x_sample;
         let tape_min_index = last.start;
@@ -838,7 +889,7 @@ impl SampledSpaceTime {
         let mut packed_data = vec![0u8; row_bytes as usize * y_actual as usize];
 
         for y in 0..y_actual {
-            let spaceline = &self.spacelines.get(y as usize, last);
+            let spaceline = &self.spacelines.get(y as usize, &last);
             if y == y_actual - 1 {
                 // We need to fold in the buffer without modifying it.
                 // cmk000
@@ -1076,7 +1127,7 @@ mod tests {
 
     /// See https://en.wikipedia.org/wiki/Busy_beaver
     #[test]
-    fn bb5_champ_space_time() -> Result<(), Error> {
+    fn bb5_champ_space_time_native() -> Result<(), Error> {
         let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
                                                        // let mut machine: Machine = BB6_CONTENDER.parse()?;
 
@@ -1084,7 +1135,7 @@ mod tests {
         let goal_y: u32 = 1000;
         let mut sample_space_time = SampledSpaceTime::new(goal_x, goal_y);
 
-        let early_stop = Some(10_500_000);
+        let early_stop = Some(10_500_000); // cmk0000000
         let debug_interval = Some(1_000_000);
 
         while machine.next().is_some()
@@ -1102,6 +1153,7 @@ mod tests {
             }
 
             sample_space_time.snapshot(&machine);
+            // let _ = sample_space_time.to_png();
         }
 
         let png_data = sample_space_time.to_png()?;

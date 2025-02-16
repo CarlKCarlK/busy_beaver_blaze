@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Rust Tests",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--",
+                    "--nocapture"
+                ]
+            },
+            "sourceLanguages": [
+                "rust"
+            ]
+        }
+    ]
+}
