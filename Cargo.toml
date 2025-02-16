@@ -14,6 +14,7 @@ derive_more = { version = "2.0.1", default-features = false, features = [
     "error",
     "from",
 ] }
+itertools = "0.14.0"
 png = "0.17.16"
 thousands = "0.2.0"
 wasm-bindgen = "0.2.100"

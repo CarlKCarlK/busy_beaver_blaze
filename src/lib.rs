@@ -1,6 +1,7 @@
-use core::fmt;
+use core::{fmt, panic};
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
+use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
 use std::str::FromStr;
 use thousands::Separable;
@@ -529,6 +530,24 @@ impl From<std::num::ParseIntError> for Error {
 #[derive(Debug, Default, Display, Copy, Clone)]
 struct Pixel(u8);
 
+impl Pixel {
+    fn merge_with_white(&mut self) {
+        // inplace divide u8 by 2
+        self.0 >>= 1;
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.0 = (self.0 >> 1) + (other.0 >> 1) + ((self.0 & other.0) & 1);
+    }
+
+    fn merge_slice(slice: &[Self], empty_count: i64) -> Self {
+        let sum: u32 = slice.iter().map(|p| p.0 as u32).sum();
+        let count = slice.len() + empty_count as usize;
+        debug_assert!(count.is_power_of_two(), "Count must be a power of two");
+        Pixel((sum / count as u32) as u8)
+    }
+}
+
 impl From<u8> for Pixel {
     fn from(value: u8) -> Self {
         debug_assert!(value <= 1, "Input value must be 0 or 1, got {}", value);
@@ -541,8 +560,93 @@ const PIXEL_WHITE: Pixel = Pixel(0);
 struct Spaceline {
     sample: u64,
     start: i64,
-    values: Vec<Pixel>,
+    pixels: Vec<Pixel>,
     time: u64,
+}
+
+impl Spaceline {
+    fn resample_if_needed(&mut self, sample: u64) {
+        assert!(self.pixels.len() > 0, "real assert");
+        debug_assert!(
+            self.sample.is_power_of_two(),
+            "self.sample must be a power of two"
+        );
+        debug_assert!(sample.is_power_of_two(), "Sample must be a power of two");
+        debug_assert!(
+            self.start % self.sample as i64 == 0,
+            "Start must be a multiple of the sample rate",
+        );
+        if sample == self.sample {
+            return;
+        }
+
+        let cells_to_add = self.start.rem_euclid(sample as i64);
+        let new_start = self.start - cells_to_add;
+        let old_items_to_add = cells_to_add / self.sample as i64;
+        let old_items_per_new = (sample / self.sample) as i64;
+        let old_items_to_use = old_items_per_new - old_items_to_add;
+        let pixel0 =
+            Pixel::merge_slice(&self.pixels[..old_items_to_use as usize], old_items_to_add);
+
+        let mut new_index = 0usize;
+        self.pixels[new_index] = pixel0;
+        new_index += 1;
+        let value_len = self.pixels.len() as i64;
+
+        for old_index in (old_items_to_use..value_len).step_by(old_items_per_new as usize) {
+            let old_end = (old_index + old_items_to_use).min(value_len);
+            let slice = &self.pixels[old_index as usize..old_end as usize];
+            let old_items_to_add = old_items_per_new - (old_end - old_index) as i64;
+            self.pixels[new_index] = Pixel::merge_slice(slice, old_items_to_add);
+            new_index += 1;
+        }
+
+        // trim the vector to the new length
+        self.pixels.truncate(new_index);
+        self.start = new_start;
+        self.sample = sample;
+    }
+    fn merge(&mut self, other: Spaceline) {
+        assert!(self.time < other.time, "real assert");
+        assert!(self.sample <= other.sample, "real assert");
+        assert!(self.start >= other.start, "real assert");
+        self.resample_if_needed(other.sample);
+
+        let sample = other.sample;
+        let mut values = other.pixels;
+        let start = other.start;
+
+        debug_assert!(self.sample == sample, "real assert");
+        debug_assert!(self.start >= start, "real assert");
+        debug_assert!((start - self.start) % sample as i64 == 0, "real assert");
+        let self_end = self.start + self.pixels.len() as i64 * sample as i64;
+        let end = start + values.len() as i64 * sample as i64;
+        debug_assert!((self_end - end) % sample as i64 == 0, "real assert");
+        assert!(self_end <= end, "real assert");
+
+        let mut index = 0;
+        // everything before self.start should get merged with merged with white
+        for _ in (start..self.start).step_by(sample as usize) {
+            values[index].merge_with_white();
+            index += 1;
+        }
+
+        // merge the overlapping part
+        for self_value in self.pixels.iter() {
+            values[index].merge(*self_value);
+            index += 1;
+        }
+
+        // merge the rest with white
+        for _ in index..values.len() {
+            values[index].merge_with_white();
+            index += 1;
+        }
+
+        self.pixels = values;
+        self.start = start;
+        self.sample = sample;
+    }
 }
 
 impl Default for Spaceline {
@@ -550,7 +654,7 @@ impl Default for Spaceline {
         Spaceline {
             sample: 1,
             start: 0,
-            values: vec![PIXEL_WHITE; 1],
+            pixels: vec![PIXEL_WHITE; 1],
             time: 0,
         }
     }
@@ -581,9 +685,19 @@ impl SampledSpaceTime {
     fn compress_if_needed(&mut self) {
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.sample {
-            self.spacelines
-                .retain(|spaceline| spaceline.time % new_sample == 0);
+            assert!(new_sample == self.sample * 2, "real assert");
+            assert!(self.spacelines.len() % 2 == 0, "real assert");
+
             self.sample = new_sample;
+            self.spacelines = self
+                .spacelines
+                .drain(..)
+                .tuples()
+                .map(|(mut a, b)| {
+                    a.merge(b);
+                    a
+                })
+                .collect();
         }
     }
 
@@ -625,7 +739,7 @@ impl SampledSpaceTime {
         self.spacelines.push(Spaceline {
             sample: x_sample,
             start: sample_start,
-            values,
+            pixels: values,
             time: self.step_index,
         });
     }
@@ -633,7 +747,7 @@ impl SampledSpaceTime {
     fn to_png(&self) -> Result<Vec<u8>, Error> {
         let last = self.spacelines.last().unwrap(); // Safe because we always have at least one
         let x_sample: u64 = last.sample;
-        let tape_width: u64 = last.values.len() as u64 * x_sample;
+        let tape_width: u64 = last.pixels.len() as u64 * x_sample;
         let tape_min_index = last.start;
         let x_actual: u32 = (tape_width / x_sample) as u32;
         let y_actual: u32 = self.spacelines.len() as u32;
@@ -656,11 +770,11 @@ impl SampledSpaceTime {
                 );
 
                 let local_spaceline_index: i64 = (tape_index - local_start) / local_sample as i64;
-                if local_spaceline_index >= spaceline.values.len() as i64 {
+                if local_spaceline_index >= spaceline.pixels.len() as i64 {
                     break;
                 }
 
-                let value = spaceline.values[local_spaceline_index as usize].0;
+                let value = spaceline.pixels[local_spaceline_index as usize].0;
                 if value != 0 {
                     let byte_index: u32 = x + row_start_byte_index;
                     packed_data[byte_index as usize] = value;
