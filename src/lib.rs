@@ -1,7 +1,6 @@
 use core::{fmt, panic};
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
-use image::buffer;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
 use std::str::FromStr;
@@ -696,13 +695,90 @@ impl Default for Spaceline {
     }
 }
 
+struct Spacelines {
+    main: Vec<Spaceline>,
+    buffer: Vec<Spaceline>,
+}
+
+impl Default for Spacelines {
+    fn default() -> Self {
+        Spacelines {
+            main: vec![Spaceline::default()],
+            buffer: Vec::new(),
+        }
+    }
+}
+
+impl Spacelines {
+    fn len(&self) -> usize {
+        self.main.len() + if self.buffer.is_empty() { 0 } else { 1 }
+    }
+
+    fn last(&self) -> &Spaceline {
+        self.buffer.last().unwrap() // safe because we always have at least one
+    }
+
+    fn get<'a>(&'a self, index: usize, last: &'a Spaceline) -> &'a Spaceline {
+        if index == self.len() - 1 {
+            last
+        } else {
+            &self.main[index]
+        }
+    }
+
+    fn flush_buffer(&mut self) {
+        // cmk0000 we now have a buffer that needs to be flushed at the end
+        if !self.buffer.is_empty() {
+            assert!(self.buffer.len() == 1, "real assert 13");
+            self.main.push(self.buffer.pop().unwrap());
+        }
+    }
+
+    fn compress(&mut self) {
+        assert!(self.buffer.is_empty(), "real assert b2");
+        assert!(self.main.len() % 2 == 0, "real assert 11");
+
+        self.main = self
+            .main
+            .drain(..)
+            .tuples()
+            .map(|(mut a, b)| {
+                assert!(a.start >= b.start, "real assert 4a");
+                a.merge(b);
+                a
+            })
+            .collect();
+    }
+
+    fn push(&mut self, inside_index: u64, spaceline: Spaceline) {
+        if inside_index % 2 == 0 {
+            self.buffer.push(spaceline);
+        } else {
+            let a = self.buffer.last_mut().unwrap();
+            assert!(a.start >= spaceline.start, "cmk real assert 4b");
+            a.merge(spaceline);
+            let mut inside_inside = inside_index;
+            loop {
+                // shift inside_index to the right
+                inside_inside >>= 1;
+                if inside_inside % 2 == 0 {
+                    break;
+                }
+                let last = self.buffer.pop().unwrap();
+                let a = self.buffer.last_mut().unwrap();
+                assert!(a.start >= last.start, "cmk real assert 4c");
+                a.merge(last);
+            }
+        }
+    }
+}
+
 pub struct SampledSpaceTime {
     step_index: u64,
     x_goal: u32,
     y_goal: u32,
     sample: u64,
-    spacelines: Vec<Spaceline>,
-    buffer: Vec<Spaceline>,
+    spacelines: Spacelines,
 }
 
 /// Create a new in which you give the x_goal (space)
@@ -715,8 +791,7 @@ impl SampledSpaceTime {
             x_goal,
             y_goal,
             sample: 1,
-            spacelines: vec![Spaceline::default()],
-            buffer: Vec::new(),
+            spacelines: Spacelines::default(),
         }
     }
 
@@ -724,19 +799,8 @@ impl SampledSpaceTime {
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.sample {
             assert!(new_sample == self.sample * 2, "real assert 10");
-            assert!(self.spacelines.len() % 2 == 0, "real assert 11");
-
             self.sample = new_sample;
-            self.spacelines = self
-                .spacelines
-                .drain(..)
-                .tuples()
-                .map(|(mut a, b)| {
-                    assert!(a.start >= b.start, "real assert 4a");
-                    a.merge(b);
-                    a
-                })
-                .collect();
+            self.spacelines.compress();
         }
     }
 
@@ -751,74 +815,19 @@ impl SampledSpaceTime {
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
         let inside_index = self.step_index % self.sample;
-        // cmk kill these
-        // if inside_index > (self.spacelines.len() + 1) as u64 {
-        //     println!(
-        //         "cmk inside_index {} spacelines.len() {} self.sample {}",
-        //         inside_index,
-        //         self.spacelines.len(),
-        //         self.sample
-        //     );
-        // }
-        // assert!(
-        //     inside_index <= (self.spacelines.len() + 1) as u64,
-        //     "real assert 12"
-        // );
         let spaceline = Spaceline::new(&machine.tape, self.x_goal, self.step_index);
 
         if inside_index == 0 {
-            // cmk0000 we now have a buffer that needs to be flushed at the end
-            if !self.buffer.is_empty() {
-                assert!(self.buffer.len() == 1, "real assert 13");
-                self.spacelines.push(self.buffer.pop().unwrap());
-            }
+            // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
+            self.spacelines.flush_buffer();
             self.compress_if_needed();
         }
 
-        if inside_index % 2 == 0 {
-            self.buffer.push(spaceline);
-        } else {
-            // if self.step_index == 17466319 {
-            //     {
-            //         for (index, item) in self.buffer.iter().enumerate() {
-            //             // index and start
-            //             println!(
-            //                 "cmk 1 index {}, start {}, sample {}, time {}",
-            //                 index, item.start, item.sample, item.time
-            //             );
-            //         }
-            //     }
-            // }
-
-            let a = self.buffer.last_mut().unwrap();
-            assert!(a.start >= spaceline.start, "cmk real assert 4b");
-            a.merge(spaceline);
-            let mut inside_inside = inside_index;
-            loop {
-                // shift inside_index to the right
-                inside_inside >>= 1;
-                if inside_inside % 2 == 0 {
-                    break;
-                }
-                let last = self.buffer.pop().unwrap();
-                let a = self.buffer.last_mut().unwrap();
-                if a.start < last.start {
-                    println!(
-                        "cmk 4a last.start {} a.start {}, self.step_index {}, self.sample {}, inside_index {}, inside_inside {}",
-                        last.start, a.start, self.step_index, self.sample, inside_index, inside_inside
-                    );
-                }
-                // if a.start != last.start {
-                //     println!("cmk 4a last.start {} != a.start {}", last.start, a.start);
-                // }
-                assert!(a.start >= last.start, "cmk real assert 4c");
-                a.merge(last);
-            }
-        }
+        self.spacelines.push(inside_index, spaceline);
     }
 
     fn to_png(&self) -> Result<Vec<u8>, Error> {
-        let last = self.spacelines.last().unwrap(); // Safe because we always have at least one
+        let last = self.spacelines.last();
         let x_sample: u64 = last.sample;
         let tape_width: u64 = last.pixels.len() as u64 * x_sample;
         let tape_min_index = last.start;
@@ -828,9 +837,12 @@ impl SampledSpaceTime {
         let row_bytes = x_actual;
         let mut packed_data = vec![0u8; row_bytes as usize * y_actual as usize];
 
-        // First row is always empty, so start at 1
         for y in 0..y_actual {
-            let spaceline = &self.spacelines[y as usize];
+            let spaceline = &self.spacelines.get(y as usize, last);
+            if y == y_actual - 1 {
+                // We need to fold in the buffer without modifying it.
+                // cmk000
+            }
             let local_start = spaceline.start;
             let local_sample = spaceline.sample;
             let row_start_byte_index: u32 = y * row_bytes;
