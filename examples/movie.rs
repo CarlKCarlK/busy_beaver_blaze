@@ -51,37 +51,37 @@ fn main() -> Result<(), String> {
         .unwrap_or(Resolution::TwoK);
     let (goal_x, goal_y) = resolution.dimensions();
 
-    let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) = match machine_name
-        .as_str()
-    {
-        "bb5_champ" => {
-            let machine = SpaceTimeMachine::from_str(BB5_CHAMP, goal_x, goal_y)?;
-            let dir_info =
-                create_sequential_subdir(r"m:\deldir\bb5_champ").map_err(|e| e.to_string())?;
-            (machine, 47_176_870, 1000, dir_info)
-        }
-        "bb6_contender" => {
-            let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
-            let dir_info =
-                create_sequential_subdir(r"m:\deldir\bb6_contender").map_err(|e| e.to_string())?;
-            (machine, 1_000_000_000_000u64, 2000, dir_info)
-        }
-        "bb6_contender2" => {
-            let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, goal_x, goal_y)?;
-            let dir_info =
-                create_sequential_subdir(r"m:\deldir\bb6_contender2").map_err(|e| e.to_string())?;
-            (machine, 1_000_000_000u64, 1000, dir_info)
-        }
-        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
-            let machine =
-                SpaceTimeMachine::from_str("1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---", goal_x, goal_y)?;
-            let dir_info =
-                create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")
+    let (up_x, up_y) = (goal_x * 2, goal_y * 2);
+    let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) =
+        match machine_name.as_str() {
+            "bb5_champ" => {
+                let machine = SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y)?;
+                let dir_info =
+                    create_sequential_subdir(r"m:\deldir\bb5_champ").map_err(|e| e.to_string())?;
+                (machine, 47_176_870, 1000, dir_info)
+            }
+            "bb6_contender" => {
+                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y)?;
+                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")
                     .map_err(|e| e.to_string())?;
-            (machine, 1_000_000_000u64, 1000, dir_info)
-        }
-        _ => Err(format!("Unknown machine: {}", machine_name))?,
-    };
+                (machine, 1_000_000_000_000u64, 2000, dir_info)
+            }
+            "bb6_contender2" => {
+                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y)?;
+                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender2")
+                    .map_err(|e| e.to_string())?;
+                (machine, 1_000_000_000u64, 1000, dir_info)
+            }
+            "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
+                let machine =
+                    SpaceTimeMachine::from_str("1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---", up_x, up_y)?;
+                let dir_info =
+                    create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")
+                        .map_err(|e| e.to_string())?;
+                (machine, 1_000_000_000u64, 1000, dir_info)
+            }
+            _ => Err(format!("Unknown machine: {}", machine_name))?,
+        };
 
     println!(
         "Using machine: {} with output in {:?}",
@@ -134,9 +134,17 @@ fn save_frame(
 
     let png_data = machine.png_data();
     let img = image::load_from_memory(&png_data).map_err(|e| e.to_string())?;
-    let mut resized = img
-        .resize_exact(goal_x, goal_y, FilterType::CatmullRom)
-        .into_rgb8();
+    let mut resized = img // cmk0000
+        .resize_exact(
+            goal_x,
+            goal_y,
+            if img.width() > goal_x && img.height() > goal_y {
+                FilterType::CatmullRom
+            } else {
+                FilterType::Nearest
+            },
+        )
+        .into_rgb16();
 
     // Calculate text position for lower right corner
     let text = format!("{:>75}", step.separate_with_commas());
