@@ -597,7 +597,7 @@ impl Spaceline {
         for old_index in (old_items_to_use..value_len).step_by(old_items_per_new as usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
             let slice = &self.pixels[old_index as usize..old_end as usize];
-            let old_items_to_add = old_items_per_new - (old_end - old_index) as i64;
+            let old_items_to_add = old_items_per_new - (old_end - old_index);
             self.pixels[new_index] = Pixel::merge_slice(slice, old_items_to_add);
             new_index += 1;
         }
@@ -660,13 +660,6 @@ impl Spaceline {
         let x_sample = sample_rate(tape_width, x_goal);
 
         let sample_start: i64 = tape_min_index - tape_min_index.rem_euclid(x_sample as i64);
-        // if step_index >= 17466312 {
-        //     println!(
-        //         "cmk 1 tape_width {}, tape_min_index {}, tape_max_index {}, x_sample {}, sample_start {}, step_index {}",
-        //         tape_width, tape_min_index, tape_max_index, x_sample, sample_start, step_index
-        //     );
-        // }
-
         assert!(
             sample_start <= tape_min_index
                 && sample_start % x_sample as i64 == 0
@@ -676,7 +669,11 @@ impl Spaceline {
 
         let mut pixels = Vec::with_capacity(x_goal as usize * 2);
         for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            pixels.push(tape.read(sample_index).into());
+            // cmk speed up by removing the collect
+            let pixel_range: Vec<Pixel> = (sample_index..(sample_index + x_sample as i64))
+                .map(|i| tape.read(i).into())
+                .collect();
+            pixels.push(Pixel::merge_slice(&pixel_range, 0));
         }
 
         Spaceline {
