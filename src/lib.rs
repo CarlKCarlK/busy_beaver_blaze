@@ -1,6 +1,7 @@
 use core::{fmt, panic};
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
+use image::buffer;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
 use std::str::FromStr;
@@ -78,7 +79,7 @@ impl Tape {
             vec.push(value);
         } else {
             // Assert that we're never more than one index beyond
-            debug_assert!(
+            assert!(
                 index < vec.len(),
                 "Index is more than one beyond current length!"
             );
@@ -543,14 +544,14 @@ impl Pixel {
     fn merge_slice(slice: &[Self], empty_count: i64) -> Self {
         let sum: u32 = slice.iter().map(|p| p.0 as u32).sum();
         let count = slice.len() + empty_count as usize;
-        debug_assert!(count.is_power_of_two(), "Count must be a power of two");
+        assert!(count.is_power_of_two(), "Count must be a power of two");
         Pixel((sum / count as u32) as u8)
     }
 }
 
 impl From<u8> for Pixel {
     fn from(value: u8) -> Self {
-        debug_assert!(value <= 1, "Input value must be 0 or 1, got {}", value);
+        assert!(value <= 1, "Input value must be 0 or 1, got {}", value);
         Pixel(value * 255)
     }
 }
@@ -566,13 +567,13 @@ struct Spaceline {
 
 impl Spaceline {
     fn resample_if_needed(&mut self, sample: u64) {
-        assert!(self.pixels.len() > 0, "real assert");
-        debug_assert!(
+        assert!(!self.pixels.is_empty(), "real assert a");
+        assert!(
             self.sample.is_power_of_two(),
             "self.sample must be a power of two"
         );
-        debug_assert!(sample.is_power_of_two(), "Sample must be a power of two");
-        debug_assert!(
+        assert!(sample.is_power_of_two(), "Sample must be a power of two");
+        assert!(
             self.start % self.sample as i64 == 0,
             "Start must be a multiple of the sample rate",
         );
@@ -606,23 +607,24 @@ impl Spaceline {
         self.start = new_start;
         self.sample = sample;
     }
+
     fn merge(&mut self, other: Spaceline) {
-        assert!(self.time < other.time, "real assert");
-        assert!(self.sample <= other.sample, "real assert");
-        assert!(self.start >= other.start, "real assert");
+        assert!(self.time < other.time, "real assert 2");
+        assert!(self.sample <= other.sample, "real assert 3");
+        assert!(self.start >= other.start, "real assert 4");
         self.resample_if_needed(other.sample);
 
         let sample = other.sample;
         let mut values = other.pixels;
         let start = other.start;
 
-        debug_assert!(self.sample == sample, "real assert");
-        debug_assert!(self.start >= start, "real assert");
-        debug_assert!((start - self.start) % sample as i64 == 0, "real assert");
+        assert!(self.sample == sample, "real assert 5");
+        assert!(self.start >= start, "real assert 6");
+        assert!((start - self.start) % sample as i64 == 0, "real assert 7");
         let self_end = self.start + self.pixels.len() as i64 * sample as i64;
         let end = start + values.len() as i64 * sample as i64;
-        debug_assert!((self_end - end) % sample as i64 == 0, "real assert");
-        assert!(self_end <= end, "real assert");
+        assert!((self_end - end) % sample as i64 == 0, "real assert 8");
+        assert!(self_end <= end, "real assert 9");
 
         let mut index = 0;
         // everything before self.start should get merged with merged with white
@@ -647,6 +649,40 @@ impl Spaceline {
         self.start = start;
         self.sample = sample;
     }
+
+    fn new(tape: &Tape, x_goal: u32, step_index: u64) -> Self {
+        let tape_width = tape.width();
+        let tape_min_index = tape.min_index();
+        let tape_max_index = tape.max_index();
+        let x_sample = sample_rate(tape_width, x_goal);
+
+        let sample_start: i64 = tape_min_index - tape_min_index.rem_euclid(x_sample as i64);
+        // if step_index >= 17466312 {
+        //     println!(
+        //         "cmk 1 tape_width {}, tape_min_index {}, tape_max_index {}, x_sample {}, sample_start {}, step_index {}",
+        //         tape_width, tape_min_index, tape_max_index, x_sample, sample_start, step_index
+        //     );
+        // }
+
+        assert!(
+            sample_start <= tape_min_index
+                && sample_start % x_sample as i64 == 0
+                && tape_min_index - sample_start < x_sample as i64,
+            "real assert b1"
+        );
+
+        let mut values = Vec::with_capacity(x_goal as usize * 2);
+        for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
+            values.push(tape.read(sample_index).into());
+        }
+
+        Spaceline {
+            sample: x_sample,
+            start: sample_start,
+            pixels: values,
+            time: step_index,
+        }
+    }
 }
 
 impl Default for Spaceline {
@@ -666,6 +702,7 @@ pub struct SampledSpaceTime {
     y_goal: u32,
     sample: u64,
     spacelines: Vec<Spaceline>,
+    buffer: Vec<Spaceline>,
 }
 
 /// Create a new in which you give the x_goal (space)
@@ -679,14 +716,15 @@ impl SampledSpaceTime {
             y_goal,
             sample: 1,
             spacelines: vec![Spaceline::default()],
+            buffer: Vec::new(),
         }
     }
 
     fn compress_if_needed(&mut self) {
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.sample {
-            assert!(new_sample == self.sample * 2, "real assert");
-            assert!(self.spacelines.len() % 2 == 0, "real assert");
+            assert!(new_sample == self.sample * 2, "real assert 10");
+            assert!(self.spacelines.len() % 2 == 0, "real assert 11");
 
             self.sample = new_sample;
             self.spacelines = self
@@ -694,6 +732,7 @@ impl SampledSpaceTime {
                 .drain(..)
                 .tuples()
                 .map(|(mut a, b)| {
+                    assert!(a.start >= b.start, "real assert 4a");
                     a.merge(b);
                     a
                 })
@@ -703,7 +742,7 @@ impl SampledSpaceTime {
 
     // ideas
     // use
-    //       debug_assert!(self.sample.is_power_of_two(), "Sample must be a power of two");
+    //       assert!(self.sample.is_power_of_two(), "Sample must be a power of two");
     //       // Use bitwise AND for fast divisibility check
     //       if self.step_index & (self.sample - 1) != 0 {
     //  Also: Inline the top part of the function.
@@ -711,37 +750,71 @@ impl SampledSpaceTime {
 
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
-        if self.step_index % self.sample != 0 {
-            return;
+        let inside_index = self.step_index % self.sample;
+        // cmk kill these
+        // if inside_index > (self.spacelines.len() + 1) as u64 {
+        //     println!(
+        //         "cmk inside_index {} spacelines.len() {} self.sample {}",
+        //         inside_index,
+        //         self.spacelines.len(),
+        //         self.sample
+        //     );
+        // }
+        // assert!(
+        //     inside_index <= (self.spacelines.len() + 1) as u64,
+        //     "real assert 12"
+        // );
+        let spaceline = Spaceline::new(&machine.tape, self.x_goal, self.step_index);
+
+        if inside_index == 0 {
+            // cmk0000 we now have a buffer that needs to be flushed at the end
+            if !self.buffer.is_empty() {
+                assert!(self.buffer.len() == 1, "real assert 13");
+                self.spacelines.push(self.buffer.pop().unwrap());
+            }
+            self.compress_if_needed();
         }
-        self.compress_if_needed();
 
-        let tape = &machine.tape;
-        let tape_width = tape.width();
-        let tape_min_index = tape.min_index();
-        let tape_max_index = tape.max_index();
-        let x_sample = sample_rate(tape_width, self.x_goal);
+        if inside_index % 2 == 0 {
+            self.buffer.push(spaceline);
+        } else {
+            if self.step_index == 17466319 {
+                {
+                    for (index, item) in self.buffer.iter().enumerate() {
+                        // index and start
+                        println!(
+                            "cmk 1 index {}, start {}, sample {}, time {}",
+                            index, item.start, item.sample, item.time
+                        );
+                    }
+                }
+            }
 
-        let sample_start: i64 = tape_min_index
-            + ((x_sample as i64 - tape_min_index.rem_euclid(x_sample as i64)) % x_sample as i64);
-
-        debug_assert!(
-            sample_start >= tape_min_index
-                && sample_start % x_sample as i64 == 0
-                && sample_start - tape_min_index < x_sample as i64
-        );
-
-        let mut values = Vec::with_capacity(self.x_goal as usize * 2);
-        for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            values.push(tape.read(sample_index).into());
+            let a = self.buffer.last_mut().unwrap();
+            assert!(a.start >= spaceline.start, "cmk real assert 4b");
+            a.merge(spaceline);
+            let mut inside_inside = inside_index;
+            loop {
+                // shift inside_index to the right
+                inside_inside >>= 1;
+                if inside_inside % 2 == 0 {
+                    break;
+                }
+                let last = self.buffer.pop().unwrap();
+                let a = self.buffer.last_mut().unwrap();
+                if a.start < last.start {
+                    println!(
+                        "cmk 4a last.start {} a.start {}, self.step_index {}, self.sample {}, inside_index {}, inside_inside {}",
+                        last.start, a.start, self.step_index, self.sample, inside_index, inside_inside
+                    );
+                }
+                // if a.start != last.start {
+                //     println!("cmk 4a last.start {} != a.start {}", last.start, a.start);
+                // }
+                assert!(a.start >= last.start, "cmk real assert 4c");
+                a.merge(last);
+            }
         }
-
-        self.spacelines.push(Spaceline {
-            sample: x_sample,
-            start: sample_start,
-            pixels: values,
-            time: self.step_index,
-        });
     }
 
     fn to_png(&self) -> Result<Vec<u8>, Error> {
@@ -764,7 +837,8 @@ impl SampledSpaceTime {
             let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i64);
             for x in x_start as u32..x_actual {
                 let tape_index: i64 = x as i64 * x_sample as i64 + tape_min_index;
-                debug_assert!(
+                // cmk consider changing asserts to debug_asserts
+                assert!(
                     tape_index >= local_start,
                     "real assert if x_start is correct"
                 );
