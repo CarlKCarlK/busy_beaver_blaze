@@ -549,8 +549,9 @@ impl Pixel {
 }
 
 impl From<u8> for Pixel {
+    #[inline]
     fn from(value: u8) -> Self {
-        assert!(value <= 1, "Input value must be 0 or 1, got {}", value);
+        debug_assert!(value <= 1, "Input value must be 0 or 1, got {}", value);
         Pixel(value * 255)
     }
 }
@@ -668,11 +669,11 @@ impl Spaceline {
         );
 
         let mut pixels = Vec::with_capacity(x_goal as usize * 2);
+        let mut pixel_range = vec![Pixel(0); x_sample as usize];
         for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            // cmk speed up by removing the collect
-            let pixel_range: Vec<Pixel> = (sample_index..(sample_index + x_sample as i64))
-                .map(|i| tape.read(i).into())
-                .collect();
+            for (i, pixel) in pixel_range.iter_mut().enumerate() {
+                *pixel = tape.read(sample_index + i as i64).into();
+            }
             pixels.push(Pixel::merge_slice(&pixel_range, 0));
         }
 
@@ -893,6 +894,8 @@ impl SampledSpaceTime {
             }
             let local_start = spaceline.start;
             let local_sample = spaceline.sample;
+            let rel_sample = x_sample / local_sample;
+            assert!(rel_sample.is_power_of_two(), "real assert b12");
             let row_start_byte_index: u32 = y * row_bytes;
             let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i64);
             for x in x_start as u32..x_actual {
@@ -903,12 +906,22 @@ impl SampledSpaceTime {
                     "real assert if x_start is correct"
                 );
 
-                let local_spaceline_index: i64 = (tape_index - local_start) / local_sample as i64;
-                if local_spaceline_index >= spaceline.pixels.len() as i64 {
-                    break;
-                }
+                let local_spaceline_start: i64 = (tape_index - local_start) / local_sample as i64;
+                let slice = (local_spaceline_start..local_spaceline_start + rel_sample as i64)
+                    .map(|i| {
+                        spaceline
+                            .pixels
+                            .get(i as usize)
+                            .copied()
+                            .unwrap_or(PIXEL_WHITE)
+                    })
+                    .collect::<Vec<_>>();
+                // cmk000 look at putting this back in
+                // if local_spaceline_index >= spaceline.pixels.len() as i64 {
+                //     break;
+                // }
 
-                let value = spaceline.pixels[local_spaceline_index as usize].0;
+                let value = Pixel::merge_slice(&slice, 0).0;
                 if value != 0 {
                     let byte_index: u32 = x + row_start_byte_index;
                     packed_data[byte_index as usize] = value;
@@ -1132,7 +1145,8 @@ mod tests {
         let goal_y: u32 = 1000;
         let mut sample_space_time = SampledSpaceTime::new(goal_x, goal_y);
 
-        let early_stop = Some(10_500_000); // cmk0000000
+        let early_stop = Some(10_500_000);
+        // let early_stop = Some(1_000_000);
         let debug_interval = Some(1_000_000);
 
         while machine.next().is_some()
