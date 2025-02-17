@@ -145,7 +145,7 @@ fn save_frame(
     let sigma_x = if scale_x > 1.0 { scale_x * 0.5 } else { 0.0 }; // Horizontal blur strength
     let sigma_y = if scale_y > 1.0 { scale_y * 0.5 } else { 0.0 }; // Vertical blur strength
 
-    println!("sigma_x: {}, sigma_y: {}", sigma_x, sigma_y);
+    // println!("sigma_x: {}, sigma_y: {}", sigma_x, sigma_y);
 
     // Step 1: Resize to an intermediate width but keep the original height
     let intermediate_x = img.resize_exact(
