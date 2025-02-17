@@ -8,7 +8,7 @@ self.onmessage = async function (e) {
         const { programText, goal_x, goal_y, early_stop } = e.data;
 
         try {
-            const space_time_machine = new SpaceTimeMachine(programText, goal_x * 2, goal_y * 2);
+            const space_time_machine = new SpaceTimeMachine(programText, goal_x, goal_y);
             const CHUNK_SIZE = 10000000n;
             let total_steps = 1n;  // Start at 1 since first step is already taken
 

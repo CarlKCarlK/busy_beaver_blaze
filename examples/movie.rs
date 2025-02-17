@@ -1,6 +1,7 @@
 use ab_glyph::{FontArc, PxScale};
 use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
-use image::{imageops::FilterType, DynamicImage, ImageBuffer, Rgb};
+use image::Rgba;
+use image::{imageops::FilterType, DynamicImage};
 use imageproc::drawing::draw_text_mut;
 use std::str::FromStr;
 use std::{
@@ -39,7 +40,9 @@ impl Resolution {
     }
 }
 
-fn main() -> Result<(), String> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let start = std::time::Instant::now();
+
     let machine_name = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "bb5_champ".to_string());
@@ -56,28 +59,24 @@ fn main() -> Result<(), String> {
         match machine_name.as_str() {
             "bb5_champ" => {
                 let machine = SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y)?;
-                let dir_info =
-                    create_sequential_subdir(r"m:\deldir\bb5_champ").map_err(|e| e.to_string())?;
+                let dir_info = create_sequential_subdir(r"m:\deldir\bb5_champ")?;
                 (machine, 47_176_870, 1000, dir_info)
             }
             "bb6_contender" => {
                 let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y)?;
-                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")
-                    .map_err(|e| e.to_string())?;
+                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")?;
                 (machine, 1_000_000_000_000u64, 2000, dir_info)
             }
             "bb6_contender2" => {
                 let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y)?;
-                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender2")
-                    .map_err(|e| e.to_string())?;
+                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender2")?;
                 (machine, 1_000_000_000u64, 1000, dir_info)
             }
             "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
                 let machine =
                     SpaceTimeMachine::from_str("1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---", up_x, up_y)?;
                 let dir_info =
-                    create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")
-                        .map_err(|e| e.to_string())?;
+                    create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
                 (machine, 1_000_000_000u64, 1000, dir_info)
             }
             _ => Err(format!("Unknown machine: {}", machine_name))?,
@@ -99,7 +98,12 @@ fn main() -> Result<(), String> {
             break;
         }
         let actual_step_index = space_time_machine.step_count() - 1;
-        println!("run_id: {}, Frame {}", run_id, frame_index);
+        println!(
+            "run_id: {}, Frame {}, time so far {:?}",
+            run_id,
+            frame_index,
+            start.elapsed()
+        );
 
         save_frame(
             &space_time_machine,
@@ -112,6 +116,7 @@ fn main() -> Result<(), String> {
         )?;
     }
 
+    println!("Elapsed: {:?}", start.elapsed());
     Ok(())
 }
 
@@ -123,8 +128,14 @@ fn save_frame(
     step: u64,
     goal_x: u32,
     goal_y: u32,
-) -> Result<(), String> {
-    let file_name = output_dir.join(format!("run{run_id}_{frame:07}.png"));
+) -> Result<(), Box<dyn std::error::Error>> {
+    let base_file_name = output_dir.join(format!("base/{run_id}_{frame:07}.png"));
+    let resized_file_name = output_dir.join(format!("resized/{run_id}_{frame:07}.png"));
+    let metadata_file_name = output_dir.join(format!("metadata/{run_id}_{frame:07}.txt"));
+    // create the 3 subdirectories if they don't exist
+    fs::create_dir_all(base_file_name.parent().unwrap())?;
+    fs::create_dir_all(resized_file_name.parent().unwrap())?;
+    fs::create_dir_all(metadata_file_name.parent().unwrap())?;
 
     let font_data = include_bytes!(
         r"C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.21.10351.0_x64__8wekyb3d8bbwe\CascadiaMono.ttf"
@@ -133,74 +144,45 @@ fn save_frame(
     let scale = PxScale::from(50.0);
 
     let png_data = machine.png_data();
-    let img = image::load_from_memory(&png_data).map_err(|e| e.to_string())?;
-    let file_name2 = output_dir.join(format!("base{run_id}_{frame:07}.png"));
-    img.save(&file_name2).map_err(|e| e.to_string())?;
+    let base = image::load_from_memory(&png_data)?;
+    base.save(&base_file_name)?;
 
-    // Compute independent scale factors
-    let scale_x = img.width() as f32 / goal_x as f32;
-    let scale_y = img.height() as f32 / goal_y as f32;
-
-    // Compute different blur sigmas per axis
-    let sigma_x = if scale_x > 1.0 { scale_x * 0.5 } else { 0.0 }; // Horizontal blur strength
-    let sigma_y = if scale_y > 1.0 { scale_y * 0.5 } else { 0.0 }; // Vertical blur strength
-
-    // println!("sigma_x: {}, sigma_y: {}", sigma_x, sigma_y);
-
-    // Step 1: Resize to an intermediate width but keep the original height
-    let intermediate_x = img.resize_exact(
-        goal_x,
-        img.height(),
-        if sigma_x > 0.0 {
-            FilterType::Lanczos3
-        } else {
-            FilterType::Nearest
-        },
-    );
-
-    // Step 2: Apply horizontal blur
-    let blurred_x = if sigma_x > 0.0 {
-        image::imageops::blur(&intermediate_x, sigma_x)
+    // Resize and anti-alias the image
+    let x_fraction = base.width() as f32 / goal_x as f32;
+    let mut resized = if x_fraction < 0.25 {
+        base.resize_exact(goal_x, goal_y, FilterType::Nearest)
     } else {
-        intermediate_x.to_rgba8()
+        let blurred = image::imageops::blur(&base, 1.0);
+        DynamicImage::ImageRgba8(blurred).resize_exact(
+            goal_x,
+            goal_y,
+            if x_fraction < 1.0 {
+                FilterType::Lanczos3
+            } else {
+                FilterType::Nearest
+            },
+        )
     };
-
-    // Step 3: Resize to final height while keeping the intermediate width
-    let intermediate_y = image::DynamicImage::ImageRgba8(blurred_x).resize_exact(
-        goal_x,
-        goal_y,
-        if sigma_y > 0.0 {
-            FilterType::Lanczos3
-        } else {
-            FilterType::Nearest
-        },
-    );
-
-    // Step 4: Apply vertical blur
-    let blurred_y = if sigma_y > 0.0 {
-        image::imageops::blur(&intermediate_y, sigma_y)
-    } else {
-        intermediate_y.to_rgba8()
-    };
-
-    // Step 5: Convert to final format
-    let mut resized: ImageBuffer<Rgb<u8>, Vec<u8>> = DynamicImage::ImageRgba8(blurred_y).to_rgb8();
 
     // Calculate text position for lower right corner
     let text = format!("{:>75}", step.separate_with_commas());
     let text_height = 50.0; // Approximate height based on font size
     let y_position = goal_y as f32 - text_height - 10.0; // 10 pixels padding from bottom
 
+    // save text to metadata text file
+    let metadata = &text;
+    fs::write(&metadata_file_name, metadata)?;
+
     draw_text_mut(
         &mut resized,
-        Rgb([110, 110, 110]),
-        25,                // X position (keep same padding from edge)
-        y_position as i32, // Y position now near bottom
+        Rgba([110, 110, 110, 255]), // Color
+        25,                         // X position (keep same padding from edge)
+        y_position as i32,          // Y position now near bottom
         scale,
         &font,
         &text,
     );
-    resized.save(&file_name).map_err(|e| e.to_string())?;
+    resized.save(&resized_file_name)?;
 
     Ok(())
 }

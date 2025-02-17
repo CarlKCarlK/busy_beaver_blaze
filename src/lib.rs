@@ -3,6 +3,7 @@ use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
+#[cfg(not(target_arch = "wasm32"))]
 use std::str::FromStr;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
@@ -531,19 +532,22 @@ impl From<std::num::ParseIntError> for Error {
 struct Pixel(u8);
 
 impl Pixel {
+    #[inline]
     fn merge_with_white(&mut self) {
         // inplace divide u8 by 2
         self.0 >>= 1;
     }
 
+    #[inline]
     fn merge(&mut self, other: Self) {
         self.0 = (self.0 >> 1) + (other.0 >> 1) + ((self.0 & other.0) & 1);
     }
 
+    // cmk00speed
     fn merge_slice(slice: &[Self], empty_count: i64) -> Self {
         let sum: u32 = slice.iter().map(|p| p.0 as u32).sum();
         let count = slice.len() + empty_count as usize;
-        assert!(count.is_power_of_two(), "Count must be a power of two");
+        debug_assert!(count.is_power_of_two(), "Count must be a power of two");
         Pixel((sum / count as u32) as u8)
     }
 }
@@ -595,6 +599,7 @@ impl Spaceline {
         new_index += 1;
         let value_len = self.pixels.len() as i64;
 
+        // cmk00speed
         for old_index in (old_items_to_use..value_len).step_by(old_items_per_new as usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
             let slice = &self.pixels[old_index as usize..old_end as usize];
@@ -632,18 +637,21 @@ impl Spaceline {
 
         let mut index = 0;
         // everything before self.start should get merged with merged with white
+        // cmk00speed
         for _ in (start..self.start).step_by(sample as usize) {
             values[index].merge_with_white();
             index += 1;
         }
 
         // merge the overlapping part
+        // cmk00speed
         for self_value in self.pixels.iter() {
             values[index].merge(*self_value);
             index += 1;
         }
 
         // merge the rest with white
+        // cmk00speed
         for _ in index..values.len() {
             values[index].merge_with_white();
             index += 1;
@@ -669,12 +677,26 @@ impl Spaceline {
         );
 
         let mut pixels = Vec::with_capacity(x_goal as usize * 2);
-        let mut pixel_range = vec![Pixel(0); x_sample as usize];
-        for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
-            for (i, pixel) in pixel_range.iter_mut().enumerate() {
-                *pixel = tape.read(sample_index + i as i64).into();
+        if x_sample == 1 {
+            // For x_sample == 1, each step is just one pixel.
+            for sample_index in sample_start..=tape_max_index {
+                // Directly read and convert the pixel from the tape.
+                pixels.push(tape.read(sample_index).into());
             }
-            pixels.push(Pixel::merge_slice(&pixel_range, 0));
+        } else {
+            // println!(
+            //     "cmk0000 sample_start {}, tape_max_index {}, x_sample {}",
+            //     sample_start, tape_max_index, x_sample
+            // );
+            // For x_sample > 1, process as before.
+            let mut pixel_range = vec![Pixel(0); x_sample as usize];
+            for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
+                // Create a temporary vector to hold x_sample pixels.
+                for (i, pixel) in pixel_range.iter_mut().enumerate() {
+                    *pixel = tape.read(sample_index + i as i64).into();
+                }
+                pixels.push(Pixel::merge_slice(&pixel_range, 0));
+            }
         }
 
         Spaceline {

@@ -1,20 +1,17 @@
 {
-    "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug Rust Tests",
             "type": "lldb",
             "request": "launch",
+            "name": "Cargo test",
             "cargo": {
                 "args": [
                     "test",
-                    "--",
-                    "--nocapture"
+                    "--no-run",
+                    "--lib"
                 ]
             },
-            "sourceLanguages": [
-                "rust"
-            ]
+            "args": []
         }
     ]
 }
