@@ -1,5 +1,7 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
+use busy_beaver_blaze::{
+    LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER, MAX_POWER_OF_TWO_U64,
+};
 use image::Rgba;
 use image::{imageops::FilterType, DynamicImage};
 use imageproc::drawing::draw_text_mut;
@@ -12,6 +14,7 @@ use thousands::Separable;
 
 #[derive(Debug)]
 enum Resolution {
+    Tiny,   // 320x180
     TwoK,   // 1920x1080
     FourK,  // 3840x2160
     EightK, // 7680x4320
@@ -22,6 +25,7 @@ impl FromStr for Resolution {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            "tiny" => Ok(Resolution::Tiny),
             "2k" => Ok(Resolution::TwoK),
             "4k" => Ok(Resolution::FourK),
             "8k" => Ok(Resolution::EightK),
@@ -33,6 +37,7 @@ impl FromStr for Resolution {
 impl Resolution {
     fn dimensions(&self) -> (u32, u32) {
         match self {
+            Resolution::Tiny => (320, 180),
             Resolution::TwoK => (1920, 1080),
             Resolution::FourK => (3840, 2160),
             Resolution::EightK => (7680, 4320),
@@ -51,30 +56,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nth(2)
         .map(|arg| Resolution::from_str(&arg))
         .transpose()?
-        .unwrap_or(Resolution::TwoK);
+        .unwrap_or(Resolution::Tiny); // cmk2K
     let (goal_x, goal_y) = resolution.dimensions();
+
+    let max_x_sample = 2; // MAX_POWER_OF_TWO_U64; // cmk000
 
     let (up_x, up_y) = (goal_x, goal_y);
     let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) =
         match machine_name.as_str() {
             "bb5_champ" => {
-                let machine = SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y)?;
+                let machine = SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_sample)?;
                 let dir_info = create_sequential_subdir(r"m:\deldir\bb5_champ")?;
                 (machine, 47_176_870, 1000, dir_info)
             }
             "bb6_contender" => {
-                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y)?;
+                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_sample)?;
                 let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")?;
                 (machine, 1_000_000_000_000u64, 2000, dir_info)
             }
             "bb6_contender2" => {
-                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y)?;
+                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_sample)?;
                 let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender2")?;
                 (machine, 1_000_000_000u64, 1000, dir_info)
             }
             "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
-                let machine =
-                    SpaceTimeMachine::from_str("1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---", up_x, up_y)?;
+                let machine = SpaceTimeMachine::from_str(
+                    "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
+                    up_x,
+                    up_y,
+                    max_x_sample,
+                )?;
                 let dir_info =
                     create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
                 (machine, 1_000_000_000u64, 1000, dir_info)

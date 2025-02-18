@@ -31,3 +31,9 @@ cargo run --example movie --release bb5_champ 2K
  cargo run --example tetration --release
  cargo test --example tetration --release -- --nocapture
 ```
+
+## testing
+
+```bash
+cargo run --example movie --release bb5_champ tiny
+```
