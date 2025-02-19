@@ -1,7 +1,5 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{
-    LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER, MAX_POWER_OF_TWO_U64,
-};
+use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
 use image::Rgba;
 use image::{imageops::FilterType, DynamicImage};
 use imageproc::drawing::draw_text_mut;

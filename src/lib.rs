@@ -594,12 +594,12 @@ struct Spaceline {
     start: i64,
     pixels: Vec<Pixel>,
     time: u64,
-    smoothness: u64,
+    smoothness: Smoothness,
 }
 
 impl Spaceline {
     // cmk good name??
-    fn new0(smoothness: u64) -> Self {
+    fn new0(smoothness: Smoothness) -> Self {
         Spaceline {
             sample: 1,
             start: 0,
@@ -738,7 +738,7 @@ impl Spaceline {
         self.sample = sample;
     }
 
-    fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: u64) -> Self {
+    fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: Smoothness) -> Self {
         // Sampling & Averaging 4 --
         let tape_width = tape.width();
         let tape_min_index = tape.min_index();
@@ -796,7 +796,7 @@ struct Spacelines {
 }
 
 impl Spacelines {
-    fn new(smoothness: u64) -> Self {
+    fn new(smoothness: Smoothness) -> Self {
         Spacelines {
             main: vec![Spaceline::new0(smoothness)],
             buffer: Vec::new(),
@@ -849,7 +849,7 @@ impl Spacelines {
             .retain(|spaceline| fast_mod(spaceline.time, new_sample) == 0);
     }
 
-    fn last(&self, step_index: u64, y_sample: u64, y_smoothness: u64) -> Spaceline {
+    fn last(&self, step_index: u64, y_sample: u64, y_smoothness: Smoothness) -> Spaceline {
         if self.buffer.is_empty() {
             // cmk00 would be nice to remove this clone
             return self.main.last().unwrap().clone();
@@ -922,15 +922,20 @@ pub struct SampledSpaceTime {
     y_goal: u32,
     sample: u64,
     spacelines: Spacelines,
-    x_smoothness: u64,
-    y_smoothness: u64,
+    x_smoothness: Smoothness,
+    y_smoothness: Smoothness,
 }
 
 /// Create a new in which you give the x_goal (space)
 /// and the y_goal (time). The sample starts at 1 and
 /// inner is a vector of one spaceline
 impl SampledSpaceTime {
-    pub fn new(x_goal: u32, y_goal: u32, x_smoothness: u64, y_smoothness: u64) -> Self {
+    pub fn new(
+        x_goal: u32,
+        y_goal: u32,
+        x_smoothness: Smoothness,
+        y_smoothness: Smoothness,
+    ) -> Self {
         SampledSpaceTime {
             step_index: 0,
             x_goal,
@@ -951,7 +956,7 @@ impl SampledSpaceTime {
         if new_sample != self.sample {
             assert!(new_sample == self.sample * 2, "real assert 10");
             self.sample = new_sample;
-            if new_sample <= self.y_smoothness {
+            if new_sample <= self.y_smoothness.as_u64() {
                 self.spacelines.compress_average();
             } else {
                 self.spacelines.compress_take_first(new_sample);
@@ -1112,12 +1117,17 @@ impl SpaceTimeMachine {
         s: &str,
         goal_x: u32,
         goal_y: u32,
-        x_smoothness: u64,
-        y_smoothness: u64,
+        x_smoothness: u8,
+        y_smoothness: u8,
     ) -> Result<SpaceTimeMachine, String> {
         Ok(SpaceTimeMachine {
             machine: Machine::from_string(s)?,
-            space_time: SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness),
+            space_time: SampledSpaceTime::new(
+                goal_x,
+                goal_y,
+                Smoothness(x_smoothness),
+                Smoothness(y_smoothness),
+            ),
         })
     }
 
@@ -1248,26 +1258,23 @@ fn fast_rem_euclid(dividend: i64, divisor: u64) -> i64 {
 /// step = sample / sample_out
 /// ```
 #[inline(always)]
-fn compute_sample_step(sample: u64, smoothness: u64) -> (u64, u64) {
-    debug_assert!(
-        sample.is_power_of_two() && smoothness.is_power_of_two(),
-        "Inputs must be powers of two"
-    );
-    debug_assert!(sample >= 1 && smoothness >= 1, "Inputs must be at least 1");
+fn compute_sample_step(sample: u64, smoothness: Smoothness) -> (u64, u64) {
+    debug_assert!(sample.is_power_of_two(), "Inputs must be powers of two");
+    debug_assert!(sample >= 1, "Inputs must be at least 1");
 
-    let is_down_sample = (sample > smoothness) as u64; // 1 if true, 0 if false
+    let is_down_sample = (sample > smoothness.as_u64()) as u64; // 1 if true, 0 if false
 
     // Prevent underflow by using saturating_sub, which ensures non-negative results
     let shift_amount = sample
         .trailing_zeros()
-        .saturating_sub(smoothness.trailing_zeros());
+        .saturating_sub(smoothness.as_u64().trailing_zeros()); // cmk0000000000
 
     let sample_out = sample >> (shift_amount * is_down_sample as u32); // Shift only if down sampling
     let step = sample / sample_out; // Always power of two
 
     // ✅ Debug assertions to validate correctness
     debug_assert!(
-        sample_out <= smoothness,
+        sample_out <= smoothness.as_u64(),
         "sample_out must not exceed smoothness"
     );
     debug_assert!(step.is_power_of_two(), "step must be a power of two");
@@ -1277,7 +1284,7 @@ fn compute_sample_step(sample: u64, smoothness: u64) -> (u64, u64) {
     );
 
     debug_assert!(
-        sample_out == sample.min(smoothness),
+        sample_out == sample.min(smoothness.as_u64()),
         "sample_out must be min(sample, smoothness)"
     );
     debug_assert!(
@@ -1286,6 +1293,27 @@ fn compute_sample_step(sample: u64, smoothness: u64) -> (u64, u64) {
     );
 
     (sample_out, step)
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Smoothness(u8);
+
+impl Smoothness {
+    #[inline]
+    pub fn new(value: u8) -> Self {
+        debug_assert!(value <= 63, "Value must be 63 or less");
+        Smoothness(value)
+    }
+
+    #[inline]
+    pub fn as_u64(self) -> u64 {
+        1 << self.0
+    }
+
+    #[inline]
+    pub fn as_u8(self) -> u8 {
+        self.0
+    }
 }
 
 #[cfg(test)]
@@ -1350,8 +1378,8 @@ mod tests {
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let x_smoothness: u64 = 1u64;
-        let y_smoothness: u64 = 1u64;
+        let x_smoothness: Smoothness = Smoothness::new(0);
+        let y_smoothness: Smoothness = Smoothness::new(0);
         let mut sample_space_time =
             SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness);
 
@@ -1403,11 +1431,16 @@ mod tests {
         let s = BB5_CHAMP;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let x_smoothness: u64 = 1u64;
-        let y_smoothness: u64 = 1u64;
+        let x_smoothness: Smoothness = Smoothness::new(0);
+        let y_smoothness: Smoothness = Smoothness::new(0);
         let n = 1_000_000;
-        let mut space_time_machine =
-            SpaceTimeMachine::from_str(s, goal_x, goal_y, x_smoothness, y_smoothness)?;
+        let mut space_time_machine = SpaceTimeMachine::from_str(
+            s,
+            goal_x,
+            goal_y,
+            x_smoothness.as_u8(),
+            y_smoothness.as_u8(),
+        )?;
 
         while space_time_machine.nth_js(n - 1) {
             println!(

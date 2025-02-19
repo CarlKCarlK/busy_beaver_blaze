@@ -1,16 +1,6 @@
-use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{
-    LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER, MAX_POWER_OF_TWO_U64,
-};
-use image::Rgba;
-use image::{imageops::FilterType, DynamicImage};
-use imageproc::drawing::draw_text_mut;
+use busy_beaver_blaze::{LogStepIterator, Smoothness, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
 use std::str::FromStr;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
-use thousands::Separable;
+use std::{fs, path::Path};
 
 #[derive(Debug)]
 enum Resolution {
@@ -76,7 +66,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let end_step = 18_349_821;
     let num_frames = 2;
 
-    let (max_x_2, max_y_2) = (2_u64.pow(x_smoothness), 2_u64.pow(y_smoothness));
+    let (max_x_2, max_y_2) = (
+        Smoothness::new(x_smoothness).as_u8(),
+        Smoothness::new(y_smoothness).as_u8(),
+    );
 
     let mut space_time_machine = match machine_name.as_str() {
         "bb5_champ" => SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_2, max_y_2)?,
