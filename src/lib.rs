@@ -877,7 +877,7 @@ impl Spacelines {
             .retain(|spaceline| fast_mod(spaceline.time, new_sample) == 0);
     }
 
-    fn last(&self, step_index: u64, y_sample: u64) -> Spaceline {
+    fn last(&self, step_index: u64, y_sample: u64, max_y_sample: u64) -> Spaceline {
         if self.buffer.is_empty() {
             // cmk00 would be nice to remove this clone
             return self.main.last().unwrap().clone();
@@ -890,22 +890,15 @@ impl Spacelines {
         let x_sample = buffer_last.sample;
         let last_inside_index = fast_mod(step_index, y_sample);
 
+        // cmk we have to clone because we compress in place (clone only half???)
         let mut buffer = self.buffer.clone();
-        // println!("cmk in last");
-        // for (i, spaceline) in buffer.iter().enumerate() {
-        //     println!("cmk spaceline {i} {spaceline:?}");
-        // }
-
-        // print len of buffer and inside_index and sample
-        // println!(
-        //     "cmk000 buffer len {}, last_inside_index {}, y_sample {} time {}",
-        //     buffer.len(),
-        //     last_inside_index,
-        //     y_sample,
-        //     time
-        // );
-
         for inside_index in last_inside_index + 1..y_sample {
+            let (_down_sample, down_step) = compute_sample_step(y_sample, max_y_sample);
+            if fast_mod(inside_index, down_step) != 0 {
+                continue; // cmk000 use step_by instead of this
+            }
+            let inside_inside_index = fast_div(inside_index, down_step);
+
             let empty = Spaceline {
                 sample: x_sample,
                 start,
@@ -913,7 +906,7 @@ impl Spacelines {
                 time: time + inside_index - last_inside_index,
                 max_sample: buffer_last.max_sample,
             };
-            Spacelines::push_internal(&mut buffer, inside_index, empty);
+            Spacelines::push_internal(&mut buffer, inside_inside_index, empty);
             // print inside_index and buffer len
             // println!(
             //     "cmk000 inside_index {}, buffer len {}",
@@ -939,7 +932,7 @@ impl Spacelines {
             let mut inside_inside = inside_index;
             loop {
                 // shift inside_index to the right
-                inside_inside >>= 1;
+                inside_inside >>= 1; // inside_inside /= 2;
                 if fast_is_even(inside_inside) {
                     break;
                 }
@@ -951,6 +944,7 @@ impl Spacelines {
         }
     }
 
+    #[inline]
     fn push(&mut self, inside_index: u64, spaceline: Spaceline) {
         Spacelines::push_internal(&mut self.buffer, inside_index, spaceline);
     }
@@ -1010,6 +1004,16 @@ impl SampledSpaceTime {
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
         let inside_index = fast_mod(self.step_index, self.sample);
+        if inside_index == 0 {
+            // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
+            self.spacelines.flush_buffer();
+            self.compress_if_needed();
+        }
+        let (_down_sample, down_step) = compute_sample_step(self.sample, self.max_y_sample);
+        if fast_mod(inside_index, down_step) != 0 {
+            return;
+        }
+        let inside_inside_index = fast_div(inside_index, down_step);
         let spaceline = Spaceline::new(
             &machine.tape,
             self.x_goal,
@@ -1017,17 +1021,13 @@ impl SampledSpaceTime {
             self.max_x_sample,
         );
 
-        if inside_index == 0 {
-            // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-            self.spacelines.flush_buffer();
-            self.compress_if_needed();
-        }
-
-        self.spacelines.push(inside_index, spaceline);
+        self.spacelines.push(inside_inside_index, spaceline);
     }
 
     fn to_png(&self) -> Result<Vec<u8>, Error> {
-        let last = self.spacelines.last(self.step_index, self.sample);
+        let last = self
+            .spacelines
+            .last(self.step_index, self.sample, self.max_y_sample);
         let x_sample: u64 = last.sample;
         let tape_width: u64 = last.pixels.len() as u64 * x_sample;
         let tape_min_index = last.start;
@@ -1240,6 +1240,19 @@ impl Iterator for LogStepIterator {
 }
 
 #[inline(always)]
+fn fast_div<T>(numerator: T, denominator: T) -> T
+where
+    T: PrimInt + Shr<u32, Output = T>, // Ensures integer behavior & right shift
+{
+    debug_assert!(
+        (denominator & (denominator - T::one())) == T::zero(),
+        "denominator must be a power of two"
+    );
+
+    numerator >> denominator.trailing_zeros()
+}
+
+#[inline(always)]
 fn fast_mod<T>(x: T, sample: T) -> T
 where
     T: Copy + std::ops::BitAnd<Output = T> + std::ops::Sub<Output = T> + From<u8> + PartialEq,
@@ -1266,7 +1279,13 @@ fn fast_rem_euclid(dividend: i64, divisor: u64) -> i64 {
     let remainder = dividend & mask;
     remainder + ((divisor as i64) & (remainder >> 63))
 }
-#[inline(always)]
+
+/// The function computes
+/// ```text
+/// sample_out = min(sample, max_sample)
+/// step = sample / sample_out
+/// ```
+// cmk0000#[inline(always)]
 fn compute_sample_step(sample: u64, max_sample: u64) -> (u64, u64) {
     debug_assert!(
         sample.is_power_of_two() && max_sample.is_power_of_two(),
@@ -1276,11 +1295,12 @@ fn compute_sample_step(sample: u64, max_sample: u64) -> (u64, u64) {
 
     let is_down_sample = (sample > max_sample) as u64; // 1 if true, 0 if false
 
-    // Corrected sample_out calculation
-    let sample_out =
-        sample >> (is_down_sample * (sample.trailing_zeros() - max_sample.trailing_zeros()) as u64);
+    // Prevent underflow by using saturating_sub, which ensures non-negative results
+    let shift_amount = sample
+        .trailing_zeros()
+        .saturating_sub(max_sample.trailing_zeros());
 
-    // Corrected step calculation
+    let sample_out = sample >> (shift_amount * is_down_sample as u32); // Shift only if down sampling
     let step = sample / sample_out; // Always power of two
 
     // ✅ Debug assertions to validate correctness
@@ -1294,20 +1314,16 @@ fn compute_sample_step(sample: u64, max_sample: u64) -> (u64, u64) {
         "step * sample_out must equal sample"
     );
 
-    (sample_out, step)
-}
-
-#[inline(always)]
-fn fast_div<T>(numerator: T, denominator: T) -> T
-where
-    T: PrimInt + Shr<u32, Output = T>, // Ensures integer behavior & right shift
-{
     debug_assert!(
-        (denominator & (denominator - T::one())) == T::zero(),
-        "denominator must be a power of two"
+        sample_out == sample.min(max_sample),
+        "sample_out must be min(sample, max_sample)"
+    );
+    debug_assert!(
+        step == sample / sample_out,
+        "step must be sample / sample_out"
     );
 
-    numerator >> denominator.trailing_zeros()
+    (sample_out, step)
 }
 
 #[cfg(test)]

@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (goal_x, goal_y) = resolution.dimensions();
 
     let max_x_sample = 1; // MAX_POWER_OF_TWO_U64; // cmk000
-    let max_y_sample = 1;
+    let max_y_sample = 4;
 
     let (up_x, up_y) = (goal_x, goal_y);
     let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) = match machine_name
