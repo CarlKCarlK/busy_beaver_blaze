@@ -59,11 +59,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(Resolution::Tiny); // cmk2K
     let (goal_x, goal_y) = resolution.dimensions();
 
-    let max_x_sample = std::env::args()
+    let x_smoothness = std::env::args()
         .nth(3)
         .and_then(|arg| arg.parse().ok())
         .unwrap_or(1);
-    let max_y_sample = std::env::args()
+    let y_smoothness = std::env::args()
         .nth(4)
         .and_then(|arg| arg.parse().ok())
         .unwrap_or(1);
@@ -74,19 +74,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         "bb5_champ" => {
             let machine =
-                SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_sample, max_y_sample)?;
+                SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, x_smoothness, y_smoothness)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb5_champ")?;
             (machine, 47_176_870, 1000, dir_info)
         }
         "bb6_contender" => {
             let machine =
-                SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_sample, max_y_sample)?;
+                SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, x_smoothness, y_smoothness)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")?;
             (machine, 1_000_000_000_000u64, 2000, dir_info)
         }
         "bb6_contender2" => {
             let machine =
-                SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_sample, max_y_sample)?;
+                SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, x_smoothness, y_smoothness)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender2")?;
             (machine, 1_000_000_000u64, 1000, dir_info)
         }
@@ -95,8 +95,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
                 up_x,
                 up_y,
-                max_x_sample,
-                max_y_sample,
+                x_smoothness,
+                y_smoothness,
             )?;
             let dir_info =
                 create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;

@@ -10,6 +10,8 @@ use std::str::FromStr;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 
+// cmk000 is the image size is a power of 2, then don't filter ???
+
 const BB2_CHAMP: &str = "
 	A	B
 0	1RB	1LA
@@ -592,18 +594,18 @@ struct Spaceline {
     start: i64,
     pixels: Vec<Pixel>,
     time: u64,
-    max_sample: u64,
+    smoothness: u64,
 }
 
 impl Spaceline {
     // cmk good name??
-    fn new0(max_sample: u64) -> Self {
+    fn new0(smoothness: u64) -> Self {
         Spaceline {
             sample: 1,
             start: 0,
             pixels: vec![PIXEL_WHITE; 1],
             time: 0,
-            max_sample,
+            smoothness,
         }
     }
 
@@ -649,7 +651,7 @@ impl Spaceline {
             "real assert d10"
         );
 
-        let (_down_sample, down_step) = compute_sample_step(sample, self.max_sample);
+        let (_down_sample, down_step) = compute_sample_step(sample, self.smoothness);
         // cmk000 let rel_sample = fast_div(down_step, self.sample);
         let pixel0 = Pixel::merge_slice_down_sample(
             &self.pixels[..old_items_to_use as usize],
@@ -736,7 +738,7 @@ impl Spaceline {
         self.sample = sample;
     }
 
-    fn new(tape: &Tape, x_goal: u32, step_index: u64, max_x_sample: u64) -> Self {
+    fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: u64) -> Self {
         // Sampling & Averaging 4 --
         let tape_width = tape.width();
         let tape_min_index = tape.min_index();
@@ -763,7 +765,7 @@ impl Spaceline {
 
             // cmk00 for now, we allocate on the heap. May want to special case down_sample==1 or use SmallVec for 0 to say 8.
 
-            let (down_sample, down_step) = compute_sample_step(x_sample, max_x_sample);
+            let (down_sample, down_step) = compute_sample_step(x_sample, x_smoothness);
             let mut pixel_range = vec![Pixel(0); down_sample as usize];
             for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
                 // Create a temporary vector to hold x_sample pixels.
@@ -781,7 +783,7 @@ impl Spaceline {
             start: sample_start,
             pixels,
             time: step_index,
-            max_sample: max_x_sample,
+            smoothness: x_smoothness,
         }
     }
 }
@@ -794,9 +796,9 @@ struct Spacelines {
 }
 
 impl Spacelines {
-    fn new(max_sample: u64) -> Self {
+    fn new(smoothness: u64) -> Self {
         Spacelines {
-            main: vec![Spaceline::new0(max_sample)],
+            main: vec![Spaceline::new0(smoothness)],
             buffer: Vec::new(),
         }
     }
@@ -847,7 +849,7 @@ impl Spacelines {
             .retain(|spaceline| fast_mod(spaceline.time, new_sample) == 0);
     }
 
-    fn last(&self, step_index: u64, y_sample: u64, max_y_sample: u64) -> Spaceline {
+    fn last(&self, step_index: u64, y_sample: u64, y_smoothness: u64) -> Spaceline {
         if self.buffer.is_empty() {
             // cmk00 would be nice to remove this clone
             return self.main.last().unwrap().clone();
@@ -863,7 +865,7 @@ impl Spacelines {
         // cmk we have to clone because we compress in place (clone only half???)
         let mut buffer = self.buffer.clone();
         for inside_index in last_inside_index + 1..y_sample {
-            let (_down_sample, down_step) = compute_sample_step(y_sample, max_y_sample);
+            let (_down_sample, down_step) = compute_sample_step(y_sample, y_smoothness);
             if fast_mod(inside_index, down_step) != 0 {
                 continue; // cmk00 use step_by instead of this
             }
@@ -874,7 +876,7 @@ impl Spacelines {
                 start,
                 pixels: vec![PIXEL_WHITE; buffer_last.pixels.len()],
                 time: time + inside_index - last_inside_index,
-                max_sample: buffer_last.max_sample,
+                smoothness: buffer_last.smoothness,
             };
             Spacelines::push_internal(&mut buffer, inside_inside_index, empty);
         }
@@ -920,23 +922,23 @@ pub struct SampledSpaceTime {
     y_goal: u32,
     sample: u64,
     spacelines: Spacelines,
-    max_x_sample: u64,
-    max_y_sample: u64,
+    x_smoothness: u64,
+    y_smoothness: u64,
 }
 
 /// Create a new in which you give the x_goal (space)
 /// and the y_goal (time). The sample starts at 1 and
 /// inner is a vector of one spaceline
 impl SampledSpaceTime {
-    pub fn new(x_goal: u32, y_goal: u32, max_x_sample: u64, max_y_sample: u64) -> Self {
+    pub fn new(x_goal: u32, y_goal: u32, x_smoothness: u64, y_smoothness: u64) -> Self {
         SampledSpaceTime {
             step_index: 0,
             x_goal,
             y_goal,
             sample: 1,
-            spacelines: Spacelines::new(max_x_sample),
-            max_x_sample,
-            max_y_sample,
+            spacelines: Spacelines::new(x_smoothness),
+            x_smoothness,
+            y_smoothness,
         }
     }
 
@@ -949,7 +951,7 @@ impl SampledSpaceTime {
         if new_sample != self.sample {
             assert!(new_sample == self.sample * 2, "real assert 10");
             self.sample = new_sample;
-            if new_sample <= self.max_y_sample {
+            if new_sample <= self.y_smoothness {
                 self.spacelines.compress_average();
             } else {
                 self.spacelines.compress_take_first(new_sample);
@@ -973,7 +975,7 @@ impl SampledSpaceTime {
             self.spacelines.flush_buffer();
             self.compress_if_needed();
         }
-        let (_down_sample, down_step) = compute_sample_step(self.sample, self.max_y_sample);
+        let (_down_sample, down_step) = compute_sample_step(self.sample, self.y_smoothness);
         if fast_mod(inside_index, down_step) != 0 {
             return;
         }
@@ -982,7 +984,7 @@ impl SampledSpaceTime {
             &machine.tape,
             self.x_goal,
             self.step_index,
-            self.max_x_sample,
+            self.x_smoothness,
         );
 
         self.spacelines.push(inside_inside_index, spaceline);
@@ -991,7 +993,7 @@ impl SampledSpaceTime {
     fn to_png(&self) -> Result<Vec<u8>, Error> {
         let last = self
             .spacelines
-            .last(self.step_index, self.sample, self.max_y_sample);
+            .last(self.step_index, self.sample, self.y_smoothness);
         let x_sample: u64 = last.sample;
         let tape_width: u64 = last.pixels.len() as u64 * x_sample;
         let tape_min_index = last.start;
@@ -1110,12 +1112,12 @@ impl SpaceTimeMachine {
         s: &str,
         goal_x: u32,
         goal_y: u32,
-        max_x_sample: u64,
-        max_y_sample: u64,
+        x_smoothness: u64,
+        y_smoothness: u64,
     ) -> Result<SpaceTimeMachine, String> {
         Ok(SpaceTimeMachine {
             machine: Machine::from_string(s)?,
-            space_time: SampledSpaceTime::new(goal_x, goal_y, max_x_sample, max_y_sample),
+            space_time: SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness),
         })
     }
 
@@ -1242,31 +1244,31 @@ fn fast_rem_euclid(dividend: i64, divisor: u64) -> i64 {
 
 /// The function computes
 /// ```text
-/// sample_out = min(sample, max_sample)
+/// sample_out = min(sample, smoothness)
 /// step = sample / sample_out
 /// ```
 #[inline(always)]
-fn compute_sample_step(sample: u64, max_sample: u64) -> (u64, u64) {
+fn compute_sample_step(sample: u64, smoothness: u64) -> (u64, u64) {
     debug_assert!(
-        sample.is_power_of_two() && max_sample.is_power_of_two(),
+        sample.is_power_of_two() && smoothness.is_power_of_two(),
         "Inputs must be powers of two"
     );
-    debug_assert!(sample >= 1 && max_sample >= 1, "Inputs must be at least 1");
+    debug_assert!(sample >= 1 && smoothness >= 1, "Inputs must be at least 1");
 
-    let is_down_sample = (sample > max_sample) as u64; // 1 if true, 0 if false
+    let is_down_sample = (sample > smoothness) as u64; // 1 if true, 0 if false
 
     // Prevent underflow by using saturating_sub, which ensures non-negative results
     let shift_amount = sample
         .trailing_zeros()
-        .saturating_sub(max_sample.trailing_zeros());
+        .saturating_sub(smoothness.trailing_zeros());
 
     let sample_out = sample >> (shift_amount * is_down_sample as u32); // Shift only if down sampling
     let step = sample / sample_out; // Always power of two
 
     // ✅ Debug assertions to validate correctness
     debug_assert!(
-        sample_out <= max_sample,
-        "sample_out must not exceed max_sample"
+        sample_out <= smoothness,
+        "sample_out must not exceed smoothness"
     );
     debug_assert!(step.is_power_of_two(), "step must be a power of two");
     debug_assert!(
@@ -1275,8 +1277,8 @@ fn compute_sample_step(sample: u64, max_sample: u64) -> (u64, u64) {
     );
 
     debug_assert!(
-        sample_out == sample.min(max_sample),
-        "sample_out must be min(sample, max_sample)"
+        sample_out == sample.min(smoothness),
+        "sample_out must be min(sample, smoothness)"
     );
     debug_assert!(
         step == sample / sample_out,
@@ -1348,10 +1350,10 @@ mod tests {
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let max_x_sample: u64 = 1u64;
-        let max_y_sample: u64 = 1u64;
+        let x_smoothness: u64 = 1u64;
+        let y_smoothness: u64 = 1u64;
         let mut sample_space_time =
-            SampledSpaceTime::new(goal_x, goal_y, max_x_sample, max_y_sample);
+            SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness);
 
         let early_stop = Some(10_500_000);
         // let early_stop = Some(1_000_000);
@@ -1401,11 +1403,11 @@ mod tests {
         let s = BB5_CHAMP;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let max_x_sample: u64 = 1u64;
-        let max_y_sample: u64 = 1u64;
+        let x_smoothness: u64 = 1u64;
+        let y_smoothness: u64 = 1u64;
         let n = 1_000_000;
         let mut space_time_machine =
-            SpaceTimeMachine::from_str(s, goal_x, goal_y, max_x_sample, max_y_sample)?;
+            SpaceTimeMachine::from_str(s, goal_x, goal_y, x_smoothness, y_smoothness)?;
 
         while space_time_machine.nth_js(n - 1) {
             println!(

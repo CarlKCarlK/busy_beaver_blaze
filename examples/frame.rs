@@ -59,11 +59,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(Resolution::Tiny); // cmk2K
     let (goal_x, goal_y) = resolution.dimensions();
 
-    let max_x_sample = std::env::args()
+    let x_smoothness = std::env::args()
         .nth(3)
         .and_then(|arg| arg.parse().ok())
         .unwrap_or(1);
-    let max_y_sample = std::env::args()
+    let y_smoothness = std::env::args()
         .nth(4)
         .and_then(|arg| arg.parse().ok())
         .unwrap_or(1);
@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let end_step = 18_349_821;
     let num_frames = 2;
 
-    let (max_x_2, max_y_2) = (2_u64.pow(max_x_sample), 2_u64.pow(max_y_sample));
+    let (max_x_2, max_y_2) = (2_u64.pow(x_smoothness), 2_u64.pow(y_smoothness));
 
     let mut space_time_machine = match machine_name.as_str() {
         "bb5_champ" => SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_2, max_y_2)?,
@@ -107,7 +107,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
         let f = format!(
-            r"m:\deldir\bb\frame\{run_id}\{machine_name}_{resolution:?}_{max_x_sample}_{max_y_sample}_{goal_step_index}_{:?}.png",
+            r"m:\deldir\bb\frame\{run_id}\{machine_name}_{resolution:?}_{x_smoothness}_{y_smoothness}_{goal_step_index}_{:?}.png",
             start.elapsed()
         );
         let out_info = Path::new(f.as_str());
