@@ -59,39 +59,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(Resolution::Tiny); // cmk2K
     let (goal_x, goal_y) = resolution.dimensions();
 
-    let max_x_sample = 2; // MAX_POWER_OF_TWO_U64; // cmk000
+    let max_x_sample = 1; // MAX_POWER_OF_TWO_U64; // cmk000
+    let max_y_sample = 1;
 
     let (up_x, up_y) = (goal_x, goal_y);
-    let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) =
-        match machine_name.as_str() {
-            "bb5_champ" => {
-                let machine = SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_sample)?;
-                let dir_info = create_sequential_subdir(r"m:\deldir\bb5_champ")?;
-                (machine, 47_176_870, 1000, dir_info)
-            }
-            "bb6_contender" => {
-                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_sample)?;
-                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")?;
-                (machine, 1_000_000_000_000u64, 2000, dir_info)
-            }
-            "bb6_contender2" => {
-                let machine = SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_sample)?;
-                let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender2")?;
-                (machine, 1_000_000_000u64, 1000, dir_info)
-            }
-            "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
-                let machine = SpaceTimeMachine::from_str(
-                    "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
-                    up_x,
-                    up_y,
-                    max_x_sample,
-                )?;
-                let dir_info =
-                    create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
-                (machine, 1_000_000_000u64, 1000, dir_info)
-            }
-            _ => Err(format!("Unknown machine: {}", machine_name))?,
-        };
+    let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) = match machine_name
+        .as_str()
+    {
+        "bb5_champ" => {
+            let machine =
+                SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_sample, max_y_sample)?;
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb5_champ")?;
+            (machine, 47_176_870, 1000, dir_info)
+        }
+        "bb6_contender" => {
+            let machine =
+                SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_sample, max_y_sample)?;
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")?;
+            (machine, 1_000_000_000_000u64, 2000, dir_info)
+        }
+        "bb6_contender2" => {
+            let machine =
+                SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_sample, max_y_sample)?;
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender2")?;
+            (machine, 1_000_000_000u64, 1000, dir_info)
+        }
+        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
+            let machine = SpaceTimeMachine::from_str(
+                "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
+                up_x,
+                up_y,
+                max_x_sample,
+                max_y_sample,
+            )?;
+            let dir_info =
+                create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
+            (machine, 1_000_000_000u64, 1000, dir_info)
+        }
+        _ => Err(format!("Unknown machine: {}", machine_name))?,
+    };
 
     println!(
         "Using machine: {} with output in {:?}",

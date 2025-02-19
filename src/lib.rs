@@ -629,10 +629,10 @@ impl Spaceline {
         if sample == self.sample {
             return;
         }
-        println!(
-            "cmk resample_if_needed new sample {}, start is {}",
-            sample, self.start
-        );
+        // println!(
+        //     "cmk resample_if_needed new sample {}, start is {}",
+        //     sample, self.start
+        // );
 
         let cells_to_add = fast_rem_euclid(self.start, sample);
         let new_start = self.start - cells_to_add;
@@ -643,11 +643,11 @@ impl Spaceline {
             "real assert 12"
         );
         let old_items_to_use = old_items_per_new - old_items_to_add;
-        println!(
-            "cmk old_items_to_use {}, pixel.len {}",
-            old_items_to_use,
-            self.pixels.len()
-        );
+        // println!(
+        //     "cmk old_items_to_use {}, pixel.len {}",
+        //     old_items_to_use,
+        //     self.pixels.len()
+        // );
         assert!(
             old_items_to_use <= self.pixels.len() as i64,
             "real assert d10"
@@ -850,13 +850,11 @@ impl Spacelines {
         }
     }
 
-    fn compress(&mut self) {
-        // Sampling & Averaging 1--
-        // We sometimes need to squeeze rows by averaging adjacent pairs of rows.
-        // The alternative is just to keep the 1st row and discard the 2nd row.
-
+    #[inline]
+    fn compress_average(&mut self) {
         assert!(self.buffer.is_empty(), "real assert b2");
         assert!(fast_is_even(self.main.len()), "real assert 11");
+        println!("cmk compress_average");
 
         self.main = self
             .main
@@ -868,6 +866,15 @@ impl Spacelines {
                 a
             })
             .collect();
+    }
+
+    #[inline]
+    fn compress_take_first(&mut self, new_sample: u64) {
+        assert!(self.buffer.is_empty(), "real assert e2");
+        assert!(fast_is_even(self.main.len()), "real assert e11");
+        println!("cmk compress_take_first");
+        self.main
+            .retain(|spaceline| fast_mod(spaceline.time, new_sample) == 0);
     }
 
     fn last(&self, step_index: u64, y_sample: u64) -> Spaceline {
@@ -956,13 +963,14 @@ pub struct SampledSpaceTime {
     sample: u64,
     spacelines: Spacelines,
     max_x_sample: u64,
+    max_y_sample: u64,
 }
 
 /// Create a new in which you give the x_goal (space)
 /// and the y_goal (time). The sample starts at 1 and
 /// inner is a vector of one spaceline
 impl SampledSpaceTime {
-    pub fn new(x_goal: u32, y_goal: u32, max_x_sample: u64) -> Self {
+    pub fn new(x_goal: u32, y_goal: u32, max_x_sample: u64, max_y_sample: u64) -> Self {
         SampledSpaceTime {
             step_index: 0,
             x_goal,
@@ -970,15 +978,24 @@ impl SampledSpaceTime {
             sample: 1,
             spacelines: Spacelines::new(max_x_sample),
             max_x_sample,
+            max_y_sample,
         }
     }
 
     fn compress_if_needed(&mut self) {
+        // Sampling & Averaging 1--
+        // We sometimes need to squeeze rows by averaging adjacent pairs of rows.
+        // The alternative is just to keep the 1st row and discard the 2nd row.
+
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.sample {
             assert!(new_sample == self.sample * 2, "real assert 10");
             self.sample = new_sample;
-            self.spacelines.compress();
+            if new_sample <= self.max_y_sample {
+                self.spacelines.compress_average();
+            } else {
+                self.spacelines.compress_take_first(new_sample);
+            }
         }
     }
 
@@ -1134,10 +1151,11 @@ impl SpaceTimeMachine {
         goal_x: u32,
         goal_y: u32,
         max_x_sample: u64,
+        max_y_sample: u64,
     ) -> Result<SpaceTimeMachine, String> {
         Ok(SpaceTimeMachine {
             machine: Machine::from_string(s)?,
-            space_time: SampledSpaceTime::new(goal_x, goal_y, max_x_sample),
+            space_time: SampledSpaceTime::new(goal_x, goal_y, max_x_sample, max_y_sample),
         })
     }
 
@@ -1355,7 +1373,9 @@ mod tests {
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
         let max_x_sample: u64 = 1u64;
-        let mut sample_space_time = SampledSpaceTime::new(goal_x, goal_y, max_x_sample);
+        let max_y_sample: u64 = 1u64;
+        let mut sample_space_time =
+            SampledSpaceTime::new(goal_x, goal_y, max_x_sample, max_y_sample);
 
         let early_stop = Some(10_500_000);
         // let early_stop = Some(1_000_000);
@@ -1406,8 +1426,10 @@ mod tests {
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
         let max_x_sample: u64 = 1u64;
+        let max_y_sample: u64 = 1u64;
         let n = 1_000_000;
-        let mut space_time_machine = SpaceTimeMachine::from_str(s, goal_x, goal_y, max_x_sample)?;
+        let mut space_time_machine =
+            SpaceTimeMachine::from_str(s, goal_x, goal_y, max_x_sample, max_y_sample)?;
 
         while space_time_machine.nth_js(n - 1) {
             println!(
