@@ -36,4 +36,5 @@ cargo run --example movie --release bb5_champ 2K
 
 ```bash
 cargo run --example movie --release bb5_champ tiny
+cargo run --example frame --release bb5_champ 2k 1 1 0
 ```
