@@ -547,15 +547,14 @@ impl Pixel {
 
     // cmk00speed
     fn merge_slice_down_sample(slice: &[Self], empty_count: i64, down_step: u64) -> Self {
-        // cmk0000 change these to debug_assert
-        if fast_mod(slice.len() as u64 + empty_count as u64, down_step) as usize != 0 {
-            println!("real assert d1 {slice:?}+{empty_count} down_step={down_step}");
-        }
-        assert!(
+        // if fast_mod(slice.len() as u64 + empty_count as u64, down_step) as usize != 0 {
+        //     println!("real assert d1 {slice:?}+{empty_count} down_step={down_step}");
+        // }
+        debug_assert!(
             fast_mod(slice.len() as u64 + empty_count as u64, down_step) as usize == 0,
             "real assert d1"
         );
-        assert!(
+        debug_assert!(
             down_step.is_power_of_two() && down_step > 0,
             "real assert d3"
         );
@@ -566,9 +565,6 @@ impl Pixel {
         let count = fast_div(slice.len() + empty_count as usize, down_step as usize);
         debug_assert!(count.is_power_of_two(), "Count must be a power of two");
         let mean = fast_div(sum as usize, count) as u8;
-        // if down_step > 1 {
-        //     println!("cmk merge_slice_down_sample {slice:?}+{empty_count} down_step={down_step} mean {mean} count {count} sum {sum}");
-        // }
         Pixel(mean)
     }
 
@@ -653,17 +649,12 @@ impl Spaceline {
             "real assert d10"
         );
 
-        let (down_sample, down_step) = compute_sample_step(sample, self.max_sample);
-        let rel_sample = fast_div(down_step, self.sample);
-        println!(
-            "cmk input: {sample}, {}, output: {down_sample}, {down_step} rel_sample {rel_sample}",
-            self.max_sample
-        );
-
+        let (_down_sample, down_step) = compute_sample_step(sample, self.max_sample);
+        // cmk000 let rel_sample = fast_div(down_step, self.sample);
         let pixel0 = Pixel::merge_slice_down_sample(
             &self.pixels[..old_items_to_use as usize],
             old_items_to_add,
-            rel_sample,
+            down_step,
         );
 
         let mut new_index = 0usize;
@@ -677,7 +668,7 @@ impl Spaceline {
             let slice = &self.pixels[old_index as usize..old_end as usize];
             let old_items_to_add = old_items_per_new - (old_end - old_index);
             self.pixels[new_index] =
-                Pixel::merge_slice_down_sample(slice, old_items_to_add, rel_sample);
+                Pixel::merge_slice_down_sample(slice, old_items_to_add, down_step);
             new_index += 1;
         }
 
@@ -770,7 +761,7 @@ impl Spaceline {
         } else {
             // For x_sample > 1, process as before.
 
-            // cmk0000 for now, we allocate on the heap. May want to special case down_sample==1 or use SmallVec for 0 to say 8.
+            // cmk00 for now, we allocate on the heap. May want to special case down_sample==1 or use SmallVec for 0 to say 8.
 
             let (down_sample, down_step) = compute_sample_step(x_sample, max_x_sample);
             let mut pixel_range = vec![Pixel(0); down_sample as usize];
@@ -797,31 +788,10 @@ impl Spaceline {
 
 pub const MAX_POWER_OF_TWO_U64: u64 = 1 << 63; // cmk good name?
 
-// impl Default for Spaceline {
-//     fn default() -> Self {
-//         Spaceline {
-//             sample: 1,
-//             start: 0,
-//             pixels: vec![PIXEL_WHITE; 1],
-//             time: 0,
-//             max_sample: MAX_POWER_OF_TWO_U64, // cmk00000 is this a good default or is 1 better?
-//         }
-//     }
-// }
-
 struct Spacelines {
     main: Vec<Spaceline>,
     buffer: Vec<Spaceline>,
 }
-
-// impl Default for Spacelines {
-//     fn default() -> Self {
-//         Spacelines {
-//             main: vec![Spaceline::default()],
-//             buffer: Vec::new(),
-//         }
-//     }
-// }
 
 impl Spacelines {
     fn new(max_sample: u64) -> Self {
@@ -843,7 +813,7 @@ impl Spacelines {
     }
 
     fn flush_buffer(&mut self) {
-        // cmk0000 we now have a buffer that needs to be flushed at the end
+        // We now have a buffer that needs to be flushed at the end
         if !self.buffer.is_empty() {
             assert!(self.buffer.len() == 1, "real assert 13");
             self.main.push(self.buffer.pop().unwrap());
@@ -854,7 +824,7 @@ impl Spacelines {
     fn compress_average(&mut self) {
         assert!(self.buffer.is_empty(), "real assert b2");
         assert!(fast_is_even(self.main.len()), "real assert 11");
-        println!("cmk compress_average");
+        // println!("cmk compress_average");
 
         self.main = self
             .main
@@ -872,7 +842,7 @@ impl Spacelines {
     fn compress_take_first(&mut self, new_sample: u64) {
         assert!(self.buffer.is_empty(), "real assert e2");
         assert!(fast_is_even(self.main.len()), "real assert e11");
-        println!("cmk compress_take_first");
+        // println!("cmk compress_take_first");
         self.main
             .retain(|spaceline| fast_mod(spaceline.time, new_sample) == 0);
     }
@@ -895,7 +865,7 @@ impl Spacelines {
         for inside_index in last_inside_index + 1..y_sample {
             let (_down_sample, down_step) = compute_sample_step(y_sample, max_y_sample);
             if fast_mod(inside_index, down_step) != 0 {
-                continue; // cmk000 use step_by instead of this
+                continue; // cmk00 use step_by instead of this
             }
             let inside_inside_index = fast_div(inside_index, down_step);
 
@@ -907,12 +877,6 @@ impl Spacelines {
                 max_sample: buffer_last.max_sample,
             };
             Spacelines::push_internal(&mut buffer, inside_inside_index, empty);
-            // print inside_index and buffer len
-            // println!(
-            //     "cmk000 inside_index {}, buffer len {}",
-            //     inside_index,
-            //     buffer.len()
-            // );
         }
         assert!(buffer.len() == 1, "real assert b3");
         buffer.pop().unwrap()
@@ -1039,10 +1003,6 @@ impl SampledSpaceTime {
 
         for y in 0..y_actual {
             let spaceline = &self.spacelines.get(y as usize, &last);
-            if y == y_actual - 1 {
-                // We need to fold in the buffer without modifying it.
-                // cmk000
-            }
             let local_start = spaceline.start;
             let local_sample = spaceline.sample;
             let rel_sample = x_sample / local_sample;
@@ -1067,7 +1027,7 @@ impl SampledSpaceTime {
                             .unwrap_or(PIXEL_WHITE)
                     })
                     .collect::<Vec<_>>();
-                // cmk000 look at putting this back in
+                // cmk look at putting this back in
                 // if local_spaceline_index >= spaceline.pixels.len() as i64 {
                 //     break;
                 // }
@@ -1285,7 +1245,7 @@ fn fast_rem_euclid(dividend: i64, divisor: u64) -> i64 {
 /// sample_out = min(sample, max_sample)
 /// step = sample / sample_out
 /// ```
-// cmk0000#[inline(always)]
+#[inline(always)]
 fn compute_sample_step(sample: u64, max_sample: u64) -> (u64, u64) {
     debug_assert!(
         sample.is_power_of_two() && max_sample.is_power_of_two(),
