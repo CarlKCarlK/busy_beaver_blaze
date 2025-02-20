@@ -1,10 +1,9 @@
-use core::{fmt, panic};
+use core::fmt;
+use core::str::FromStr;
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
-#[cfg(not(target_arch = "wasm32"))]
-use std::str::FromStr;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 
@@ -12,18 +11,18 @@ use wasm_bindgen::prelude::*;
 // cmk0 see if can remove more as_u64()'s
 // cmk0000000 rename Smoothness
 
-const BB2_CHAMP: &str = "
+pub const BB2_CHAMP: &str = "
 	A	B
 0	1RB	1LA
 1	1LB	1RH
 ";
 
-const BB3_CHAMP: &str = "
+pub const BB3_CHAMP: &str = "
 	A	B	C
 0	1RB	0RC	1LC
 1	1RH	1RB	1LA
 ";
-const BB4_CHAMP: &str = "
+pub const BB4_CHAMP: &str = "
 	A	B	C	D
 0	1RB	1LA	1RH	1RD
 1	1LB	0LC	1LD	0RA
@@ -41,7 +40,7 @@ pub const BB6_CONTENDER: &str = "
 1	0LD	0RF	1LA	1RH	0RB	0RE
 ";
 
-const Machine_7_135_505_A: &str = "   
+pub const MACHINE_7_135_505_A: &str = "   
 0	1
 A	1RB	0LD
 B	1RC	---
@@ -49,7 +48,7 @@ C	1LD	1RA
 D	1RE	1LC
 E	0LA	0RE
 ";
-const Machine_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
+pub const MACHINE_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
 
 #[derive(Default, Debug)]
 struct Tape {
@@ -98,7 +97,8 @@ impl Tape {
             .sum()
     }
 
-    fn index_range_to_string(&self, range: std::ops::RangeInclusive<i64>) -> String {
+    #[cfg(test)]
+    pub fn index_range_to_string(&self, range: std::ops::RangeInclusive<i64>) -> String {
         let mut s = String::new();
         for i in range {
             s.push_str(&self.read(i).to_string());
@@ -210,7 +210,7 @@ impl Iterator for Machine {
 #[derive(Debug)]
 struct Program {
     state_count: u8,
-    symbol_count: u8,
+    // symbol_count: u8,
     state_to_symbol_to_action: Vec<Vec<Action>>,
 }
 
@@ -334,7 +334,7 @@ impl Program {
 
         Ok(Program {
             state_count,
-            symbol_count,
+            // symbol_count,
             state_to_symbol_to_action,
         })
     }
@@ -381,7 +381,7 @@ impl Program {
 
         Ok(Program {
             state_count,
-            symbol_count,
+            // symbol_count,
             state_to_symbol_to_action,
         })
     }
@@ -452,7 +452,7 @@ impl Program {
 
         Ok(Program {
             state_count: state_count as u8,
-            symbol_count: symbol_count as u8,
+            // symbol_count: symbol_count as u8,
             state_to_symbol_to_action,
         })
     }
@@ -647,7 +647,7 @@ impl Spaceline {
         for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
             let slice = &self.pixels[old_index as usize..old_end as usize];
-            let old_items_to_add = (old_items_per_new_u64 - (old_end - old_index)) as u64;
+            let old_items_to_add = old_items_per_new_u64 - (old_end - old_index);
             self.pixels[new_index] =
                 Pixel::merge_slice_down_sample(slice, old_items_to_add, down_step);
             new_index += 1;
@@ -1490,8 +1490,8 @@ mod tests {
     #[wasm_bindgen_test]
     #[test]
     fn machine_7_135_505() -> Result<(), Error> {
-        let _machine_a: Machine = Machine_7_135_505_A.parse()?;
-        let _machine_b: Machine = Machine_7_135_505_B.parse()?;
+        let _machine_a: Machine = MACHINE_7_135_505_A.parse()?;
+        let _machine_b: Machine = MACHINE_7_135_505_B.parse()?;
         Ok(())
     }
 

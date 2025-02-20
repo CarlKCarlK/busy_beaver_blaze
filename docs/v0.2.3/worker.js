@@ -5,10 +5,10 @@ let wasmReady = init();
 self.onmessage = async function (e) {
     try {
         await wasmReady;
-        const { programText, goal_x, goal_y, early_stop } = e.data;
+        const { programText, goal_x, goal_y, early_stop, x_smoothness, y_smoothness } = e.data;
 
         try {
-            const space_time_machine = new SpaceTimeMachine(programText, goal_x, goal_y);
+            const space_time_machine = new SpaceTimeMachine(programText, goal_x, goal_y, x_smoothness, y_smoothness);
             const CHUNK_SIZE = 10000000n;
             let total_steps = 1n;  // Start at 1 since first step is already taken
 

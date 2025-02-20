@@ -71,9 +71,13 @@
                 Width: <input type="number" id="customWidth" value="360" min="100" max="2000">
                 Height: <input type="number" id="customHeight" value="432" min="100" max="2000">
             </span>
-            <label style="margin-left: 1em;">
+            <label style="margin-left: 0.5em;">
                 <input type="checkbox" id="stretchImage" checked>
-                Stretch Image
+                Stretch?
+            </label>
+            <label style="margin-left: 0.5em;">
+                Smooth:
+                <input type="number" id="smoothness" value="0" min="0" max="63" style="width: 4em;">
             </label>
         </div>
         <button id="runButton">Run</button>
@@ -133,6 +137,9 @@
             const stretchImage = document.getElementById('stretchImage');
             if (!stretchImage.checked) params.set('stretch', 'false');
 
+            const smoothness = document.getElementById('smoothness');
+            if (smoothness.value !== '0') params.set('smoothness', smoothness.value);
+
             // Update URL without reloading
             window.location.hash = params.toString();
         }
@@ -168,6 +175,10 @@
             
             if (params.has('stretch')) {
                 document.getElementById('stretchImage').checked = params.get('stretch') === 'true';
+            }
+
+            if (params.has('smoothness')) {
+                document.getElementById('smoothness').value = params.get('smoothness');
             }
 
             // Return whether we should auto-run
@@ -337,7 +348,9 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                             programText: textarea.value,
                             goal_x,
                             goal_y,
-                            early_stop
+                            early_stop,
+                            x_smoothness: parseInt(document.getElementById('smoothness').value),
+                            y_smoothness: parseInt(document.getElementById('smoothness').value)
                         });
                     });
 
