@@ -548,23 +548,22 @@ impl Pixel {
     }
 
     // cmk00speed
-    fn merge_slice_down_sample(slice: &[Self], empty_count: i64, down_step: u64) -> Self {
+    fn merge_slice_down_sample(slice: &[Self], empty_count: i64, down_step: Smoothness) -> Self {
         // if fast_mod(slice.len() as u64 + empty_count as u64, down_step) as usize != 0 {
         //     println!("real assert d1 {slice:?}+{empty_count} down_step={down_step}");
         // }
         debug_assert!(
-            fast_mod(slice.len() as u64 + empty_count as u64, down_step) as usize == 0,
+            fast_mod(slice.len() as u64 + empty_count as u64, down_step.as_u64()) as usize == 0,
             "real assert d1"
         );
-        debug_assert!(
-            down_step.is_power_of_two() && down_step > 0,
-            "real assert d3"
-        );
         let mut sum: u32 = 0;
-        for i in (0..slice.len()).step_by(down_step as usize) {
+        for i in (0..slice.len()).step_by(down_step.as_u64() as usize) {
             sum += slice[i].0 as u32;
         }
-        let count = fast_div(slice.len() + empty_count as usize, down_step as usize);
+        let count = fast_div(
+            slice.len() + empty_count as usize,
+            down_step.as_u64() as usize,
+        );
         debug_assert!(count.is_power_of_two(), "Count must be a power of two");
         let mean = fast_div(sum as usize, count) as u8;
         Pixel(mean)
@@ -590,7 +589,7 @@ const PIXEL_WHITE: Pixel = Pixel(0);
 
 #[derive(Clone, Debug)]
 struct Spaceline {
-    sample: u64,
+    sample: Smoothness,
     start: i64,
     pixels: Vec<Pixel>,
     time: u64,
@@ -601,7 +600,7 @@ impl Spaceline {
     // cmk good name??
     fn new0(smoothness: Smoothness) -> Self {
         Spaceline {
-            sample: 1,
+            sample: SMOOTHNESS_0,
             start: 0,
             pixels: vec![PIXEL_WHITE; 1],
             time: 0,
@@ -609,33 +608,23 @@ impl Spaceline {
         }
     }
 
-    fn resample_if_needed(&mut self, sample: u64) {
+    fn resample_if_needed(&mut self, sample: Smoothness) {
         // Sampling & Averaging 2 --
         // When we merge rows, we sometimes need to squeeze the earlier row to
         // have the same sample rate as the later row.
 
         assert!(!self.pixels.is_empty(), "real assert a");
         assert!(
-            self.sample.is_power_of_two(),
-            "self.sample must be a power of two"
-        );
-        assert!(sample.is_power_of_two(), "Sample must be a power of two");
-        assert!(
-            fast_mod(self.start, self.sample as i64) == 0,
+            fast_mod(self.start, self.sample.as_u64() as i64) == 0,
             "Start must be a multiple of the sample rate",
         );
         if sample == self.sample {
             return;
         }
-        // println!(
-        //     "cmk resample_if_needed new sample {}, start is {}",
-        //     sample, self.start
-        // );
-
-        let cells_to_add = fast_rem_euclid(self.start, sample);
+        let cells_to_add = fast_rem_euclid(self.start, sample.as_u64());
         let new_start = self.start - cells_to_add;
-        let old_items_to_add = cells_to_add / self.sample as i64;
-        let old_items_per_new = (sample / self.sample) as i64;
+        let old_items_to_add = fast_div(cells_to_add, self.sample.as_u64() as i64);
+        let old_items_per_new = fast_div(sample.as_u64(), self.sample.as_u64()) as i64;
         assert!(
             sample >= self.sample && (old_items_per_new as u64).is_power_of_two(),
             "real assert 12"
@@ -682,7 +671,7 @@ impl Spaceline {
 
     fn merge(&mut self, other: Spaceline) {
         assert!(
-            fast_mod(other.start, other.sample as i64) == 0,
+            fast_mod(other.start, other.sample.as_u64() as i64) == 0,
             "real assert 6d"
         );
         assert!(self.time < other.time, "real assert 2");
@@ -699,13 +688,13 @@ impl Spaceline {
         assert!(self.sample == sample, "real assert 5");
         assert!(self.start >= start, "real assert 6");
         assert!(
-            fast_mod(start - self.start, sample as i64) == 0,
+            fast_mod(start - self.start, sample.as_u64() as i64) == 0,
             "real assert 7"
         );
-        let self_end = self.start + self.pixels.len() as i64 * sample as i64;
-        let end = start + values.len() as i64 * sample as i64;
+        let self_end = self.start + self.pixels.len() as i64 * sample.as_u64() as i64;
+        let end = start + values.len() as i64 * sample.as_u64() as i64;
         assert!(
-            fast_mod(self_end - end, sample as i64) == 0,
+            fast_mod(self_end - end, sample.as_u64() as i64) == 0,
             "real assert 8"
         );
         assert!(self_end <= end, "real assert 9");
@@ -713,7 +702,7 @@ impl Spaceline {
         let mut index = 0;
         // everything before self.start should get merged with merged with white
         // cmk00speed
-        for _ in (start..self.start).step_by(sample as usize) {
+        for _ in (start..self.start).step_by(sample.as_u64() as usize) {
             values[index].merge_with_white();
             index += 1;
         }
@@ -745,16 +734,16 @@ impl Spaceline {
         let tape_max_index = tape.max_index();
         let x_sample = sample_rate(tape_width, x_goal);
 
-        let sample_start: i64 = tape_min_index - fast_rem_euclid(tape_min_index, x_sample);
+        let sample_start: i64 = tape_min_index - fast_rem_euclid(tape_min_index, x_sample.as_u64());
         assert!(
             sample_start <= tape_min_index
-                && fast_mod(sample_start, x_sample as i64) == 0
-                && tape_min_index - sample_start < x_sample as i64,
+                && fast_mod(sample_start, x_sample.as_u64() as i64) == 0
+                && tape_min_index - sample_start < x_sample.as_u64() as i64,
             "real assert b1"
         );
 
         let mut pixels = Vec::with_capacity(x_goal as usize * 2);
-        if x_sample == 1 {
+        if x_sample == SMOOTHNESS_0 {
             // For x_sample == 1, each step is just one pixel.
             for sample_index in sample_start..=tape_max_index {
                 // Directly read and convert the pixel from the tape.
@@ -766,12 +755,13 @@ impl Spaceline {
             // cmk00 for now, we allocate on the heap. May want to special case down_sample==1 or use SmallVec for 0 to say 8.
 
             let (down_sample, down_step) = compute_sample_step(x_sample, x_smoothness);
-            let mut pixel_range = vec![Pixel(0); down_sample as usize];
-            for sample_index in (sample_start..=tape_max_index).step_by(x_sample as usize) {
+            let mut pixel_range = vec![Pixel(0); down_sample.as_u64() as usize];
+            for sample_index in (sample_start..=tape_max_index).step_by(x_sample.as_u64() as usize)
+            {
                 // Create a temporary vector to hold x_sample pixels.
                 for (i, pixel) in pixel_range.iter_mut().enumerate() {
                     *pixel = tape
-                        .read(sample_index + (i as u64 * down_step) as i64)
+                        .read(sample_index + (i as u64 * down_step.as_u64()) as i64)
                         .into();
                 }
                 pixels.push(Pixel::merge_slice_all(&pixel_range, 0));
@@ -841,15 +831,15 @@ impl Spacelines {
     }
 
     #[inline]
-    fn compress_take_first(&mut self, new_sample: u64) {
+    fn compress_take_first(&mut self, new_sample: Smoothness) {
         assert!(self.buffer.is_empty(), "real assert e2");
         assert!(fast_is_even(self.main.len()), "real assert e11");
         // println!("cmk compress_take_first");
         self.main
-            .retain(|spaceline| fast_mod(spaceline.time, new_sample) == 0);
+            .retain(|spaceline| fast_mod(spaceline.time, new_sample.as_u64()) == 0);
     }
 
-    fn last(&self, step_index: u64, y_sample: u64, y_smoothness: Smoothness) -> Spaceline {
+    fn last(&self, step_index: u64, y_sample: Smoothness, y_smoothness: Smoothness) -> Spaceline {
         if self.buffer.is_empty() {
             // cmk00 would be nice to remove this clone
             return self.main.last().unwrap().clone();
@@ -860,16 +850,16 @@ impl Spacelines {
         let time = buffer_last.time;
         let start = buffer_last.start;
         let x_sample = buffer_last.sample;
-        let last_inside_index = fast_mod(step_index, y_sample);
+        let last_inside_index = fast_mod(step_index, y_sample.as_u64());
 
         // cmk we have to clone because we compress in place (clone only half???)
         let mut buffer = self.buffer.clone();
-        for inside_index in last_inside_index + 1..y_sample {
+        for inside_index in last_inside_index + 1..y_sample.as_u64() {
             let (_down_sample, down_step) = compute_sample_step(y_sample, y_smoothness);
-            if fast_mod(inside_index, down_step) != 0 {
+            if fast_mod(inside_index, down_step.as_u64()) != 0 {
                 continue; // cmk00 use step_by instead of this
             }
-            let inside_inside_index = fast_div(inside_index, down_step);
+            let inside_inside_index = fast_div(inside_index, down_step.as_u64());
 
             let empty = Spaceline {
                 sample: x_sample,
@@ -920,7 +910,7 @@ pub struct SampledSpaceTime {
     step_index: u64,
     x_goal: u32,
     y_goal: u32,
-    sample: u64,
+    sample: Smoothness,
     spacelines: Spacelines,
     x_smoothness: Smoothness,
     y_smoothness: Smoothness,
@@ -940,7 +930,7 @@ impl SampledSpaceTime {
             step_index: 0,
             x_goal,
             y_goal,
-            sample: 1,
+            sample: SMOOTHNESS_0,
             spacelines: Spacelines::new(x_smoothness),
             x_smoothness,
             y_smoothness,
@@ -954,9 +944,12 @@ impl SampledSpaceTime {
 
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.sample {
-            assert!(new_sample == self.sample * 2, "real assert 10");
+            assert!(
+                fast_div(new_sample.as_u64(), self.sample.as_u64()) == 2,
+                "real assert 10"
+            );
             self.sample = new_sample;
-            if new_sample <= self.y_smoothness.as_u64() {
+            if new_sample <= self.y_smoothness {
                 self.spacelines.compress_average();
             } else {
                 self.spacelines.compress_take_first(new_sample);
@@ -974,17 +967,17 @@ impl SampledSpaceTime {
 
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
-        let inside_index = fast_mod(self.step_index, self.sample);
+        let inside_index = fast_mod(self.step_index, self.sample.as_u64());
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
             self.spacelines.flush_buffer();
             self.compress_if_needed();
         }
         let (_down_sample, down_step) = compute_sample_step(self.sample, self.y_smoothness);
-        if fast_mod(inside_index, down_step) != 0 {
+        if fast_mod(inside_index, down_step.as_u64()) != 0 {
             return;
         }
-        let inside_inside_index = fast_div(inside_index, down_step);
+        let inside_inside_index = fast_div(inside_index, down_step.as_u64());
         let spaceline = Spaceline::new(
             &machine.tape,
             self.x_goal,
@@ -999,10 +992,10 @@ impl SampledSpaceTime {
         let last = self
             .spacelines
             .last(self.step_index, self.sample, self.y_smoothness);
-        let x_sample: u64 = last.sample;
-        let tape_width: u64 = last.pixels.len() as u64 * x_sample;
+        let x_sample: Smoothness = last.sample;
+        let tape_width: u64 = last.pixels.len() as u64 * x_sample.as_u64();
         let tape_min_index = last.start;
-        let x_actual: u32 = (tape_width / x_sample) as u32;
+        let x_actual: u32 = fast_div(tape_width, x_sample.as_u64()) as u32;
         let y_actual: u32 = self.spacelines.len() as u32;
 
         let row_bytes = x_actual;
@@ -1012,19 +1005,20 @@ impl SampledSpaceTime {
             let spaceline = &self.spacelines.get(y as usize, &last);
             let local_start = spaceline.start;
             let local_sample = spaceline.sample;
-            let rel_sample = x_sample / local_sample;
+            let rel_sample = fast_div(x_sample.as_u64(), local_sample.as_u64());
             assert!(rel_sample.is_power_of_two(), "real assert b12");
             let row_start_byte_index: u32 = y * row_bytes;
-            let x_start = int_div_ceil(local_start - tape_min_index, x_sample as i64);
+            let x_start = int_div_ceil(local_start - tape_min_index, x_sample.as_u64() as i64);
             for x in x_start as u32..x_actual {
-                let tape_index: i64 = x as i64 * x_sample as i64 + tape_min_index;
+                let tape_index: i64 = x as i64 * x_sample.as_u64() as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
                 assert!(
                     tape_index >= local_start,
                     "real assert if x_start is correct"
                 );
 
-                let local_spaceline_start: i64 = (tape_index - local_start) / local_sample as i64;
+                let local_spaceline_start: i64 =
+                    (tape_index - local_start) / local_sample.as_u64() as i64;
                 let slice = (local_spaceline_start..local_spaceline_start + rel_sample as i64)
                     .map(|i| {
                         spaceline
@@ -1056,12 +1050,12 @@ impl SampledSpaceTime {
 fn int_div_ceil(a: i64, b: i64) -> i64 {
     (a + b - 1) / b
 }
-fn sample_rate(row: u64, goal: u32) -> u64 {
+fn sample_rate(row: u64, goal: u32) -> Smoothness {
     let threshold = 2 * goal;
     let ratio = (row + 1) as f64 / threshold as f64;
     // For rows < threshold, ratio < 1, log2(ratio) is negative, and the ceil clamps to 0.
-    let exponent = ratio.log2().ceil().max(0.0) as u32;
-    2_u64.pow(exponent)
+    let exponent = ratio.log2().ceil().max(0.0) as u8;
+    Smoothness::new(exponent)
 }
 
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
@@ -1258,45 +1252,45 @@ fn fast_rem_euclid(dividend: i64, divisor: u64) -> i64 {
 /// step = sample / sample_out
 /// ```
 #[inline(always)]
-fn compute_sample_step(sample: u64, smoothness: Smoothness) -> (u64, u64) {
-    debug_assert!(sample.is_power_of_two(), "Inputs must be powers of two");
-    debug_assert!(sample >= 1, "Inputs must be at least 1");
-
-    let is_down_sample = (sample > smoothness.as_u64()) as u64; // 1 if true, 0 if false
+fn compute_sample_step(sample: Smoothness, smoothness: Smoothness) -> (Smoothness, Smoothness) {
+    let is_down_sample = (sample > smoothness) as u64; // 1 if true, 0 if false
 
     // Prevent underflow by using saturating_sub, which ensures non-negative results
     let shift_amount = sample
+        .as_u64()
         .trailing_zeros()
         .saturating_sub(smoothness.as_u64().trailing_zeros()); // cmk0000000000
 
-    let sample_out = sample >> (shift_amount * is_down_sample as u32); // Shift only if down sampling
-    let step = sample / sample_out; // Always power of two
+    let sample_out =
+        Smoothness::from_u64(sample.as_u64() >> (shift_amount * is_down_sample as u32)); // Shift only if down sampling
+    let step = Smoothness::from_u64(fast_div(sample.as_u64(), sample_out.as_u64())); // Always power of two
 
     // ✅ Debug assertions to validate correctness
     debug_assert!(
-        sample_out <= smoothness.as_u64(),
+        sample_out <= smoothness,
         "sample_out must not exceed smoothness"
     );
-    debug_assert!(step.is_power_of_two(), "step must be a power of two");
     debug_assert!(
-        step * sample_out == sample,
+        step.as_u64() * sample_out.as_u64() == sample.as_u64(),
         "step * sample_out must equal sample"
     );
 
     debug_assert!(
-        sample_out == sample.min(smoothness.as_u64()),
+        sample_out == sample.min(smoothness),
         "sample_out must be min(sample, smoothness)"
     );
     debug_assert!(
-        step == sample / sample_out,
+        step == Smoothness::from_u64(fast_div(sample.as_u64(), sample_out.as_u64())),
         "step must be sample / sample_out"
     );
 
     (sample_out, step)
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Smoothness(u8);
+
+// cmk make the auto constructor so private that it can't be used w/ modules, so that new check is run.
 
 impl Smoothness {
     #[inline]
@@ -1310,11 +1304,20 @@ impl Smoothness {
         1 << self.0
     }
 
+    // from u64
+    pub fn from_u64(value: u64) -> Self {
+        debug_assert!(value.is_power_of_two(), "Value must be a power of two");
+        Smoothness::new(value.trailing_zeros() as u8)
+    }
+
     #[inline]
     pub fn as_u8(self) -> u8 {
         self.0
     }
 }
+
+// Define constants for Smoothness
+const SMOOTHNESS_0: Smoothness = Smoothness(0);
 
 #[cfg(test)]
 mod tests {
@@ -1378,8 +1381,8 @@ mod tests {
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let x_smoothness: Smoothness = Smoothness::new(0);
-        let y_smoothness: Smoothness = Smoothness::new(0);
+        let x_smoothness: Smoothness = SMOOTHNESS_0;
+        let y_smoothness: Smoothness = SMOOTHNESS_0;
         let mut sample_space_time =
             SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness);
 
@@ -1431,8 +1434,8 @@ mod tests {
         let s = BB5_CHAMP;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let x_smoothness: Smoothness = Smoothness::new(0);
-        let y_smoothness: Smoothness = Smoothness::new(0);
+        let x_smoothness: Smoothness = SMOOTHNESS_0;
+        let y_smoothness: Smoothness = SMOOTHNESS_0;
         let n = 1_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(
             s,
