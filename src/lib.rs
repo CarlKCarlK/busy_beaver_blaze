@@ -551,7 +551,7 @@ impl Pixel {
     fn merge_slice_down_sample(slice: &[Self], empty_count: u64, down_step: Smoothness) -> Self {
         debug_assert!(down_step.divides_u64(slice.len() as u64), "real assert d1");
         let mut sum: u32 = 0;
-        for i in (0..slice.len()).step_by(down_step.as_u64() as usize) {
+        for i in (0..slice.len()).step_by(down_step.as_usize()) {
             sum += slice[i].0 as u32;
         }
         let total_len = Smoothness::from_u64(slice.len() as u64 + empty_count);
@@ -615,23 +615,23 @@ impl Spaceline {
         let cells_to_add = fast_rem_euclid(self.start, sample.as_u64());
         let new_start = self.start - cells_to_add;
         let old_items_to_add = self.sample.divide_into(cells_to_add);
-        let old_items_per_new = self.sample.divide_into(sample.as_u64()) as i64;
-        assert!(
-            sample >= self.sample && (old_items_per_new as u64).is_power_of_two(),
-            "real assert 12"
-        );
-        let old_items_to_use = old_items_per_new - old_items_to_add;
+        let old_items_per_new = sample / self.sample;
+        let old_items_per_new_u64 = old_items_per_new.as_u64();
+        let old_items_per_new_usize = old_items_per_new_u64 as usize;
+
+        assert!(sample >= self.sample, "real assert 12");
+        let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
         // println!(
         //     "cmk old_items_to_use {}, pixel.len {}",
         //     old_items_to_use,
         //     self.pixels.len()
         // );
         assert!(
-            old_items_to_use <= self.pixels.len() as i64,
+            old_items_to_use <= self.pixels.len() as u64,
             "real assert d10"
         );
 
-        let (_down_sample, down_step) = compute_sample_step(sample, self.smoothness);
+        let (_down_sample, down_step) = sample.compute_sample_step(self.smoothness);
         let pixel0 = Pixel::merge_slice_down_sample(
             &self.pixels[..old_items_to_use as usize],
             old_items_to_add as u64,
@@ -641,13 +641,13 @@ impl Spaceline {
         let mut new_index = 0usize;
         self.pixels[new_index] = pixel0;
         new_index += 1;
-        let value_len = self.pixels.len() as i64;
+        let value_len = self.pixels.len() as u64;
 
         // cmk00speed
-        for old_index in (old_items_to_use..value_len).step_by(old_items_per_new as usize) {
+        for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
             let slice = &self.pixels[old_index as usize..old_end as usize];
-            let old_items_to_add = (old_items_per_new - (old_end - old_index)) as u64;
+            let old_items_to_add = (old_items_per_new_u64 - (old_end - old_index)) as u64;
             self.pixels[new_index] =
                 Pixel::merge_slice_down_sample(slice, old_items_to_add, down_step);
             new_index += 1;
@@ -678,15 +678,15 @@ impl Spaceline {
         assert!(self.sample == sample, "real assert 5");
         assert!(self.start >= start, "real assert 6");
         assert!(sample.divides_i64(start - self.start), "real assert 7");
-        let self_end = self.start + self.pixels.len() as i64 * sample.as_u64() as i64;
-        let end = start + values.len() as i64 * sample.as_u64() as i64;
+        let self_end = self.start + (sample * self.pixels.len()) as i64;
+        let end = start + (sample * values.len()) as i64;
         assert!(sample.divides_i64(self_end - end), "real assert 8");
         assert!(self_end <= end, "real assert 9");
 
         let mut index = 0;
         // everything before self.start should get merged with merged with white
         // cmk00speed
-        for _ in (start..self.start).step_by(sample.as_u64() as usize) {
+        for _ in (start..self.start).step_by(sample.as_usize()) {
             values[index].merge_with_white();
             index += 1;
         }
@@ -738,15 +738,12 @@ impl Spaceline {
 
             // cmk00 for now, we allocate on the heap. May want to special case down_sample==1 or use SmallVec for 0 to say 8.
 
-            let (down_sample, down_step) = compute_sample_step(x_sample, x_smoothness);
-            let mut pixel_range = vec![Pixel(0); down_sample.as_u64() as usize];
-            for sample_index in (sample_start..=tape_max_index).step_by(x_sample.as_u64() as usize)
-            {
+            let (down_sample, down_step) = x_sample.compute_sample_step(x_smoothness);
+            let mut pixel_range = vec![Pixel(0); down_sample.as_usize()];
+            for sample_index in (sample_start..=tape_max_index).step_by(x_sample.as_usize()) {
                 // Create a temporary vector to hold x_sample pixels.
                 for (i, pixel) in pixel_range.iter_mut().enumerate() {
-                    *pixel = tape
-                        .read(sample_index + (i as u64 * down_step.as_u64()) as i64)
-                        .into();
+                    *pixel = tape.read(sample_index + (down_step * i) as i64).into();
                 }
                 pixels.push(Pixel::merge_slice_all(&pixel_range, 0));
             }
@@ -834,12 +831,12 @@ impl Spacelines {
         let time = buffer_last.time;
         let start = buffer_last.start;
         let x_sample = buffer_last.sample;
-        let last_inside_index = fast_mod(step_index, y_sample.as_u64());
+        let last_inside_index = y_sample.rem_into(step_index);
 
         // cmk we have to clone because we compress in place (clone only half???)
         let mut buffer = self.buffer.clone();
         for inside_index in last_inside_index + 1..y_sample.as_u64() {
-            let (_down_sample, down_step) = compute_sample_step(y_sample, y_smoothness);
+            let (_down_sample, down_step) = y_sample.compute_sample_step(y_smoothness);
             if !down_step.divides_u64(inside_index) {
                 continue;
             }
@@ -951,13 +948,13 @@ impl SampledSpaceTime {
 
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
-        let inside_index = fast_mod(self.step_index, self.sample.as_u64());
+        let inside_index = self.sample.rem_into(self.step_index);
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
             self.spacelines.flush_buffer();
             self.compress_if_needed();
         }
-        let (_down_sample, down_step) = compute_sample_step(self.sample, self.y_smoothness);
+        let (_down_sample, down_step) = self.sample.compute_sample_step(self.y_smoothness);
         if !down_step.divides_u64(inside_index) {
             return;
         }
@@ -993,15 +990,14 @@ impl SampledSpaceTime {
             let row_start_byte_index: u32 = y * row_bytes;
             let x_start = int_div_ceil(local_start - tape_min_index, x_sample.as_u64() as i64);
             for x in x_start as u32..x_actual {
-                let tape_index: i64 = x as i64 * x_sample.as_u64() as i64 + tape_min_index;
+                let tape_index: i64 = (x_sample * x as usize) as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
                 assert!(
                     tape_index >= local_start,
                     "real assert if x_start is correct"
                 );
 
-                let local_spaceline_start: i64 =
-                    (tape_index - local_start) / local_sample.as_u64() as i64;
+                let local_spaceline_start: i64 = local_sample.divide_into(tape_index - local_start);
                 let slice = (local_spaceline_start
                     ..local_spaceline_start + rel_sample.as_u64() as i64)
                     .map(|i| {
@@ -1230,47 +1226,6 @@ fn fast_rem_euclid(dividend: i64, divisor: u64) -> i64 {
     remainder + ((divisor as i64) & (remainder >> 63))
 }
 
-/// The function computes
-/// ```text
-/// sample_out = min(sample, smoothness)
-/// step = sample / sample_out
-/// ```
-#[inline(always)]
-fn compute_sample_step(sample: Smoothness, smoothness: Smoothness) -> (Smoothness, Smoothness) {
-    let is_down_sample = (sample > smoothness) as u64; // 1 if true, 0 if false
-
-    // Prevent underflow by using saturating_sub, which ensures non-negative results
-    let shift_amount = sample
-        .as_u64()
-        .trailing_zeros()
-        .saturating_sub(smoothness.as_u64().trailing_zeros()); // cmk0000000000
-
-    let sample_out =
-        Smoothness::from_u64(sample.as_u64() >> (shift_amount * is_down_sample as u32)); // Shift only if down sampling
-    let step = sample / sample_out;
-
-    // ✅ Debug assertions to validate correctness
-    debug_assert!(
-        sample_out <= smoothness,
-        "sample_out must not exceed smoothness"
-    );
-    debug_assert!(
-        step.as_u64() * sample_out.as_u64() == sample.as_u64(),
-        "step * sample_out must equal sample"
-    );
-
-    debug_assert!(
-        sample_out == sample.min(smoothness),
-        "sample_out must be min(sample, smoothness)"
-    );
-    debug_assert!(
-        step == sample / sample_out,
-        "step must be sample / sample_out"
-    );
-
-    (sample_out, step)
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Smoothness(u8);
 
@@ -1284,8 +1239,18 @@ impl std::ops::Div for Smoothness {
             self.0 >= rhs.0,
             "Divisor must be less than or equal to dividend"
         );
-        // Subtract exponents; if the subtrahend is larger, saturate to 0.
-        Smoothness(self.0.saturating_sub(rhs.0))
+        self.saturating_div(rhs)
+    }
+}
+
+impl std::ops::Mul<usize> for Smoothness {
+    type Output = usize;
+
+    #[inline(always)]
+    fn mul(self, rhs: usize) -> Self::Output {
+        // Multiply rhs by 2^(self.0)
+        // This is equivalent to shifting rhs left by self.0 bits.
+        rhs * (1usize << self.0)
     }
 }
 
@@ -1304,6 +1269,37 @@ impl Smoothness {
 
     #[inline]
     pub fn as_u64(self) -> u64 {
+        1 << self.0
+    }
+
+    #[inline(always)]
+    fn saturating_div(self, rhs: Self) -> Self {
+        // Subtract exponents; if the subtrahend is larger, saturate to 0 aks One
+        Smoothness(self.0.saturating_sub(rhs.0))
+    }
+
+    /// The function computes
+    /// ```text
+    /// sample_out = min(sample, smoothness)
+    /// step = sample / sample_out
+    /// ```
+    #[inline(always)]
+    pub fn compute_sample_step(self, smoothness: Self) -> (Self, Self) {
+        // rename?? cmk00
+        let sample_out = Self(std::cmp::min(self.0, smoothness.0));
+        let step = Smoothness(self.0.saturating_sub(sample_out.0));
+        (sample_out, step)
+    }
+
+    #[inline]
+    pub fn as_usize(self) -> usize {
+        let bits = std::mem::size_of::<usize>() * 8;
+        debug_assert!(
+            (self.0 as usize) < bits,
+            "Exponent {} too large for usize ({} bits)",
+            self.0,
+            bits
+        );
         1 << self.0
     }
 
@@ -1345,7 +1341,6 @@ impl Smoothness {
         (x >> self.0) << self.0 == x
     }
 
-    /// Returns `true` if `self` divides `other`, i.e. if 2^(self.0) divides 2^(other.0).
     #[inline(always)]
     pub fn divides_smoothness(self, other: Smoothness) -> bool {
         self.0 <= other.0
