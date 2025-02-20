@@ -8,9 +8,8 @@ use png::{BitDepth, ColorType, Encoder};
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 
-// cmk000 is the image size is a power of 2, then don''t apply filters
+// cmk is the image size is a power of 2, then don't apply filters (may be a bad idea, because user doesn't control native size exactly)
 // cmk0 see if can remove more as_u64()'s
-// cmk0000000 rename Smoothness
 
 pub const BB2_CHAMP: &str = "
 	A	B
@@ -632,7 +631,7 @@ impl Spaceline {
             "real assert d10"
         );
 
-        let (_down_sample, down_step) = sample.compute_sample_step(self.smoothness);
+        let down_step = sample.saturating_div(self.smoothness);
         let pixel0 = Pixel::merge_slice_down_sample(
             &self.pixels[..old_items_to_use as usize],
             old_items_to_add as u64,
@@ -737,12 +736,13 @@ impl Spaceline {
         } else {
             // For x_sample > 1, process as before.
 
-            // cmk00 for now, we allocate on the heap. May want to special case down_sample==1 or use SmallVec for 0 to say 8.
+            // cmk0000 for now, we allocate on the heap. May want to special case down_sample==1 or use SmallVec for 0 to say 8.
 
-            let (down_sample, down_step) = x_sample.compute_sample_step(x_smoothness);
+            let down_sample = x_sample.min(x_smoothness);
+            let down_step = x_sample.saturating_div(down_sample);
+            // Create a temporary vector to hold x_sample pixels.
             let mut pixel_range = vec![Pixel(0); down_sample.as_usize()];
             for sample_index in (sample_start..=tape_max_index).step_by(x_sample.as_usize()) {
-                // Create a temporary vector to hold x_sample pixels.
                 for (i, pixel) in pixel_range.iter_mut().enumerate() {
                     *pixel = tape.read(sample_index + (down_step * i) as i64).into();
                 }
@@ -821,10 +821,10 @@ impl Spacelines {
 
     fn last(&self, step_index: u64, y_sample: PowerOfTwo, y_smoothness: PowerOfTwo) -> Spaceline {
         if self.buffer.is_empty() {
-            // cmk00 would be nice to remove this clone
+            // cmk would be nice to remove this clone
             return self.main.last().unwrap().clone();
         }
-        // cmk00 in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
+        // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
 
         let buffer_last = self.buffer.last().unwrap();
         let time = buffer_last.time;
@@ -835,7 +835,7 @@ impl Spacelines {
         // cmk we have to clone because we compress in place (clone only half???)
         let mut buffer = self.buffer.clone();
         for inside_index in last_inside_index + 1..y_sample.as_u64() {
-            let (_down_sample, down_step) = y_sample.compute_sample_step(y_smoothness);
+            let down_step = y_sample.saturating_div(y_smoothness);
             if !down_step.divides_u64(inside_index) {
                 continue;
             }
@@ -953,7 +953,7 @@ impl SampledSpaceTime {
             self.spacelines.flush_buffer();
             self.compress_if_needed();
         }
-        let (_down_sample, down_step) = self.sample.compute_sample_step(self.y_smoothness);
+        let down_step = self.sample.saturating_div(self.y_smoothness);
         if !down_step.divides_u64(inside_index) {
             return;
         }
@@ -1256,19 +1256,6 @@ impl PowerOfTwo {
     fn saturating_div(self, rhs: Self) -> Self {
         // Subtract exponents; if the subtrahend is larger, saturate to 0 aks One
         Self(self.0.saturating_sub(rhs.0))
-    }
-
-    /// The function computes
-    /// ```text
-    /// sample_out = min(sample, smoothness)
-    /// step = sample / sample_out
-    /// ```
-    #[inline(always)]
-    pub fn compute_sample_step(self, smoothness: Self) -> (Self, Self) {
-        // rename?? cmk00
-        let sample_out = Self(std::cmp::min(self.0, smoothness.0));
-        let step = Self(self.0.saturating_sub(sample_out.0));
-        (sample_out, step)
     }
 
     #[inline]
