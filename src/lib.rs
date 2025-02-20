@@ -2,6 +2,7 @@ use core::fmt;
 use core::str::FromStr;
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
+use instant::Instant;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
 use thousands::Separable;
@@ -1109,6 +1110,22 @@ impl SpaceTimeMachine {
         true
     }
 
+    #[wasm_bindgen(js_name = "step_for_secs")]
+    pub fn step_for_secs_js(&mut self, seconds: f32, early_stop: Option<u64>) -> bool {
+        let start = Instant::now();
+        loop {
+            if early_stop.is_some_and(|early_stop| self.step_count() >= early_stop) {
+                return false;
+            }
+            if self.next().is_none() {
+                return false;
+            }
+            if start.elapsed().as_secs_f32() >= seconds {
+                return true;
+            }
+        }
+    }
+
     #[wasm_bindgen]
     pub fn png_data(&self) -> Vec<u8> {
         self.space_time
@@ -1478,6 +1495,56 @@ mod tests {
 
         let png_data = space_time_machine.png_data();
         fs::write("test_js.png", &png_data).map_err(|e| e.to_string())?;
+
+        assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
+        assert_eq!(space_time_machine.machine.count_ones(), 4098);
+        assert_eq!(space_time_machine.machine.state, 7);
+        assert_eq!(space_time_machine.machine.tape_index, -12242);
+
+        Ok(())
+    }
+
+    #[wasm_bindgen_test]
+    #[test]
+    fn seconds_bb5_champ_space_time_js() -> Result<(), String> {
+        let s = BB5_CHAMP;
+        let goal_x: u32 = 1000;
+        let goal_y: u32 = 1000;
+        let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let seconds = 0.25;
+        let mut space_time_machine = SpaceTimeMachine::from_str(
+            s,
+            goal_x,
+            goal_y,
+            x_smoothness.log2(),
+            y_smoothness.log2(),
+        )?;
+
+        while space_time_machine.step_for_secs_js(seconds, None) {
+            println!(
+                "Index {}: {:?}, #1's {}",
+                space_time_machine
+                    .space_time
+                    .step_index
+                    .separate_with_commas(),
+                space_time_machine.machine,
+                space_time_machine.machine.count_ones()
+            );
+        }
+
+        println!(
+            "Final: Steps {}: {:?}, #1's {}",
+            space_time_machine
+                .space_time
+                .step_index
+                .separate_with_commas(),
+            space_time_machine.machine,
+            space_time_machine.machine.count_ones()
+        );
+
+        let png_data = space_time_machine.png_data();
+        fs::write("test2_js.png", &png_data).map_err(|e| e.to_string())?;
 
         assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
         assert_eq!(space_time_machine.machine.count_ones(), 4098);

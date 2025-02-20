@@ -9,24 +9,12 @@ self.onmessage = async function (e) {
 
         try {
             const space_time_machine = new SpaceTimeMachine(programText, goal_x, goal_y, x_smoothness, y_smoothness);
-            const CHUNK_SIZE = 10000000n;
-            let total_steps = 1n;  // Start at 1 since first step is already taken
+            const run_for_seconds = 1.0;
 
             while (true) {
-                if (early_stop !== null && total_steps >= early_stop) break;
+                if (!space_time_machine.step_for_secs(run_for_seconds, early_stop))
+                    break;
 
-                // Calculate next chunk size
-                let next_chunk = total_steps === 1n ? CHUNK_SIZE - 1n : CHUNK_SIZE;
-                if (early_stop !== null) {
-                    const remaining = early_stop - total_steps;
-                    next_chunk = remaining < next_chunk ? remaining : next_chunk;
-                }
-
-                // Run the next chunk
-                const continues = space_time_machine.nth(next_chunk);
-                total_steps += next_chunk;
-
-                // Send intermediate update
                 self.postMessage({
                     success: true,
                     intermediate: true,
@@ -36,8 +24,6 @@ self.onmessage = async function (e) {
                     is_halted: space_time_machine.is_halted()
                 });
 
-                // Exit if machine halted
-                if (!continues) break;
             }
 
             // Send final result
