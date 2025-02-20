@@ -2,15 +2,15 @@ use core::{fmt, panic};
 use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
 use itertools::Itertools;
-use num_traits::PrimInt;
 use png::{BitDepth, ColorType, Encoder};
-use std::ops::Shr;
 #[cfg(not(target_arch = "wasm32"))]
 use std::str::FromStr;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 
-// cmk000 is the image size is a power of 2, then don't filter ???
+// cmk000 is the image size is a power of 2, then don''t apply filters
+// cmk0 see if can remove more as_u64()'s
+// cmk0000000 rename Smoothness
 
 const BB2_CHAMP: &str = "
 	A	B
@@ -612,7 +612,7 @@ impl Spaceline {
         if sample == self.sample {
             return;
         }
-        let cells_to_add = fast_rem_euclid(self.start, sample.as_u64());
+        let cells_to_add = sample.rem_euclid_into(self.start);
         let new_start = self.start - cells_to_add;
         let old_items_to_add = self.sample.divide_into(cells_to_add);
         let old_items_per_new = sample / self.sample;
@@ -718,7 +718,7 @@ impl Spaceline {
         let tape_max_index = tape.max_index();
         let x_sample = sample_rate(tape_width, x_goal);
 
-        let sample_start: i64 = tape_min_index - fast_rem_euclid(tape_min_index, x_sample.as_u64());
+        let sample_start: i64 = tape_min_index - x_sample.rem_euclid_into(tape_min_index);
         assert!(
             sample_start <= tape_min_index
                 && x_sample.divides_i64(sample_start)
@@ -974,7 +974,7 @@ impl SampledSpaceTime {
             .spacelines
             .last(self.step_index, self.sample, self.y_smoothness);
         let x_sample: Smoothness = last.sample;
-        let tape_width: u64 = last.pixels.len() as u64 * x_sample.as_u64();
+        let tape_width: u64 = (x_sample * last.pixels.len()) as u64;
         let tape_min_index = last.start;
         let x_actual: u32 = x_sample.divide_into(tape_width) as u32;
         let y_actual: u32 = self.spacelines.len() as u32;
@@ -988,7 +988,7 @@ impl SampledSpaceTime {
             let local_sample = spaceline.sample;
             let rel_sample = x_sample / local_sample;
             let row_start_byte_index: u32 = y * row_bytes;
-            let x_start = int_div_ceil(local_start - tape_min_index, x_sample.as_u64() as i64);
+            let x_start = x_sample.div_ceil_into(local_start - tape_min_index);
             for x in x_start as u32..x_actual {
                 let tape_index: i64 = (x_sample * x as usize) as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
@@ -1026,10 +1026,6 @@ impl SampledSpaceTime {
     }
 }
 
-#[inline]
-fn int_div_ceil(a: i64, b: i64) -> i64 {
-    (a + b - 1) / b
-}
 fn sample_rate(row: u64, goal: u32) -> Smoothness {
     let threshold = 2 * goal;
     let ratio = (row + 1) as f64 / threshold as f64;
@@ -1186,44 +1182,11 @@ impl Iterator for LogStepIterator {
 }
 
 #[inline(always)]
-fn fast_div<T>(numerator: T, denominator: T) -> T
-where
-    T: PrimInt + Shr<u32, Output = T>, // Ensures integer behavior & right shift
-{
-    debug_assert!(
-        (denominator & (denominator - T::one())) == T::zero(),
-        "denominator must be a power of two"
-    );
-
-    numerator >> denominator.trailing_zeros()
-}
-
-#[inline(always)]
-fn fast_mod<T>(x: T, sample: T) -> T
-where
-    T: Copy + std::ops::BitAnd<Output = T> + std::ops::Sub<Output = T> + From<u8> + PartialEq,
-{
-    debug_assert!(
-        sample & (sample - T::from(1)) == T::from(0),
-        "sample must be a power of two"
-    );
-    x & (sample - T::from(1))
-}
-
-#[inline(always)]
 fn fast_is_even<T>(x: T) -> bool
 where
     T: Copy + std::ops::BitAnd<Output = T> + std::ops::Sub<Output = T> + From<u8> + PartialEq,
 {
     (x & T::from(1)) == T::from(0)
-}
-
-#[inline(always)]
-fn fast_rem_euclid(dividend: i64, divisor: u64) -> i64 {
-    debug_assert!(divisor.is_power_of_two(), "divisor must be a power of two");
-    let mask = (divisor - 1) as i64;
-    let remainder = dividend & mask;
-    remainder + ((divisor as i64) & (remainder >> 63))
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -1320,6 +1283,24 @@ impl Smoothness {
         T: Copy + std::ops::BitAnd<Output = T> + std::ops::Sub<Output = T> + From<u64> + PartialEq,
     {
         x & (T::from(self.as_u64()) - T::from(1u64))
+    }
+
+    #[inline(always)]
+    fn rem_euclid_into(self, dividend: i64) -> i64 {
+        let divisor = 1i64 << self.0; // Compute 2^n
+        debug_assert!(divisor > 0, "divisor must be a power of two");
+        let mask = divisor - 1;
+        let remainder = dividend & mask;
+
+        // If the remainder is negative, make it positive by adding divisor
+        remainder + (divisor & (remainder >> 63))
+    }
+
+    #[inline(always)]
+    fn div_ceil_into(self, a: i64) -> i64 {
+        let b = 1i64 << self.0; // Compute 2^b
+        debug_assert!(b > 0, "Smoothness value must be valid (b < 64)");
+        (a + b - 1) >> self.0
     }
 
     #[inline(always)]
