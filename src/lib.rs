@@ -548,13 +548,13 @@ impl Pixel {
     }
 
     // cmk00speed
-    fn merge_slice_down_sample(slice: &[Self], empty_count: u64, down_step: Smoothness) -> Self {
+    fn merge_slice_down_sample(slice: &[Self], empty_count: u64, down_step: PowerOfTwo) -> Self {
         debug_assert!(down_step.divides_u64(slice.len() as u64), "real assert d1");
         let mut sum: u32 = 0;
         for i in (0..slice.len()).step_by(down_step.as_usize()) {
             sum += slice[i].0 as u32;
         }
-        let total_len = Smoothness::from_u64(slice.len() as u64 + empty_count);
+        let total_len = PowerOfTwo::from_u64(slice.len() as u64 + empty_count);
         let count = total_len / down_step;
         let mean = count.divide_into(sum) as u8;
         Pixel(mean)
@@ -564,7 +564,7 @@ impl Pixel {
         let sum: u32 = slice.iter().map(|p| p.0 as u32).sum();
         let count = slice.len() + empty_count as usize;
         debug_assert!(count.is_power_of_two(), "Count must be a power of two");
-        Pixel(Smoothness::from_u64(count as u64).divide_into(sum) as u8)
+        Pixel(PowerOfTwo::from_u64(count as u64).divide_into(sum) as u8)
     }
 }
 
@@ -580,18 +580,18 @@ const PIXEL_WHITE: Pixel = Pixel(0);
 
 #[derive(Clone, Debug)]
 struct Spaceline {
-    sample: Smoothness,
+    sample: PowerOfTwo,
     start: i64,
     pixels: Vec<Pixel>,
     time: u64,
-    smoothness: Smoothness,
+    smoothness: PowerOfTwo,
 }
 
 impl Spaceline {
     // cmk good name??
-    fn new0(smoothness: Smoothness) -> Self {
+    fn new0(smoothness: PowerOfTwo) -> Self {
         Spaceline {
-            sample: Smoothness::ONE,
+            sample: PowerOfTwo::ONE,
             start: 0,
             pixels: vec![PIXEL_WHITE; 1],
             time: 0,
@@ -599,7 +599,7 @@ impl Spaceline {
         }
     }
 
-    fn resample_if_needed(&mut self, sample: Smoothness) {
+    fn resample_if_needed(&mut self, sample: PowerOfTwo) {
         // Sampling & Averaging 2 --
         // When we merge rows, we sometimes need to squeeze the earlier row to
         // have the same sample rate as the later row.
@@ -711,7 +711,7 @@ impl Spaceline {
         self.sample = sample;
     }
 
-    fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: Smoothness) -> Self {
+    fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: PowerOfTwo) -> Self {
         // Sampling & Averaging 4 --
         let tape_width = tape.width();
         let tape_min_index = tape.min_index();
@@ -727,7 +727,7 @@ impl Spaceline {
         );
 
         let mut pixels = Vec::with_capacity(x_goal as usize * 2);
-        if x_sample == Smoothness::ONE {
+        if x_sample == PowerOfTwo::ONE {
             // For x_sample == 1, each step is just one pixel.
             for sample_index in sample_start..=tape_max_index {
                 // Directly read and convert the pixel from the tape.
@@ -759,15 +759,13 @@ impl Spaceline {
     }
 }
 
-pub const MAX_POWER_OF_TWO_U64: u64 = 1 << 63; // cmk good name?
-
 struct Spacelines {
     main: Vec<Spaceline>,
     buffer: Vec<Spaceline>,
 }
 
 impl Spacelines {
-    fn new(smoothness: Smoothness) -> Self {
+    fn new(smoothness: PowerOfTwo) -> Self {
         Spacelines {
             main: vec![Spaceline::new0(smoothness)],
             buffer: Vec::new(),
@@ -812,7 +810,7 @@ impl Spacelines {
     }
 
     #[inline]
-    fn compress_take_first(&mut self, new_sample: Smoothness) {
+    fn compress_take_first(&mut self, new_sample: PowerOfTwo) {
         assert!(self.buffer.is_empty(), "real assert e2");
         assert!(fast_is_even(self.main.len()), "real assert e11");
         // println!("cmk compress_take_first");
@@ -820,7 +818,7 @@ impl Spacelines {
             .retain(|spaceline| new_sample.divides_u64(spaceline.time));
     }
 
-    fn last(&self, step_index: u64, y_sample: Smoothness, y_smoothness: Smoothness) -> Spaceline {
+    fn last(&self, step_index: u64, y_sample: PowerOfTwo, y_smoothness: PowerOfTwo) -> Spaceline {
         if self.buffer.is_empty() {
             // cmk00 would be nice to remove this clone
             return self.main.last().unwrap().clone();
@@ -891,10 +889,10 @@ pub struct SampledSpaceTime {
     step_index: u64,
     x_goal: u32,
     y_goal: u32,
-    sample: Smoothness,
+    sample: PowerOfTwo,
     spacelines: Spacelines,
-    x_smoothness: Smoothness,
-    y_smoothness: Smoothness,
+    x_smoothness: PowerOfTwo,
+    y_smoothness: PowerOfTwo,
 }
 
 /// Create a new in which you give the x_goal (space)
@@ -904,14 +902,14 @@ impl SampledSpaceTime {
     pub fn new(
         x_goal: u32,
         y_goal: u32,
-        x_smoothness: Smoothness,
-        y_smoothness: Smoothness,
+        x_smoothness: PowerOfTwo,
+        y_smoothness: PowerOfTwo,
     ) -> Self {
         SampledSpaceTime {
             step_index: 0,
             x_goal,
             y_goal,
-            sample: Smoothness::ONE,
+            sample: PowerOfTwo::ONE,
             spacelines: Spacelines::new(x_smoothness),
             x_smoothness,
             y_smoothness,
@@ -926,7 +924,7 @@ impl SampledSpaceTime {
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.sample {
             assert!(
-                new_sample / self.sample == Smoothness::TWO,
+                new_sample / self.sample == PowerOfTwo::TWO,
                 "real assert 10"
             );
             self.sample = new_sample;
@@ -973,7 +971,7 @@ impl SampledSpaceTime {
         let last = self
             .spacelines
             .last(self.step_index, self.sample, self.y_smoothness);
-        let x_sample: Smoothness = last.sample;
+        let x_sample: PowerOfTwo = last.sample;
         let tape_width: u64 = (x_sample * last.pixels.len()) as u64;
         let tape_min_index = last.start;
         let x_actual: u32 = x_sample.divide_into(tape_width) as u32;
@@ -1026,12 +1024,12 @@ impl SampledSpaceTime {
     }
 }
 
-fn sample_rate(row: u64, goal: u32) -> Smoothness {
+fn sample_rate(row: u64, goal: u32) -> PowerOfTwo {
     let threshold = 2 * goal;
     let ratio = (row + 1) as f64 / threshold as f64;
     // For rows < threshold, ratio < 1, log2(ratio) is negative, and the ceil clamps to 0.
     let exponent = ratio.log2().ceil().max(0.0) as u8;
-    Smoothness::new(exponent)
+    PowerOfTwo::new(exponent)
 }
 
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
@@ -1095,8 +1093,8 @@ impl SpaceTimeMachine {
             space_time: SampledSpaceTime::new(
                 goal_x,
                 goal_y,
-                Smoothness(x_smoothness),
-                Smoothness(y_smoothness),
+                PowerOfTwo(x_smoothness),
+                PowerOfTwo(y_smoothness),
             ),
         })
     }
@@ -1190,9 +1188,9 @@ where
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Smoothness(u8);
+pub struct PowerOfTwo(u8);
 
-impl std::ops::Div for Smoothness {
+impl std::ops::Div for PowerOfTwo {
     type Output = Self;
 
     /// Will always be at least 1.
@@ -1206,7 +1204,7 @@ impl std::ops::Div for Smoothness {
     }
 }
 
-impl std::ops::Mul<usize> for Smoothness {
+impl std::ops::Mul<usize> for PowerOfTwo {
     type Output = usize;
 
     #[inline(always)]
@@ -1219,15 +1217,17 @@ impl std::ops::Mul<usize> for Smoothness {
 
 // cmk make the auto constructor so private that it can't be used w/ modules, so that new check is run.
 
-impl Smoothness {
+impl PowerOfTwo {
     /// The smallest valid `Smoothness` value, representing `2^0 = 1`.
-    pub const ONE: Self = Smoothness(0);
-    pub const TWO: Self = Smoothness(1);
+    pub const ONE: Self = Self(0);
+    pub const TWO: Self = Self(1);
+    pub const MIN: Self = Self(0);
+    pub const MAX: Self = Self(63);
 
     #[inline]
     pub fn new(value: u8) -> Self {
-        debug_assert!(value <= 63, "Value must be 63 or less");
-        Smoothness(value)
+        debug_assert!(value <= Self::MAX.0, "Value must be 63 or less");
+        Self(value)
     }
 
     #[inline]
@@ -1238,7 +1238,7 @@ impl Smoothness {
     #[inline(always)]
     fn saturating_div(self, rhs: Self) -> Self {
         // Subtract exponents; if the subtrahend is larger, saturate to 0 aks One
-        Smoothness(self.0.saturating_sub(rhs.0))
+        Self(self.0.saturating_sub(rhs.0))
     }
 
     /// The function computes
@@ -1250,7 +1250,7 @@ impl Smoothness {
     pub fn compute_sample_step(self, smoothness: Self) -> (Self, Self) {
         // rename?? cmk00
         let sample_out = Self(std::cmp::min(self.0, smoothness.0));
-        let step = Smoothness(self.0.saturating_sub(sample_out.0));
+        let step = Self(self.0.saturating_sub(sample_out.0));
         (sample_out, step)
     }
 
@@ -1269,7 +1269,7 @@ impl Smoothness {
     // from u64
     pub fn from_u64(value: u64) -> Self {
         assert!(value.is_power_of_two(), "Value must be a power of two");
-        Smoothness::new(value.trailing_zeros() as u8)
+        PowerOfTwo::new(value.trailing_zeros() as u8)
     }
 
     #[inline]
@@ -1293,13 +1293,13 @@ impl Smoothness {
         let remainder = dividend & mask;
 
         // If the remainder is negative, make it positive by adding divisor
-        remainder + (divisor & (remainder >> 63))
+        remainder + (divisor & (remainder >> PowerOfTwo::MAX.0))
     }
 
     #[inline(always)]
     fn div_ceil_into(self, a: i64) -> i64 {
         let b = 1i64 << self.0; // Compute 2^b
-        debug_assert!(b > 0, "Smoothness value must be valid (b < 64)");
+        debug_assert!(b > 0, "Smoothness value must be valid (b <= 63)");
         (a + b - 1) >> self.0
     }
 
@@ -1323,7 +1323,7 @@ impl Smoothness {
     }
 
     #[inline(always)]
-    pub fn divides_smoothness(self, other: Smoothness) -> bool {
+    pub fn divides_smoothness(self, other: PowerOfTwo) -> bool {
         self.0 <= other.0
     }
 }
@@ -1390,8 +1390,8 @@ mod tests {
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let x_smoothness: Smoothness = Smoothness::ONE;
-        let y_smoothness: Smoothness = Smoothness::ONE;
+        let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let mut sample_space_time =
             SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness);
 
@@ -1443,8 +1443,8 @@ mod tests {
         let s = BB5_CHAMP;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let x_smoothness: Smoothness = Smoothness::ONE;
-        let y_smoothness: Smoothness = Smoothness::ONE;
+        let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let n = 1_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(
             s,

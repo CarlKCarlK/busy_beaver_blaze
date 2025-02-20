@@ -421,6 +421,11 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 updateHashFromUI();
             });
 
+            // Add event listener for smoothness control
+            document.getElementById('smoothness').addEventListener('change', () => {
+                updateHashFromUI();
+            });
+
             // Initial custom size visibility
             customSize.classList.toggle('visible', sizePreset.value === 'custom');
 
