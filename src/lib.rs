@@ -553,7 +553,7 @@ impl Pixel {
         //     println!("real assert d1 {slice:?}+{empty_count} down_step={down_step}");
         // }
         debug_assert!(
-            fast_mod(slice.len() as u64 + empty_count as u64, down_step.as_u64()) as usize == 0,
+            down_step.rem_into(slice.len() as u64) == 0,
             "real assert d1"
         );
         let mut sum: u32 = 0;
@@ -600,7 +600,7 @@ impl Spaceline {
     // cmk good name??
     fn new0(smoothness: Smoothness) -> Self {
         Spaceline {
-            sample: SMOOTHNESS_0,
+            sample: Smoothness::ONE,
             start: 0,
             pixels: vec![PIXEL_WHITE; 1],
             time: 0,
@@ -615,7 +615,7 @@ impl Spaceline {
 
         assert!(!self.pixels.is_empty(), "real assert a");
         assert!(
-            fast_mod(self.start, self.sample.as_u64() as i64) == 0,
+            self.sample.divides_i64(self.start),
             "Start must be a multiple of the sample rate",
         );
         if sample == self.sample {
@@ -671,7 +671,7 @@ impl Spaceline {
 
     fn merge(&mut self, other: Spaceline) {
         assert!(
-            fast_mod(other.start, other.sample.as_u64() as i64) == 0,
+            other.sample.divides_smoothness(other.sample),
             "real assert 6d"
         );
         assert!(self.time < other.time, "real assert 2");
@@ -687,16 +687,10 @@ impl Spaceline {
 
         assert!(self.sample == sample, "real assert 5");
         assert!(self.start >= start, "real assert 6");
-        assert!(
-            fast_mod(start - self.start, sample.as_u64() as i64) == 0,
-            "real assert 7"
-        );
+        assert!(sample.divides_i64(start - self.start), "real assert 7");
         let self_end = self.start + self.pixels.len() as i64 * sample.as_u64() as i64;
         let end = start + values.len() as i64 * sample.as_u64() as i64;
-        assert!(
-            fast_mod(self_end - end, sample.as_u64() as i64) == 0,
-            "real assert 8"
-        );
+        assert!(sample.divides_i64(self_end - end), "real assert 8");
         assert!(self_end <= end, "real assert 9");
 
         let mut index = 0;
@@ -737,13 +731,13 @@ impl Spaceline {
         let sample_start: i64 = tape_min_index - fast_rem_euclid(tape_min_index, x_sample.as_u64());
         assert!(
             sample_start <= tape_min_index
-                && fast_mod(sample_start, x_sample.as_u64() as i64) == 0
+                && x_sample.divides_i64(sample_start)
                 && tape_min_index - sample_start < x_sample.as_u64() as i64,
             "real assert b1"
         );
 
         let mut pixels = Vec::with_capacity(x_goal as usize * 2);
-        if x_sample == SMOOTHNESS_0 {
+        if x_sample == Smoothness::ONE {
             // For x_sample == 1, each step is just one pixel.
             for sample_index in sample_start..=tape_max_index {
                 // Directly read and convert the pixel from the tape.
@@ -836,7 +830,7 @@ impl Spacelines {
         assert!(fast_is_even(self.main.len()), "real assert e11");
         // println!("cmk compress_take_first");
         self.main
-            .retain(|spaceline| fast_mod(spaceline.time, new_sample.as_u64()) == 0);
+            .retain(|spaceline| new_sample.divides_u64(spaceline.time));
     }
 
     fn last(&self, step_index: u64, y_sample: Smoothness, y_smoothness: Smoothness) -> Spaceline {
@@ -856,8 +850,8 @@ impl Spacelines {
         let mut buffer = self.buffer.clone();
         for inside_index in last_inside_index + 1..y_sample.as_u64() {
             let (_down_sample, down_step) = compute_sample_step(y_sample, y_smoothness);
-            if fast_mod(inside_index, down_step.as_u64()) != 0 {
-                continue; // cmk00 use step_by instead of this
+            if !down_step.divides_u64(inside_index) {
+                continue;
             }
             let inside_inside_index = fast_div(inside_index, down_step.as_u64());
 
@@ -930,7 +924,7 @@ impl SampledSpaceTime {
             step_index: 0,
             x_goal,
             y_goal,
-            sample: SMOOTHNESS_0,
+            sample: Smoothness::ONE,
             spacelines: Spacelines::new(x_smoothness),
             x_smoothness,
             y_smoothness,
@@ -974,7 +968,7 @@ impl SampledSpaceTime {
             self.compress_if_needed();
         }
         let (_down_sample, down_step) = compute_sample_step(self.sample, self.y_smoothness);
-        if fast_mod(inside_index, down_step.as_u64()) != 0 {
+        if !down_step.divides_u64(inside_index) {
             return;
         }
         let inside_inside_index = fast_div(inside_index, down_step.as_u64());
@@ -1293,6 +1287,9 @@ pub struct Smoothness(u8);
 // cmk make the auto constructor so private that it can't be used w/ modules, so that new check is run.
 
 impl Smoothness {
+    /// The smallest valid `Smoothness` value, representing `2^0 = 1`.
+    pub const ONE: Self = Smoothness(0);
+
     #[inline]
     pub fn new(value: u8) -> Self {
         debug_assert!(value <= 63, "Value must be 63 or less");
@@ -1311,13 +1308,35 @@ impl Smoothness {
     }
 
     #[inline]
-    pub fn as_u8(self) -> u8 {
+    pub fn log2(self) -> u8 {
         self.0
     }
-}
 
-// Define constants for Smoothness
-const SMOOTHNESS_0: Smoothness = Smoothness(0);
+    #[inline(always)]
+    fn rem_into<T>(self, x: T) -> T
+    where
+        T: Copy + std::ops::BitAnd<Output = T> + std::ops::Sub<Output = T> + From<u64> + PartialEq,
+    {
+        x & (T::from(self.as_u64()) - T::from(1u64))
+    }
+
+    #[inline(always)]
+    pub fn divides_u64(self, x: u64) -> bool {
+        // If x is divisible by 2^(self.0), shifting right then left recovers x.
+        (x >> self.0) << self.0 == x
+    }
+
+    #[inline(always)]
+    pub fn divides_i64(self, x: i64) -> bool {
+        (x >> self.0) << self.0 == x
+    }
+
+    /// Returns `true` if `self` divides `other`, i.e. if 2^(self.0) divides 2^(other.0).
+    #[inline(always)]
+    pub fn divides_smoothness(self, other: Smoothness) -> bool {
+        self.0 <= other.0
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -1381,8 +1400,8 @@ mod tests {
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let x_smoothness: Smoothness = SMOOTHNESS_0;
-        let y_smoothness: Smoothness = SMOOTHNESS_0;
+        let x_smoothness: Smoothness = Smoothness::ONE;
+        let y_smoothness: Smoothness = Smoothness::ONE;
         let mut sample_space_time =
             SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness);
 
@@ -1434,15 +1453,15 @@ mod tests {
         let s = BB5_CHAMP;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
-        let x_smoothness: Smoothness = SMOOTHNESS_0;
-        let y_smoothness: Smoothness = SMOOTHNESS_0;
+        let x_smoothness: Smoothness = Smoothness::ONE;
+        let y_smoothness: Smoothness = Smoothness::ONE;
         let n = 1_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(
             s,
             goal_x,
             goal_y,
-            x_smoothness.as_u8(),
-            y_smoothness.as_u8(),
+            x_smoothness.log2(),
+            y_smoothness.log2(),
         )?;
 
         while space_time_machine.nth_js(n - 1) {
