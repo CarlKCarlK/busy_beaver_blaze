@@ -324,14 +324,22 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
 
                             // Handle intermediate updates
                             if (e.data.intermediate) {
+                                console.log('Received intermediate update with PNG data length:', e.data.png_data.length);
                                 const blob = new Blob([e.data.png_data], { type: 'image/png' });
+                                console.log('Created blob:', blob);
                                 container.innerHTML = '<img alt="Space-time diagram">';
                                 const img = container.querySelector('img');
                                 img.onload = () => {
+                                    console.log('Image loaded with dimensions:', img.naturalWidth, 'x', img.naturalHeight);
                                     // Once image loads, we can access its original dimensions
                                     updateImageScaling(img, img.naturalWidth, img.naturalHeight, goal_x, goal_y);
                                 };
-                                img.src = URL.createObjectURL(blob);
+                                img.onerror = (err) => {
+                                    console.error('Image failed to load:', err);
+                                };
+                                const blobUrl = URL.createObjectURL(blob);
+                                console.log('Created blob URL:', blobUrl);
+                                img.src = blobUrl;
                                 
                                 document.getElementById('stepCount').textContent = e.data.step_count.toLocaleString();
                                 document.getElementById('onesCount').textContent = e.data.ones_count.toLocaleString();

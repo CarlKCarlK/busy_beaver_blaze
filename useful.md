@@ -17,7 +17,6 @@ cargo test bb5_champ_space_time --release -- --nocapture
 
 ```bash
 wasm-pack build --out-dir docs/v0.2.3/pkg --target web && del docs\v0.2.3\pkg\.gitignore
-web --no-pack
 ```
 
 ## Make movie frames
@@ -38,4 +37,7 @@ cargo run --example movie --release bb5_champ 2K
 ```bash
 cargo run --example movie --release bb5_champ tiny
 start cargo run --example frame --release bb6_contender 2k 14 14 0 
+cargo test benchmark1 --release -- --nocapture
+cargo test benchmark2 --release --target wasm32-unknown-unknown
+cargo test benchmark2 --release -- --nocapture
 ```

@@ -5,8 +5,10 @@ use derive_more::Error as DeriveError;
 use instant::Instant;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
+use smallvec::SmallVec;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
+use web_sys::console;
 
 // cmk is the image size is a power of 2, then don't apply filters (may be a bad idea, because user doesn't control native size exactly)
 // cmk0 see if can remove more as_u64()'s
@@ -547,19 +549,20 @@ impl Pixel {
         self.0 = (self.0 >> 1) + (other.0 >> 1) + ((self.0 & other.0) & 1);
     }
 
-    // cmk00speed
-    fn merge_slice_down_sample(slice: &[Self], empty_count: u64, down_step: PowerOfTwo) -> Self {
-        debug_assert!(down_step.divides_u64(slice.len() as u64), "real assert d1");
-        let mut sum: u32 = 0;
-        for i in (0..slice.len()).step_by(down_step.as_usize()) {
-            sum += slice[i].0 as u32;
+    #[inline]
+    fn merge_slice_down_sample(slice: &[Self], empty_count: usize, down_step_usize: usize) -> Self {
+        debug_assert!(slice.len() % down_step_usize == 0, "real assert d1");
+        let mut sum: usize = 0;
+        for i in (0..slice.len()).step_by(down_step_usize) {
+            sum += slice[i].0 as usize;
         }
-        let total_len = PowerOfTwo::from_u64(slice.len() as u64 + empty_count);
-        let count = total_len / down_step;
-        let mean = count.divide_into(sum) as u8;
+        let total_len = slice.len() + empty_count;
+        let count = total_len.div_ceil(down_step_usize);
+        let mean = (sum / count) as u8;
         Pixel(mean)
     }
 
+    #[inline]
     fn merge_slice_all(slice: &[Self], empty_count: i64) -> Self {
         let sum: u32 = slice.iter().map(|p| p.0 as u32).sum();
         let count = slice.len() + empty_count as usize;
@@ -621,11 +624,6 @@ impl Spaceline {
 
         assert!(sample >= self.sample, "real assert 12");
         let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
-        // println!(
-        //     "cmk old_items_to_use {}, pixel.len {}",
-        //     old_items_to_use,
-        //     self.pixels.len()
-        // );
         assert!(
             old_items_to_use <= self.pixels.len() as u64,
             "real assert d10"
@@ -634,8 +632,8 @@ impl Spaceline {
         let down_step = sample.saturating_div(self.smoothness);
         let pixel0 = Pixel::merge_slice_down_sample(
             &self.pixels[..old_items_to_use as usize],
-            old_items_to_add as u64,
-            down_step,
+            old_items_to_add as usize,
+            down_step.as_usize(),
         );
 
         let mut new_index = 0usize;
@@ -643,13 +641,14 @@ impl Spaceline {
         new_index += 1;
         let value_len = self.pixels.len() as u64;
 
-        // cmk00speed
+        // cmk00speed -- seems fast now
+        let down_size_usize = down_step.as_usize();
         for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
             let slice = &self.pixels[old_index as usize..old_end as usize];
             let old_items_to_add = old_items_per_new_u64 - (old_end - old_index);
             self.pixels[new_index] =
-                Pixel::merge_slice_down_sample(slice, old_items_to_add, down_step);
+                Pixel::merge_slice_down_sample(slice, old_items_to_add as usize, down_size_usize);
             new_index += 1;
         }
 
@@ -727,21 +726,22 @@ impl Spaceline {
         );
 
         let mut pixels = Vec::with_capacity(x_goal as usize * 2);
-        if x_sample == PowerOfTwo::ONE {
-            // For x_sample == 1, each step is just one pixel.
-            for sample_index in sample_start..=tape_max_index {
+
+        let down_sample = x_sample.min(x_smoothness);
+        let down_step = x_sample.saturating_div(down_sample);
+
+        if down_sample == PowerOfTwo::ONE {
+            // With least smoothness, we just read the pixels directly.
+            for sample_index in (sample_start..=tape_max_index).step_by(x_sample.as_usize()) {
                 // Directly read and convert the pixel from the tape.
                 pixels.push(tape.read(sample_index).into());
             }
         } else {
             // For x_sample > 1, process as before.
 
-            // cmk0000 for now, we allocate on the heap. May want to special case down_sample==1 or use SmallVec for 0 to say 8.
-
-            let down_sample = x_sample.min(x_smoothness);
-            let down_step = x_sample.saturating_div(down_sample);
             // Create a temporary vector to hold x_sample pixels.
-            let mut pixel_range = vec![Pixel(0); down_sample.as_usize()];
+            let mut pixel_range: SmallVec<[Pixel; 64]> =
+                SmallVec::from_elem(Pixel(0), down_sample.as_usize());
             for sample_index in (sample_start..=tape_max_index).step_by(x_sample.as_usize()) {
                 for (i, pixel) in pixel_range.iter_mut().enumerate() {
                     *pixel = tape.read(sample_index + (down_step * i) as i64).into();
@@ -948,11 +948,16 @@ impl SampledSpaceTime {
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
         let inside_index = self.sample.rem_into(self.step_index);
+        if self.sample == PowerOfTwo::ONE && inside_index != 0 {
+            return;
+        }
+
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
             self.spacelines.flush_buffer();
             self.compress_if_needed();
         }
+
         let down_step = self.sample.saturating_div(self.y_smoothness);
         if !down_step.divides_u64(inside_index) {
             return;
@@ -969,6 +974,10 @@ impl SampledSpaceTime {
     }
 
     fn to_png(&self) -> Result<Vec<u8>, Error> {
+        // cmk00000000000
+        // if self.x_smoothness == PowerOfTwo::ONE {
+        //     return self.to_png_smooth0();
+        // }
         let last = self
             .spacelines
             .last(self.step_index, self.sample, self.y_smoothness);
@@ -984,8 +993,8 @@ impl SampledSpaceTime {
         for y in 0..y_actual {
             let spaceline = &self.spacelines.get(y as usize, &last);
             let local_start = spaceline.start;
-            let local_sample = spaceline.sample;
-            let rel_sample = x_sample / local_sample;
+            let local_x_sample = spaceline.sample;
+            let local_per_x_sample = x_sample / local_x_sample;
             let row_start_byte_index: u32 = y * row_bytes;
             let x_start = x_sample.div_ceil_into(local_start - tape_min_index);
             for x in x_start as u32..x_actual {
@@ -996,9 +1005,26 @@ impl SampledSpaceTime {
                     "real assert if x_start is correct"
                 );
 
-                let local_spaceline_start: i64 = local_sample.divide_into(tape_index - local_start);
+                let local_spaceline_start: i64 =
+                    local_x_sample.divide_into(tape_index - local_start);
+
+                // cmk000000
+                if local_per_x_sample == PowerOfTwo::ONE || self.x_smoothness == PowerOfTwo::ONE {
+                    {
+                        if local_spaceline_start >= spaceline.pixels.len() as i64 {
+                            break;
+                        }
+                    }
+                    let value = spaceline.pixels[local_spaceline_start as usize].0;
+                    if value != 0 {
+                        let byte_index: u32 = x + row_start_byte_index;
+                        packed_data[byte_index as usize] = value;
+                    }
+                    continue;
+                }
+                println!("slow cmk");
                 let slice = (local_spaceline_start
-                    ..local_spaceline_start + rel_sample.as_u64() as i64)
+                    ..local_spaceline_start + local_per_x_sample.as_u64() as i64)
                     .map(|i| {
                         spaceline
                             .pixels
@@ -1023,14 +1049,77 @@ impl SampledSpaceTime {
 
         encode_png(x_actual, y_actual, &packed_data)
     }
+
+    #[inline]
+    fn int_div_ceil(a: i64, b: i64) -> i64 {
+        (a + b - 1) / b
+    }
+    fn to_png_smooth0(&self) -> Result<Vec<u8>, Error> {
+        let last = self
+            .spacelines
+            .last(self.step_index, self.sample, self.y_smoothness);
+        let x_sample: u64 = last.sample.as_u64();
+        let tape_width: u64 = last.pixels.len() as u64 * x_sample;
+        let tape_min_index = last.start;
+        let x_actual: u32 = (tape_width / x_sample) as u32;
+        let y_actual: u32 = self.spacelines.len() as u32;
+
+        let row_bytes = ((x_actual as usize) + 7) / 8;
+        let mut packed_data = vec![0u8; row_bytes * (y_actual as usize)];
+
+        // First row is always empty, so start at 1
+        for y in 1..y_actual {
+            let spaceline = &self.spacelines.get(y as usize, &last);
+            let local_start = spaceline.start;
+            let local_sample = spaceline.sample;
+            let row_start_byte_index: u32 = y * row_bytes as u32;
+            let x_start = Self::int_div_ceil(local_start - tape_min_index, x_sample as i64);
+
+            for x in x_start as u32..x_actual {
+                let tape_index: i64 = x as i64 * x_sample as i64 + tape_min_index;
+                debug_assert!(
+                    tape_index >= local_start,
+                    "real assert if x_start is correct"
+                );
+
+                let local_spaceline_index: i64 =
+                    (tape_index - local_start) / local_sample.as_u64() as i64;
+                if local_spaceline_index >= spaceline.pixels.len() as i64 {
+                    break;
+                }
+
+                let value = spaceline.pixels[local_spaceline_index as usize].0;
+                if value != 0 {
+                    debug_assert!(value == 1);
+                    let bit_index: u32 = 7 - (x % 8); // PNG is backwards
+                    let byte_index: u32 = x / 8 + row_start_byte_index;
+                    packed_data[byte_index as usize] |= 1 << bit_index;
+                }
+            }
+        }
+
+        encode_png(x_actual, y_actual, &packed_data)
+    }
 }
 
 fn sample_rate(row: u64, goal: u32) -> PowerOfTwo {
     let threshold = 2 * goal;
     let ratio = (row + 1) as f64 / threshold as f64;
+
+    // cmk000000000
+    // let log_value = ratio.log2();
+    // let ceil_value = log_value.ceil();
+    // let clamped_value = ceil_value.max(0.0);
+    // println!(
+    //     "ratio: {}, log2: {}, ceil: {}, maxed: {}",
+    //     ratio, log_value, ceil_value, clamped_value
+    // );
+
     // For rows < threshold, ratio < 1, log2(ratio) is negative, and the ceil clamps to 0.
     let exponent = ratio.log2().ceil().max(0.0) as u8;
-    PowerOfTwo::new(exponent)
+    let result = PowerOfTwo::from_exp(exponent);
+    // println!("result: {:?}", result.as_u64());
+    result
 }
 
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
@@ -1128,9 +1217,13 @@ impl SpaceTimeMachine {
 
     #[wasm_bindgen]
     pub fn png_data(&self) -> Vec<u8> {
-        self.space_time
+        console::log_1(&"[Rust] Generating PNG data...".into());
+        let result = self
+            .space_time
             .to_png()
-            .unwrap_or_else(|e| format!("{:?}", e).into_bytes())
+            .unwrap_or_else(|e| format!("{:?}", e).into_bytes());
+        console::log_1(&"[Rust] PNG data generated".into());
+        result
     }
 
     #[wasm_bindgen]
@@ -1242,7 +1335,7 @@ impl PowerOfTwo {
     pub const MAX: Self = Self(63);
 
     #[inline]
-    pub fn new(value: u8) -> Self {
+    pub fn from_exp(value: u8) -> Self {
         debug_assert!(value <= Self::MAX.0, "Value must be 63 or less");
         Self(value)
     }
@@ -1273,7 +1366,7 @@ impl PowerOfTwo {
     // from u64
     pub fn from_u64(value: u64) -> Self {
         assert!(value.is_power_of_two(), "Value must be a power of two");
-        PowerOfTwo::new(value.trailing_zeros() as u8)
+        PowerOfTwo::from_exp(value.trailing_zeros() as u8)
     }
 
     #[inline]
@@ -1422,7 +1515,7 @@ mod tests {
         }
 
         let png_data = sample_space_time.to_png()?;
-        fs::write("test.png", &png_data).unwrap(); // cmk handle error
+        fs::write("tests/expected/test.png", &png_data).unwrap(); // cmk handle error
 
         println!(
             "Final: Steps {}: {:?}, #1's {}",
@@ -1481,7 +1574,7 @@ mod tests {
         );
 
         let png_data = space_time_machine.png_data();
-        fs::write("test_js.png", &png_data).map_err(|e| e.to_string())?;
+        fs::write("tests/expected/test_js.png", &png_data).map_err(|e| e.to_string())?;
 
         assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
         assert_eq!(space_time_machine.machine.count_ones(), 4098);
@@ -1531,7 +1624,7 @@ mod tests {
         );
 
         let png_data = space_time_machine.png_data();
-        fs::write("test2_js.png", &png_data).map_err(|e| e.to_string())?;
+        fs::write("tests/expected/test2_js.png", &png_data).map_err(|e| e.to_string())?;
 
         assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
         assert_eq!(space_time_machine.machine.count_ones(), 4098);
@@ -1551,6 +1644,7 @@ mod tests {
 
     // Create a test that runs bb5 champ to halting and then prints the time it took
     // to run the test
+    // cmk which of these should be bindgen tests?
     #[wasm_bindgen_test]
     #[test]
     fn bb5_champ_time() -> Result<(), String> {
@@ -1563,6 +1657,141 @@ mod tests {
             duration
         );
         assert_eq!(step_count, 47_176_870);
+        Ok(())
+    }
+
+    // cmk00000 bug: on web, on bb6, it says 500....50 not 50...00
+
+    #[test]
+    fn benchmark1() -> Result<(), String> {
+        let start = std::time::Instant::now();
+        let s = BB6_CONTENDER;
+        let goal_x: u32 = 360;
+        let goal_y: u32 = 432;
+        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
+        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
+        let n = 500_000_000;
+        let mut space_time_machine = SpaceTimeMachine::from_str(
+            s,
+            goal_x,
+            goal_y,
+            x_smoothness.log2(),
+            y_smoothness.log2(),
+        )?;
+
+        space_time_machine.nth_js(n - 1);
+
+        println!("Elapsed: {:?}", start.elapsed());
+
+        println!(
+            "Final: Steps {}: {:?}, #1's {}",
+            space_time_machine
+                .space_time
+                .step_index
+                .separate_with_commas(),
+            space_time_machine.machine,
+            space_time_machine.machine.count_ones()
+        );
+
+        assert_eq!(space_time_machine.space_time.step_index, n);
+        assert_eq!(space_time_machine.machine.count_ones(), 10669);
+        assert_eq!(space_time_machine.machine.state, 1);
+        assert_eq!(space_time_machine.machine.tape_index, 34054);
+
+        // cmk00 put these test files somewhere other that top level folder and create folder if needed
+        // cmk00 what is one method png_data and another to to_png?
+        let start = std::time::Instant::now();
+        let png_data = space_time_machine.png_data();
+        fs::write("tests/expected/bench.png", &png_data).unwrap(); // cmk handle error
+        println!("Elapsed png: {:?}", start.elapsed());
+        Ok(())
+    }
+
+    #[test]
+    #[wasm_bindgen_test]
+    fn benchmark2() -> Result<(), String> {
+        // let start = std::time::Instant::now();
+        let early_stop = Some(1_000_000_000);
+
+        let s = BB6_CONTENDER;
+        let goal_x: u32 = 360;
+        let goal_y: u32 = 432;
+        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0); // cmk0000 test from exp one and debug
+        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0); // cmk test from one
+        let mut space_time_machine = SpaceTimeMachine::from_str(
+            s,
+            goal_x,
+            goal_y,
+            x_smoothness.log2(),
+            y_smoothness.log2(),
+        )?;
+
+        let chunk_size = 100_000_000;
+        let mut total_steps = 1; // Start at 1 since first step is already taken
+
+        loop {
+            if early_stop.is_some_and(|early_stop| total_steps >= early_stop) {
+                break;
+            }
+
+            // Calculate next chunk size
+            let next_chunk = if total_steps == 1 {
+                chunk_size - 1
+            } else {
+                chunk_size
+            };
+
+            let next_chunk = if let Some(early_stop) = early_stop {
+                let remaining = early_stop - total_steps;
+                remaining.min(next_chunk)
+            } else {
+                next_chunk
+            };
+
+            // Run the next chunk
+            let continues = space_time_machine.nth_js(next_chunk - 1);
+            total_steps += next_chunk;
+
+            // Send intermediate update
+            println!(
+                "intermediate: {:?} Steps {}: {:?}, #1's {}",
+                0,
+                // start.elapsed(),
+                space_time_machine
+                    .space_time
+                    .step_index
+                    .separate_with_commas(),
+                space_time_machine.machine,
+                space_time_machine.machine.count_ones()
+            );
+
+            // let _png_data = space_time_machine.png_data();
+
+            // Exit if machine halted
+            if !continues {
+                break;
+            }
+        }
+
+        // Send final result
+
+        println!(
+            "Final: {:?} Steps {}: {:?}, #1's {}",
+            0, // start.elapsed(),
+            space_time_machine
+                .space_time
+                .step_index
+                .separate_with_commas(),
+            space_time_machine.machine,
+            space_time_machine.machine.count_ones(),
+        );
+
+        // // cmk00 put these test files somewhere other that top level folder and create folder if needed
+        // // cmk00 what is one method png_data and another to to_png?
+        // let start = std::time::Instant::now();
+        // let png_data = space_time_machine.png_data();
+        // fs::write("tests/expected/bench2.png", &png_data).unwrap(); // cmk handle error
+        // println!("Elapsed png: {:?}", start.elapsed());
         Ok(())
     }
 }

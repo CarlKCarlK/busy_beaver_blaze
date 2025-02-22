@@ -67,8 +67,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let num_frames = 2;
 
     let (max_x_2, max_y_2) = (
-        PowerOfTwo::new(x_smoothness).log2(),
-        PowerOfTwo::new(y_smoothness).log2(),
+        PowerOfTwo::from_exp(x_smoothness).log2(),
+        PowerOfTwo::from_exp(y_smoothness).log2(),
     );
 
     let mut space_time_machine = match machine_name.as_str() {

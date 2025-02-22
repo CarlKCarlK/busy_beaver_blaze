@@ -73,19 +73,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "bb5_champ" => {
             let machine =
                 SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, x_smoothness, y_smoothness)?;
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb5_champ")?;
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb5_champ")?;
             (machine, 47_176_870, 1000, dir_info)
         }
         "bb6_contender" => {
             let machine =
                 SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, x_smoothness, y_smoothness)?;
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender")?;
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
             (machine, 1_000_000_000_000u64, 2000, dir_info)
         }
         "bb6_contender2" => {
             let machine =
                 SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, x_smoothness, y_smoothness)?;
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb6_contender2")?;
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender2")?;
             (machine, 1_000_000_000u64, 1000, dir_info)
         }
         "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
@@ -97,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 y_smoothness,
             )?;
             let dir_info =
-                create_sequential_subdir(r"m:\deldir\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
+                create_sequential_subdir(r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
             (machine, 1_000_000_000u64, 1000, dir_info)
         }
         _ => Err(format!("Unknown machine: {}", machine_name))?,
@@ -158,9 +158,15 @@ fn save_frame(
     fs::create_dir_all(resized_file_name.parent().unwrap())?;
     fs::create_dir_all(metadata_file_name.parent().unwrap())?;
 
+    #[cfg(target_os = "linux")]
+    let font_data = include_bytes!(
+        r"/mnt/c/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.21.10351.0_x64__8wekyb3d8bbwe/CascadiaMono.ttf"
+    );
+    #[cfg(target_os = "windows")]
     let font_data = include_bytes!(
         r"C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.21.10351.0_x64__8wekyb3d8bbwe\CascadiaMono.ttf"
     );
+
     let font = FontArc::try_from_slice(font_data).map_err(|_| "Failed to load font")?;
     let scale = PxScale::from(50.0);
 
