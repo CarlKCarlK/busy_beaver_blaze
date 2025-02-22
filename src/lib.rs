@@ -194,6 +194,7 @@ impl fmt::Debug for Machine {
 impl Iterator for Machine {
     type Item = ();
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let program = &self.program;
         let input = self.tape.read(self.tape_index);
@@ -945,6 +946,7 @@ impl SampledSpaceTime {
     //  Also: Inline the top part of the function.
     //  Maybe pre-subtract 1 from sample
 
+    #[inline]
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
         let inside_index = self.sample.rem_into(self.step_index);
@@ -1093,6 +1095,7 @@ pub struct SpaceTimeMachine {
 impl Iterator for SpaceTimeMachine {
     type Item = ();
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.machine.next()?;
         self.space_time.snapshot(&self.machine);
@@ -1132,19 +1135,69 @@ impl SpaceTimeMachine {
     }
 
     #[wasm_bindgen(js_name = "step_for_secs")]
-    pub fn step_for_secs_js(&mut self, seconds: f32, early_stop: Option<u64>) -> bool {
+    pub fn step_for_secs_js(
+        &mut self,
+        seconds: f32,
+        early_stop: Option<u64>,
+        loops_per_time_check: u64,
+    ) -> bool {
         let start = Instant::now();
-        loop {
-            if early_stop.is_some_and(|early_stop| self.step_count() >= early_stop) {
-                return false;
+        let step_count = self.step_count();
+
+        // no early stop
+        let Some(early_stop) = early_stop else {
+            if step_count == 1 {
+                for _ in 0..loops_per_time_check.saturating_sub(1) {
+                    if self.next().is_none() {
+                        return false;
+                    }
+                }
+                if start.elapsed().as_secs_f32() >= seconds {
+                    return true;
+                }
             }
-            if self.next().is_none() {
-                return false;
+            loop {
+                for _ in 0..loops_per_time_check {
+                    if self.next().is_none() {
+                        return false;
+                    }
+                }
+                if start.elapsed().as_secs_f32() >= seconds {
+                    return true;
+                }
+            }
+        };
+
+        // early stop
+        if step_count >= early_stop {
+            return false;
+        }
+        let mut remaining = early_stop - step_count;
+        if step_count == 1 {
+            let loops_per_time2 = loops_per_time_check.saturating_sub(1).min(remaining);
+            for _ in 0..loops_per_time2 {
+                if self.next().is_none() {
+                    return false;
+                }
             }
             if start.elapsed().as_secs_f32() >= seconds {
                 return true;
             }
+            remaining -= loops_per_time2 as u64;
         }
+        while remaining > 0 {
+            let loops_per_time2 = loops_per_time_check.min(remaining);
+            for _ in 0..loops_per_time2 {
+                if self.next().is_none() {
+                    return false;
+                }
+            }
+            if start.elapsed().as_secs_f32() >= seconds {
+                return true;
+            }
+            remaining -= loops_per_time2 as u64;
+        }
+        true
     }
 
     #[wasm_bindgen]
@@ -1533,7 +1586,7 @@ mod tests {
             y_smoothness.log2(),
         )?;
 
-        while space_time_machine.step_for_secs_js(seconds, None) {
+        while space_time_machine.step_for_secs_js(seconds, None, 100_000) {
             println!(
                 "Index {}: {:?}, #1's {}",
                 space_time_machine

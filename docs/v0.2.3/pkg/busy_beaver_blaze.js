@@ -286,11 +286,12 @@ export class SpaceTimeMachine {
     }
     /**
      * @param {number} seconds
-     * @param {bigint | null} [early_stop]
+     * @param {bigint | null | undefined} early_stop
+     * @param {bigint} loops_per_time_check
      * @returns {boolean}
      */
-    step_for_secs(seconds, early_stop) {
-        const ret = wasm.spacetimemachine_step_for_secs(this.__wbg_ptr, seconds, !isLikeNone(early_stop), isLikeNone(early_stop) ? BigInt(0) : early_stop);
+    step_for_secs(seconds, early_stop, loops_per_time_check) {
+        const ret = wasm.spacetimemachine_step_for_secs(this.__wbg_ptr, seconds, !isLikeNone(early_stop), isLikeNone(early_stop) ? BigInt(0) : early_stop, loops_per_time_check);
         return ret !== 0;
     }
     /**

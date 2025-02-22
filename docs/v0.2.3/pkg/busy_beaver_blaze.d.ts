@@ -12,7 +12,7 @@ export class SpaceTimeMachine {
   free(): void;
   constructor(s: string, goal_x: number, goal_y: number, x_smoothness: number, y_smoothness: number);
   nth(n: bigint): boolean;
-  step_for_secs(seconds: number, early_stop?: bigint | null): boolean;
+  step_for_secs(seconds: number, early_stop: bigint | null | undefined, loops_per_time_check: bigint): boolean;
   png_data(): Uint8Array;
   step_count(): bigint;
   count_ones(): number;
@@ -32,7 +32,7 @@ export interface InitOutput {
   readonly __wbg_spacetimemachine_free: (a: number, b: number) => void;
   readonly spacetimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
   readonly spacetimemachine_nth: (a: number, b: bigint) => number;
-  readonly spacetimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint) => number;
+  readonly spacetimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
   readonly spacetimemachine_png_data: (a: number) => [number, number];
   readonly spacetimemachine_step_count: (a: number) => bigint;
   readonly spacetimemachine_count_ones: (a: number) => number;
