@@ -948,9 +948,6 @@ impl SampledSpaceTime {
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
         let inside_index = self.sample.rem_into(self.step_index);
-        if self.sample == PowerOfTwo::ONE && inside_index != 0 {
-            return;
-        }
 
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
@@ -1004,7 +1001,8 @@ impl SampledSpaceTime {
                 let local_spaceline_start: i64 =
                     local_x_sample.divide_into(tape_index - local_start);
 
-                // cmk000000
+                // cmk000
+                // this helps medium bb6 go from 5 seconds to 3.5
                 if local_per_x_sample == PowerOfTwo::ONE || self.x_smoothness == PowerOfTwo::ONE {
                     {
                         if local_spaceline_start >= spaceline.pixels.len() as i64 {
@@ -1018,7 +1016,7 @@ impl SampledSpaceTime {
                     }
                     continue;
                 }
-                println!("slow cmk");
+                // cmk000 can we make this after by precomputing the collect outside the loop?
                 let slice = (local_spaceline_start
                     ..local_spaceline_start + local_per_x_sample.as_u64() as i64)
                     .map(|i| {
@@ -1594,7 +1592,7 @@ mod tests {
         Ok(())
     }
 
-    // cmk00000 bug: on web, on bb6, it says 500....50 not 50...00
+    // cmk00 bug: on web, on bb6, it says 500....50 not 50...00
 
     #[test]
     fn benchmark1() -> Result<(), String> {
@@ -1650,7 +1648,7 @@ mod tests {
         let s = BB6_CONTENDER;
         let goal_x: u32 = 360;
         let goal_y: u32 = 432;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0); // cmk0000 test from exp one and debug
+        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0); // cmk00 test from exp one and debug
         let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0); // cmk test from one
         let mut space_time_machine = SpaceTimeMachine::from_str(
             s,
