@@ -8,7 +8,7 @@ use png::{BitDepth, ColorType, Encoder};
 use smallvec::SmallVec;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
-use web_sys::console;
+// use web_sys::console;
 
 // cmk is the image size is a power of 2, then don't apply filters (may be a bad idea, because user doesn't control native size exactly)
 // cmk0 see if can remove more as_u64()'s
@@ -974,10 +974,6 @@ impl SampledSpaceTime {
     }
 
     fn to_png(&self) -> Result<Vec<u8>, Error> {
-        // cmk00000000000
-        // if self.x_smoothness == PowerOfTwo::ONE {
-        //     return self.to_png_smooth0();
-        // }
         let last = self
             .spacelines
             .last(self.step_index, self.sample, self.y_smoothness);
@@ -1049,77 +1045,15 @@ impl SampledSpaceTime {
 
         encode_png(x_actual, y_actual, &packed_data)
     }
-
-    #[inline]
-    fn int_div_ceil(a: i64, b: i64) -> i64 {
-        (a + b - 1) / b
-    }
-    fn to_png_smooth0(&self) -> Result<Vec<u8>, Error> {
-        let last = self
-            .spacelines
-            .last(self.step_index, self.sample, self.y_smoothness);
-        let x_sample: u64 = last.sample.as_u64();
-        let tape_width: u64 = last.pixels.len() as u64 * x_sample;
-        let tape_min_index = last.start;
-        let x_actual: u32 = (tape_width / x_sample) as u32;
-        let y_actual: u32 = self.spacelines.len() as u32;
-
-        let row_bytes = ((x_actual as usize) + 7) / 8;
-        let mut packed_data = vec![0u8; row_bytes * (y_actual as usize)];
-
-        // First row is always empty, so start at 1
-        for y in 1..y_actual {
-            let spaceline = &self.spacelines.get(y as usize, &last);
-            let local_start = spaceline.start;
-            let local_sample = spaceline.sample;
-            let row_start_byte_index: u32 = y * row_bytes as u32;
-            let x_start = Self::int_div_ceil(local_start - tape_min_index, x_sample as i64);
-
-            for x in x_start as u32..x_actual {
-                let tape_index: i64 = x as i64 * x_sample as i64 + tape_min_index;
-                debug_assert!(
-                    tape_index >= local_start,
-                    "real assert if x_start is correct"
-                );
-
-                let local_spaceline_index: i64 =
-                    (tape_index - local_start) / local_sample.as_u64() as i64;
-                if local_spaceline_index >= spaceline.pixels.len() as i64 {
-                    break;
-                }
-
-                let value = spaceline.pixels[local_spaceline_index as usize].0;
-                if value != 0 {
-                    debug_assert!(value == 1);
-                    let bit_index: u32 = 7 - (x % 8); // PNG is backwards
-                    let byte_index: u32 = x / 8 + row_start_byte_index;
-                    packed_data[byte_index as usize] |= 1 << bit_index;
-                }
-            }
-        }
-
-        encode_png(x_actual, y_actual, &packed_data)
-    }
 }
 
 fn sample_rate(row: u64, goal: u32) -> PowerOfTwo {
     let threshold = 2 * goal;
     let ratio = (row + 1) as f64 / threshold as f64;
 
-    // cmk000000000
-    // let log_value = ratio.log2();
-    // let ceil_value = log_value.ceil();
-    // let clamped_value = ceil_value.max(0.0);
-    // println!(
-    //     "ratio: {}, log2: {}, ceil: {}, maxed: {}",
-    //     ratio, log_value, ceil_value, clamped_value
-    // );
-
     // For rows < threshold, ratio < 1, log2(ratio) is negative, and the ceil clamps to 0.
     let exponent = ratio.log2().ceil().max(0.0) as u8;
-    let result = PowerOfTwo::from_exp(exponent);
-    // println!("result: {:?}", result.as_u64());
-    result
+    PowerOfTwo::from_exp(exponent)
 }
 
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
@@ -1217,12 +1151,12 @@ impl SpaceTimeMachine {
 
     #[wasm_bindgen]
     pub fn png_data(&self) -> Vec<u8> {
-        console::log_1(&"[Rust] Generating PNG data...".into());
+        // console::log_1(&"[Rust] Generating PNG data...".into());
         let result = self
             .space_time
             .to_png()
             .unwrap_or_else(|e| format!("{:?}", e).into_bytes());
-        console::log_1(&"[Rust] PNG data generated".into());
+        // console::log_1(&"[Rust] PNG data generated".into());
         result
     }
 

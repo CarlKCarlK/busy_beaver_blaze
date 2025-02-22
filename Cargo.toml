@@ -34,9 +34,9 @@ num-bigint = "0.4.6"
 num-traits = "0.2.14"
 glob = "0.3.2"
 
-# cmk00 remember to remove this
-[profile.release]
-debug = true
+# # cmk00 remember to remove this
+# [profile.release]
+# debug = true
 
 [build]
 rustflags = ["-C", "target-cpu=native"]

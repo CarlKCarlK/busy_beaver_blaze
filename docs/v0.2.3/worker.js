@@ -1,13 +1,13 @@
 import init, { Machine, SpaceTimeMachine } from './pkg/busy_beaver_blaze.js';
 
-console.log('[Worker] Starting initialization');
+// console.log('[Worker] Starting initialization');
 let wasmReady = init();
 
 self.onmessage = async function (e) {
     try {
-        console.log('[Worker] Received message:', e.data);
+        // console.log('[Worker] Received message:', e.data);
         await wasmReady;
-        console.log('[Worker] WASM initialized');
+        // console.log('[Worker] WASM initialized');
         const { programText, goal_x, goal_y, early_stop } = e.data;
 
         try {
@@ -31,7 +31,7 @@ self.onmessage = async function (e) {
 
                 // Send intermediate update
                 const png_data = space_time_machine.png_data();
-                console.log('[Worker] Generated PNG data length:', png_data.length);
+                // console.log('[Worker] Generated PNG data length:', png_data.length);
                 self.postMessage({
                     success: true,
                     intermediate: true,
