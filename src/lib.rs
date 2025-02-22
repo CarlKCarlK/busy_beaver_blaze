@@ -642,7 +642,6 @@ impl Spaceline {
         new_index += 1;
         let value_len = self.pixels.len() as u64;
 
-        // cmk00speed -- seems fast now
         let down_size_usize = down_step.as_usize();
         for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
@@ -685,21 +684,18 @@ impl Spaceline {
 
         let mut index = 0;
         // everything before self.start should get merged with merged with white
-        // cmk00speed
         for _ in (start..self.start).step_by(sample.as_usize()) {
             values[index].merge_with_white();
             index += 1;
         }
 
         // merge the overlapping part
-        // cmk00speed
         for self_value in self.pixels.iter() {
             values[index].merge(*self_value);
             index += 1;
         }
 
         // merge the rest with white
-        // cmk00speed
         let index2 = index;
         for _ in index2..values.len() {
             values[index].merge_with_white();
@@ -1003,7 +999,6 @@ impl SampledSpaceTime {
                 let local_spaceline_start: i64 =
                     local_x_sample.divide_into(tape_index - local_start);
 
-                // cmk000
                 // this helps medium bb6 go from 5 seconds to 3.5
                 if local_per_x_sample == PowerOfTwo::ONE || self.x_smoothness == PowerOfTwo::ONE {
                     {
@@ -1018,7 +1013,7 @@ impl SampledSpaceTime {
                     }
                     continue;
                 }
-                // cmk000 can we make this after by precomputing the collect outside the loop?
+                // cmk LATER can we make this after by precomputing the collect outside the loop?
                 let slice = (local_spaceline_start
                     ..local_spaceline_start + local_per_x_sample.as_u64() as i64)
                     .map(|i| {
@@ -1029,7 +1024,7 @@ impl SampledSpaceTime {
                             .unwrap_or(PIXEL_WHITE)
                     })
                     .collect::<Vec<_>>();
-                // cmk look at putting this back in
+                // cmk LATER look at putting this back in
                 // if local_spaceline_index >= spaceline.pixels.len() as i64 {
                 //     break;
                 // }
@@ -1645,8 +1640,6 @@ mod tests {
         Ok(())
     }
 
-    // cmk00 bug: on web, on bb6, it says 500....50 not 50...00
-
     #[test]
     fn benchmark1() -> Result<(), String> {
         let start = std::time::Instant::now();
@@ -1683,8 +1676,7 @@ mod tests {
         assert_eq!(space_time_machine.machine.state, 1);
         assert_eq!(space_time_machine.machine.tape_index, 34054);
 
-        // cmk00 put these test files somewhere other that top level folder and create folder if needed
-        // cmk00 what is one method png_data and another to to_png?
+        // cmk LATER what is one method png_data and another to to_png?
         let start = std::time::Instant::now();
         let png_data = space_time_machine.png_data();
         fs::write("tests/expected/bench.png", &png_data).unwrap(); // cmk handle error

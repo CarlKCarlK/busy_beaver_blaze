@@ -16,11 +16,13 @@
  -- Visualize a billion steps in about 5 seconds.
  -- Visualize 50 billion steps in about 10 minutes.
 * Understands common formats for Turing machines ("Symbol Major", "State Major", and ["standard format"](https://discuss.bbchallenge.org/t/standard-tm-text-format/60).)
+* Can optionally do **perfect averaging** of the tape contents into pixels. `Smooth` defaults to 0 for fast sampling. Set higher for better quality with longer run times. 63 is perfect averaging.
 
 ## Techniques
 
 * The Turing machine interpreter is a straight forward implementation in Rust.
 * The space-time visualization is implemented via adaptive sampling. The sampler starts by recording the whole tape at every machine step. Whenever the tape or steps grows beyond twice the size of the desired image, the sampler reduces the sampling rate by half. Total memory and time used is, thus, proportional to the size of the desired image, not the number of machine steps or width of visited tape.
+* One incremmnt of smoothing typically doubles the tape contents to be averaged and thus doubles the running time. Memory use, however, increases only linearly. ("Typical" here means the number of steps is much larger than the width of the visited tape.)
 * Tips on porting Rust to WASM: [Nine Rules for Running Rust in the Browser](https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1) in *Towards Data Science*.
 
 ## Web App Screenshot
