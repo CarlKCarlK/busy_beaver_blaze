@@ -12,7 +12,7 @@ self.onmessage = async function (e) {
 
         try {
             const space_time_machine = new SpaceTimeMachine(programText, goal_x, goal_y, x_smoothness, y_smoothness);
-            const CHUNK_SIZE = 10000000n;
+            const CHUNK_SIZE = 10000000n / BigInt(Math.max(x_smoothness, y_smoothness) + 1);
             let total_steps = 1n;  // Start at 1 since first step is already taken
 
             while (true) {

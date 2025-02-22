@@ -1726,4 +1726,50 @@ mod tests {
         // println!("Elapsed png: {:?}", start.elapsed());
         Ok(())
     }
+
+    #[test]
+    fn benchmark3() -> Result<(), String> {
+        println!("Smoothness\tSteps\tOnes\tTime(ms)");
+
+        for smoothness in 0..=63 {
+            let start = std::time::Instant::now();
+            let s = BB5_CHAMP;
+            let goal_x: u32 = 360;
+            let goal_y: u32 = 432;
+            let x_smoothness = PowerOfTwo::from_exp(smoothness);
+            let y_smoothness = PowerOfTwo::from_exp(smoothness);
+
+            let mut space_time_machine = SpaceTimeMachine::from_str(
+                s,
+                goal_x,
+                goal_y,
+                x_smoothness.log2(),
+                y_smoothness.log2(),
+            )?;
+
+            // Run to completion
+            while space_time_machine.nth_js(1_000_000 - 1) {}
+
+            let elapsed = start.elapsed().as_millis();
+            println!(
+                "{}\t{}\t{}\t{}",
+                smoothness,
+                space_time_machine.step_count(),
+                space_time_machine.count_ones(),
+                elapsed
+            );
+
+            // Generate PNG for first and last iteration
+            if smoothness == 0 || smoothness == 63 {
+                let png_data = space_time_machine.png_data();
+                fs::write(
+                    format!("tests/expected/bench3_smooth{}.png", smoothness),
+                    &png_data,
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+
+        Ok(())
+    }
 }
