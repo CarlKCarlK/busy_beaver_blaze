@@ -1,63 +1,62 @@
 # Busy Beaver Blaze
 
-**A Turing-machine interpreter and space-time visualizer, implemented in Rust and compiled to native & WebAssembly**
+**A Turing machine interpreter and space-time visualizer, implemented in Rust and compiled to native & WebAssembly.**
 
-* [Run this program in your own web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
-* Watch [an animation](https://youtu.be/IBcJ2vRHGAY) made with this program.
+- [Run this program in your web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
+- Watch [an animation](https://youtu.be/IBcJ2vRHGAY) made with this program.
 
 ## Features
 
-* Within the program, run the champion [Busy Beaver](https://en.wikipedia.org/wiki/Busy_beaver) Turing machines for millions of steps in less than a second.
-* Run your own Turing machines.
-* Visualize Turing machines with space time diagrams.
-* Watch the space time diagrams develop as the Turing machine runs.
-* Speed and step::
- -- Visualize millions of steps in less than a second.
- -- Visualize a billion steps in about 5 seconds.
- -- Visualize 50 billion steps in about 10 minutes.
-* Understands common formats for Turing machines ("Symbol Major", "State Major", and ["standard format"](https://discuss.bbchallenge.org/t/standard-tm-text-format/60).)
-* Can optionally do **perfect averaging** of the tape contents into pixels. `Smooth` defaults to 0 for fast sampling. Set higher for better quality with longer run times. 63 is perfect averaging.
+- Run the champion [Busy Beaver](https://en.wikipedia.org/wiki/Busy_beaver) Turing machines for millions of steps in less than a second.
+- Simulate your own Turing machines.
+- Visualize space-time diagrams as the Turing machine runs.
+- Control speed, step count, and sampling vs. averaging:
+  - Millions of steps in less than a second.
+  - A billion steps in about 5 seconds.
+  - 50 billion steps in about 10 minutes.
+- Supports common Turing machine formats: "Symbol Major," "State Major," and ["Standard Format"](https://discuss.bbchallenge.org/t/standard-tm-text-format/60).
+- Optional **perfect averaging** for tape visualization. `Smooth` defaults to 0 for fast sampling. Higher values improve quality at the cost of speed—63 enables perfect averaging.
+- You can set settings via the URL hash fragment, for example, `#program=bb5&earlyStop=false&smoothness=3`.
 
 ## Techniques
 
-* The Turing machine interpreter is a straight forward implementation in Rust.
-* The space-time visualization is implemented via adaptive sampling. The sampler starts by recording the whole tape at every machine step. Whenever the tape or steps grows beyond twice the size of the desired image, the sampler reduces the sampling rate by half. Total memory and time used is, thus, proportional to the size of the desired image, not the number of machine steps or width of visited tape.
-* One incremmnt of smoothing typically doubles the tape contents to be averaged and thus doubles the running time. Memory use, however, increases only linearly. ("Typical" here means the number of steps is much larger than the width of the visited tape.)
-* Tips on porting Rust to WASM: [Nine Rules for Running Rust in the Browser](https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1) in *Towards Data Science*.
+- The Turing machine interpreter is a straightforward Rust implementation.
+- The space-time visualizer uses adaptive sampling:
+  - Initially records the full tape at each step.
+  - If the tape or step count exceeds twice the image size, it halves the sampling rate.
+  - Memory and time scale with image size, not step count or tape width.
+- Incrementing the smoothing level doubles both the amount of tape data averaged and the runtime. However, memory usage grows only linearly, assuming the number of steps is much larger than the tape width.
+- Tips on porting Rust to WASM: [Nine Rules for Running Rust in the Browser](https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1) (*Towards Data Science*).
 
 ## Web App Screenshot
 
 ![Busy Beaver Space-Time Diagram](Screenshot.png)
 
-A space-time diagram for the best known 6-state busy beaver after running for exactly 10 billion steps. Each vertical slice shows the Turing machine tape at one point in time, with dark pixels representing 1s and light pixels representing 0s. Time flows down.
+A space-time diagram of the best-known 6-state Busy Beaver after 10 billion steps. Each vertical slice represents the tape at a moment in time—dark pixels are 1s, light pixels are 0s. Time flows downward.
 
 ## Video
 
-* [Turing Machine "BB6 Contender": 1 Trillion Steps with Exponential Acceleration (YouTube)](https://youtu.be/IBcJ2vRHGAY)
-* To render a video, edit `examples/movie.rs` to set the output directory, font, etc.. Then:
+- [Turing Machine "BB6 Contender": 1 Billion+ Steps with Full Pixel Averaging (YouTube)](https://www.youtube.com/watch?v=jNOkv5o5cDQ)
+- To render a video, edit `examples/movie.rs` to set the output directory, font, etc., then run:
 
-```bash
-cargo run --example movie --release
-```
+  ```bash
+  cargo run --example movie --release
+  ```
 
 ## Related Work
 
-* [The Busy Beaver Challenge](bbchallenge.org)
-* [Quanta Magazine article](https://www.quantamagazine.org/amateur-mathematicians-find-fifth-busy-beaver-turing-machine-20240702/) and ["Up and Atom" video](https://www.youtube.com/watch?v=pQWFSj1CXeg&t=977s) on recent progress.
-
-* Fiery created a very nice, fast [full-featured visualizer](https://fiery.pages.dev/turing/1RB1LC_0RD0RB_1RA0LC_1LD1RA) with TypeScript. It powers the diagrams of the [Busy Beaver Challenge](https://bbchallenge.org/). It seems to be limited to about 4 billion steps. It displays the diagram all at once rather than showing the diagram's development.
-
-* If you want to run a Turing machine beyond trillions of steps, look at this thread on [math.stackexchange.com](https://math.stackexchange.com/questions/1202334/how-was-the-busy-beaver-candidate-for-6-states-calculated).
+- [The Busy Beaver Challenge](https://bbchallenge.org)
+- [Quanta Magazine article](https://www.quantamagazine.org/amateur-mathematicians-find-fifth-busy-beaver-turing-machine-20240702/) and ["Up and Atom" video](https://www.youtube.com/watch?v=pQWFSj1CXeg&t=977s) on recent progress.
+- [Fiery’s full-featured visualizer](https://fiery.pages.dev/turing/1RB1LC_0RD0RB_1RA0LC_1LD1RA) (TypeScript), used in the [Busy Beaver Challenge](https://bbchallenge.org/). It processes up to ~4 billion steps but does not animate the diagram’s development.
+- For running Turing machines beyond trillions of steps, see this [math.stackexchange.com thread](https://math.stackexchange.com/questions/1202334/how-was-the-busy-beaver-candidate-fReador-6-states-calculated).
 
 ## License
 
 This project is dual-licensed under either:
 
-* MIT License ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/licenses/MIT>)
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <https://www.apache.org/licenses/LICENSE-2.0>)
-
-at your option.
+- MIT License ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or <https://www.apache.org/licenses/LICENSE-2.0>)
 
 ## Contributing
 
-Contributing to this project is welcome. Feature and bug reports are appreciated.
+Contributions are welcome! Feature suggestions and bug reports are appreciated.

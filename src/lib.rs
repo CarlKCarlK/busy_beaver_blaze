@@ -552,7 +552,6 @@ impl Pixel {
 
     #[inline]
     fn merge_slice_down_sample(slice: &[Self], empty_count: usize, down_step_usize: usize) -> Self {
-        debug_assert!(slice.len() % down_step_usize == 0, "real assert d1");
         let mut sum: usize = 0;
         for i in (0..slice.len()).step_by(down_step_usize) {
             sum += slice[i].0 as usize;
@@ -1693,8 +1692,8 @@ mod tests {
         let s = BB6_CONTENDER;
         let goal_x: u32 = 360;
         let goal_y: u32 = 432;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0); // cmk00 test from exp one and debug
-        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0); // cmk test from one
+        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(1); // cmk00 test from exp one and debug
+        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(1); // cmk test from one
         let mut space_time_machine = SpaceTimeMachine::from_str(
             s,
             goal_x,
@@ -1763,8 +1762,7 @@ mod tests {
             space_time_machine.machine.count_ones(),
         );
 
-        // // cmk00 put these test files somewhere other that top level folder and create folder if needed
-        // // cmk00 what is one method png_data and another to to_png?
+        // // cmk LATER what is one method png_data and another to to_png?
         // let start = std::time::Instant::now();
         // let png_data = space_time_machine.png_data();
         // fs::write("tests/expected/bench2.png", &png_data).unwrap(); // cmk handle error
