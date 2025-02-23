@@ -1,3 +1,7 @@
+// cmk00 Ideas for speedup:
+// cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
+// cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
+
 use core::fmt;
 use core::str::FromStr;
 use derive_more::derive::Display;
