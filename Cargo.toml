@@ -1,7 +1,7 @@
 [package]
 name = "busy_beaver_blaze"
 version = "0.2.3"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -38,21 +38,78 @@ glob = "0.3.2"
 [build]
 rustflags = ["-C", "target-cpu=native"]
 
-[workspace.lints.clippy]
-all = { level = "warn", priority = -1 }
-use_self = "deny"
-pedantic = "deny"
-nursery = "deny"
-cargo = "deny"
-missing_docs = "deny"
-missing_debug_implementations = "deny"
-unused_lifetimes = "deny"
-redundant_pub_crate = "deny"
+[lints.clippy]
+# Safety-critical application lints
+# arithmetic_side_effects = "deny"
+float_cmp_const = "deny"
+# indexing_slicing = "deny"
+pedantic = { level = "deny", priority = -2 }
+semicolon_if_nothing_returned = "warn"
+semicolon_inside_block = "warn"
+str_to_string = "warn"
+# unwrap_used = "deny"
 wildcard_imports = "deny"
-explicit_iter_loop = "deny"
-explicit_into_iter_loop = "deny"
-unreachable_pub = "deny"
-inefficient_to_string = "deny"
 
-[workspace.lints.rust]
-missing_docs = "deny"
+all = { level = "warn", priority = -2 }
+nursery = { level = "warn", priority = -2 }
+# End of safety-critical application lints
+
+# allow_attributes = "warn"
+# allow_attributes_without_reason = "deny"
+# TODO: cargo_common_metadata = { level = "warn", priority = -1 }
+# TODO: doc_markdown = "warn"
+enum_glob_use = "forbid"
+enum_variant_names = "warn"
+equatable_if_let = "warn"
+error_impl_error = "allow"
+implicit_return = "allow"
+integer_division_remainder_used = "warn"
+items-after-statements = "warn"
+iter_nth_zero = "warn"
+match_bool = "warn"
+match-same-arms = "warn"
+min_ident_chars = "warn"
+missing_docs_in_private_items = { level = "allow", priority = -1 }
+# missing_errors_doc = "warn"
+missing_trait_methods = "warn"
+module_name_repetitions = "warn"
+multiple_crate_versions = "allow"
+obfuscated_if_else = "warn"
+pub_use = "allow"
+pub_with_shorthand = "warn"
+question_mark_used = "allow"
+self_named_module_files = "warn"
+semicolon_outside_block = "warn"
+separated_literal_suffix = "warn"
+shadow_reuse = "warn"
+shadow_unrelated = "warn"
+similar_names = "warn"
+single_call_fn = "allow"
+# std_instead_of_alloc = "warn"
+# std_instead_of_core = "warn"
+too_long_first_doc_paragraph = "warn"
+unnecessary_wraps = "warn"
+unreachable = "warn"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
+arithmetic_side_effects = "allow"
+indexing_slicing = "allow"
+cast_possible_wrap = "allow"
+cast_lossless = "allow"
+unwrap_used = "allow"
+use_self = "deny"
+std_instead_of_core = "deny"
+std_instead_of_alloc = "deny"
+cast_precision_loss = "allow"
+float_cmp = "warn"
+missing_panics_doc = "warn"
+missing_const_for_fn = "deny"
+allow_attributes_without_reason = "allow"
+allow_attributes = "allow"
+missing_errors_doc = "allow"
+
+# TODO: Uncomment before ship to reconcile use of possibly redundant crates, debug remnants, missing
+# license files and more
+# blanket_clippy_restriction_lints = "warn"
+#cargo = "warn"
+# restriction = "warn"

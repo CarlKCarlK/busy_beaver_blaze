@@ -5,8 +5,8 @@
 use arrayvec::ArrayVec;
 use core::fmt;
 use core::str::FromStr;
-use derive_more::derive::Display;
 use derive_more::Error as DeriveError;
+use derive_more::derive::Display;
 use instant::Instant;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
@@ -77,6 +77,7 @@ impl Tape {
     }
 
     #[inline]
+    #[allow(clippy::shadow_reuse)]
     fn write(&mut self, index: i64, value: u8) {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)
@@ -100,12 +101,13 @@ impl Tape {
         self.nonnegative
             .iter()
             .chain(self.negative.iter()) // Combine both vectors
-            .map(|&x| (x == 1) as usize)
+            .map(|&x| usize::from(x == 1))
             .sum()
     }
 
     #[cfg(test)]
-    pub fn index_range_to_string(&self, range: std::ops::RangeInclusive<i64>) -> String {
+    #[allow(clippy::min_ident_chars)]
+    pub fn index_range_to_string(&self, range: core::ops::RangeInclusive<i64>) -> String {
         let mut s = String::new();
         for i in range {
             s.push_str(&self.read(i).to_string());
@@ -140,8 +142,8 @@ pub struct Machine {
 #[wasm_bindgen]
 impl Machine {
     #[wasm_bindgen(constructor)]
-    pub fn from_string(input: &str) -> Result<Machine, String> {
-        input.parse().map_err(|e| format!("{:?}", e))
+    pub fn from_string(input: &str) -> Result<Self, String> {
+        input.parse().map_err(|error| format!("{error:?}"))
     }
 
     #[wasm_bindgen]
@@ -150,11 +152,16 @@ impl Machine {
     }
 
     #[wasm_bindgen]
+    #[inline]
+    #[must_use]
     pub fn count_ones(&self) -> u32 {
         self.tape.count_ones() as u32
     }
 
     #[wasm_bindgen]
+    #[inline]
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn is_halted(&self) -> bool {
         self.program.state_count <= self.state
     }
@@ -177,7 +184,7 @@ impl FromStr for Machine {
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let program: Program = input.parse()?;
 
-        Ok(Machine {
+        Ok(Self {
             tape: Tape::default(),
             tape_index: 0,
             program,
@@ -187,6 +194,7 @@ impl FromStr for Machine {
 }
 
 impl fmt::Debug for Machine {
+    #[allow(clippy::min_ident_chars)]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -196,6 +204,7 @@ impl fmt::Debug for Machine {
     }
 }
 
+#[allow(clippy::missing_trait_methods)]
 impl Iterator for Machine {
     type Item = ();
 
@@ -231,14 +240,11 @@ struct Program {
 impl FromStr for Program {
     type Err = Error;
 
-    #[allow(clippy::assertions_on_constants)]
+    #[allow(clippy::assertions_on_constants, clippy::min_ident_chars)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let count_lines = s.lines().count();
-        let is_first_non_space_a_numeral = s
-            .trim()
-            .chars()
-            .next()
-            .map_or(false, |c| c.is_ascii_digit());
+        let is_first_non_space_a_numeral =
+            s.trim().chars().next().is_some_and(|c| c.is_ascii_digit());
 
         match (count_lines, is_first_non_space_a_numeral) {
             (1, _) => Self::parse_standard_format(s),
@@ -251,21 +257,23 @@ impl FromStr for Program {
 
 impl Program {
     pub const SYMBOL_COUNT: usize = 2;
-    pub const MAX_STATE_COUNT: usize = Program::SYMBOL_COUNT * 50;
+    pub const MAX_STATE_COUNT: usize = Self::SYMBOL_COUNT * 50;
 
     #[inline]
     fn action(&self, state: u8, symbol: u8) -> &Action {
-        let offset = state as usize * Program::SYMBOL_COUNT + symbol as usize;
+        let offset = state as usize * Self::SYMBOL_COUNT + symbol as usize;
         &self.state_to_symbol_to_action[offset]
     }
     fn parse_state(input: impl AsRef<str>) -> Result<char, Error> {
         // println!("cmk {:?}", input.as_ref());
         let mut chars = input.as_ref().chars();
         match (chars.next(), chars.next()) {
-            (Some(c @ 'A'..='Z'), None) => Ok(c), // Ensure single uppercase letter
+            (Some(char @ 'A'..='Z'), None) => Ok(char), // Ensure single uppercase letter
             _ => Err(Error::UnexpectedState),
         }
     }
+
+    #[allow(clippy::shadow_reuse)]
     fn parse_action(part: impl AsRef<str>) -> Result<Action, Error> {
         let part = part.as_ref();
         let asciis = part.as_bytes();
@@ -301,7 +309,7 @@ impl Program {
         })
     }
 
-    #[allow(clippy::assertions_on_constants)]
+    #[allow(clippy::assertions_on_constants, clippy::min_ident_chars)]
     fn parse_state_to_symbol(s: &str) -> Result<Self, Error> {
         let mut lines = s.lines();
 
@@ -321,15 +329,13 @@ impl Program {
                 let state_again = parts
                     .next()
                     .ok_or(Error::MissingField)
-                    .and_then(Program::parse_state)?;
+                    .and_then(Self::parse_state)?;
 
                 if state != state_again {
                     return Err(Error::UnexpectedState);
                 }
 
-                parts
-                    .map(Program::parse_action)
-                    .collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
+                parts.map(Self::parse_action).collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
             })
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
@@ -340,9 +346,9 @@ impl Program {
                 got: 0,
             });
         }
-        if symbol_count != Program::SYMBOL_COUNT as u8 {
+        if symbol_count != Self::SYMBOL_COUNT as u8 {
             return Err(Error::InvalidSymbolsCount {
-                expected: Program::SYMBOL_COUNT,
+                expected: Self::SYMBOL_COUNT,
                 got: symbol_count as usize,
             });
         }
@@ -356,21 +362,25 @@ impl Program {
             });
         }
 
-        if state_count > Program::MAX_STATE_COUNT as u8 {
+        if state_count > Self::MAX_STATE_COUNT as u8 {
             return Err(Error::InvalidStatesCount {
-                expected: Program::MAX_STATE_COUNT,
+                expected: Self::MAX_STATE_COUNT,
                 got: state_count as usize,
             });
         }
 
-        Ok(Program {
+        Ok(Self {
             state_count,
             // symbol_count,
             state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
 
-    #[allow(clippy::assertions_on_constants)]
+    #[allow(
+        clippy::assertions_on_constants,
+        clippy::min_ident_chars,
+        clippy::needless_collect
+    )]
     fn parse_standard_format(s: &str) -> Result<Self, Error> {
         let sections = s.trim().split('_');
 
@@ -388,7 +398,7 @@ impl Program {
 
                 parts
                     .into_iter()
-                    .map(Program::parse_action)
+                    .map(Self::parse_action)
                     .collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
             })
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
@@ -402,9 +412,9 @@ impl Program {
             });
         }
 
-        if state_count > Program::MAX_STATE_COUNT as u8 {
+        if state_count > Self::MAX_STATE_COUNT as u8 {
             return Err(Error::InvalidStatesCount {
-                expected: Program::MAX_STATE_COUNT,
+                expected: Self::MAX_STATE_COUNT,
                 got: state_count as usize,
             });
         }
@@ -417,21 +427,21 @@ impl Program {
             });
         }
 
-        if symbol_count != Program::SYMBOL_COUNT as u8 {
+        if symbol_count != Self::SYMBOL_COUNT as u8 {
             return Err(Error::InvalidSymbolsCount {
-                expected: Program::SYMBOL_COUNT,
+                expected: Self::SYMBOL_COUNT,
                 got: symbol_count as usize,
             });
         }
 
-        Ok(Program {
+        Ok(Self {
             state_count,
             // symbol_count,
             state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
 
-    #[allow(clippy::assertions_on_constants)]
+    #[allow(clippy::assertions_on_constants, clippy::min_ident_chars)]
     fn parse_symbol_to_state(s: &str) -> Result<Self, Error> {
         let mut lines = s.lines();
 
@@ -443,7 +453,7 @@ impl Program {
         }
 
         // Create a vector of vectors, e.g. 2 x 5
-        let mut vec_of_vec: Vec<Vec<Action>> = lines
+        let vec_of_vec: Vec<Vec<Action>> = lines
             .enumerate()
             .map(|(symbol, line)| {
                 let mut parts = line.split_whitespace();
@@ -453,9 +463,7 @@ impl Program {
                     return Err(Error::UnexpectedSymbol);
                 }
 
-                parts
-                    .map(Program::parse_action)
-                    .collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
+                parts.map(Self::parse_action).collect::<Result<Vec<_>, _>>() // Collect and propagate any errors
             })
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
@@ -468,9 +476,9 @@ impl Program {
             });
         }
 
-        if symbol_count != Program::SYMBOL_COUNT {
+        if symbol_count != Self::SYMBOL_COUNT {
             return Err(Error::InvalidSymbolsCount {
-                expected: Program::SYMBOL_COUNT,
+                expected: Self::SYMBOL_COUNT,
                 got: symbol_count,
             });
         }
@@ -483,9 +491,9 @@ impl Program {
             });
         }
 
-        if state_count > Program::MAX_STATE_COUNT {
+        if state_count > Self::MAX_STATE_COUNT {
             return Err(Error::InvalidStatesCount {
-                expected: Program::MAX_STATE_COUNT,
+                expected: Self::MAX_STATE_COUNT,
                 got: state_count,
             });
         }
@@ -496,7 +504,7 @@ impl Program {
             .collect();
 
         // Drain and fill the transposed matrix
-        for mut row in vec_of_vec.drain(..) {
+        for row in vec_of_vec {
             if row.len() != state_count {
                 return Err(Error::InvalidStatesCount {
                     expected: state_count,
@@ -504,12 +512,12 @@ impl Program {
                 });
             }
 
-            for (i, item) in row.drain(..).enumerate() {
+            for (i, item) in row.into_iter().enumerate() {
                 state_to_symbol_to_action[i].push(item); // Move item into transposed[i]
             }
         }
 
-        Ok(Program {
+        Ok(Self {
             state_count: state_count as u8,
             // symbol_count: symbol_count as u8,
             state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
@@ -530,31 +538,36 @@ pub trait DebuggableIterator: Iterator {
     #[inline]
     fn debug_count(&mut self, debug_interval: usize) -> usize
     where
-        Self: Sized + std::fmt::Debug, // ✅ Ensure Debug is implemented
+        Self: Sized + core::fmt::Debug, // ✅ Ensure Debug is implemented
     {
         let mut step_index = 0;
+        let mut countdown = debug_interval; // New countdown variable
 
         println!("Step {}: {:?}", step_index.separate_with_commas(), self);
 
         while self.next().is_some() {
             step_index += 1;
-            if step_index % debug_interval == 0 {
+            countdown -= 1;
+
+            if countdown == 0 {
                 println!("Step {}: {:?}", step_index.separate_with_commas(), self);
+                countdown = debug_interval; // Reset countdown
             }
         }
 
-        step_index + 1 // turn last index into count
+        step_index + 1 // Convert last index into count
     }
 }
 
 // Implement the trait for all Iterators
-impl<T> DebuggableIterator for T where T: Iterator + std::fmt::Debug {}
+#[allow(clippy::missing_trait_methods)]
+impl<T> DebuggableIterator for T where T: Iterator + core::fmt::Debug {}
 
 /// Error type for parsing a `Program` from a string.
 #[derive(Debug, Display, DeriveError)]
 pub enum Error {
     #[display("Invalid number format: {}", _0)]
-    ParseIntError(std::num::ParseIntError),
+    ParseIntError(core::num::ParseIntError),
 
     #[display("Invalid character encountered in part")]
     InvalidChar,
@@ -585,9 +598,9 @@ pub enum Error {
 }
 
 // Implement conversions manually where needed
-impl From<std::num::ParseIntError> for Error {
-    fn from(err: std::num::ParseIntError) -> Self {
-        Error::ParseIntError(err)
+impl From<core::num::ParseIntError> for Error {
+    fn from(err: core::num::ParseIntError) -> Self {
+        Self::ParseIntError(err)
     }
 }
 
@@ -595,6 +608,8 @@ impl From<std::num::ParseIntError> for Error {
 struct Pixel(u8);
 
 impl Pixel {
+    const WHITE: Self = Self(0);
+
     #[inline]
     fn merge_with_white(&mut self) {
         // inplace divide u8 by 2
@@ -607,35 +622,39 @@ impl Pixel {
     }
 
     #[inline]
-    fn merge_slice_down_sample(slice: &[Self], empty_count: usize, down_step_usize: usize) -> Self {
+    fn merge_slice_down_sample(
+        slice: &[Self],
+        empty_count: usize,
+        down_step: PowerOfTwo,
+        down_step_usize: usize,
+    ) -> Self {
+        debug_assert!(down_step.as_usize() == down_step_usize);
         let mut sum: usize = 0;
         for i in (0..slice.len()).step_by(down_step_usize) {
             sum += slice[i].0 as usize;
         }
-        let total_len = slice.len() + empty_count;
-        let count = total_len.div_ceil(down_step_usize);
-        let mean = (sum / count) as u8;
-        Pixel(mean)
+        let total_len = PowerOfTwo::from_usize(slice.len() + empty_count);
+        let count = total_len.saturating_div(down_step);
+        let mean = count.divide_into(sum) as u8;
+        Self(mean)
     }
 
     #[inline]
     fn merge_slice_all(slice: &[Self], empty_count: i64) -> Self {
-        let sum: u32 = slice.iter().map(|p| p.0 as u32).sum();
+        let sum: u32 = slice.iter().map(|pixel: &Self| pixel.0 as u32).sum();
         let count = slice.len() + empty_count as usize;
         debug_assert!(count.is_power_of_two(), "Count must be a power of two");
-        Pixel(PowerOfTwo::from_u64(count as u64).divide_into(sum) as u8)
+        Self(PowerOfTwo::from_u64(count as u64).divide_into(sum) as u8)
     }
 }
 
 impl From<u8> for Pixel {
     #[inline]
     fn from(value: u8) -> Self {
-        debug_assert!(value <= 1, "Input value must be 0 or 1, got {}", value);
-        Pixel(value * 255)
+        debug_assert!(value <= 1, "Input value must be 0 or 1, got {value}");
+        Self(value * 255)
     }
 }
-
-const PIXEL_WHITE: Pixel = Pixel(0);
 
 #[derive(Clone, Debug)]
 struct Spaceline {
@@ -649,10 +668,10 @@ struct Spaceline {
 impl Spaceline {
     // cmk good name??
     fn new0(smoothness: PowerOfTwo) -> Self {
-        Spaceline {
+        Self {
             sample: PowerOfTwo::ONE,
             start: 0,
-            pixels: vec![PIXEL_WHITE; 1],
+            pixels: vec![Pixel::WHITE; 1],
             time: 0,
             smoothness,
         }
@@ -689,6 +708,7 @@ impl Spaceline {
         let pixel0 = Pixel::merge_slice_down_sample(
             &self.pixels[..old_items_to_use as usize],
             old_items_to_add as usize,
+            down_step,
             down_step.as_usize(),
         );
 
@@ -701,9 +721,13 @@ impl Spaceline {
         for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
             let slice = &self.pixels[old_index as usize..old_end as usize];
-            let old_items_to_add = old_items_per_new_u64 - (old_end - old_index);
-            self.pixels[new_index] =
-                Pixel::merge_slice_down_sample(slice, old_items_to_add as usize, down_size_usize);
+            let old_items_to_add_inner = old_items_per_new_u64 - (old_end - old_index);
+            self.pixels[new_index] = Pixel::merge_slice_down_sample(
+                slice,
+                old_items_to_add_inner as usize,
+                down_step,
+                down_size_usize,
+            );
             new_index += 1;
         }
 
@@ -713,7 +737,7 @@ impl Spaceline {
         self.sample = sample;
     }
 
-    fn merge(&mut self, other: Spaceline) {
+    fn merge(&mut self, other: Self) {
         assert!(
             other.sample.divides_smoothness(other.sample),
             "real assert 6d"
@@ -745,7 +769,7 @@ impl Spaceline {
         }
 
         // merge the overlapping part
-        for self_value in self.pixels.iter() {
+        for self_value in &self.pixels {
             values[index].merge(*self_value);
             index += 1;
         }
@@ -802,7 +826,7 @@ impl Spaceline {
             }
         }
 
-        Spaceline {
+        Self {
             sample: x_sample,
             start: sample_start,
             pixels,
@@ -819,13 +843,13 @@ struct Spacelines {
 
 impl Spacelines {
     fn new(smoothness: PowerOfTwo) -> Self {
-        Spacelines {
+        Self {
             main: vec![Spaceline::new0(smoothness)],
             buffer: Vec::new(),
         }
     }
     fn len(&self) -> usize {
-        self.main.len() + if self.buffer.is_empty() { 0 } else { 1 }
+        self.main.len() + usize::from(!self.buffer.is_empty())
     }
 
     fn get<'a>(&'a self, index: usize, last: &'a Spaceline) -> &'a Spaceline {
@@ -844,6 +868,7 @@ impl Spacelines {
         }
     }
 
+    #[allow(clippy::min_ident_chars)]
     #[inline]
     fn compress_average(&mut self) {
         assert!(self.buffer.is_empty(), "real assert b2");
@@ -896,11 +921,11 @@ impl Spacelines {
             let empty = Spaceline {
                 sample: x_sample,
                 start,
-                pixels: vec![PIXEL_WHITE; buffer_last.pixels.len()],
+                pixels: vec![Pixel::WHITE; buffer_last.pixels.len()],
                 time: time + inside_index - last_inside_index,
                 smoothness: buffer_last.smoothness,
             };
-            Spacelines::push_internal(&mut buffer, inside_inside_index, empty);
+            Self::push_internal(&mut buffer, inside_inside_index, empty);
         }
         assert!(buffer.len() == 1, "real assert b3");
         buffer.pop().unwrap()
@@ -914,9 +939,9 @@ impl Spacelines {
         if fast_is_even(inside_index) {
             buffer.push(spaceline);
         } else {
-            let a = buffer.last_mut().unwrap();
-            assert!(a.start >= spaceline.start, "cmk real assert 4b");
-            a.merge(spaceline);
+            let last_mut = buffer.last_mut().unwrap();
+            assert!(last_mut.start >= spaceline.start, "cmk real assert 4b");
+            last_mut.merge(spaceline);
             let mut inside_inside = inside_index;
             loop {
                 // shift inside_index to the right
@@ -925,16 +950,16 @@ impl Spacelines {
                     break;
                 }
                 let last = buffer.pop().unwrap();
-                let a = buffer.last_mut().unwrap();
-                assert!(a.start >= last.start, "cmk real assert 4c");
-                a.merge(last);
+                let second_to_last = buffer.last_mut().unwrap();
+                assert!(second_to_last.start >= last.start, "cmk real assert 4c");
+                second_to_last.merge(last);
             }
         }
     }
 
     #[inline]
     fn push(&mut self, inside_index: u64, spaceline: Spaceline) {
-        Spacelines::push_internal(&mut self.buffer, inside_index, spaceline);
+        Self::push_internal(&mut self.buffer, inside_index, spaceline);
     }
 }
 
@@ -948,17 +973,19 @@ pub struct SampledSpaceTime {
     y_smoothness: PowerOfTwo,
 }
 
-/// Create a new in which you give the x_goal (space)
-/// and the y_goal (time). The sample starts at 1 and
+/// Create a new in which you give the `x_goal` (space)
+/// and the `y_goal` (time). The sample starts at 1 and
 /// inner is a vector of one spaceline
 impl SampledSpaceTime {
+    #[inline]
+    #[must_use]
     pub fn new(
         x_goal: u32,
         y_goal: u32,
         x_smoothness: PowerOfTwo,
         y_smoothness: PowerOfTwo,
     ) -> Self {
-        SampledSpaceTime {
+        Self {
             step_index: 0,
             x_goal,
             y_goal,
@@ -1076,7 +1103,7 @@ impl SampledSpaceTime {
                             .pixels
                             .get(i as usize)
                             .copied()
-                            .unwrap_or(PIXEL_WHITE)
+                            .unwrap_or(Pixel::WHITE)
                     })
                     .collect::<Vec<_>>();
                 // cmk LATER look at putting this back in
@@ -1106,6 +1133,7 @@ fn sample_rate(row: u64, goal: u32) -> PowerOfTwo {
     PowerOfTwo::from_exp(exponent)
 }
 
+#[allow(clippy::integer_division_remainder_used)]
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
     let mut buf = Vec::new();
     {
@@ -1118,10 +1146,10 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
 
         // Generate a palette with 256 shades from white (255,255,255) to bright orange (255,165,0)
         let mut palette = Vec::with_capacity(256 * 3);
-        for i in 0..256 {
-            let g = 255 - ((255 - 165) * i / 255); // Green fades from 255 to 165
-            let b = 255 - (255 * i / 255); // Blue fades from 255 to 0
-            palette.extend_from_slice(&[255, g as u8, b as u8]);
+        for i in 0u16..256 {
+            let green = 255 - ((255 - 165) * i / 255); // Green fades from 255 to 165
+            let blue = 255 - (255 * i / 255); // Blue fades from 255 to 0
+            palette.extend_from_slice(&[255, green as u8, blue as u8]);
         }
 
         // Set the palette before writing the header
@@ -1131,7 +1159,7 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
         writer
             .write_image_data(image_data)
             .map_err(|_| Error::EncodingError)?;
-    }
+    };
     Ok(buf)
 }
 
@@ -1142,6 +1170,7 @@ pub struct SpaceTimeMachine {
 }
 
 // impl iterator for spacetime machine
+#[allow(clippy::missing_trait_methods)]
 impl Iterator for SpaceTimeMachine {
     type Item = ();
 
@@ -1154,6 +1183,7 @@ impl Iterator for SpaceTimeMachine {
 }
 
 #[wasm_bindgen]
+#[allow(clippy::min_ident_chars)]
 impl SpaceTimeMachine {
     #[wasm_bindgen(constructor)]
     pub fn from_str(
@@ -1162,8 +1192,8 @@ impl SpaceTimeMachine {
         goal_y: u32,
         x_smoothness: u8,
         y_smoothness: u8,
-    ) -> Result<SpaceTimeMachine, String> {
-        Ok(SpaceTimeMachine {
+    ) -> Result<Self, String> {
+        Ok(Self {
             machine: Machine::from_string(s)?,
             space_time: SampledSpaceTime::new(
                 goal_x,
@@ -1185,6 +1215,7 @@ impl SpaceTimeMachine {
     }
 
     #[wasm_bindgen(js_name = "step_for_secs")]
+    #[allow(clippy::shadow_reuse)]
     pub fn step_for_secs_js(
         &mut self,
         seconds: f32,
@@ -1251,23 +1282,32 @@ impl SpaceTimeMachine {
     }
 
     #[wasm_bindgen]
+    #[inline]
+    #[must_use]
     pub fn png_data(&self) -> Vec<u8> {
         self.space_time
             .to_png()
-            .unwrap_or_else(|e| format!("{:?}", e).into_bytes())
+            .unwrap_or_else(|e| format!("{e:?}").into_bytes())
     }
 
     #[wasm_bindgen]
+    #[inline]
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn step_count(&self) -> u64 {
         self.space_time.step_index + 1
     }
 
     #[wasm_bindgen]
+    #[inline]
+    #[must_use]
     pub fn count_ones(&self) -> u32 {
         self.machine.count_ones()
     }
 
     #[wasm_bindgen]
+    #[inline]
+    #[must_use]
     pub fn is_halted(&self) -> bool {
         self.machine.is_halted()
     }
@@ -1282,10 +1322,9 @@ pub struct LogStepIterator {
 }
 
 impl LogStepIterator {
-    pub fn new(max_value: u64, total_frames: u32) -> Self {
-        // if total_frames < 2 {
-        //     panic!("Number of frames must be at least 2.");
-        // }
+    #[inline]
+    #[must_use]
+    pub const fn new(max_value: u64, total_frames: u32) -> Self {
         Self {
             current_frame: 0,
             total_frames,
@@ -1294,6 +1333,11 @@ impl LogStepIterator {
     }
 }
 
+#[allow(
+    clippy::missing_trait_methods,
+    clippy::min_ident_chars,
+    clippy::float_cmp
+)]
 impl Iterator for LogStepIterator {
     type Item = u64;
 
@@ -1320,10 +1364,10 @@ impl Iterator for LogStepIterator {
     }
 }
 
-#[inline(always)]
+#[inline]
 fn fast_is_even<T>(x: T) -> bool
 where
-    T: Copy + std::ops::BitAnd<Output = T> + std::ops::Sub<Output = T> + From<u8> + PartialEq,
+    T: Copy + core::ops::BitAnd<Output = T> + core::ops::Sub<Output = T> + From<u8> + PartialEq,
 {
     (x & T::from(1)) == T::from(0)
 }
@@ -1331,11 +1375,11 @@ where
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PowerOfTwo(u8);
 
-impl std::ops::Div for PowerOfTwo {
+impl core::ops::Div for PowerOfTwo {
     type Output = Self;
 
     /// Will always be at least 1.
-    #[inline(always)]
+    #[inline]
     fn div(self, rhs: Self) -> Self::Output {
         debug_assert!(
             self.0 >= rhs.0,
@@ -1345,10 +1389,10 @@ impl std::ops::Div for PowerOfTwo {
     }
 }
 
-impl std::ops::Mul<usize> for PowerOfTwo {
+impl core::ops::Mul<usize> for PowerOfTwo {
     type Output = usize;
 
-    #[inline(always)]
+    #[inline]
     fn mul(self, rhs: usize) -> Self::Output {
         // Multiply rhs by 2^(self.0)
         // This is equivalent to shifting rhs left by self.0 bits.
@@ -1366,25 +1410,29 @@ impl PowerOfTwo {
     pub const MAX: Self = Self(63);
 
     #[inline]
+    #[must_use]
     pub fn from_exp(value: u8) -> Self {
         debug_assert!(value <= Self::MAX.0, "Value must be 63 or less");
         Self(value)
     }
 
     #[inline]
-    pub fn as_u64(self) -> u64 {
+    #[must_use]
+    pub const fn as_u64(self) -> u64 {
         1 << self.0
     }
 
-    #[inline(always)]
-    fn saturating_div(self, rhs: Self) -> Self {
+    #[inline]
+    #[must_use]
+    const fn saturating_div(self, rhs: Self) -> Self {
         // Subtract exponents; if the subtrahend is larger, saturate to 0 aks One
         Self(self.0.saturating_sub(rhs.0))
     }
 
     #[inline]
+    #[must_use]
     pub fn as_usize(self) -> usize {
-        let bits = std::mem::size_of::<usize>() * 8;
+        let bits = core::mem::size_of::<usize>() * 8;
         debug_assert!(
             (self.0 as usize) < bits,
             "Exponent {} too large for usize ({} bits)",
@@ -1395,25 +1443,40 @@ impl PowerOfTwo {
     }
 
     // from u64
+    #[allow(clippy::missing_panics_doc)]
+    #[inline]
+    #[must_use]
     pub fn from_u64(value: u64) -> Self {
-        assert!(value.is_power_of_two(), "Value must be a power of two");
-        PowerOfTwo::from_exp(value.trailing_zeros() as u8)
+        debug_assert!(value.is_power_of_two(), "Value must be a power of two");
+        Self::from_exp(value.trailing_zeros() as u8)
     }
 
     #[inline]
-    pub fn log2(self) -> u8 {
+    #[must_use]
+    pub fn from_usize(value: usize) -> Self {
+        debug_assert!(value.is_power_of_two(), "Value must be a power of two");
+        Self::from_exp(value.trailing_zeros() as u8)
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn log2(self) -> u8 {
         self.0
     }
 
-    #[inline(always)]
+    #[inline]
     fn rem_into<T>(self, x: T) -> T
     where
-        T: Copy + std::ops::BitAnd<Output = T> + std::ops::Sub<Output = T> + From<u64> + PartialEq,
+        T: Copy
+            + core::ops::BitAnd<Output = T>
+            + core::ops::Sub<Output = T>
+            + From<u64>
+            + PartialEq,
     {
         x & (T::from(self.as_u64()) - T::from(1u64))
     }
 
-    #[inline(always)]
+    #[inline]
     fn rem_euclid_into(self, dividend: i64) -> i64 {
         let divisor = 1i64 << self.0; // Compute 2^n
         debug_assert!(divisor > 0, "divisor must be a power of two");
@@ -1421,37 +1484,40 @@ impl PowerOfTwo {
         let remainder = dividend & mask;
 
         // If the remainder is negative, make it positive by adding divisor
-        remainder + (divisor & (remainder >> PowerOfTwo::MAX.0))
+        remainder + (divisor & (remainder >> Self::MAX.0))
     }
 
-    #[inline(always)]
-    fn div_ceil_into(self, a: i64) -> i64 {
-        let b = 1i64 << self.0; // Compute 2^b
-        debug_assert!(b > 0, "Smoothness value must be valid (b <= 63)");
-        (a + b - 1) >> self.0
+    #[inline]
+    fn div_ceil_into(self, other: i64) -> i64 {
+        let left = 1i64 << self.0; // Compute 2^b
+        debug_assert!(left > 0, "Smoothness value must be valid (b <= 63)");
+        (other + left - 1) >> self.0
     }
 
-    #[inline(always)]
+    #[inline]
     fn divide_into<T>(self, x: T) -> T
     where
-        T: Copy + std::ops::Shr<u8, Output = T>,
+        T: Copy + core::ops::Shr<u8, Output = T>,
     {
         x >> self.0
     }
 
-    #[inline(always)]
-    pub fn divides_u64(self, x: u64) -> bool {
+    #[inline]
+    #[must_use]
+    pub const fn divides_u64(self, x: u64) -> bool {
         // If x is divisible by 2^(self.0), shifting right then left recovers x.
         (x >> self.0) << self.0 == x
     }
 
-    #[inline(always)]
-    pub fn divides_i64(self, x: i64) -> bool {
+    #[inline]
+    #[must_use]
+    pub const fn divides_i64(self, x: i64) -> bool {
         (x >> self.0) << self.0 == x
     }
 
-    #[inline(always)]
-    pub fn divides_smoothness(self, other: PowerOfTwo) -> bool {
+    #[inline]
+    #[must_use]
+    pub const fn divides_smoothness(self, other: Self) -> bool {
         self.0 <= other.0
     }
 }
@@ -1510,11 +1576,12 @@ mod tests {
         Ok(())
     }
 
-    /// See https://en.wikipedia.org/wiki/Busy_beaver
+    /// See <https://en.wikipedia.org/wiki/Busy_beaver>
+    #[allow(clippy::shadow_reuse, clippy::integer_division_remainder_used)]
     #[test]
     fn bb5_champ_space_time_native() -> Result<(), Error> {
         let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
-                                                       // let mut machine: Machine = BB6_CONTENDER.parse()?;
+        // let mut machine: Machine = BB6_CONTENDER.parse()?;
 
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
@@ -1568,14 +1635,14 @@ mod tests {
     #[wasm_bindgen_test]
     #[test]
     fn bb5_champ_space_time_js() -> Result<(), String> {
-        let s = BB5_CHAMP;
+        let program_string = BB5_CHAMP;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
         let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let n = 1_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(
-            s,
+            program_string,
             goal_x,
             goal_y,
             x_smoothness.log2(),
@@ -1605,7 +1672,7 @@ mod tests {
         );
 
         let png_data = space_time_machine.png_data();
-        fs::write("tests/expected/test_js.png", &png_data).map_err(|e| e.to_string())?;
+        fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
 
         assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
         assert_eq!(space_time_machine.machine.count_ones(), 4098);
@@ -1618,14 +1685,14 @@ mod tests {
     #[wasm_bindgen_test]
     #[test]
     fn seconds_bb5_champ_space_time_js() -> Result<(), String> {
-        let s = BB5_CHAMP;
+        let program_string = BB5_CHAMP;
         let goal_x: u32 = 1000;
         let goal_y: u32 = 1000;
         let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let seconds = 0.25;
         let mut space_time_machine = SpaceTimeMachine::from_str(
-            s,
+            program_string,
             goal_x,
             goal_y,
             x_smoothness.log2(),
@@ -1655,7 +1722,8 @@ mod tests {
         );
 
         let png_data = space_time_machine.png_data();
-        fs::write("tests/expected/test2_js.png", &png_data).map_err(|e| e.to_string())?;
+        fs::write("tests/expected/test2_js.png", &png_data)
+            .map_err(|error: std::io::Error| error.to_string())?;
 
         assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
         assert_eq!(space_time_machine.machine.count_ones(), 4098);
@@ -1678,7 +1746,7 @@ mod tests {
     // cmk which of these should be bindgen tests?
     #[wasm_bindgen_test]
     #[test]
-    fn bb5_champ_time() -> Result<(), String> {
+    fn bb5_champ_time() {
         let start = std::time::Instant::now();
         let step_count = 1 + BB5_CHAMP.parse::<Machine>().unwrap().count();
         let duration = start.elapsed();
@@ -1688,20 +1756,19 @@ mod tests {
             duration
         );
         assert_eq!(step_count, 47_176_870);
-        Ok(())
     }
 
     #[test]
     fn benchmark1() -> Result<(), String> {
         let start = std::time::Instant::now();
-        let s = BB6_CONTENDER;
+        let program_string = BB6_CONTENDER;
         let goal_x: u32 = 360;
         let goal_y: u32 = 432;
         let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let n = 500_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(
-            s,
+            program_string,
             goal_x,
             goal_y,
             x_smoothness.log2(),
@@ -1728,26 +1795,27 @@ mod tests {
         assert_eq!(space_time_machine.machine.tape_index, 34054);
 
         // cmk LATER what is one method png_data and another to to_png?
-        let start = std::time::Instant::now();
+        let start2 = std::time::Instant::now();
         let png_data = space_time_machine.png_data();
         fs::write("tests/expected/bench.png", &png_data).unwrap(); // cmk handle error
-        println!("Elapsed png: {:?}", start.elapsed());
+        println!("Elapsed png: {:?}", start2.elapsed());
         Ok(())
     }
 
+    #[allow(clippy::shadow_reuse)]
     #[test]
     #[wasm_bindgen_test]
     fn benchmark2() -> Result<(), String> {
         // let start = std::time::Instant::now();
         let early_stop = Some(1_000_000_000);
 
-        let s = BB6_CONTENDER;
+        let program_string = BB6_CONTENDER;
         let goal_x: u32 = 360;
         let goal_y: u32 = 432;
         let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(1); // cmk00 test from exp one and debug
         let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(1); // cmk test from one
         let mut space_time_machine = SpaceTimeMachine::from_str(
-            s,
+            program_string,
             goal_x,
             goal_y,
             x_smoothness.log2(),
@@ -1769,12 +1837,10 @@ mod tests {
                 chunk_size
             };
 
-            let next_chunk = if let Some(early_stop) = early_stop {
+            let next_chunk = early_stop.map_or(next_chunk, |early_stop| {
                 let remaining = early_stop - total_steps;
                 remaining.min(next_chunk)
-            } else {
-                next_chunk
-            };
+            });
 
             // Run the next chunk
             let continues = space_time_machine.nth_js(next_chunk - 1);
@@ -1828,14 +1894,14 @@ mod tests {
 
         for smoothness in 0..=63 {
             let start = std::time::Instant::now();
-            let s = BB5_CHAMP;
+            let program_string = BB5_CHAMP;
             let goal_x: u32 = 360;
             let goal_y: u32 = 432;
             let x_smoothness = PowerOfTwo::from_exp(smoothness);
             let y_smoothness = PowerOfTwo::from_exp(smoothness);
 
             let mut space_time_machine = SpaceTimeMachine::from_str(
-                s,
+                program_string,
                 goal_x,
                 goal_y,
                 x_smoothness.log2(),
@@ -1858,10 +1924,10 @@ mod tests {
             if smoothness == 0 || smoothness == 63 {
                 let png_data = space_time_machine.png_data();
                 fs::write(
-                    format!("tests/expected/bench3_smooth{}.png", smoothness),
+                    format!("tests/expected/bench3_smooth{smoothness}.png"),
                     &png_data,
                 )
-                .map_err(|e| e.to_string())?;
+                .map_err(|error| error.to_string())?;
             }
         }
 

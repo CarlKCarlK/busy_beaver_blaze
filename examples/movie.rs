@@ -1,9 +1,9 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{LogStepIterator, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
+use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, SpaceTimeMachine};
+use core::str::FromStr;
 use image::Rgba;
-use image::{imageops::FilterType, DynamicImage};
+use image::{DynamicImage, imageops::FilterType};
 use imageproc::drawing::draw_text_mut;
-use std::str::FromStr;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -21,34 +21,36 @@ enum Resolution {
 impl FromStr for Resolution {
     type Err = String;
 
+    #[allow(clippy::min_ident_chars)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "tiny" => Ok(Resolution::Tiny),
-            "2k" => Ok(Resolution::TwoK),
-            "4k" => Ok(Resolution::FourK),
-            "8k" => Ok(Resolution::EightK),
-            _ => Err(format!("Unknown resolution: {}. Use 2k, 4k, or 8k", s)),
+            "tiny" => Ok(Self::Tiny),
+            "2k" => Ok(Self::TwoK),
+            "4k" => Ok(Self::FourK),
+            "8k" => Ok(Self::EightK),
+            _ => Err(format!("Unknown resolution: {s}. Use 2k, 4k, or 8k")),
         }
     }
 }
 
 impl Resolution {
-    fn dimensions(&self) -> (u32, u32) {
+    const fn dimensions(&self) -> (u32, u32) {
         match self {
-            Resolution::Tiny => (320, 180),
-            Resolution::TwoK => (1920, 1080),
-            Resolution::FourK => (3840, 2160),
-            Resolution::EightK => (7680, 4320),
+            Self::Tiny => (320, 180),
+            Self::TwoK => (1920, 1080),
+            Self::FourK => (3840, 2160),
+            Self::EightK => (7680, 4320),
         }
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[allow(clippy::shadow_unrelated)]
+fn main() -> Result<(), Box<dyn core::error::Error>> {
     let start = std::time::Instant::now();
 
     let machine_name = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "bb5_champ".to_string());
+        .unwrap_or_else(|| "bb5_champ".to_owned());
 
     let resolution = std::env::args()
         .nth(2)
@@ -100,14 +102,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 create_sequential_subdir(r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
             (machine, 1_000_000_000u64, 1000, dir_info)
         }
-        _ => Err(format!("Unknown machine: {}", machine_name))?,
+        _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
 
     println!(
         "Using machine: {} with output in {:?}",
         machine_name, &output_dir
     );
-    println!("Using resolution: {:?} ({}x{})", resolution, goal_x, goal_y);
+    println!("Using resolution: {resolution:?} ({goal_x}x{goal_y})");
 
     let log_iter = LogStepIterator::new(end_step, num_frames);
 
@@ -149,7 +151,7 @@ fn save_frame(
     step: u64,
     goal_x: u32,
     goal_y: u32,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     let base_file_name = output_dir.join(format!("base/{run_id}_{frame:07}.png"));
     let resized_file_name = output_dir.join(format!("resized/{run_id}_{frame:07}.png"));
     let metadata_file_name = output_dir.join(format!("metadata/{run_id}_{frame:07}.txt"));

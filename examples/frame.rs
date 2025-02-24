@@ -1,5 +1,5 @@
-use busy_beaver_blaze::{LogStepIterator, PowerOfTwo, SpaceTimeMachine, BB5_CHAMP, BB6_CONTENDER};
-use std::str::FromStr;
+use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PowerOfTwo, SpaceTimeMachine};
+use core::str::FromStr;
 use std::{fs, path::Path};
 
 #[derive(Debug)]
@@ -13,34 +13,36 @@ enum Resolution {
 impl FromStr for Resolution {
     type Err = String;
 
+    #[allow(clippy::min_ident_chars)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "tiny" => Ok(Resolution::Tiny),
-            "2k" => Ok(Resolution::TwoK),
-            "4k" => Ok(Resolution::FourK),
-            "8k" => Ok(Resolution::EightK),
-            _ => Err(format!("Unknown resolution: {}. Use 2k, 4k, or 8k", s)),
+            "tiny" => Ok(Self::Tiny),
+            "2k" => Ok(Self::TwoK),
+            "4k" => Ok(Self::FourK),
+            "8k" => Ok(Self::EightK),
+            _ => Err(format!("Unknown resolution: {s}. Use 2k, 4k, or 8k")),
         }
     }
 }
 
 impl Resolution {
-    fn dimensions(&self) -> (u32, u32) {
+    const fn dimensions(&self) -> (u32, u32) {
         match self {
-            Resolution::Tiny => (320, 180),
-            Resolution::TwoK => (1920, 1080),
-            Resolution::FourK => (3840, 2160),
-            Resolution::EightK => (7680, 4320),
+            Self::Tiny => (320, 180),
+            Self::TwoK => (1920, 1080),
+            Self::FourK => (3840, 2160),
+            Self::EightK => (7680, 4320),
         }
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[allow(clippy::similar_names, clippy::min_ident_chars)]
+fn main() -> Result<(), Box<dyn core::error::Error>> {
     let start = std::time::Instant::now();
 
     let machine_name = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "bb5_champ".to_string());
+        .unwrap_or_else(|| "bb5_champ".to_owned());
 
     let resolution = std::env::args()
         .nth(2)
@@ -84,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             max_x_2,
             max_y_2,
         )?,
-        _ => Err(format!("Unknown machine: {}", machine_name))?,
+        _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
 
     let log_iter = LogStepIterator::new(end_step, num_frames);

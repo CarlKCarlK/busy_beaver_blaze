@@ -1,6 +1,6 @@
-use image::{imageops::FilterType, DynamicImage};
-use std::path::Path;
-use std::{error::Error, fs, path::PathBuf};
+use core::error::Error;
+use image::{DynamicImage, imageops::FilterType};
+use std::{fs, path::Path, path::PathBuf};
 
 fn main() -> Result<(), Box<dyn Error>> {
     //let input_pattern = r"M:\deldir\bb5_champ\42\base42_*.png";
@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             )
         };
         resized.save(&output_path)?;
-        println!("Resized and saved {:?}", output_path);
+        println!("Resized and saved {output_path:?}");
     }
 
     Ok(())

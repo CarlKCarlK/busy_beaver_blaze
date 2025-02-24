@@ -1,8 +1,8 @@
-use std::sync::atomic::AtomicU64;
-
+#![allow(clippy::min_ident_chars)]
+use core::ops::SubAssign;
+use core::sync::atomic::AtomicU64;
 use num_bigint::BigUint;
 use num_traits::identities::Zero;
-use std::ops::SubAssign;
 
 trait Decrementable: Zero + SubAssign<u32> {}
 
@@ -13,6 +13,7 @@ struct CountDown<T: Decrementable> {
     current: T,
 }
 
+#[allow(clippy::missing_trait_methods)]
 impl<T: Decrementable> Iterator for CountDown<T> {
     type Item = ();
 
@@ -44,6 +45,7 @@ struct CountDownMutRef<'a, T: Decrementable> {
     current: &'a mut T,
 }
 
+#[allow(clippy::missing_trait_methods)]
 impl<T: Decrementable> Iterator for CountDownMutRef<'_, T> {
     type Item = ();
 
@@ -76,9 +78,10 @@ static RESULT: AtomicU64 = AtomicU64::new(0);
 
 #[inline]
 fn work_item_a() {
-    RESULT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    RESULT.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn tetration_s(a: u32, b: u32) -> BigUint {
     debug_assert!(a > 0);
@@ -92,20 +95,23 @@ fn tetration_s(a: u32, b: u32) -> BigUint {
     result
 }
 
+#[allow(clippy::min_ident_chars)]
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn tetration_f(a: u32, b: u32) -> BigUint {
     debug_assert!(a > 0);
     (0..b).fold(BigUint::from(1u32), |acc, _| power_f(a, acc))
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn tetration_f_simple(a: u32, b: u32) -> BigUint {
     debug_assert!(a > 0);
     (0..b).fold(BigUint::from(1u32), |tetration, _| {
         tetration
             .into_count_down()
-            .fold(BigUint::from(1u32), |power, _| {
-                power.into_count_down().fold(BigUint::ZERO, |product, _| {
+            .fold(BigUint::from(1u32), |power, ()| {
+                power.into_count_down().fold(BigUint::ZERO, |product, ()| {
                     (0..a).fold(product, |sum, _| {
                         let mut increment = sum;
                         increment += 1u32;
@@ -116,14 +122,15 @@ fn tetration_f_simple(a: u32, b: u32) -> BigUint {
     })
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn tetration_f_vector_simple(a: u32, b: u32) -> Vec<()> {
     debug_assert!(a > 0);
     let zero = vec![];
     let one = vec![()];
     (0..b).fold(one.clone(), |tetration, _| {
-        tetration.into_iter().fold(one.clone(), |power, _| {
-            power.into_iter().fold(zero.clone(), |product, _| {
+        tetration.into_iter().fold(one.clone(), |power, ()| {
+            power.into_iter().fold(zero.clone(), |product, ()| {
                 (0..a).fold(product, |sum, _| {
                     let mut increment = sum;
                     increment.push(());
@@ -134,49 +141,56 @@ fn tetration_f_vector_simple(a: u32, b: u32) -> Vec<()> {
     })
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn power_s(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0);
     // let f = format!("|\t{a}^{b} = ");
     // println!("{f}?");
     let mut result = BigUint::from(1u32);
-    for _ in b.into_count_down() {
+    for () in b.into_count_down() {
         result = product_s(a, result);
     }
     // println!("{f}{result}");
     result
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn power_f(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0);
     b.into_count_down()
-        .fold(BigUint::from(1u32), |acc, _| product_f(a, acc))
+        .fold(BigUint::from(1u32), |acc, ()| product_f(a, acc))
 }
 
+#[allow(clippy::min_ident_chars)]
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn product_s(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0); // cmk
-                          // let f = format!("|\t\t{a}*{b} = ");
+    // let f = format!("|\t\t{a}*{b} = ");
     let mut result = BigUint::ZERO;
-    for _ in b.into_count_down() {
+    for () in b.into_count_down() {
         result = add_ownership(a, result);
     }
     // println!("{f}{result}");
     result
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn product_f(a: u32, b: BigUint) -> BigUint {
     debug_assert!(a > 0);
     b.into_count_down()
-        .fold(BigUint::ZERO, |acc, _| add_functional(a, acc))
+        .fold(BigUint::ZERO, |acc, ()| add_functional(a, acc))
 }
 
 #[inline]
 fn increment(acc: &mut BigUint) {
     *acc += 1u32;
 }
+
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn add(a: u32, acc: &mut BigUint) {
     for _ in 0..a {
@@ -184,15 +198,17 @@ fn add(a: u32, acc: &mut BigUint) {
     }
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn multiply(a: u32, acc0: &mut BigUint) {
     let mut acc1 = BigUint::ZERO;
-    for _ in acc0.count_down() {
+    for () in acc0.count_down() {
         add(a, &mut acc1);
     }
     *acc0 = acc1;
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn raise(a: u32, acc0: &mut BigUint) {
     assert!(a > 0, "a must be greater than 0");
@@ -200,12 +216,13 @@ fn raise(a: u32, acc0: &mut BigUint) {
     let mut acc1 = BigUint::ZERO;
     increment(&mut acc1);
 
-    for _ in acc0.count_down() {
+    for () in acc0.count_down() {
         multiply(a, &mut acc1);
     }
     *acc0 = acc1;
 }
 
+#[allow(clippy::min_ident_chars)]
 #[inline]
 fn tetrate(a: u32, acc0: &mut BigUint) {
     assert!(a > 0, "a must be greater than 0");
@@ -213,7 +230,7 @@ fn tetrate(a: u32, acc0: &mut BigUint) {
     let mut acc1 = BigUint::ZERO;
     increment(&mut acc1);
 
-    for _ in acc0.count_down() {
+    for () in acc0.count_down() {
         raise(a, &mut acc1);
     }
     *acc0 = acc1;
@@ -225,12 +242,12 @@ fn tetrate_simple(a: u32, tetration: &mut BigUint) {
 
     let mut power = BigUint::ZERO;
     power += 1u32;
-    for _ in tetration.count_down() {
+    for () in tetration.count_down() {
         let mut product = BigUint::ZERO;
         product += 1u32;
-        for _ in power.count_down() {
+        for () in power.count_down() {
             let mut sum = BigUint::ZERO;
-            for _ in product.count_down() {
+            for () in product.count_down() {
                 for _ in 0..a {
                     sum += 1u32;
                 }
@@ -277,9 +294,9 @@ where
     let mut tetration = BigUint::from(1u32);
     for _ in 0..height {
         let mut power = BigUint::from(1u32);
-        for _ in tetration.into_count_down() {
+        for () in tetration.into_count_down() {
             let mut product = BigUint::zero();
-            for _ in power.into_count_down() {
+            for () in power.into_count_down() {
                 let mut sum = product;
                 for _ in 0..base {
                     let mut increment = sum;
@@ -306,8 +323,8 @@ enum ProductSkips {
 impl From<PowerSkips> for ProductSkips {
     fn from(skip: PowerSkips) -> Self {
         match skip {
-            PowerSkips::PlusOne => ProductSkips::ColumnPlusOne,
-            PowerSkips::None => ProductSkips::Column,
+            PowerSkips::PlusOne => Self::ColumnPlusOne,
+            PowerSkips::None => Self::Column,
         }
     }
 }
@@ -319,7 +336,7 @@ where
 {
     debug_assert!(a > 0); // cmk
     let mut result = BigUint::ZERO;
-    for _ in b.into_count_down() {
+    for () in b.into_count_down() {
         // a=0
         result += 1u32;
         if product_skips == ProductSkips::None {
@@ -353,7 +370,7 @@ where
         return result; // Rust says 0^0 is 1
     }
     let product_skips = ProductSkips::from(power_skips);
-    for _ in b.into_count_down() {
+    for () in b.into_count_down() {
         result = product(a, result, product_skips, &mut work_item);
     }
     result
@@ -375,13 +392,16 @@ where
     result
 }
 
+#[allow(clippy::min_ident_chars)]
+#[allow(clippy::integer_division_remainder_used)]
 fn slow_enough() {
     for a in 0..u128::MAX {
         for b in 0..u128::MAX {
             for c in 0..u128::MAX {
                 for d in 0..u128::MAX {
+                    // % is slow
                     if d % 1_000_000_000 == 0 {
-                        println!("{} {} {} {}", a, b, c, d);
+                        println!("{a} {b} {c} {d}");
                     }
                 }
             }
@@ -390,7 +410,9 @@ fn slow_enough() {
 }
 
 // cmk!!!! BUG BUG can't run tests in parallel because of Global
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[allow(clippy::shadow_reuse)]
+#[allow(clippy::shadow_unrelated)]
+fn main() {
     let mut b = BigUint::ZERO;
     add(2, &mut b);
     assert_eq!(b, BigUint::from(2u32));
@@ -429,75 +451,73 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("power_s(2, 4) = {}", p);
 
     let t = tetration_f_vector_simple(2, 4).len();
-    println!("tetration_f_vector(2, 4) = {}", t);
+    println!("tetration_f_vector(2, 4) = {t}");
 
     let t = tetration_f_simple(2, 4);
-    println!("tetration_f_simple(2, 4) = {}", t);
+    println!("tetration_f_simple(2, 4) = {t}");
 
     let t = tetration_f(2, 4);
-    println!("tetration_f(2, 4) = {}", t);
+    println!("tetration_f(2, 4) = {t}");
 
     let t = tetration_s(2, 4);
-    println!("tetration_s(2, 4) = {}", t);
+    println!("tetration_s(2, 4) = {t}");
 
     let base = 2;
     for x in 0..5 {
-        RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+        RESULT.store(0, core::sync::atomic::Ordering::Relaxed);
 
         let simple = simple_tetration(base, x, work_item_a);
         println!(
             "simple({x}): {simple} work_item_count = {}",
-            RESULT.load(std::sync::atomic::Ordering::Relaxed)
+            RESULT.load(core::sync::atomic::Ordering::Relaxed)
         );
     }
 
     // Test increment
-    RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+    RESULT.store(0, core::sync::atomic::Ordering::Relaxed);
     work_item_a();
     println!(
         "Increment:  work_item_count = {}",
-        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+        RESULT.load(core::sync::atomic::Ordering::Relaxed)
     );
 
     // Test multiply_i
-    RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+    RESULT.store(0, core::sync::atomic::Ordering::Relaxed);
 
     let x = 3u32;
     let running_total = product(base, BigUint::from(x), ProductSkips::None, work_item_a);
     println!(
         "Multiply_i {base}x{x}={}:  work_item_count = {}",
         running_total,
-        RESULT.load(std::sync::atomic::Ordering::Relaxed)
+        RESULT.load(core::sync::atomic::Ordering::Relaxed)
     );
 
     // Test power_i
     for x in 0u32..=10 {
-        RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+        RESULT.store(0, core::sync::atomic::Ordering::Relaxed);
         let result = power(base, BigUint::from(x), PowerSkips::None, work_item_a);
         println!(
             "Power_i {base}^{x}: {result} work_item_count = {}",
-            RESULT.load(std::sync::atomic::Ordering::Relaxed)
+            RESULT.load(core::sync::atomic::Ordering::Relaxed)
         );
     }
 
     // Test tetration_i
     for x in 0u32..=4 {
-        RESULT.store(0, std::sync::atomic::Ordering::Relaxed);
+        RESULT.store(0, core::sync::atomic::Ordering::Relaxed);
         let result = tetration(base, x, work_item_a);
         println!(
             "Tetration {base}^^{x}={result}:  work_item_count = {}",
-            RESULT.load(std::sync::atomic::Ordering::Relaxed)
+            RESULT.load(core::sync::atomic::Ordering::Relaxed)
         );
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::sync::atomic::Ordering;
     use num_traits::ToPrimitive;
-    use std::sync::atomic::Ordering;
 
     #[test]
     fn test_increment() {
