@@ -1,4 +1,5 @@
 // cmk00 Ideas for speedup:
+// cmk00    change turing program from vec of vec to smallvec
 // cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
 // cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
 
@@ -202,10 +203,10 @@ impl Iterator for Machine {
     fn next(&mut self) -> Option<Self::Item> {
         let program = &self.program;
         let input = self.tape.read(self.tape_index);
-        let per_input = &program.state_to_symbol_to_action[self.state as usize][input as usize];
-        self.tape.write(self.tape_index, per_input.next_symbol);
-        self.tape_index += per_input.direction as i64;
-        self.state = per_input.next_state;
+        let action = program.action(self.state, input);
+        self.tape.write(self.tape_index, action.next_symbol);
+        self.tape_index += action.direction as i64;
+        self.state = action.next_state;
         if self.state < program.state_count {
             Some(())
         } else {
@@ -214,11 +215,13 @@ impl Iterator for Machine {
     }
 }
 
+type StateToSymbolToAction = SmallVec<[Action; 20]>; // cmk const
+
 #[derive(Debug)]
 struct Program {
     state_count: u8,
     // symbol_count: u8,
-    state_to_symbol_to_action: Vec<Vec<Action>>,
+    state_to_symbol_to_action: StateToSymbolToAction, // cmk const
 }
 
 // impl a parser for the strings like this
@@ -247,6 +250,13 @@ impl FromStr for Program {
 }
 
 impl Program {
+    pub const SYMBOL_COUNT: usize = 2;
+
+    #[inline]
+    fn action(&self, state: u8, symbol: u8) -> &Action {
+        let offset = state as usize * Program::SYMBOL_COUNT + symbol as usize;
+        &self.state_to_symbol_to_action[offset]
+    }
     fn parse_state(input: impl AsRef<str>) -> Result<char, Error> {
         // println!("cmk {:?}", input.as_ref());
         let mut chars = input.as_ref().chars();
@@ -322,6 +332,20 @@ impl Program {
             })
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
+        let symbol_count = state_to_symbol_to_action[0].len() as u8;
+        if symbol_count == 0 {
+            return Err(Error::InvalidSymbolsCount {
+                expected: 1,
+                got: 0,
+            });
+        }
+        if symbol_count != Program::SYMBOL_COUNT as u8 {
+            return Err(Error::InvalidSymbolsCount {
+                expected: Program::SYMBOL_COUNT,
+                got: symbol_count as usize,
+            });
+        }
+
         // Ensure proper dimensions (STATE_COUNT x 2)
         let state_count = state_to_symbol_to_action.len() as u8;
         if state_count == 0 {
@@ -331,18 +355,10 @@ impl Program {
             });
         }
 
-        let symbol_count = state_to_symbol_to_action[0].len() as u8;
-        if symbol_count == 0 {
-            return Err(Error::InvalidSymbolsCount {
-                expected: 1,
-                got: 0,
-            });
-        }
-
         Ok(Program {
             state_count,
             // symbol_count,
-            state_to_symbol_to_action,
+            state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
 
@@ -386,10 +402,17 @@ impl Program {
             });
         }
 
+        if symbol_count != Program::SYMBOL_COUNT as u8 {
+            return Err(Error::InvalidSymbolsCount {
+                expected: Program::SYMBOL_COUNT,
+                got: symbol_count as usize,
+            });
+        }
+
         Ok(Program {
             state_count,
             // symbol_count,
-            state_to_symbol_to_action,
+            state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
 
@@ -430,6 +453,13 @@ impl Program {
             });
         }
 
+        if symbol_count != Program::SYMBOL_COUNT {
+            return Err(Error::InvalidSymbolsCount {
+                expected: Program::SYMBOL_COUNT,
+                got: symbol_count,
+            });
+        }
+
         let state_count = vec_of_vec[0].len();
         if state_count == 0 {
             return Err(Error::InvalidStatesCount {
@@ -460,7 +490,7 @@ impl Program {
         Ok(Program {
             state_count: state_count as u8,
             // symbol_count: symbol_count as u8,
-            state_to_symbol_to_action,
+            state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
 }
