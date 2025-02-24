@@ -37,3 +37,22 @@ glob = "0.3.2"
 
 [build]
 rustflags = ["-C", "target-cpu=native"]
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+use_self = "deny"
+pedantic = "deny"
+nursery = "deny"
+cargo = "deny"
+missing_docs = "deny"
+missing_debug_implementations = "deny"
+unused_lifetimes = "deny"
+redundant_pub_crate = "deny"
+wildcard_imports = "deny"
+explicit_iter_loop = "deny"
+explicit_into_iter_loop = "deny"
+unreachable_pub = "deny"
+inefficient_to_string = "deny"
+
+[workspace.lints.rust]
+missing_docs = "deny"

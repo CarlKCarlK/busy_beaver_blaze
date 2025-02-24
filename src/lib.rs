@@ -1233,7 +1233,7 @@ impl SpaceTimeMachine {
             if start.elapsed().as_secs_f32() >= seconds {
                 return true;
             }
-            remaining -= loops_per_time2 as u64;
+            remaining -= loops_per_time2;
         }
         while remaining > 0 {
             let loops_per_time2 = loops_per_time_check.min(remaining);
@@ -1245,20 +1245,16 @@ impl SpaceTimeMachine {
             if start.elapsed().as_secs_f32() >= seconds {
                 return true;
             }
-            remaining -= loops_per_time2 as u64;
+            remaining -= loops_per_time2;
         }
         true
     }
 
     #[wasm_bindgen]
     pub fn png_data(&self) -> Vec<u8> {
-        // console::log_1(&"[Rust] Generating PNG data...".into());
-        let result = self
-            .space_time
+        self.space_time
             .to_png()
-            .unwrap_or_else(|e| format!("{:?}", e).into_bytes());
-        // console::log_1(&"[Rust] PNG data generated".into());
-        result
+            .unwrap_or_else(|e| format!("{:?}", e).into_bytes())
     }
 
     #[wasm_bindgen]
