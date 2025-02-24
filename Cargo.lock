@@ -132,6 +132,7 @@ name = "busy_beaver_blaze"
 version = "0.2.3"
 dependencies = [
  "ab_glyph",
+ "arrayvec",
  "derive_more",
  "glob",
  "image",

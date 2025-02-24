@@ -3,6 +3,7 @@
 // cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
 // cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
 
+use arrayvec::ArrayVec;
 use core::fmt;
 use core::str::FromStr;
 use derive_more::derive::Display;
@@ -215,13 +216,13 @@ impl Iterator for Machine {
     }
 }
 
-type StateToSymbolToAction = SmallVec<[Action; 20]>; // cmk const
+type StateToSymbolToAction = ArrayVec<Action, { Program::MAX_STATE_COUNT }>; // cmk const
 
 #[derive(Debug)]
 struct Program {
     state_count: u8,
     // symbol_count: u8,
-    state_to_symbol_to_action: StateToSymbolToAction, // cmk const
+    state_to_symbol_to_action: StateToSymbolToAction, // Changed from SmallVec
 }
 
 // impl a parser for the strings like this
@@ -251,6 +252,7 @@ impl FromStr for Program {
 
 impl Program {
     pub const SYMBOL_COUNT: usize = 2;
+    pub const MAX_STATE_COUNT: usize = Program::SYMBOL_COUNT * 50;
 
     #[inline]
     fn action(&self, state: u8, symbol: u8) -> &Action {
@@ -355,6 +357,13 @@ impl Program {
             });
         }
 
+        if state_count > Program::MAX_STATE_COUNT as u8 {
+            return Err(Error::InvalidStatesCount {
+                expected: Program::MAX_STATE_COUNT,
+                got: state_count as usize,
+            });
+        }
+
         Ok(Program {
             state_count,
             // symbol_count,
@@ -391,6 +400,13 @@ impl Program {
             return Err(Error::InvalidStatesCount {
                 expected: 1,
                 got: 0,
+            });
+        }
+
+        if state_count > Program::MAX_STATE_COUNT as u8 {
+            return Err(Error::InvalidStatesCount {
+                expected: Program::MAX_STATE_COUNT,
+                got: state_count as usize,
             });
         }
 
@@ -465,6 +481,13 @@ impl Program {
             return Err(Error::InvalidStatesCount {
                 expected: 1,
                 got: 0,
+            });
+        }
+
+        if state_count > Program::MAX_STATE_COUNT {
+            return Err(Error::InvalidStatesCount {
+                expected: Program::MAX_STATE_COUNT,
+                got: state_count,
             });
         }
 
@@ -1679,8 +1702,8 @@ mod tests {
         let s = BB6_CONTENDER;
         let goal_x: u32 = 360;
         let goal_y: u32 = 432;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
-        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
+        let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let n = 500_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(
             s,

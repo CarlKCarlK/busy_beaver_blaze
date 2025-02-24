@@ -8,6 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 ab_glyph = "0.2.29"
+arrayvec = "0.7.6"
 derive_more = { version = "2.0.1", default-features = false, features = [
     "debug",
     "display",
