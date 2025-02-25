@@ -44,7 +44,7 @@ impl Resolution {
     }
 }
 
-#[allow(clippy::shadow_unrelated)]
+#[allow(clippy::shadow_unrelated, clippy::too_many_lines)]
 fn main() -> Result<(), Box<dyn core::error::Error>> {
     let start = std::time::Instant::now();
 
@@ -68,25 +68,45 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         .and_then(|arg| arg.parse().ok())
         .unwrap_or(1);
 
+    let buffer1_count = 0; // cmk0000000
+
     let (up_x, up_y) = (goal_x, goal_y);
     let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) = match machine_name
         .as_str()
     {
         "bb5_champ" => {
-            let machine =
-                SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, x_smoothness, y_smoothness)?;
+            let machine = SpaceTimeMachine::from_str(
+                BB5_CHAMP,
+                up_x,
+                up_y,
+                x_smoothness,
+                y_smoothness,
+                buffer1_count,
+            )?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb5_champ")?;
             (machine, 47_176_870, 1000, dir_info)
         }
         "bb6_contender" => {
-            let machine =
-                SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, x_smoothness, y_smoothness)?;
+            let machine = SpaceTimeMachine::from_str(
+                BB6_CONTENDER,
+                up_x,
+                up_y,
+                x_smoothness,
+                y_smoothness,
+                buffer1_count,
+            )?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
             (machine, 1_000_000_000_000u64, 2000, dir_info)
         }
         "bb6_contender2" => {
-            let machine =
-                SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, x_smoothness, y_smoothness)?;
+            let machine = SpaceTimeMachine::from_str(
+                BB6_CONTENDER,
+                up_x,
+                up_y,
+                x_smoothness,
+                y_smoothness,
+                buffer1_count,
+            )?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender2")?;
             (machine, 1_000_000_000u64, 1000, dir_info)
         }
@@ -97,6 +117,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
                 up_y,
                 x_smoothness,
                 y_smoothness,
+                buffer1_count,
             )?;
             let dir_info =
                 create_sequential_subdir(r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
@@ -129,7 +150,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         );
 
         save_frame(
-            &space_time_machine,
+            &mut space_time_machine,
             &output_dir,
             run_id,
             frame_index as u32,
@@ -144,7 +165,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 }
 
 fn save_frame(
-    machine: &SpaceTimeMachine,
+    machine: &mut SpaceTimeMachine,
     output_dir: &Path,
     run_id: u32,
     frame: u32,

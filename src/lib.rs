@@ -838,18 +838,22 @@ impl Spaceline {
 
 struct Spacelines {
     main: Vec<Spaceline>,
-    buffer: Vec<Spaceline>,
+    buffer0: Vec<Spaceline>, // cmk0 better names
+    buffer1: Vec<(u64, Spaceline)>,
+    buffer1_capacity: PowerOfTwo,
 }
 
 impl Spacelines {
-    fn new(smoothness: PowerOfTwo) -> Self {
+    fn new(smoothness: PowerOfTwo, buffer1_count: PowerOfTwo) -> Self {
         Self {
             main: vec![Spaceline::new0(smoothness)],
-            buffer: Vec::new(),
+            buffer0: Vec::new(),
+            buffer1: Vec::with_capacity(buffer1_count.as_usize()),
+            buffer1_capacity: buffer1_count,
         }
     }
     fn len(&self) -> usize {
-        self.main.len() + usize::from(!self.buffer.is_empty())
+        self.main.len() + usize::from(!self.buffer0.is_empty())
     }
 
     fn get<'a>(&'a self, index: usize, last: &'a Spaceline) -> &'a Spaceline {
@@ -860,18 +864,19 @@ impl Spacelines {
         }
     }
 
-    fn flush_buffer(&mut self) {
+    fn flush_buffer0(&mut self) {
+        self.flush_buffer1();
         // We now have a buffer that needs to be flushed at the end
-        if !self.buffer.is_empty() {
-            assert!(self.buffer.len() == 1, "real assert 13");
-            self.main.push(self.buffer.pop().unwrap());
+        if !self.buffer0.is_empty() {
+            assert!(self.buffer0.len() == 1, "real assert 13");
+            self.main.push(self.buffer0.pop().unwrap());
         }
     }
 
     #[allow(clippy::min_ident_chars)]
     #[inline]
     fn compress_average(&mut self) {
-        assert!(self.buffer.is_empty(), "real assert b2");
+        assert!(self.buffer0.is_empty(), "real assert b2");
         assert!(fast_is_even(self.main.len()), "real assert 11");
         // println!("cmk compress_average");
 
@@ -889,28 +894,44 @@ impl Spacelines {
 
     #[inline]
     fn compress_take_first(&mut self, new_sample: PowerOfTwo) {
-        assert!(self.buffer.is_empty(), "real assert e2");
+        assert!(self.buffer0.is_empty(), "real assert e2");
         assert!(fast_is_even(self.main.len()), "real assert e11");
         // println!("cmk compress_take_first");
         self.main
             .retain(|spaceline| new_sample.divides_u64(spaceline.time));
     }
 
-    fn last(&self, step_index: u64, y_sample: PowerOfTwo, y_smoothness: PowerOfTwo) -> Spaceline {
-        if self.buffer.is_empty() {
+    fn flush_buffer1(&mut self) {
+        // cmk00000 for now, just move the lines over
+        let buffer1 = core::mem::take(&mut self.buffer1);
+        for (inside_index, spaceline) in buffer1 {
+            Self::push_internal(&mut self.buffer0, inside_index, spaceline);
+        }
+    }
+
+    fn last(
+        &mut self,
+        step_index: u64,
+        y_sample: PowerOfTwo,
+        y_smoothness: PowerOfTwo,
+    ) -> Spaceline {
+        // If we're going to create a PNG, we need to move buffer1 into buffer0
+        self.flush_buffer1();
+
+        if self.buffer0.is_empty() {
             // cmk would be nice to remove this clone
             return self.main.last().unwrap().clone();
         }
         // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
 
-        let buffer_last = self.buffer.last().unwrap();
+        let buffer_last = self.buffer0.last().unwrap();
         let time = buffer_last.time;
         let start = buffer_last.start;
         let x_sample = buffer_last.sample;
         let last_inside_index = y_sample.rem_into(step_index);
 
         // cmk we have to clone because we compress in place (clone only half???)
-        let mut buffer = self.buffer.clone();
+        let mut buffer0 = self.buffer0.clone();
         for inside_index in last_inside_index + 1..y_sample.as_u64() {
             let down_step = y_sample.saturating_div(y_smoothness);
             if !down_step.divides_u64(inside_index) {
@@ -925,21 +946,21 @@ impl Spacelines {
                 time: time + inside_index - last_inside_index,
                 smoothness: buffer_last.smoothness,
             };
-            Self::push_internal(&mut buffer, inside_inside_index, empty);
+            Self::push_internal(&mut buffer0, inside_inside_index, empty);
         }
-        assert!(buffer.len() == 1, "real assert b3");
-        buffer.pop().unwrap()
+        assert!(buffer0.len() == 1, "real assert b3");
+        buffer0.pop().unwrap()
     }
 
-    fn push_internal(buffer: &mut Vec<Spaceline>, inside_index: u64, spaceline: Spaceline) {
+    fn push_internal(buffer0: &mut Vec<Spaceline>, inside_index: u64, spaceline: Spaceline) {
         // Sampling & Averaging 3
         // We gather rows in a buffer until we have a full set of rows.
         // If we only wanted to keep one, we'd just push on inside_index==0
 
         if fast_is_even(inside_index) {
-            buffer.push(spaceline);
+            buffer0.push(spaceline);
         } else {
-            let last_mut = buffer.last_mut().unwrap();
+            let last_mut = buffer0.last_mut().unwrap();
             assert!(last_mut.start >= spaceline.start, "cmk real assert 4b");
             last_mut.merge(spaceline);
             let mut inside_inside = inside_index;
@@ -949,8 +970,8 @@ impl Spacelines {
                 if fast_is_even(inside_inside) {
                     break;
                 }
-                let last = buffer.pop().unwrap();
-                let second_to_last = buffer.last_mut().unwrap();
+                let last = buffer0.pop().unwrap();
+                let second_to_last = buffer0.last_mut().unwrap();
                 assert!(second_to_last.start >= last.start, "cmk real assert 4c");
                 second_to_last.merge(last);
             }
@@ -958,8 +979,20 @@ impl Spacelines {
     }
 
     #[inline]
-    fn push(&mut self, inside_index: u64, spaceline: Spaceline) {
-        Self::push_internal(&mut self.buffer, inside_index, spaceline);
+    fn push(&mut self, inside_index: u64, y_sample: PowerOfTwo, spaceline: Spaceline) {
+        let capacity = self.buffer1_capacity.min(y_sample);
+        // if inside_index == 2047 {
+        //     println!("\t\tcmk push {inside_index} {capacity:?}",);
+        // }
+        // If less than 4 spacelines go into one image line, then skip buffer1
+        if capacity < PowerOfTwo::FOUR {
+            Self::push_internal(&mut self.buffer0, inside_index, spaceline);
+        } else if self.buffer1.len() < capacity.as_usize() {
+            self.buffer1.push((inside_index, spaceline));
+        } else {
+            self.flush_buffer1();
+            self.buffer1.push((inside_index, spaceline));
+        }
     }
 }
 
@@ -984,13 +1017,14 @@ impl SampledSpaceTime {
         y_goal: u32,
         x_smoothness: PowerOfTwo,
         y_smoothness: PowerOfTwo,
+        buffer1_count: PowerOfTwo,
     ) -> Self {
         Self {
             step_index: 0,
             x_goal,
             y_goal,
             sample: PowerOfTwo::ONE,
-            spacelines: Spacelines::new(x_smoothness),
+            spacelines: Spacelines::new(x_smoothness, buffer1_count),
             x_smoothness,
             y_smoothness,
         }
@@ -1029,9 +1063,20 @@ impl SampledSpaceTime {
         self.step_index += 1;
         let inside_index = self.sample.rem_into(self.step_index);
 
+        // if inside_index == self.sample.as_u64() - 1 {
+        //     println!(
+        //         "cmk snapshot {} {:?} {inside_index} buf: 0:{} 1:{}/{:?}",
+        //         self.step_index,
+        //         self.sample,
+        //         self.spacelines.buffer0.len(),
+        //         self.spacelines.buffer1.len(),
+        //         self.spacelines.buffer1_capacity
+        //     );
+        // }
+
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-            self.spacelines.flush_buffer();
+            self.spacelines.flush_buffer0();
             self.compress_if_needed();
         }
 
@@ -1047,10 +1092,23 @@ impl SampledSpaceTime {
             self.x_smoothness,
         );
 
-        self.spacelines.push(inside_inside_index, spaceline);
+        // if inside_index == self.sample.as_u64() - 1 {
+        //     println!(
+        //         "   cmk snapshot {} {:?} {inside_index} buf: 0:{} 1:{}/{:?} {inside_inside_index}",
+        //         self.step_index,
+        //         self.sample,
+        //         self.spacelines.buffer0.len(),
+        //         self.spacelines.buffer1.len(),
+        //         self.spacelines.buffer1_capacity
+        //     );
+        // }
+
+        self.spacelines
+            .push(inside_inside_index, self.sample, spaceline);
     }
 
-    fn to_png(&self) -> Result<Vec<u8>, Error> {
+    #[allow(clippy::wrong_self_convention)] // cmk00 consider better name to this function
+    fn to_png(&mut self) -> Result<Vec<u8>, Error> {
         let last = self
             .spacelines
             .last(self.step_index, self.sample, self.y_smoothness);
@@ -1192,14 +1250,16 @@ impl SpaceTimeMachine {
         goal_y: u32,
         x_smoothness: u8,
         y_smoothness: u8,
+        buffer1_count: u8,
     ) -> Result<Self, String> {
         Ok(Self {
             machine: Machine::from_string(s)?,
             space_time: SampledSpaceTime::new(
                 goal_x,
                 goal_y,
-                PowerOfTwo(x_smoothness),
-                PowerOfTwo(y_smoothness),
+                PowerOfTwo::from_exp(x_smoothness),
+                PowerOfTwo::from_exp(y_smoothness),
+                PowerOfTwo::from_exp(buffer1_count),
             ),
         })
     }
@@ -1284,7 +1344,7 @@ impl SpaceTimeMachine {
     #[wasm_bindgen]
     #[inline]
     #[must_use]
-    pub fn png_data(&self) -> Vec<u8> {
+    pub fn png_data(&mut self) -> Vec<u8> {
         self.space_time
             .to_png()
             .unwrap_or_else(|e| format!("{e:?}").into_bytes())
@@ -1406,6 +1466,7 @@ impl PowerOfTwo {
     /// The smallest valid `Smoothness` value, representing `2^0 = 1`.
     pub const ONE: Self = Self(0);
     pub const TWO: Self = Self(1);
+    pub const FOUR: Self = Self(2);
     pub const MIN: Self = Self(0);
     pub const MAX: Self = Self(63);
 
@@ -1587,8 +1648,9 @@ mod tests {
         let goal_y: u32 = 1000;
         let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk000000
         let mut sample_space_time =
-            SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness);
+            SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness, buffer1_count);
 
         let early_stop = Some(10_500_000);
         // let early_stop = Some(1_000_000);
@@ -1640,6 +1702,7 @@ mod tests {
         let goal_y: u32 = 1000;
         let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE;
         let n = 1_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(
             program_string,
@@ -1647,6 +1710,7 @@ mod tests {
             goal_y,
             x_smoothness.log2(),
             y_smoothness.log2(),
+            buffer1_count.log2(),
         )?;
 
         while space_time_machine.nth_js(n - 1) {
@@ -1690,6 +1754,7 @@ mod tests {
         let goal_y: u32 = 1000;
         let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk000000
         let seconds = 0.25;
         let mut space_time_machine = SpaceTimeMachine::from_str(
             program_string,
@@ -1697,6 +1762,7 @@ mod tests {
             goal_y,
             x_smoothness.log2(),
             y_smoothness.log2(),
+            buffer1_count.log2(),
         )?;
 
         while space_time_machine.step_for_secs_js(seconds, None, 100_000) {
@@ -1766,6 +1832,7 @@ mod tests {
         let goal_y: u32 = 432;
         let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
         let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
+        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk0000000
         let n = 500_000_000;
         let mut space_time_machine = SpaceTimeMachine::from_str(
             program_string,
@@ -1773,6 +1840,7 @@ mod tests {
             goal_y,
             x_smoothness.log2(),
             y_smoothness.log2(),
+            buffer1_count.log2(),
         )?;
 
         space_time_machine.nth_js(n - 1);
@@ -1812,14 +1880,16 @@ mod tests {
         let program_string = BB6_CONTENDER;
         let goal_x: u32 = 360;
         let goal_y: u32 = 432;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(1); // cmk00 test from exp one and debug
-        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(1); // cmk test from one
+        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
+        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
+        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk0000000
         let mut space_time_machine = SpaceTimeMachine::from_str(
             program_string,
             goal_x,
             goal_y,
             x_smoothness.log2(),
             y_smoothness.log2(),
+            buffer1_count.log2(),
         )?;
 
         let chunk_size = 100_000_000;
@@ -1899,6 +1969,7 @@ mod tests {
             let goal_y: u32 = 432;
             let x_smoothness = PowerOfTwo::from_exp(smoothness);
             let y_smoothness = PowerOfTwo::from_exp(smoothness);
+            let buffer1_count = PowerOfTwo::ONE; // cmk0000000
 
             let mut space_time_machine = SpaceTimeMachine::from_str(
                 program_string,
@@ -1906,6 +1977,7 @@ mod tests {
                 goal_y,
                 x_smoothness.log2(),
                 y_smoothness.log2(),
+                buffer1_count.log2(),
             )?;
 
             // Run to completion
@@ -1931,6 +2003,94 @@ mod tests {
             }
         }
 
+        Ok(())
+    }
+
+    #[allow(clippy::shadow_reuse)]
+    #[test]
+    #[wasm_bindgen_test]
+    fn benchmark63() -> Result<(), String> {
+        // let start = std::time::Instant::now();
+        let early_stop = Some(5_000_000);
+        let chunk_size = 500_000;
+
+        let program_string = BB6_CONTENDER;
+        let goal_x: u32 = 360;
+        let goal_y: u32 = 432;
+        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
+        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
+        let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(10); // cmk0000000
+        let mut space_time_machine = SpaceTimeMachine::from_str(
+            program_string,
+            goal_x,
+            goal_y,
+            x_smoothness.log2(),
+            y_smoothness.log2(),
+            buffer1_count.log2(),
+        )?;
+
+        let mut total_steps = 1; // Start at 1 since first step is already taken
+
+        loop {
+            if early_stop.is_some_and(|early_stop| total_steps >= early_stop) {
+                break;
+            }
+
+            // Calculate next chunk size
+            let next_chunk = if total_steps == 1 {
+                chunk_size - 1
+            } else {
+                chunk_size
+            };
+
+            let next_chunk = early_stop.map_or(next_chunk, |early_stop| {
+                let remaining = early_stop - total_steps;
+                remaining.min(next_chunk)
+            });
+
+            // Run the next chunk
+            let continues = space_time_machine.nth_js(next_chunk - 1);
+            total_steps += next_chunk;
+
+            // Send intermediate update
+            println!(
+                "intermediate: {:?} Steps {}: {:?}, #1's {}",
+                0,
+                // start.elapsed(),
+                space_time_machine
+                    .space_time
+                    .step_index
+                    .separate_with_commas(),
+                space_time_machine.machine,
+                space_time_machine.machine.count_ones()
+            );
+
+            // let _png_data = space_time_machine.png_data();
+
+            // Exit if machine halted
+            if !continues {
+                break;
+            }
+        }
+
+        // Send final result
+
+        println!(
+            "Final: {:?} Steps {}: {:?}, #1's {}",
+            0, // start.elapsed(),
+            space_time_machine
+                .space_time
+                .step_index
+                .separate_with_commas(),
+            space_time_machine.machine,
+            space_time_machine.machine.count_ones(),
+        );
+
+        // cmk LATER what is one method png_data and another to to_png?
+        let start = std::time::Instant::now();
+        let png_data = space_time_machine.png_data();
+        fs::write("tests/expected/bench63.png", &png_data).unwrap(); // cmk handle error
+        println!("Elapsed png: {:?}", start.elapsed());
         Ok(())
     }
 }
