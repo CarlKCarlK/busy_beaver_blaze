@@ -983,46 +983,49 @@ impl Spacelines {
 
     fn push_internal(
         buffer0: &mut Vec<(Spaceline, PowerOfTwo)>,
-        inside_index: u64,
-        spaceline: Spaceline,
-        weight: PowerOfTwo,
+        _inside_index: u64,
+        mut spaceline: Spaceline,
+        mut weight: PowerOfTwo,
     ) {
-        // Sampling & Averaging 3
-        // We gather rows in a buffer until we have a full set of rows.
-        // If we only wanted to keep one, we'd just push on inside_index==0
+        while let Some((_last_mut_powerline, last_mut_weight)) = buffer0.last_mut() {
+            // If current weight is smaller, just append to buffer
+            if weight < *last_mut_weight {
+                buffer0.push((spaceline, weight));
+                return;
+            }
 
-        if fast_is_even(inside_index) {
-            buffer0.push((spaceline, weight));
-        } else {
-            let (last_mut_powerline, last_mut_weight) = buffer0.last_mut().unwrap();
-            assert!(
-                last_mut_powerline.start >= spaceline.start,
-                "cmk real assert 4b"
+            debug_assert!(
+                weight == *last_mut_weight,
+                "Weight equality invariant violation"
             );
-            last_mut_powerline.merge(spaceline);
-            let mut inside_inside = inside_index;
-            loop {
-                // shift inside_index to the right
-                inside_inside >>= 1; // inside_inside /= 2;
-                if fast_is_even(inside_inside) {
-                    break;
-                }
-                let last = buffer0.pop().unwrap();
-                let second_to_last = buffer0.last_mut().unwrap();
-                assert!(second_to_last.0.start >= last.0.start, "cmk real assert 4c");
-                second_to_last.0.merge(last.0);
-                second_to_last.1.double();
+
+            // Get ownership of the last element by popping
+            let (mut last_powerline, last_weight) = buffer0.pop().unwrap();
+
+            // Merge spacelines and double weight
+            last_powerline.merge(spaceline);
+
+            // Continue with the merged spaceline and doubled weight
+            spaceline = last_powerline;
+            weight = last_weight.double();
+
+            // If buffer is now empty, push and return
+            if buffer0.is_empty() {
+                buffer0.push((spaceline, weight));
+                return;
             }
         }
+
+        // Handle empty buffer case
+        buffer0.push((spaceline, weight));
     }
 
     #[inline]
     fn push(&mut self, inside_index: u64, y_sample: PowerOfTwo, spaceline: Spaceline) {
+        // Calculate buffer capacity
         let capacity = self.buffer1_capacity.min(y_sample);
-        // if inside_index == 2047 {
-        //     println!("\t\t cmk push {inside_index} {capacity:?}",);
-        // }
-        // If less than 4 spacelines go into one image line, then skip buffer1
+
+        // If less than 4 spacelines go into one image line, skip buffer1
         if capacity < PowerOfTwo::FOUR {
             Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
         } else if self.buffer1.len() < capacity.as_usize() {
