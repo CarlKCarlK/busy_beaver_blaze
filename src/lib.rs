@@ -1,6 +1,7 @@
 // cmk00 Ideas for speedup:
 // cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
 // cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
+// cmk00    Better than doing a tree merge would be having different final lines processed in parallel
 
 use arrayvec::ArrayVec;
 use core::fmt;
@@ -838,8 +839,8 @@ impl Spaceline {
 
 struct Spacelines {
     main: Vec<Spaceline>,
-    buffer0: Vec<Spaceline>, // cmk0 better names
-    buffer1: Vec<(u64, Spaceline)>,
+    buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names
+    buffer1: Vec<Option<(u64, Spaceline)>>,
     buffer1_capacity: PowerOfTwo,
 }
 
@@ -869,7 +870,7 @@ impl Spacelines {
         // We now have a buffer that needs to be flushed at the end
         if !self.buffer0.is_empty() {
             assert!(self.buffer0.len() == 1, "real assert 13");
-            self.main.push(self.buffer0.pop().unwrap());
+            self.main.push(self.buffer0.pop().unwrap().0);
         }
     }
 
@@ -904,9 +905,35 @@ impl Spacelines {
     fn flush_buffer1(&mut self) {
         // cmk00000 for now, just move the lines over
         let buffer1 = core::mem::take(&mut self.buffer1);
-        for (inside_index, spaceline) in buffer1 {
-            Self::push_internal(&mut self.buffer0, inside_index, spaceline);
+        for item in buffer1 {
+            let (inside_index, spaceline) = item.unwrap();
+            Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
         }
+
+        // if self.buffer1.is_empty() {
+        //     return;
+        // }
+        // // cmk00000 for now, just move the lines over
+        // let mut buffer1 = core::mem::take(&mut self.buffer1);
+        // let mut distinct_values = PowerOfTwo::from_usize(buffer1.len());
+        // let mut gap = PowerOfTwo::ONE;
+        // let mut double_gap = gap.double();
+        // let last_inside_index = buffer1.last().unwrap().as_ref().unwrap().0;
+        // while distinct_values > PowerOfTwo::ONE {
+        //     for left_index in (0..buffer1.len()).step_by(double_gap.as_usize()) {
+        //         let right_index = left_index + gap.as_usize();
+        //         // instead of take with default, maybe should be optional
+        //         let (_inside_index, spaceline) = buffer1[right_index].take().unwrap();
+        //         buffer1[left_index].as_mut().unwrap().1.merge(spaceline);
+        //     }
+        //     gap = double_gap;
+        //     double_gap = gap.double();
+        //     distinct_values.assign_saturating_div_two();
+        // }
+
+        // let (first_index_index, spaceline) = core::mem::take(&mut buffer1[0]).unwrap();
+
+        // Self::push_internal(&mut self.buffer0, first_index_index, spaceline);
     }
 
     fn last(
@@ -925,9 +952,11 @@ impl Spacelines {
         // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
 
         let buffer_last = self.buffer0.last().unwrap();
-        let time = buffer_last.time;
-        let start = buffer_last.start;
-        let x_sample = buffer_last.sample;
+        let spaceline_last = &buffer_last.0;
+        let weight = buffer_last.1;
+        let time = spaceline_last.time;
+        let start = spaceline_last.start;
+        let x_sample = spaceline_last.sample;
         let last_inside_index = y_sample.rem_into(step_index);
 
         // cmk we have to clone because we compress in place (clone only half???)
@@ -942,27 +971,35 @@ impl Spacelines {
             let empty = Spaceline {
                 sample: x_sample,
                 start,
-                pixels: vec![Pixel::WHITE; buffer_last.pixels.len()],
+                pixels: vec![Pixel::WHITE; spaceline_last.pixels.len()],
                 time: time + inside_index - last_inside_index,
-                smoothness: buffer_last.smoothness,
+                smoothness: spaceline_last.smoothness,
             };
-            Self::push_internal(&mut buffer0, inside_inside_index, empty);
+            Self::push_internal(&mut buffer0, inside_inside_index, empty, PowerOfTwo::ONE);
         }
         assert!(buffer0.len() == 1, "real assert b3");
-        buffer0.pop().unwrap()
+        buffer0.pop().unwrap().0
     }
 
-    fn push_internal(buffer0: &mut Vec<Spaceline>, inside_index: u64, spaceline: Spaceline) {
+    fn push_internal(
+        buffer0: &mut Vec<(Spaceline, PowerOfTwo)>,
+        inside_index: u64,
+        spaceline: Spaceline,
+        weight: PowerOfTwo,
+    ) {
         // Sampling & Averaging 3
         // We gather rows in a buffer until we have a full set of rows.
         // If we only wanted to keep one, we'd just push on inside_index==0
 
         if fast_is_even(inside_index) {
-            buffer0.push(spaceline);
+            buffer0.push((spaceline, weight));
         } else {
-            let last_mut = buffer0.last_mut().unwrap();
-            assert!(last_mut.start >= spaceline.start, "cmk real assert 4b");
-            last_mut.merge(spaceline);
+            let (last_mut_powerline, last_mut_weight) = buffer0.last_mut().unwrap();
+            assert!(
+                last_mut_powerline.start >= spaceline.start,
+                "cmk real assert 4b"
+            );
+            last_mut_powerline.merge(spaceline);
             let mut inside_inside = inside_index;
             loop {
                 // shift inside_index to the right
@@ -972,8 +1009,9 @@ impl Spacelines {
                 }
                 let last = buffer0.pop().unwrap();
                 let second_to_last = buffer0.last_mut().unwrap();
-                assert!(second_to_last.start >= last.start, "cmk real assert 4c");
-                second_to_last.merge(last);
+                assert!(second_to_last.0.start >= last.0.start, "cmk real assert 4c");
+                second_to_last.0.merge(last.0);
+                second_to_last.1.double();
             }
         }
     }
@@ -982,16 +1020,16 @@ impl Spacelines {
     fn push(&mut self, inside_index: u64, y_sample: PowerOfTwo, spaceline: Spaceline) {
         let capacity = self.buffer1_capacity.min(y_sample);
         // if inside_index == 2047 {
-        //     println!("\t\tcmk push {inside_index} {capacity:?}",);
+        //     println!("\t\t cmk push {inside_index} {capacity:?}",);
         // }
         // If less than 4 spacelines go into one image line, then skip buffer1
         if capacity < PowerOfTwo::FOUR {
-            Self::push_internal(&mut self.buffer0, inside_index, spaceline);
+            Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
         } else if self.buffer1.len() < capacity.as_usize() {
-            self.buffer1.push((inside_index, spaceline));
+            self.buffer1.push(Some((inside_index, spaceline)));
         } else {
             self.flush_buffer1();
-            self.buffer1.push((inside_index, spaceline));
+            self.buffer1.push(Some((inside_index, spaceline)));
         }
     }
 }
@@ -1488,6 +1526,17 @@ impl PowerOfTwo {
     const fn saturating_div(self, rhs: Self) -> Self {
         // Subtract exponents; if the subtrahend is larger, saturate to 0 aks One
         Self(self.0.saturating_sub(rhs.0))
+    }
+
+    #[inline]
+    fn assign_saturating_div_two(&mut self) {
+        self.0 = self.0.saturating_sub(1);
+    }
+
+    #[inline]
+    fn double(self) -> Self {
+        debug_assert!(self.0 < Self::MAX.0, "Value must be 63 or less");
+        Self(self.0 + 1)
     }
 
     #[inline]
