@@ -913,19 +913,33 @@ impl Spacelines {
         while start < whole.len() {
             let end = start + prev_power_of_two(whole.len() - start);
             let slice = &mut whole[start..end];
+            debug_assert!(slice.len().is_power_of_two(), "real assert 10");
+            let slice_len = PowerOfTwo::from_usize(slice.len());
             let weight = PowerOfTwo::from_usize(slice.len());
 
             // Binary tree reduction algorithm
             let mut gap = PowerOfTwo::ONE;
 
             while gap.as_usize() < slice.len() {
-                // Process pairs in parallel
-                slice.chunks_mut(gap.double().as_usize()).for_each(|chunk| {
-                    let (left_index, right_index) = (0, gap.as_usize());
-                    let (_, right_spaceline) = chunk[right_index].take().unwrap();
-                    let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
-                    left_spaceline.merge(right_spaceline);
-                });
+                let pair_count = slice_len.saturating_div(gap);
+                if pair_count >= PowerOfTwo::from_usize(1024) {
+                    // Process pairs in parallel
+                    slice
+                        .par_chunks_mut(gap.double().as_usize())
+                        .for_each(|chunk| {
+                            let (left_index, right_index) = (0, gap.as_usize());
+                            let (_, right_spaceline) = chunk[right_index].take().unwrap();
+                            let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
+                            left_spaceline.merge(right_spaceline);
+                        });
+                } else {
+                    slice.chunks_mut(gap.double().as_usize()).for_each(|chunk| {
+                        let (left_index, right_index) = (0, gap.as_usize());
+                        let (_, right_spaceline) = chunk[right_index].take().unwrap();
+                        let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
+                        left_spaceline.merge(right_spaceline);
+                    });
+                }
                 gap = gap.double();
             }
 
@@ -1508,6 +1522,69 @@ impl PowerOfTwo {
     pub const ONE: Self = Self(0);
     pub const TWO: Self = Self(1);
     pub const FOUR: Self = Self(2);
+    pub const EIGHT: Self = Self(3);
+    pub const SIXTEEN: Self = Self(4);
+    pub const THIRTY_TWO: Self = Self(5);
+    pub const SIXTY_FOUR: Self = Self(6);
+    pub const ONE_TWENTY_EIGHT: Self = Self(7);
+    pub const TWO_FIFTY_SIX: Self = Self(8);
+    pub const FIVE_TWELVE: Self = Self(9);
+    pub const ONE_THOUSAND_TWENTY_FOUR: Self = Self(10);
+    pub const TWO_THOUSAND_FORTY_EIGHT: Self = Self(11);
+    pub const FOUR_THOUSAND_NINETY_SIX: Self = Self(12);
+    pub const EIGHT_THOUSAND_ONE_NINETY_TWO: Self = Self(13);
+    pub const SIXTEEN_THOUSAND_THREE_EIGHTY_FOUR: Self = Self(14);
+    pub const THIRTY_TWO_THOUSAND_SEVEN_SIXTY_EIGHT: Self = Self(15);
+    pub const SIXTY_FIVE_THOUSAND_FIVE_THIRTY_SIX: Self = Self(16);
+    pub const ONE_THIRTY_ONE_THOUSAND_SEVENTY_TWO: Self = Self(17);
+    pub const TWO_SIXTY_TWO_THOUSAND_ONE_FORTY_FOUR: Self = Self(18);
+    pub const FIVE_TWENTY_FOUR_THOUSAND_TWO_EIGHTY_EIGHT: Self = Self(19);
+    pub const ONE_MILLION_FORTY_EIGHT_THOUSAND_FIVE_SEVENTY_SIX: Self = Self(20);
+    pub const TWO_MILLION_NINETY_SEVEN_THOUSAND_ONE_FIFTY_TWO: Self = Self(21);
+    pub const FOUR_MILLION_ONE_NINETY_FOUR_THOUSAND_THREE_ZERO_FOUR: Self = Self(22);
+    pub const EIGHT_MILLION_THREE_EIGHTY_EIGHT_THOUSAND_SIX_ZERO_EIGHT: Self = Self(23);
+    pub const SIXTEEN_MILLION_SEVEN_SEVENTY_SEVEN_THOUSAND_TWO_SIXTEEN: Self = Self(24);
+    pub const THIRTY_THREE_MILLION_FIVE_FIFTY_FOUR_THOUSAND_FOUR_THIRTY_TWO: Self = Self(25);
+    pub const SIXTY_SEVEN_MILLION_ONE_ZERO_EIGHT_THOUSAND_EIGHT_SIXTY_FOUR: Self = Self(26);
+    pub const ONE_THIRTY_FOUR_MILLION_TWO_SEVENTEEN_THOUSAND_SEVEN_TWENTY_EIGHT: Self = Self(27);
+    pub const TWO_SIXTY_EIGHT_MILLION_FOUR_THIRTY_FIVE_THOUSAND_FOUR_FIFTY_SIX: Self = Self(28);
+    pub const FIVE_THIRTY_SIX_MILLION_EIGHT_SEVENTY_THOUSAND_NINE_TWELVE: Self = Self(29);
+    pub const ONE_BILLION_SEVENTY_THREE_MILLION_SEVEN_FORTY_ONE_THOUSAND_EIGHT_TWENTY_FOUR: Self =
+        Self(30);
+    pub const TWO_BILLION_ONE_FORTY_SEVEN_MILLION_FOUR_EIGHTY_THREE_THOUSAND_SIX_FORTY_EIGHT: Self =
+        Self(31);
+    pub const TWO_POW_THIRTY_TWO: Self = Self(32);
+    pub const TWO_POW_THIRTY_THREE: Self = Self(33);
+    pub const TWO_POW_THIRTY_FOUR: Self = Self(34);
+    pub const TWO_POW_THIRTY_FIVE: Self = Self(35);
+    pub const TWO_POW_THIRTY_SIX: Self = Self(36);
+    pub const TWO_POW_THIRTY_SEVEN: Self = Self(37);
+    pub const TWO_POW_THIRTY_EIGHT: Self = Self(38);
+    pub const TWO_POW_THIRTY_NINE: Self = Self(39);
+    pub const TWO_POW_FORTY: Self = Self(40);
+    pub const TWO_POW_FORTY_ONE: Self = Self(41);
+    pub const TWO_POW_FORTY_TWO: Self = Self(42);
+    pub const TWO_POW_FORTY_THREE: Self = Self(43);
+    pub const TWO_POW_FORTY_FOUR: Self = Self(44);
+    pub const TWO_POW_FORTY_FIVE: Self = Self(45);
+    pub const TWO_POW_FORTY_SIX: Self = Self(46);
+    pub const TWO_POW_FORTY_SEVEN: Self = Self(47);
+    pub const TWO_POW_FORTY_EIGHT: Self = Self(48);
+    pub const TWO_POW_FORTY_NINE: Self = Self(49);
+    pub const TWO_POW_FIFTY: Self = Self(50);
+    pub const TWO_POW_FIFTY_ONE: Self = Self(51);
+    pub const TWO_POW_FIFTY_TWO: Self = Self(52);
+    pub const TWO_POW_FIFTY_THREE: Self = Self(53);
+    pub const TWO_POW_FIFTY_FOUR: Self = Self(54);
+    pub const TWO_POW_FIFTY_FIVE: Self = Self(55);
+    pub const TWO_POW_FIFTY_SIX: Self = Self(56);
+    pub const TWO_POW_FIFTY_SEVEN: Self = Self(57);
+    pub const TWO_POW_FIFTY_EIGHT: Self = Self(58);
+    pub const TWO_POW_FIFTY_NINE: Self = Self(59);
+    pub const TWO_POW_SIXTY: Self = Self(60);
+    pub const TWO_POW_SIXTY_ONE: Self = Self(61);
+    pub const TWO_POW_SIXTY_TWO: Self = Self(62);
+    pub const TWO_POW_SIXTY_THREE: Self = Self(63);
     pub const MIN: Self = Self(0);
     pub const MAX: Self = Self(63);
 
@@ -2079,7 +2156,7 @@ mod tests {
         let goal_y: u32 = 432;
         let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
         let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
-        let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(10); // cmk0000000 fails on 12
+        let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(20); // cmk0000000 fails on 12
         let mut space_time_machine = SpaceTimeMachine::from_str(
             program_string,
             goal_x,
