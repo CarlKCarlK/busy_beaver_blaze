@@ -903,13 +903,6 @@ impl Spacelines {
     }
 
     fn flush_buffer1(&mut self) {
-        // // cmk00000 for now, just move the lines over
-        // let buffer1 = core::mem::take(&mut self.buffer1);
-        // for item in buffer1 {
-        //     let (inside_index, spaceline) = item.unwrap();
-        //     Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
-        // }
-
         if self.buffer1.is_empty() {
             return;
         }
@@ -917,35 +910,34 @@ impl Spacelines {
         let mut start = 0usize;
         while start < whole.len() {
             let end = start + prev_power_of_two(whole.len() - start); // Calculate next chunk boundary at power-of-two size
-            assert!((end - start) * 2 >= whole.len() - start, "real assert 10b");
-            assert!(end <= whole.len(), "real assert 10c");
+            debug_assert!((end - start) * 2 >= whole.len() - start, "real assert 10b");
+            debug_assert!(end <= whole.len(), "real assert 10c");
             let slice = &mut whole[start..end];
-            // println!(
-            //     "cmk start {}, end {}, buffer1.len {}",
-            //     start,
-            //     end,
-            //     slice.len()
-            // );
-            assert!(slice.len().is_power_of_two(), "real assert 10");
-            // cmk00000 for now, just move the lines over
-            let mut distinct_values = PowerOfTwo::from_usize(slice.len());
-            let weight = distinct_values;
+            debug_assert!(slice.len().is_power_of_two(), "real assert 10");
+            let weight = PowerOfTwo::from_usize(slice.len());
+
+            // Binary tree reduction algorithm
             let mut gap = PowerOfTwo::ONE;
-            let mut double_gap = gap.double();
-            while distinct_values > PowerOfTwo::ONE {
-                for left_index in (0..slice.len()).step_by(double_gap.as_usize()) {
+
+            while gap.as_usize() < slice.len() {
+                // For each pair, merge right into left
+                for left_index in (0..slice.len()).step_by(gap.double().as_usize()) {
                     let right_index = left_index + gap.as_usize();
-                    let (_inside_index, spaceline) = slice[right_index].take().unwrap();
-                    slice[left_index].as_mut().unwrap().1.merge(spaceline);
+
+                    // Take the right spaceline and merge it into the left
+                    if let Some((_, right_spaceline)) = slice[right_index].take() {
+                        if let Some((_, left_spaceline)) = slice[left_index].as_mut() {
+                            left_spaceline.merge(right_spaceline);
+                        }
+                    }
                 }
-                gap = double_gap;
-                double_gap = gap.double();
-                distinct_values.assign_saturating_div_two();
+
+                gap = gap.double();
             }
 
-            let (first_index_index, spaceline) = core::mem::take(&mut slice[0]).unwrap();
-
-            Self::push_internal(&mut self.buffer0, first_index_index, spaceline, weight);
+            // Extract the final merged result
+            let (first_index, merged_spaceline) = slice[0].take().unwrap();
+            Self::push_internal(&mut self.buffer0, first_index, merged_spaceline, weight);
             start = end;
         }
     }
