@@ -911,28 +911,21 @@ impl Spacelines {
         let mut whole = core::mem::take(&mut self.buffer1);
         let mut start = 0usize;
         while start < whole.len() {
-            let end = start + prev_power_of_two(whole.len() - start); // Calculate next chunk boundary at power-of-two size
-            debug_assert!((end - start) * 2 >= whole.len() - start, "real assert 10b");
-            debug_assert!(end <= whole.len(), "real assert 10c");
+            let end = start + prev_power_of_two(whole.len() - start);
             let slice = &mut whole[start..end];
-            debug_assert!(slice.len().is_power_of_two(), "real assert 10");
             let weight = PowerOfTwo::from_usize(slice.len());
 
             // Binary tree reduction algorithm
             let mut gap = PowerOfTwo::ONE;
 
             while gap.as_usize() < slice.len() {
-                // For each pair, merge right into left
-                for left_index in (0..slice.len()).step_by(gap.double().as_usize()) {
-                    let right_index = left_index + gap.as_usize();
-                    if right_index < slice.len() {
-                        // Take the right spaceline and merge it into the left
-                        let (_, right_spaceline) = slice[right_index].take().unwrap();
-                        let (_, left_spaceline) = slice[left_index].as_mut().unwrap();
-                        left_spaceline.merge(right_spaceline);
-                    }
-                }
-
+                // Process pairs in parallel
+                slice.chunks_mut(gap.double().as_usize()).for_each(|chunk| {
+                    let (left_index, right_index) = (0, gap.as_usize());
+                    let (_, right_spaceline) = chunk[right_index].take().unwrap();
+                    let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
+                    left_spaceline.merge(right_spaceline);
+                });
                 gap = gap.double();
             }
 
