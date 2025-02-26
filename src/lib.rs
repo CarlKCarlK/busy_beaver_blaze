@@ -1,3 +1,7 @@
+#![feature(portable_simd)]
+use core::simd::prelude::*;
+const LANES: usize = 64;
+
 // cmk00 Ideas for speedup:
 // cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
 // cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
@@ -606,21 +610,50 @@ impl From<core::num::ParseIntError> for Error {
         Self::ParseIntError(err)
     }
 }
-
+#[repr(transparent)]
 #[derive(Debug, Default, Display, Copy, Clone)]
 struct Pixel(u8);
 
 impl Pixel {
     const WHITE: Self = Self(0);
-
+    const SPLAT_1: Simd<u8, LANES> = Simd::<u8, LANES>::splat(1);
     #[inline]
-    fn merge_with_white(&mut self) {
-        // inplace divide u8 by 2
-        self.0 >>= 1;
+    fn slice_merge_with_white(pixels: &mut [Self]) {
+        // Safety: Pixel is repr(transparent) around u8, so this cast is safe
+        let bytes: &mut [u8] = unsafe {
+            core::slice::from_raw_parts_mut(pixels.as_mut_ptr().cast::<u8>(), pixels.len())
+        };
+        // cmk00000 Look at zerocopy or bytemuck
+
+        // Process with SIMD where possible
+        let (prefix, chunks, suffix) = bytes.as_simd_mut::<LANES>();
+
+        // Process SIMD chunks
+        for chunk in chunks {
+            *chunk >>= Self::SPLAT_1;
+        }
+
+        // Process remaining elements
+        for byte in prefix.iter_mut().chain(suffix.iter_mut()) {
+            *byte >>= 1;
+        }
     }
 
     #[inline]
-    fn merge(&mut self, other: Self) {
+    fn slice_merge(left: &mut [Self], right: &[Self]) {
+        for (left_pixel, right_pixel) in left.iter_mut().zip(right.iter()) {
+            left_pixel.merge(*right_pixel);
+        }
+    }
+
+    // #[inline]
+    // const fn merge_with_white(&mut self) {
+    //     // inplace divide u8 by 2
+    //     self.0 >>= 1;
+    // }
+
+    #[inline]
+    const fn merge(&mut self, other: Self) {
         self.0 = (self.0 >> 1) + (other.0 >> 1) + ((self.0 & other.0) & 1);
     }
 
@@ -680,6 +713,7 @@ impl Spaceline {
         }
     }
 
+    // cmk00000 simd?
     fn resample_if_needed(&mut self, sample: PowerOfTwo) {
         // Sampling & Averaging 2 --
         // When we merge rows, we sometimes need to squeeze the earlier row to
@@ -741,10 +775,7 @@ impl Spaceline {
     }
 
     fn merge(&mut self, other: Self) {
-        assert!(
-            other.sample.divides_smoothness(other.sample),
-            "real assert 6d"
-        );
+        // cmk change to debug_assert?
         assert!(self.time < other.time, "real assert 2");
         assert!(self.sample <= other.sample, "real assert 3");
         assert!(self.start >= other.start, "real assert 4");
@@ -752,41 +783,36 @@ impl Spaceline {
         self.resample_if_needed(other.sample);
         assert!(self.start >= other.start, "real assert 6c");
 
-        let sample = other.sample;
-        let mut values = other.pixels;
-        let start = other.start;
+        let tape_sample = other.sample;
+        let mut other_pixels = other.pixels;
+        let other_tape_start = other.start;
 
-        assert!(self.sample == sample, "real assert 5");
-        assert!(self.start >= start, "real assert 6");
-        assert!(sample.divides_i64(start - self.start), "real assert 7");
-        let self_end = self.start + (sample * self.pixels.len()) as i64;
-        let end = start + (sample * values.len()) as i64;
-        assert!(sample.divides_i64(self_end - end), "real assert 8");
-        assert!(self_end <= end, "real assert 9");
+        assert!(self.sample == tape_sample, "real assert 5");
+        assert!(self.start >= other_tape_start, "real assert 6");
+        assert!(
+            tape_sample.divides_i64(other_tape_start - self.start),
+            "real assert 7"
+        );
+        let self_tape_end = self.start + (tape_sample * self.pixels.len()) as i64;
+        let other_tape_end = other_tape_start + (tape_sample * other_pixels.len()) as i64;
+        assert!(
+            tape_sample.divides_i64(self_tape_end - other_tape_end),
+            "real assert 8"
+        );
+        assert!(self_tape_end <= other_tape_end, "real assert 9");
 
-        let mut index = 0;
-        // everything before self.start should get merged with merged with white
-        for _ in (start..self.start).step_by(sample.as_usize()) {
-            values[index].merge_with_white();
-            index += 1;
-        }
+        let left_len = tape_sample.divide_into((self.start - other_tape_start) as usize);
 
-        // merge the overlapping part
-        for self_value in &self.pixels {
-            values[index].merge(*self_value);
-            index += 1;
-        }
+        let (left, mid_to_end) = other_pixels.split_at_mut(left_len);
+        Pixel::slice_merge_with_white(left);
 
-        // merge the rest with white
-        let index2 = index;
-        for _ in index2..values.len() {
-            values[index].merge_with_white();
-            index += 1;
-        }
+        let (mid, right) = mid_to_end.split_at_mut(self.pixels.len());
+        Pixel::slice_merge(mid, &self.pixels);
+        Pixel::slice_merge_with_white(right);
 
-        self.pixels = values;
-        self.start = start;
-        self.sample = sample;
+        self.pixels = other_pixels;
+        self.start = other_tape_start;
+        self.sample = tape_sample;
     }
 
     fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: PowerOfTwo) -> Self {
@@ -922,7 +948,8 @@ impl Spacelines {
 
             while gap.as_usize() < slice.len() {
                 let pair_count = slice_len.saturating_div(gap);
-                if pair_count >= PowerOfTwo::from_usize(1024) {
+                // cmk0000 for now, always run sequentially
+                if pair_count >= PowerOfTwo::MAX {
                     // Process pairs in parallel
                     slice
                         .par_chunks_mut(gap.double().as_usize())
@@ -1201,10 +1228,10 @@ impl SampledSpaceTime {
                             break;
                         }
                     }
-                    let value = spaceline.pixels[local_spaceline_start as usize].0;
-                    if value != 0 {
+                    let pixel = spaceline.pixels[local_spaceline_start as usize].0;
+                    if pixel != 0 {
                         let byte_index: u32 = x + row_start_byte_index;
-                        packed_data[byte_index as usize] = value;
+                        packed_data[byte_index as usize] = pixel;
                     }
                     continue;
                 }
@@ -1225,10 +1252,10 @@ impl SampledSpaceTime {
                 // }
 
                 // Sample & Averaging 5 --
-                let value = Pixel::merge_slice_all(&slice, 0).0;
-                if value != 0 {
+                let pixel = Pixel::merge_slice_all(&slice, 0).0;
+                if pixel != 0 {
                     let byte_index: u32 = x + row_start_byte_index;
-                    packed_data[byte_index as usize] = value;
+                    packed_data[byte_index as usize] = pixel;
                 }
             }
         }
@@ -1609,7 +1636,7 @@ impl PowerOfTwo {
     }
 
     #[inline]
-    fn assign_saturating_div_two(&mut self) {
+    const fn assign_saturating_div_two(&mut self) {
         self.0 = self.0.saturating_sub(1);
     }
 
@@ -1705,11 +1732,11 @@ impl PowerOfTwo {
         (x >> self.0) << self.0 == x
     }
 
-    #[inline]
-    #[must_use]
-    pub const fn divides_smoothness(self, other: Self) -> bool {
-        self.0 <= other.0
-    }
+    // #[inline]
+    // #[must_use]
+    // pub const fn divides_smoothness(self, other: Self) -> bool {
+    //     self.0 <= other.0
+    // }
 }
 
 #[inline]
@@ -2156,7 +2183,7 @@ mod tests {
         let goal_y: u32 = 432;
         let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
         let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
-        let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(20); // cmk0000000 fails on 12
+        let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(0);
         let mut space_time_machine = SpaceTimeMachine::from_str(
             program_string,
             goal_x,
