@@ -903,37 +903,51 @@ impl Spacelines {
     }
 
     fn flush_buffer1(&mut self) {
-        // cmk00000 for now, just move the lines over
-        let buffer1 = core::mem::take(&mut self.buffer1);
-        for item in buffer1 {
-            let (inside_index, spaceline) = item.unwrap();
-            Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
-        }
-
-        // if self.buffer1.is_empty() {
-        //     return;
-        // }
         // // cmk00000 for now, just move the lines over
-        // let mut buffer1 = core::mem::take(&mut self.buffer1);
-        // let mut distinct_values = PowerOfTwo::from_usize(buffer1.len());
-        // let mut gap = PowerOfTwo::ONE;
-        // let mut double_gap = gap.double();
-        // let last_inside_index = buffer1.last().unwrap().as_ref().unwrap().0;
-        // while distinct_values > PowerOfTwo::ONE {
-        //     for left_index in (0..buffer1.len()).step_by(double_gap.as_usize()) {
-        //         let right_index = left_index + gap.as_usize();
-        //         // instead of take with default, maybe should be optional
-        //         let (_inside_index, spaceline) = buffer1[right_index].take().unwrap();
-        //         buffer1[left_index].as_mut().unwrap().1.merge(spaceline);
-        //     }
-        //     gap = double_gap;
-        //     double_gap = gap.double();
-        //     distinct_values.assign_saturating_div_two();
+        // let buffer1 = core::mem::take(&mut self.buffer1);
+        // for item in buffer1 {
+        //     let (inside_index, spaceline) = item.unwrap();
+        //     Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
         // }
 
-        // let (first_index_index, spaceline) = core::mem::take(&mut buffer1[0]).unwrap();
+        if self.buffer1.is_empty() {
+            return;
+        }
+        let mut whole = core::mem::take(&mut self.buffer1);
+        let mut start = 0usize;
+        while start < whole.len() {
+            let end = start + prev_power_of_two(whole.len() - start); // Calculate next chunk boundary at power-of-two size
+            assert!((end - start) * 2 >= whole.len() - start, "real assert 10b");
+            assert!(end <= whole.len(), "real assert 10c");
+            let slice = &mut whole[start..end];
+            // println!(
+            //     "cmk start {}, end {}, buffer1.len {}",
+            //     start,
+            //     end,
+            //     slice.len()
+            // );
+            assert!(slice.len().is_power_of_two(), "real assert 10");
+            // cmk00000 for now, just move the lines over
+            let mut distinct_values = PowerOfTwo::from_usize(slice.len());
+            let weight = distinct_values;
+            let mut gap = PowerOfTwo::ONE;
+            let mut double_gap = gap.double();
+            while distinct_values > PowerOfTwo::ONE {
+                for left_index in (0..slice.len()).step_by(double_gap.as_usize()) {
+                    let right_index = left_index + gap.as_usize();
+                    let (_inside_index, spaceline) = slice[right_index].take().unwrap();
+                    slice[left_index].as_mut().unwrap().1.merge(spaceline);
+                }
+                gap = double_gap;
+                double_gap = gap.double();
+                distinct_values.assign_saturating_div_two();
+            }
 
-        // Self::push_internal(&mut self.buffer0, first_index_index, spaceline);
+            let (first_index_index, spaceline) = core::mem::take(&mut slice[0]).unwrap();
+
+            Self::push_internal(&mut self.buffer0, first_index_index, spaceline, weight);
+            start = end;
+        }
     }
 
     fn last(
@@ -953,7 +967,7 @@ impl Spacelines {
 
         let buffer_last = self.buffer0.last().unwrap();
         let spaceline_last = &buffer_last.0;
-        let weight = buffer_last.1;
+        let weight = buffer_last.1; // cmk0000 should this be used?
         let time = spaceline_last.time;
         let start = spaceline_last.start;
         let x_sample = spaceline_last.sample;
@@ -1635,6 +1649,14 @@ impl PowerOfTwo {
     }
 }
 
+#[inline]
+/// This returns the largest power of two that is less than or equal
+/// to the input number x.
+const fn prev_power_of_two(x: usize) -> usize {
+    debug_assert!(x > 0, "x must be greater than 0");
+    1usize << (usize::BITS as usize - x.leading_zeros() as usize - 1)
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -2071,7 +2093,7 @@ mod tests {
         let goal_y: u32 = 432;
         let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
         let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
-        let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(10); // cmk0000000
+        let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(10); // cmk0000000 fails on 12
         let mut space_time_machine = SpaceTimeMachine::from_str(
             program_string,
             goal_x,
