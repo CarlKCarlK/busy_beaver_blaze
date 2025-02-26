@@ -40,4 +40,5 @@ start cargo run --example frame --release bb6_contender 2k 14 14 0
 cargo test benchmark1 --release -- --nocapture
 cargo test benchmark2 --release --target wasm32-unknown-unknown
 cargo test benchmark2 --release -- --nocapture
+cargo test benchmark63 --release -- --nocapture
 ```

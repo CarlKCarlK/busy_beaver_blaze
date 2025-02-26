@@ -646,10 +646,39 @@ impl Pixel {
         }
     }
 
-    // #[inline]
-    // const fn merge_with_white(&mut self) {
-    //     // inplace divide u8 by 2
-    //     self.0 >>= 1;
+    // debug_assert_eq!(
+    //     left.len(),
+    //     right.len(),
+    //     "Both slices must have the same length"
+    // );
+
+    // // Safety: Pixel is repr(transparent) around u8, so this cast is safe
+    // let left_bytes: &mut [u8] =
+    //     unsafe { core::slice::from_raw_parts_mut(left.as_mut_ptr().cast::<u8>(), left.len()) };
+
+    // let right_bytes: &[u8] =
+    //     unsafe { core::slice::from_raw_parts(right.as_ptr().cast::<u8>(), right.len()) };
+
+    // // Process chunks with SIMD where possible
+    // let (left_prefix, left_chunks, left_suffix) = left_bytes.as_simd_mut::<LANES>();
+    // let (right_prefix, right_chunks, right_suffix) = right_bytes.as_simd::<LANES>();
+
+    // // Process SIMD chunks using (a & b) + ((a ^ b) >> 1) formula
+    // for (left_chunk, right_chunk) in left_chunks.iter_mut().zip(right_chunks.iter()) {
+    //     let a_and_b = *left_chunk & *right_chunk;
+    //     *left_chunk ^= *right_chunk;
+    //     *left_chunk >>= Self::SPLAT_1;
+    //     *left_chunk += a_and_b;
+    // }
+
+    // // Process remaining elements in prefix
+    // for (left_byte, right_byte) in left_prefix.iter_mut().zip(right_prefix.iter()) {
+    //     *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
+    // }
+
+    // // Process remaining elements in suffix
+    // for (left_byte, right_byte) in left_suffix.iter_mut().zip(right_suffix.iter()) {
+    //     *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
     // }
 
     #[inline]
