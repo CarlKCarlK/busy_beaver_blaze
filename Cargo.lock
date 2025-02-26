@@ -142,6 +142,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "png",
+ "rayon",
  "smallvec",
  "thousands",
  "wasm-bindgen",

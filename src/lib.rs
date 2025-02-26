@@ -11,9 +11,11 @@ use derive_more::derive::Display;
 use instant::Instant;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
+use rayon::prelude::*;
 use smallvec::SmallVec;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
+
 // use web_sys::console;
 
 // cmk is the image size is a power of 2, then don't apply filters (may be a bad idea, because user doesn't control native size exactly)
@@ -923,12 +925,11 @@ impl Spacelines {
                 // For each pair, merge right into left
                 for left_index in (0..slice.len()).step_by(gap.double().as_usize()) {
                     let right_index = left_index + gap.as_usize();
-
-                    // Take the right spaceline and merge it into the left
-                    if let Some((_, right_spaceline)) = slice[right_index].take() {
-                        if let Some((_, left_spaceline)) = slice[left_index].as_mut() {
-                            left_spaceline.merge(right_spaceline);
-                        }
+                    if right_index < slice.len() {
+                        // Take the right spaceline and merge it into the left
+                        let (_, right_spaceline) = slice[right_index].take().unwrap();
+                        let (_, left_spaceline) = slice[left_index].as_mut().unwrap();
+                        left_spaceline.merge(right_spaceline);
                     }
                 }
 
