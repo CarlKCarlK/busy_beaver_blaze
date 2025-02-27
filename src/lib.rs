@@ -1,6 +1,6 @@
 #![feature(portable_simd)]
 use core::simd::prelude::*;
-const LANES: usize = 64;
+const LANES: usize = 32;
 
 // cmk00 Ideas for speedup:
 // cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
@@ -653,7 +653,7 @@ impl Pixel {
             "Both slices must have the same length"
         );
 
-        // Safety: Pixel is repr(transparent) around u8, so this cast is safe
+        // Safety: Pixel is repr(transparent) around u8, so this cast is safe //cmk000 look at zerocopy or bytemuck
         let left_bytes: &mut [u8] =
             unsafe { core::slice::from_raw_parts_mut(left.as_mut_ptr().cast::<u8>(), left.len()) };
 
@@ -672,10 +672,15 @@ impl Pixel {
             *left_chunk += a_and_b;
         }
 
+        // println!("cmk len of total: {}", left.len());
+        // println!("cmk len of prefix: {}", left_prefix.len());
+        // println!("cmk len of suffix: {}", left_suffix.len());
+        assert!(left_prefix.is_empty() && right_prefix.is_empty());
+        // assert!(left_suffix.is_empty() && right_suffix.is_empty());
         // Process remaining elements in prefix
-        for (left_byte, right_byte) in left_prefix.iter_mut().zip(right_prefix.iter()) {
-            *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
-        }
+        // for (left_byte, right_byte) in left_prefix.iter_mut().zip(right_prefix.iter()) {
+        //     *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
+        // }
 
         // Process remaining elements in suffix
         for (left_byte, right_byte) in left_suffix.iter_mut().zip(right_suffix.iter()) {
@@ -802,15 +807,6 @@ impl Spaceline {
         }
         assert!(self.len() == len, "real assert 13");
     }
-
-    // // cmk0000000000 must remove this function
-    // fn pixel_restart2(&mut self, start: i64, pixels: Vec<Pixel>) {
-    //     self.negative.clear();
-    //     self.nonnegative = pixels;
-    //     while self.tape_start() > start {
-    //         self.negative.insert(0, self.nonnegative.remove(0));
-    //     }
-    // }
 
     // cmk0000000000 must remove this function
     fn new2(
@@ -951,6 +947,16 @@ impl Spaceline {
             self.nonnegative.push(Pixel::WHITE);
         }
         assert!(self.len() == other.len(), "real assert 6d");
+
+        // // align
+        // // cmk000 replace Eight
+        // let needed_padding = PowerOfTwo::from_usize_const(LANES)
+        //     // .saturating_div(PowerOfTwo::FOUR)
+        //     .offset_to_align(self.nonnegative.len());
+        // for _ in 0..needed_padding {
+        //     self.nonnegative.push(Pixel::WHITE);
+        //     other.nonnegative.push(Pixel::WHITE);
+        // }
 
         Pixel::slice_merge(&mut self.nonnegative, &other.nonnegative);
     }
@@ -1685,67 +1691,19 @@ impl PowerOfTwo {
     pub const SIXTEEN: Self = Self(4);
     pub const THIRTY_TWO: Self = Self(5);
     pub const SIXTY_FOUR: Self = Self(6);
-    pub const ONE_TWENTY_EIGHT: Self = Self(7);
-    pub const TWO_FIFTY_SIX: Self = Self(8);
-    pub const FIVE_TWELVE: Self = Self(9);
-    pub const ONE_THOUSAND_TWENTY_FOUR: Self = Self(10);
-    pub const TWO_THOUSAND_FORTY_EIGHT: Self = Self(11);
-    pub const FOUR_THOUSAND_NINETY_SIX: Self = Self(12);
-    pub const EIGHT_THOUSAND_ONE_NINETY_TWO: Self = Self(13);
-    pub const SIXTEEN_THOUSAND_THREE_EIGHTY_FOUR: Self = Self(14);
-    pub const THIRTY_TWO_THOUSAND_SEVEN_SIXTY_EIGHT: Self = Self(15);
-    pub const SIXTY_FIVE_THOUSAND_FIVE_THIRTY_SIX: Self = Self(16);
-    pub const ONE_THIRTY_ONE_THOUSAND_SEVENTY_TWO: Self = Self(17);
-    pub const TWO_SIXTY_TWO_THOUSAND_ONE_FORTY_FOUR: Self = Self(18);
-    pub const FIVE_TWENTY_FOUR_THOUSAND_TWO_EIGHTY_EIGHT: Self = Self(19);
-    pub const ONE_MILLION_FORTY_EIGHT_THOUSAND_FIVE_SEVENTY_SIX: Self = Self(20);
-    pub const TWO_MILLION_NINETY_SEVEN_THOUSAND_ONE_FIFTY_TWO: Self = Self(21);
-    pub const FOUR_MILLION_ONE_NINETY_FOUR_THOUSAND_THREE_ZERO_FOUR: Self = Self(22);
-    pub const EIGHT_MILLION_THREE_EIGHTY_EIGHT_THOUSAND_SIX_ZERO_EIGHT: Self = Self(23);
-    pub const SIXTEEN_MILLION_SEVEN_SEVENTY_SEVEN_THOUSAND_TWO_SIXTEEN: Self = Self(24);
-    pub const THIRTY_THREE_MILLION_FIVE_FIFTY_FOUR_THOUSAND_FOUR_THIRTY_TWO: Self = Self(25);
-    pub const SIXTY_SEVEN_MILLION_ONE_ZERO_EIGHT_THOUSAND_EIGHT_SIXTY_FOUR: Self = Self(26);
-    pub const ONE_THIRTY_FOUR_MILLION_TWO_SEVENTEEN_THOUSAND_SEVEN_TWENTY_EIGHT: Self = Self(27);
-    pub const TWO_SIXTY_EIGHT_MILLION_FOUR_THIRTY_FIVE_THOUSAND_FOUR_FIFTY_SIX: Self = Self(28);
-    pub const FIVE_THIRTY_SIX_MILLION_EIGHT_SEVENTY_THOUSAND_NINE_TWELVE: Self = Self(29);
-    pub const ONE_BILLION_SEVENTY_THREE_MILLION_SEVEN_FORTY_ONE_THOUSAND_EIGHT_TWENTY_FOUR: Self =
-        Self(30);
-    pub const TWO_BILLION_ONE_FORTY_SEVEN_MILLION_FOUR_EIGHTY_THREE_THOUSAND_SIX_FORTY_EIGHT: Self =
-        Self(31);
-    pub const TWO_POW_THIRTY_TWO: Self = Self(32);
-    pub const TWO_POW_THIRTY_THREE: Self = Self(33);
-    pub const TWO_POW_THIRTY_FOUR: Self = Self(34);
-    pub const TWO_POW_THIRTY_FIVE: Self = Self(35);
-    pub const TWO_POW_THIRTY_SIX: Self = Self(36);
-    pub const TWO_POW_THIRTY_SEVEN: Self = Self(37);
-    pub const TWO_POW_THIRTY_EIGHT: Self = Self(38);
-    pub const TWO_POW_THIRTY_NINE: Self = Self(39);
-    pub const TWO_POW_FORTY: Self = Self(40);
-    pub const TWO_POW_FORTY_ONE: Self = Self(41);
-    pub const TWO_POW_FORTY_TWO: Self = Self(42);
-    pub const TWO_POW_FORTY_THREE: Self = Self(43);
-    pub const TWO_POW_FORTY_FOUR: Self = Self(44);
-    pub const TWO_POW_FORTY_FIVE: Self = Self(45);
-    pub const TWO_POW_FORTY_SIX: Self = Self(46);
-    pub const TWO_POW_FORTY_SEVEN: Self = Self(47);
-    pub const TWO_POW_FORTY_EIGHT: Self = Self(48);
-    pub const TWO_POW_FORTY_NINE: Self = Self(49);
-    pub const TWO_POW_FIFTY: Self = Self(50);
-    pub const TWO_POW_FIFTY_ONE: Self = Self(51);
-    pub const TWO_POW_FIFTY_TWO: Self = Self(52);
-    pub const TWO_POW_FIFTY_THREE: Self = Self(53);
-    pub const TWO_POW_FIFTY_FOUR: Self = Self(54);
-    pub const TWO_POW_FIFTY_FIVE: Self = Self(55);
-    pub const TWO_POW_FIFTY_SIX: Self = Self(56);
-    pub const TWO_POW_FIFTY_SEVEN: Self = Self(57);
-    pub const TWO_POW_FIFTY_EIGHT: Self = Self(58);
-    pub const TWO_POW_FIFTY_NINE: Self = Self(59);
-    pub const TWO_POW_SIXTY: Self = Self(60);
-    pub const TWO_POW_SIXTY_ONE: Self = Self(61);
-    pub const TWO_POW_SIXTY_TWO: Self = Self(62);
-    pub const TWO_POW_SIXTY_THREE: Self = Self(63);
     pub const MIN: Self = Self(0);
     pub const MAX: Self = Self(63);
+
+    #[inline]
+    fn offset_to_align(self, pixels_len: usize) -> usize {
+        debug_assert!(
+            (self.0 as u32) < usize::BITS,
+            "Cannot shift left by self.0 = {} for usize::BITS = {}, which would overflow.",
+            self.0,
+            usize::BITS
+        );
+        pixels_len.wrapping_neg() & ((1 << self.0) - 1)
+    }
 
     #[inline]
     #[must_use]
@@ -1805,6 +1763,13 @@ impl PowerOfTwo {
     pub fn from_usize(value: usize) -> Self {
         debug_assert!(value.is_power_of_two(), "Value must be a power of two");
         Self::from_exp(value.trailing_zeros() as u8)
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn from_usize_const(value: usize) -> Self {
+        // debug_assert!(value.is_power_of_two(), "Value must be a power of two");
+        Self(value.trailing_zeros() as u8)
     }
 
     #[inline]
@@ -2307,8 +2272,8 @@ mod tests {
     #[wasm_bindgen_test]
     fn benchmark63() -> Result<(), String> {
         // let start = std::time::Instant::now();
-        let early_stop = Some(5_000_000);
-        let chunk_size = 500_000;
+        let early_stop = Some(50_000_000);
+        let chunk_size = 5_000_000;
 
         let program_string = BB6_CONTENDER;
         let goal_x: u32 = 360;
