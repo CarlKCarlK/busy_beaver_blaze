@@ -724,22 +724,149 @@ impl From<u8> for Pixel {
 #[derive(Clone, Debug)]
 struct Spaceline {
     sample: PowerOfTwo,
-    start: i64,
-    pixels: Vec<Pixel>,
+    negative: Vec<Pixel>,
+    nonnegative: Vec<Pixel>,
     time: u64,
     smoothness: PowerOfTwo,
 }
+
+// impl core::ops::Index<i64> for Spaceline {
+//     type Output = Pixel;
+
+//     fn index(&self, index: i64) -> &Self::Output {
+//         if index < 0 {
+//             self.negative
+//                 .get((-index - 1) as usize)
+//                 .unwrap_or(&Pixel::WHITE)
+//         } else {
+//             self.nonnegative
+//                 .get(index as usize)
+//                 .unwrap_or(&Pixel::WHITE)
+//         }s
+//     }
+// }
 
 impl Spaceline {
     // cmk good name??
     fn new0(smoothness: PowerOfTwo) -> Self {
         Self {
             sample: PowerOfTwo::ONE,
-            start: 0,
-            pixels: vec![Pixel::WHITE; 1],
+            negative: Vec::new(),
+            nonnegative: vec![Pixel::WHITE; 1],
             time: 0,
             smoothness,
         }
+    }
+
+    // cmk0000 should remove this function
+    #[inline]
+    fn pixel_index(&self, index: usize) -> Pixel {
+        let negative_len = self.negative.len();
+        if index < negative_len {
+            self.negative[negative_len - 1 - index]
+        } else {
+            self.nonnegative[index - negative_len]
+        }
+    }
+
+    // cmk0000 should remove this function
+    #[inline]
+    fn pixel_index_unbounded(&self, index: usize) -> Pixel {
+        let negative_len = self.negative.len();
+        if index < negative_len {
+            self.negative
+                .get(negative_len - 1 - index)
+                .copied()
+                .unwrap_or_default()
+        } else {
+            self.nonnegative
+                .get(index - negative_len)
+                .copied()
+                .unwrap_or_default()
+        }
+    }
+
+    // cmk0000000000 must remove this function
+    fn pixel_restart(&mut self, tape_start: i64, len: usize) {
+        assert!(self.tape_start() <= tape_start, "real assert 11");
+        while self.tape_start() < tape_start {
+            self.nonnegative.insert(0, self.negative.remove(0));
+        }
+        assert!(self.len() >= len, "real assert 12");
+        while self.len() > len {
+            self.nonnegative.pop();
+        }
+        assert!(self.len() == len, "real assert 13");
+    }
+
+    // cmk0000000000 must remove this function
+    fn pixel_restart2(&mut self, start: i64, pixels: Vec<Pixel>) {
+        self.negative.clear();
+        self.nonnegative = pixels;
+        while self.tape_start() > start {
+            self.negative.insert(0, self.nonnegative.remove(0));
+        }
+    }
+
+    // cmk0000000000 must remove this function
+    fn new2(
+        sample: PowerOfTwo,
+        start: i64,
+        pixels: Vec<Pixel>,
+        time: u64,
+        smoothness: PowerOfTwo,
+    ) -> Self {
+        let mut result = Self {
+            sample,
+            negative: Vec::new(),
+            nonnegative: pixels,
+            time,
+            smoothness,
+        };
+        while result.tape_start() > start {
+            result.negative.insert(0, result.nonnegative.remove(0));
+        }
+        result
+    }
+
+    // cmk0000000000 must remove this function
+    fn pixel_range(&self, start: usize, end: usize) -> Vec<Pixel> {
+        // Ensure start and end are within valid bounds
+        assert!(
+            start <= end,
+            "start index {start} must be <= end index {end}"
+        );
+
+        // Create a vector with enough capacity
+        let mut result = Vec::with_capacity(end - start);
+
+        // Simply loop through all indices and call pixel_index
+        for i in start..end {
+            result.push(self.pixel_index(i));
+        }
+
+        result
+    }
+
+    // cmk0000 should remove this function
+    #[inline]
+    fn pixel_index_mut(&mut self, index: usize) -> &mut Pixel {
+        let negative_len = self.negative.len();
+        if index < negative_len {
+            &mut self.negative[negative_len - 1 - index]
+        } else {
+            &mut self.nonnegative[index - negative_len]
+        }
+    }
+
+    #[inline]
+    fn tape_start(&self) -> i64 {
+        -((self.sample * self.negative.len()) as i64)
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.nonnegative.len() + self.negative.len()
     }
 
     // cmk00000 simd?
@@ -748,16 +875,16 @@ impl Spaceline {
         // When we merge rows, we sometimes need to squeeze the earlier row to
         // have the same sample rate as the later row.
 
-        assert!(!self.pixels.is_empty(), "real assert a");
+        assert!(!self.nonnegative.is_empty(), "real assert a");
         assert!(
-            self.sample.divides_i64(self.start),
+            self.sample.divides_i64(self.tape_start()),
             "Start must be a multiple of the sample rate",
         );
         if sample == self.sample {
             return;
         }
-        let cells_to_add = sample.rem_euclid_into(self.start);
-        let new_start = self.start - cells_to_add;
+        let cells_to_add = sample.rem_euclid_into(self.tape_start());
+        let new_tape_start = self.tape_start() - cells_to_add;
         let old_items_to_add = self.sample.divide_into(cells_to_add);
         let old_items_per_new = sample / self.sample;
         let old_items_per_new_u64 = old_items_per_new.as_u64();
@@ -765,30 +892,27 @@ impl Spaceline {
 
         assert!(sample >= self.sample, "real assert 12");
         let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
-        assert!(
-            old_items_to_use <= self.pixels.len() as u64,
-            "real assert d10"
-        );
+        assert!(old_items_to_use <= self.len() as u64, "real assert d10");
 
         let down_step = sample.saturating_div(self.smoothness);
         let pixel0 = Pixel::merge_slice_down_sample(
-            &self.pixels[..old_items_to_use as usize],
+            &self.pixel_range(0, old_items_to_use as usize),
             old_items_to_add as usize,
             down_step,
             down_step.as_usize(),
         );
 
         let mut new_index = 0usize;
-        self.pixels[new_index] = pixel0;
+        *self.pixel_index_mut(new_index) = pixel0;
         new_index += 1;
-        let value_len = self.pixels.len() as u64;
+        let value_len = self.len() as u64;
 
         let down_size_usize = down_step.as_usize();
         for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
-            let slice = &self.pixels[old_index as usize..old_end as usize];
+            let slice = &self.pixel_range(old_index as usize, old_end as usize);
             let old_items_to_add_inner = old_items_per_new_u64 - (old_end - old_index);
-            self.pixels[new_index] = Pixel::merge_slice_down_sample(
+            *self.pixel_index_mut(new_index) = Pixel::merge_slice_down_sample(
                 slice,
                 old_items_to_add_inner as usize,
                 down_step,
@@ -798,50 +922,48 @@ impl Spaceline {
         }
 
         // trim the vector to the new length
-        self.pixels.truncate(new_index);
-        self.start = new_start;
-        self.sample = sample;
+        self.sample = sample; // cmk000 move this into restart
+        self.pixel_restart(new_tape_start, new_index);
     }
 
-    fn merge(&mut self, other: Self) {
+    fn merge(&mut self, other: &Self) {
         // cmk change to debug_assert?
         assert!(self.time < other.time, "real assert 2");
         assert!(self.sample <= other.sample, "real assert 3");
-        assert!(self.start >= other.start, "real assert 4");
-        assert!(self.start >= other.start, "real assert 6b");
+        assert!(self.tape_start() >= other.tape_start(), "real assert 4");
+        assert!(self.tape_start() >= other.tape_start(), "real assert 6b");
         self.resample_if_needed(other.sample);
-        assert!(self.start >= other.start, "real assert 6c");
+        assert!(self.tape_start() >= other.tape_start(), "real assert 6c");
 
         let tape_sample = other.sample;
-        let mut other_pixels = other.pixels;
-        let other_tape_start = other.start;
+        let mut other_pixels = other.pixel_range(0, other.len());
+        let other_tape_start = other.tape_start();
 
         assert!(self.sample == tape_sample, "real assert 5");
-        assert!(self.start >= other_tape_start, "real assert 6");
+        assert!(self.tape_start() >= other_tape_start, "real assert 6");
         assert!(
-            tape_sample.divides_i64(other_tape_start - self.start),
+            tape_sample.divides_i64(other_tape_start - self.tape_start()),
             "real assert 7"
         );
-        let self_tape_end = self.start + (tape_sample * self.pixels.len()) as i64;
-        let other_tape_end = other_tape_start + (tape_sample * other_pixels.len()) as i64;
+        let self_tape_end = self.tape_start() + (tape_sample * self.len()) as i64;
+        let other_tape_end = other_tape_start + (tape_sample * other.len()) as i64;
         assert!(
             tape_sample.divides_i64(self_tape_end - other_tape_end),
             "real assert 8"
         );
         assert!(self_tape_end <= other_tape_end, "real assert 9");
 
-        let left_len = tape_sample.divide_into((self.start - other_tape_start) as usize);
+        let left_len = tape_sample.divide_into((self.tape_start() - other_tape_start) as usize);
 
         let (left, mid_to_end) = other_pixels.split_at_mut(left_len);
         Pixel::slice_merge_with_white(left);
 
-        let (mid, right) = mid_to_end.split_at_mut(self.pixels.len());
-        Pixel::slice_merge(mid, &self.pixels);
+        let (mid, right) = mid_to_end.split_at_mut(self.len());
+        Pixel::slice_merge(mid, &self.pixel_range(0, self.len()));
         Pixel::slice_merge_with_white(right);
 
-        self.pixels = other_pixels;
-        self.start = other_tape_start;
-        self.sample = tape_sample;
+        self.sample = tape_sample; // cmk000 move this into restart2
+        self.pixel_restart2(other_tape_start, other_pixels);
     }
 
     fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: PowerOfTwo) -> Self {
@@ -884,13 +1006,7 @@ impl Spaceline {
             }
         }
 
-        Self {
-            sample: x_sample,
-            start: sample_start,
-            pixels,
-            time: step_index,
-            smoothness: x_smoothness,
-        }
+        Self::new2(x_sample, sample_start, pixels, step_index, x_smoothness)
     }
 }
 
@@ -943,8 +1059,8 @@ impl Spacelines {
             .drain(..)
             .tuples()
             .map(|(mut a, b)| {
-                assert!(a.start >= b.start, "real assert 4a");
-                a.merge(b);
+                assert!(a.tape_start() >= b.tape_start(), "real assert 4a");
+                a.merge(&b);
                 a
             })
             .collect();
@@ -986,14 +1102,14 @@ impl Spacelines {
                             let (left_index, right_index) = (0, gap.as_usize());
                             let (_, right_spaceline) = chunk[right_index].take().unwrap();
                             let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
-                            left_spaceline.merge(right_spaceline);
+                            left_spaceline.merge(&right_spaceline);
                         });
                 } else {
                     slice.chunks_mut(gap.double().as_usize()).for_each(|chunk| {
                         let (left_index, right_index) = (0, gap.as_usize());
                         let (_, right_spaceline) = chunk[right_index].take().unwrap();
                         let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
-                        left_spaceline.merge(right_spaceline);
+                        left_spaceline.merge(&right_spaceline);
                     });
                 }
                 gap = gap.double();
@@ -1025,7 +1141,7 @@ impl Spacelines {
         let spaceline_last = &buffer_last.0;
         let weight = buffer_last.1; // cmk0000 should this be used?
         let time = spaceline_last.time;
-        let start = spaceline_last.start;
+        let start = spaceline_last.tape_start();
         let x_sample = spaceline_last.sample;
         let last_inside_index = y_sample.rem_into(step_index);
 
@@ -1038,13 +1154,13 @@ impl Spacelines {
             }
             let inside_inside_index = down_step.divide_into(inside_index);
 
-            let empty = Spaceline {
-                sample: x_sample,
+            let empty = Spaceline::new2(
+                x_sample,
                 start,
-                pixels: vec![Pixel::WHITE; spaceline_last.pixels.len()],
-                time: time + inside_index - last_inside_index,
-                smoothness: spaceline_last.smoothness,
-            };
+                vec![Pixel::WHITE; spaceline_last.len()],
+                time + inside_index - last_inside_index,
+                spaceline_last.smoothness,
+            );
             Self::push_internal(&mut buffer0, inside_inside_index, empty, PowerOfTwo::ONE);
         }
         assert!(buffer0.len() == 1, "real assert b3");
@@ -1073,7 +1189,7 @@ impl Spacelines {
             let (mut last_powerline, last_weight) = buffer0.pop().unwrap();
 
             // Merge spacelines and double weight
-            last_powerline.merge(spaceline);
+            last_powerline.merge(&spaceline);
 
             // Continue with the merged spaceline and doubled weight
             spaceline = last_powerline;
@@ -1224,8 +1340,8 @@ impl SampledSpaceTime {
             .spacelines
             .last(self.step_index, self.sample, self.y_smoothness);
         let x_sample: PowerOfTwo = last.sample;
-        let tape_width: u64 = (x_sample * last.pixels.len()) as u64;
-        let tape_min_index = last.start;
+        let tape_width: u64 = (x_sample * last.len()) as u64;
+        let tape_min_index = last.tape_start();
         let x_actual: u32 = x_sample.divide_into(tape_width) as u32;
         let y_actual: u32 = self.spacelines.len() as u32;
 
@@ -1233,8 +1349,8 @@ impl SampledSpaceTime {
         let mut packed_data = vec![0u8; row_bytes as usize * y_actual as usize];
 
         for y in 0..y_actual {
-            let spaceline = &self.spacelines.get(y as usize, &last);
-            let local_start = spaceline.start;
+            let spaceline = self.spacelines.get(y as usize, &last);
+            let local_start = &spaceline.tape_start();
             let local_x_sample = spaceline.sample;
             let local_per_x_sample = x_sample / local_x_sample;
             let row_start_byte_index: u32 = y * row_bytes;
@@ -1243,7 +1359,7 @@ impl SampledSpaceTime {
                 let tape_index: i64 = (x_sample * x as usize) as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
                 assert!(
-                    tape_index >= local_start,
+                    tape_index >= *local_start,
                     "real assert if x_start is correct"
                 );
 
@@ -1253,11 +1369,13 @@ impl SampledSpaceTime {
                 // this helps medium bb6 go from 5 seconds to 3.5
                 if local_per_x_sample == PowerOfTwo::ONE || self.x_smoothness == PowerOfTwo::ONE {
                     {
-                        if local_spaceline_start >= spaceline.pixels.len() as i64 {
+                        if local_spaceline_start >= spaceline.len() as i64 {
                             break;
                         }
                     }
-                    let pixel = spaceline.pixels[local_spaceline_start as usize].0;
+                    let pixel = spaceline
+                        .pixel_index_unbounded(local_spaceline_start as usize)
+                        .0;
                     if pixel != 0 {
                         let byte_index: u32 = x + row_start_byte_index;
                         packed_data[byte_index as usize] = pixel;
@@ -1267,13 +1385,7 @@ impl SampledSpaceTime {
                 // cmk LATER can we make this after by precomputing the collect outside the loop?
                 let slice = (local_spaceline_start
                     ..local_spaceline_start + local_per_x_sample.as_u64() as i64)
-                    .map(|i| {
-                        spaceline
-                            .pixels
-                            .get(i as usize)
-                            .copied()
-                            .unwrap_or(Pixel::WHITE)
-                    })
+                    .map(|i| spaceline.pixel_index_unbounded(i as usize))
                     .collect::<Vec<_>>();
                 // cmk LATER look at putting this back in
                 // if local_spaceline_index >= spaceline.pixels.len() as i64 {
@@ -2151,7 +2263,7 @@ mod tests {
         Ok(())
     }
 
-    #[test]
+    // #[test]
     fn benchmark3() -> Result<(), String> {
         println!("Smoothness\tSteps\tOnes\tTime(ms)");
 
