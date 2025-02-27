@@ -7,6 +7,7 @@ const LANES: usize = 64;
 // cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
 // cmk00    Better than doing a tree merge would be having different final lines processed in parallel
 
+use aligned_vec::AVec;
 use arrayvec::ArrayVec;
 use core::fmt;
 use core::str::FromStr;
@@ -641,46 +642,46 @@ impl Pixel {
 
     #[inline]
     fn slice_merge(left: &mut [Self], right: &[Self]) {
-        for (left_pixel, right_pixel) in left.iter_mut().zip(right.iter()) {
-            left_pixel.merge(*right_pixel);
+        //     for (left_pixel, right_pixel) in left.iter_mut().zip(right.iter()) {
+        //         left_pixel.merge(*right_pixel);
+        //     }
+        // }
+
+        debug_assert_eq!(
+            left.len(),
+            right.len(),
+            "Both slices must have the same length"
+        );
+
+        // Safety: Pixel is repr(transparent) around u8, so this cast is safe
+        let left_bytes: &mut [u8] =
+            unsafe { core::slice::from_raw_parts_mut(left.as_mut_ptr().cast::<u8>(), left.len()) };
+
+        let right_bytes: &[u8] =
+            unsafe { core::slice::from_raw_parts(right.as_ptr().cast::<u8>(), right.len()) };
+
+        // Process chunks with SIMD where possible
+        let (left_prefix, left_chunks, left_suffix) = left_bytes.as_simd_mut::<LANES>();
+        let (right_prefix, right_chunks, right_suffix) = right_bytes.as_simd::<LANES>();
+
+        // Process SIMD chunks using (a & b) + ((a ^ b) >> 1) formula
+        for (left_chunk, right_chunk) in left_chunks.iter_mut().zip(right_chunks.iter()) {
+            let a_and_b = *left_chunk & *right_chunk;
+            *left_chunk ^= *right_chunk;
+            *left_chunk >>= Self::SPLAT_1;
+            *left_chunk += a_and_b;
+        }
+
+        // Process remaining elements in prefix
+        for (left_byte, right_byte) in left_prefix.iter_mut().zip(right_prefix.iter()) {
+            *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
+        }
+
+        // Process remaining elements in suffix
+        for (left_byte, right_byte) in left_suffix.iter_mut().zip(right_suffix.iter()) {
+            *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
         }
     }
-
-    // debug_assert_eq!(
-    //     left.len(),
-    //     right.len(),
-    //     "Both slices must have the same length"
-    // );
-
-    // // Safety: Pixel is repr(transparent) around u8, so this cast is safe
-    // let left_bytes: &mut [u8] =
-    //     unsafe { core::slice::from_raw_parts_mut(left.as_mut_ptr().cast::<u8>(), left.len()) };
-
-    // let right_bytes: &[u8] =
-    //     unsafe { core::slice::from_raw_parts(right.as_ptr().cast::<u8>(), right.len()) };
-
-    // // Process chunks with SIMD where possible
-    // let (left_prefix, left_chunks, left_suffix) = left_bytes.as_simd_mut::<LANES>();
-    // let (right_prefix, right_chunks, right_suffix) = right_bytes.as_simd::<LANES>();
-
-    // // Process SIMD chunks using (a & b) + ((a ^ b) >> 1) formula
-    // for (left_chunk, right_chunk) in left_chunks.iter_mut().zip(right_chunks.iter()) {
-    //     let a_and_b = *left_chunk & *right_chunk;
-    //     *left_chunk ^= *right_chunk;
-    //     *left_chunk >>= Self::SPLAT_1;
-    //     *left_chunk += a_and_b;
-    // }
-
-    // // Process remaining elements in prefix
-    // for (left_byte, right_byte) in left_prefix.iter_mut().zip(right_prefix.iter()) {
-    //     *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
-    // }
-
-    // // Process remaining elements in suffix
-    // for (left_byte, right_byte) in left_suffix.iter_mut().zip(right_suffix.iter()) {
-    //     *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
-    // }
-
     #[inline]
     const fn merge(&mut self, other: Self) {
         self.0 = (self.0 >> 1) + (other.0 >> 1) + ((self.0 & other.0) & 1);
@@ -724,8 +725,8 @@ impl From<u8> for Pixel {
 #[derive(Clone, Debug)]
 struct Spaceline {
     sample: PowerOfTwo,
-    negative: Vec<Pixel>,
-    nonnegative: Vec<Pixel>,
+    negative: AVec<Pixel>,
+    nonnegative: AVec<Pixel>,
     time: u64,
     smoothness: PowerOfTwo,
 }
@@ -749,10 +750,13 @@ struct Spaceline {
 impl Spaceline {
     // cmk good name??
     fn new0(smoothness: PowerOfTwo) -> Self {
+        let mut v = AVec::new(1);
+        v.push(Pixel::WHITE);
+
         Self {
             sample: PowerOfTwo::ONE,
-            negative: Vec::new(),
-            nonnegative: vec![Pixel::WHITE; 1],
+            negative: AVec::new(64),
+            nonnegative: v,
             time: 0,
             smoothness,
         }
@@ -799,26 +803,26 @@ impl Spaceline {
         assert!(self.len() == len, "real assert 13");
     }
 
-    // cmk0000000000 must remove this function
-    fn pixel_restart2(&mut self, start: i64, pixels: Vec<Pixel>) {
-        self.negative.clear();
-        self.nonnegative = pixels;
-        while self.tape_start() > start {
-            self.negative.insert(0, self.nonnegative.remove(0));
-        }
-    }
+    // // cmk0000000000 must remove this function
+    // fn pixel_restart2(&mut self, start: i64, pixels: Vec<Pixel>) {
+    //     self.negative.clear();
+    //     self.nonnegative = pixels;
+    //     while self.tape_start() > start {
+    //         self.negative.insert(0, self.nonnegative.remove(0));
+    //     }
+    // }
 
     // cmk0000000000 must remove this function
     fn new2(
         sample: PowerOfTwo,
         start: i64,
-        pixels: Vec<Pixel>,
+        pixels: AVec<Pixel>,
         time: u64,
         smoothness: PowerOfTwo,
     ) -> Self {
         let mut result = Self {
             sample,
-            negative: Vec::new(),
+            negative: AVec::new(64),
             nonnegative: pixels,
             time,
             smoothness,
@@ -933,37 +937,22 @@ impl Spaceline {
         assert!(self.tape_start() >= other.tape_start(), "real assert 4");
         assert!(self.tape_start() >= other.tape_start(), "real assert 6b");
         self.resample_if_needed(other.sample);
+        assert!(self.sample == other.sample, "real assert 5b");
         assert!(self.tape_start() >= other.tape_start(), "real assert 6c");
 
-        let tape_sample = other.sample;
-        let mut other_pixels = other.pixel_range(0, other.len());
-        let other_tape_start = other.tape_start();
+        // cmk000 could be done in one step
+        while self.tape_start() > other.tape_start() {
+            self.negative.push(Pixel::WHITE);
+        }
+        assert!(self.tape_start() == other.tape_start(), "real assert 6c");
 
-        assert!(self.sample == tape_sample, "real assert 5");
-        assert!(self.tape_start() >= other_tape_start, "real assert 6");
-        assert!(
-            tape_sample.divides_i64(other_tape_start - self.tape_start()),
-            "real assert 7"
-        );
-        let self_tape_end = self.tape_start() + (tape_sample * self.len()) as i64;
-        let other_tape_end = other_tape_start + (tape_sample * other.len()) as i64;
-        assert!(
-            tape_sample.divides_i64(self_tape_end - other_tape_end),
-            "real assert 8"
-        );
-        assert!(self_tape_end <= other_tape_end, "real assert 9");
+        // cmk000 could be done in one step
+        while self.len() < other.len() {
+            self.nonnegative.push(Pixel::WHITE);
+        }
+        assert!(self.len() == other.len(), "real assert 6d");
 
-        let left_len = tape_sample.divide_into((self.tape_start() - other_tape_start) as usize);
-
-        let (left, mid_to_end) = other_pixels.split_at_mut(left_len);
-        Pixel::slice_merge_with_white(left);
-
-        let (mid, right) = mid_to_end.split_at_mut(self.len());
-        Pixel::slice_merge(mid, &self.pixel_range(0, self.len()));
-        Pixel::slice_merge_with_white(right);
-
-        self.sample = tape_sample; // cmk000 move this into restart2
-        self.pixel_restart2(other_tape_start, other_pixels);
+        Pixel::slice_merge(&mut self.nonnegative, &other.nonnegative);
     }
 
     fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: PowerOfTwo) -> Self {
@@ -981,7 +970,7 @@ impl Spaceline {
             "real assert b1"
         );
 
-        let mut pixels = Vec::with_capacity(x_goal as usize * 2);
+        let mut pixels = AVec::with_capacity(64, x_goal as usize * 2); // cmk000 const
 
         let down_sample = x_sample.min(x_smoothness);
         let down_step = x_sample.saturating_div(down_sample);
@@ -1154,10 +1143,12 @@ impl Spacelines {
             }
             let inside_inside_index = down_step.divide_into(inside_index);
 
+            let empty_pixels =
+                AVec::from_iter(64, core::iter::repeat_n(Pixel::WHITE, spaceline_last.len()));
             let empty = Spaceline::new2(
                 x_sample,
                 start,
-                vec![Pixel::WHITE; spaceline_last.len()],
+                empty_pixels,
                 time + inside_index - last_inside_index,
                 spaceline_last.smoothness,
             );
