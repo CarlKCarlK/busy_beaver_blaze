@@ -795,19 +795,6 @@ impl Spaceline {
         }
     }
 
-    fn pixel_restart(&mut self, tape_start: i64, len: usize, sample: PowerOfTwo) {
-        self.sample = sample;
-        assert!(self.tape_start() <= tape_start, "real assert 11");
-        while self.tape_start() < tape_start {
-            self.nonnegative.insert(0, self.negative.remove(0));
-        }
-        assert!(self.len() >= len, "real assert 12");
-        while self.len() > len {
-            self.nonnegative.pop();
-        }
-        assert!(self.len() == len, "real assert 13");
-    }
-
     // cmk0000000000 must remove this function
     fn new2(
         sample: PowerOfTwo,
@@ -869,7 +856,7 @@ impl Spaceline {
         self.nonnegative.len() + self.negative.len()
     }
 
-    // cmk00000 simd?
+    #[inline]
     fn resample_if_needed(&mut self, sample: PowerOfTwo) {
         // Sampling & Averaging 2 --
         // When we merge rows, we sometimes need to squeeze the earlier row to
@@ -883,7 +870,89 @@ impl Spaceline {
         if sample == self.sample {
             return;
         }
-        let previous_tape_length = self.sample * self.len();
+        let cells_to_add = sample.rem_euclid_into(self.tape_start());
+        let new_tape_start = self.tape_start() - cells_to_add;
+        let old_items_to_add = self.sample.divide_into(cells_to_add);
+        let old_items_per_new = sample / self.sample;
+        let old_items_per_new_u64 = old_items_per_new.as_u64();
+        let old_items_per_new_usize = old_items_per_new_u64 as usize;
+
+        assert!(sample >= self.sample, "real assert 12");
+        let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
+        assert!(old_items_to_use <= self.len() as u64, "real assert d10");
+
+        let down_step = sample.saturating_div(self.smoothness);
+        let pixel0 = Pixel::merge_slice_down_sample(
+            &self.pixel_range(0, old_items_to_use as usize),
+            old_items_to_add as usize,
+            down_step,
+            down_step.as_usize(),
+        );
+
+        let mut new_index = 0usize;
+        *self.pixel_index_mut(new_index) = pixel0;
+        new_index += 1;
+        let value_len = self.len() as u64;
+
+        let down_size_usize = down_step.as_usize();
+        for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
+            let old_end = (old_index + old_items_to_use).min(value_len);
+            let slice = &self.pixel_range(old_index as usize, old_end as usize);
+            let old_items_to_add_inner = old_items_per_new_u64 - (old_end - old_index);
+            *self.pixel_index_mut(new_index) = Pixel::merge_slice_down_sample(
+                slice,
+                old_items_to_add_inner as usize,
+                down_step,
+                down_size_usize,
+            );
+            new_index += 1;
+        }
+
+        // trim the vector to the new length
+        self.pixel_restart(new_tape_start, new_index, sample);
+    }
+
+    // fn pixel_restart0(&mut self, tape_start: i64, len: usize) {
+    //     assert!(self.tape_start() <= tape_start, "real assert 11");
+    //     while self.tape_start() < tape_start {
+    //         self.nonnegative.insert(0, self.negative.remove(0));
+    //     }
+    //     assert!(self.len() >= len, "real assert 12");
+    //     while self.len() > len {
+    //         self.nonnegative.pop();
+    //     }
+    //     assert!(self.len() == len, "real assert 13");
+    // }
+
+    fn pixel_restart(&mut self, tape_start: i64, len: usize, sample: PowerOfTwo) {
+        self.sample = sample;
+        assert!(self.tape_start() <= tape_start, "real assert 11");
+        while self.tape_start() < tape_start {
+            self.nonnegative.insert(0, self.negative.remove(0));
+        }
+        assert!(self.len() >= len, "real assert 12");
+        while self.len() > len {
+            self.nonnegative.pop();
+        }
+        assert!(self.len() == len, "real assert 13");
+    }
+
+    // cmk00000 simd?
+    #[inline]
+    fn resample_if_needed_slower(&mut self, sample: PowerOfTwo) {
+        // Sampling & Averaging 2 --
+        // When we merge rows, we sometimes need to squeeze the earlier row to
+        // have the same sample rate as the later row.
+
+        if sample == self.sample {
+            return;
+        }
+        assert!(!self.nonnegative.is_empty(), "real assert a");
+        assert!(
+            self.sample.divides_i64(self.tape_start()),
+            "Start must be a multiple of the sample rate",
+        );
+        //        let previous_tape_length = self.sample * self.len();
 
         assert!(sample > self.sample, "real assert 12");
         // e.g. sample was 2 and now it will be 8, so step is 4.
@@ -893,6 +962,13 @@ impl Spaceline {
         // if self.smoothness == 4 and our sample is 2, then substep will be half of 4, so substep is 2.
         // if self.smoothness == 8 and our sample is 2, then substep will be 1 and we'll average everything, substep is 1.
         let substep = sample.saturating_div(self.smoothness).min(step);
+        // if substep == PowerOfTwo::ONE {
+        // println!(
+        //     "cmk old sample {:?}, new {sample:?}, step: {step:?}, substep: {substep:?}, len: {}",
+        //     self.sample,
+        //     self.len()
+        // );
+        // }
 
         for pixels in [&mut self.negative, &mut self.nonnegative] {
             // e.g. samples was 2 and we had 5 values (so tape length of 10), now samples will be 8 and we'll have one 2 value (so tape length of 16)
@@ -906,16 +982,21 @@ impl Spaceline {
             for old_index in (0..pixels.len()).step_by(step.as_usize()) {
                 if substep == step {
                     pixel = pixels[old_index];
-                } else if substep == PowerOfTwo::ONE {
-                    let needed_fill_ins = step.offset_to_align(pixels_len);
-                    pixel = Pixel::merge_slice_all(
-                        &pixels[old_index..old_index + step.as_usize() - needed_fill_ins],
-                        needed_fill_ins as i64,
-                    );
-                } else {
+                }
+                // } else if substep == PowerOfTwo::ONE {
+                //     let needed_fill_ins = step.offset_to_align(pixels_len);
+                //     pixel = Pixel::merge_slice_all(
+                //         &pixels[old_index..old_index + step.as_usize() - needed_fill_ins],
+                //         needed_fill_ins as i64,
+                //     );
+                else {
                     let mut sum: u32 = 0;
                     for sub_index in (0..step.as_usize()).step_by(substep.as_usize()) {
-                        sum += pixels[old_index + sub_index].0 as u32;
+                        let index2 = old_index + sub_index;
+                        if index2 >= pixels_len {
+                            break;
+                        }
+                        sum += pixels[index2].0 as u32;
                     }
                     pixel = Pixel(step.divide_into(sum) as u8);
                 }
