@@ -795,8 +795,8 @@ impl Spaceline {
         }
     }
 
-    // cmk0000000000 must remove this function
-    fn pixel_restart(&mut self, tape_start: i64, len: usize) {
+    fn pixel_restart(&mut self, tape_start: i64, len: usize, sample: PowerOfTwo) {
+        self.sample = sample;
         assert!(self.tape_start() <= tape_start, "real assert 11");
         while self.tape_start() < tape_start {
             self.nonnegative.insert(0, self.negative.remove(0));
@@ -883,47 +883,50 @@ impl Spaceline {
         if sample == self.sample {
             return;
         }
-        let cells_to_add = sample.rem_euclid_into(self.tape_start());
-        let new_tape_start = self.tape_start() - cells_to_add;
-        let old_items_to_add = self.sample.divide_into(cells_to_add);
-        let old_items_per_new = sample / self.sample;
-        let old_items_per_new_u64 = old_items_per_new.as_u64();
-        let old_items_per_new_usize = old_items_per_new_u64 as usize;
+        let previous_tape_length = self.sample * self.len();
 
-        assert!(sample >= self.sample, "real assert 12");
-        let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
-        assert!(old_items_to_use <= self.len() as u64, "real assert d10");
+        assert!(sample > self.sample, "real assert 12");
+        // e.g. sample was 2 and now it will be 8, so step is 4.
+        let step = sample / self.sample;
+        // if self.smoothness == 1, we always just take the first pixel so substep is 4
+        // if self.smoothness == 2 and our sample is 2, we still just take the first pixel, substep is 4
+        // if self.smoothness == 4 and our sample is 2, then substep will be half of 4, so substep is 2.
+        // if self.smoothness == 8 and our sample is 2, then substep will be 1 and we'll average everything, substep is 1.
+        let substep = sample.saturating_div(self.smoothness).min(step);
 
-        let down_step = sample.saturating_div(self.smoothness);
-        let pixel0 = Pixel::merge_slice_down_sample(
-            &self.pixel_range(0, old_items_to_use as usize),
-            old_items_to_add as usize,
-            down_step,
-            down_step.as_usize(),
-        );
-
-        let mut new_index = 0usize;
-        *self.pixel_index_mut(new_index) = pixel0;
-        new_index += 1;
-        let value_len = self.len() as u64;
-
-        let down_size_usize = down_step.as_usize();
-        for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
-            let old_end = (old_index + old_items_to_use).min(value_len);
-            let slice = &self.pixel_range(old_index as usize, old_end as usize);
-            let old_items_to_add_inner = old_items_per_new_u64 - (old_end - old_index);
-            *self.pixel_index_mut(new_index) = Pixel::merge_slice_down_sample(
-                slice,
-                old_items_to_add_inner as usize,
-                down_step,
-                down_size_usize,
-            );
-            new_index += 1;
+        for pixels in [&mut self.negative, &mut self.nonnegative] {
+            // e.g. samples was 2 and we had 5 values (so tape length of 10), now samples will be 8 and we'll have one 2 value (so tape length of 16)
+            // more over, we might just put one old value into the new, average every 2nd or 4th, etc, or average all.
+            // So, we need a step and substep. If they are equal, we only take the first pixel. If substep is 1, we average everything.
+            // otherwise, we add up and average.
+            // Also, on the last index position, we may may be short and need to add in virtual pixels.
+            let pixels_len = pixels.len();
+            let mut pixel;
+            let mut new_index = 0;
+            for old_index in (0..pixels.len()).step_by(step.as_usize()) {
+                if substep == step {
+                    pixel = pixels[old_index];
+                } else if substep == PowerOfTwo::ONE {
+                    let needed_fill_ins = step.offset_to_align(pixels_len);
+                    pixel = Pixel::merge_slice_all(
+                        &pixels[old_index..old_index + step.as_usize() - needed_fill_ins],
+                        needed_fill_ins as i64,
+                    );
+                } else {
+                    let mut sum: u32 = 0;
+                    for sub_index in (0..step.as_usize()).step_by(substep.as_usize()) {
+                        sum += pixels[old_index + sub_index].0 as u32;
+                    }
+                    pixel = Pixel(step.divide_into(sum) as u8);
+                }
+                pixels[new_index] = pixel;
+                new_index += 1;
+            }
+            // trim the vector to the new length
+            pixels.truncate(new_index);
         }
 
-        // trim the vector to the new length
-        self.sample = sample; // cmk000 move this into restart
-        self.pixel_restart(new_tape_start, new_index);
+        self.sample = sample;
     }
 
     fn merge(&mut self, other: &Self) {
@@ -2278,7 +2281,7 @@ mod tests {
         let program_string = BB6_CONTENDER;
         let goal_x: u32 = 360;
         let goal_y: u32 = 432;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
+        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63); // cmk0000 63);
         let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
         let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(0);
         let mut space_time_machine = SpaceTimeMachine::from_str(
