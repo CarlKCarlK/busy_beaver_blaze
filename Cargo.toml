@@ -20,6 +20,7 @@ instant = { version = "0.1.13", features = ["wasm-bindgen"] }
 itertools = "0.14.0"
 num-traits = "0.2.14"
 png = "0.17.16"
+rand = "0.9.0"
 rayon = "1.10.0"
 smallvec = "1.14.0"
 thousands = "0.2.0"
@@ -36,9 +37,18 @@ imageproc = "0.25.0"
 num-bigint = "0.4.6"
 num-traits = "0.2.14"
 glob = "0.3.2"
+criterion = "0.5.1"
+
+[[bench]]
+name = "benchmark"
+harness = false
 
 [build]
 rustflags = ["-C", "target-cpu=native"]
+
+[profile.release]
+debug = true
+
 
 [lints.clippy]
 # Safety-critical application lints

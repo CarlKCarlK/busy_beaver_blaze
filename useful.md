@@ -42,3 +42,9 @@ cargo test benchmark2 --release --target wasm32-unknown-unknown
 cargo test benchmark2 --release -- --nocapture
 cargo test benchmark63 --release -- --nocapture
 ```
+
+## Criterion Benchmark
+
+```bash
+cargo bench
+```
