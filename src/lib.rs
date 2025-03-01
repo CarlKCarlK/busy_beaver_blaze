@@ -69,10 +69,19 @@ E	0LA	0RE
 ";
 pub const MACHINE_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 struct Tape {
-    nonnegative: Vec<u8>,
-    negative: Vec<u8>,
+    nonnegative: AVec<u8>,
+    negative: AVec<u8>,
+}
+
+impl Default for Tape {
+    fn default() -> Self {
+        Self {
+            nonnegative: AVec::new(ALIGN),
+            negative: AVec::new(ALIGN),
+        }
+    }
 }
 
 impl Tape {
@@ -1093,6 +1102,50 @@ impl Spaceline {
                 step_index.separate_with_commas(),
                 x_sample.as_usize()
             );
+        }
+
+        // cmk0000000000000
+        // cmk00000 would make a special case for x_sample=1 (just copy * 255) and then the averages wouldn't need to check it
+        if x_smoothness >= x_sample {
+            let (negative, nonnegative) = match x_sample {
+                PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => (
+                    average_with_iterators(&tape.negative, x_sample),
+                    average_with_iterators(&tape.nonnegative, x_sample),
+                ),
+                // PowerOfTwo::FOUR => (
+                //     average_with_simd::<4>(&tape.negative, x_sample),
+                //     average_with_simd::<4>(&tape.nonnegative, x_sample),
+                // ),
+                PowerOfTwo::EIGHT => (
+                    average_with_simd::<8>(&tape.negative, x_sample),
+                    average_with_simd::<8>(&tape.nonnegative, x_sample),
+                ),
+                PowerOfTwo::SIXTEEN => (
+                    average_with_simd::<16>(&tape.negative, x_sample),
+                    average_with_simd::<16>(&tape.nonnegative, x_sample),
+                ),
+                PowerOfTwo::THIRTY_TWO => (
+                    // _ => (
+                    average_with_simd::<32>(&tape.negative, x_sample),
+                    average_with_simd::<32>(&tape.nonnegative, x_sample),
+                ),
+                _ => (
+                    average_with_simd::<64>(&tape.negative, x_sample),
+                    average_with_simd::<64>(&tape.nonnegative, x_sample),
+                ),
+            };
+            // cmk00000000
+            // do an unsafe cast from from u8 to Pixel
+            let negative: AVec<Pixel> = unsafe { core::mem::transmute(negative) };
+            let nonnegative: AVec<Pixel> = unsafe { core::mem::transmute(nonnegative) };
+
+            return Self {
+                sample: x_sample,
+                negative,
+                nonnegative,
+                time: step_index,
+                smoothness: x_smoothness,
+            };
         }
 
         let sample_start: i64 = tape_min_index - x_sample.rem_euclid_into(tape_min_index);
@@ -2553,8 +2606,10 @@ mod tests {
     fn benchmark63() -> Result<(), String> {
         // let start = std::time::Instant::now();
 
-        let early_stop = Some(50_000_000);
-        let chunk_size = 5_000_000;
+        let early_stop = Some(150_000_000);
+        let chunk_size = 10_000_000;
+        // let early_stop = Some(50_000_000);
+        // let chunk_size = 5_000_000;
         // let early_stop = Some(5_000_000);
         // let chunk_size = 500_000;
 
