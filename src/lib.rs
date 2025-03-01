@@ -1,11 +1,15 @@
 #![feature(portable_simd)]
 use core::simd::prelude::*;
-const LANES: usize = 32;
+use core::simd::{LaneCount, SupportedLaneCount};
+const LANES_CMK: usize = 32;
+pub const ALIGN: usize = 64;
 
 // cmk00 Ideas for speedup:
 // cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
 // cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
 // cmk00    Better than doing a tree merge would be having different final lines processed in parallel
+
+// cmk Could u8 in tape be a bool? (also in average_with_X)
 
 use aligned_vec::AVec;
 use arrayvec::ArrayVec;
@@ -627,7 +631,7 @@ struct Pixel(u8);
 
 impl Pixel {
     const WHITE: Self = Self(0);
-    const SPLAT_1: Simd<u8, LANES> = Simd::<u8, LANES>::splat(1);
+    const SPLAT_1: Simd<u8, LANES_CMK> = Simd::<u8, LANES_CMK>::splat(1);
     //cmki
     #[inline(never)]
     fn slice_merge_with_white(pixels: &mut [Self]) {
@@ -638,7 +642,7 @@ impl Pixel {
         // cmk00000 Look at zerocopy or bytemuck
 
         // Process with SIMD where possible
-        let (prefix, chunks, suffix) = bytes.as_simd_mut::<LANES>();
+        let (prefix, chunks, suffix) = bytes.as_simd_mut::<LANES_CMK>();
 
         // Process SIMD chunks
         for chunk in chunks {
@@ -673,8 +677,8 @@ impl Pixel {
             unsafe { core::slice::from_raw_parts(right.as_ptr().cast::<u8>(), right.len()) };
 
         // Process chunks with SIMD where possible
-        let (left_prefix, left_chunks, left_suffix) = left_bytes.as_simd_mut::<LANES>();
-        let (right_prefix, right_chunks, right_suffix) = right_bytes.as_simd::<LANES>();
+        let (left_prefix, left_chunks, left_suffix) = left_bytes.as_simd_mut::<LANES_CMK>();
+        let (right_prefix, right_chunks, right_suffix) = right_bytes.as_simd::<LANES_CMK>();
 
         // Process SIMD chunks using (a & b) + ((a ^ b) >> 1) formula
         for (left_chunk, right_chunk) in left_chunks.iter_mut().zip(right_chunks.iter()) {
@@ -777,7 +781,7 @@ impl Spaceline {
 
         Self {
             sample: PowerOfTwo::ONE,
-            negative: AVec::new(64),
+            negative: AVec::new(ALIGN),
             nonnegative: v,
             time: 0,
             smoothness,
@@ -827,7 +831,7 @@ impl Spaceline {
     ) -> Self {
         let mut result = Self {
             sample,
-            negative: AVec::new(64),
+            negative: AVec::new(ALIGN),
             nonnegative: pixels,
             time,
             smoothness,
@@ -1099,7 +1103,7 @@ impl Spaceline {
             "real assert b1"
         );
 
-        let mut pixels = AVec::with_capacity(64, x_goal as usize * 2); // cmk000 const
+        let mut pixels = AVec::with_capacity(ALIGN, x_goal as usize * 2); // cmk000 const
 
         let down_sample = x_sample.min(x_smoothness);
         let down_step = x_sample.saturating_div(down_sample);
@@ -1264,7 +1268,7 @@ impl Spacelines {
         let time = spaceline_last.time;
         let start = spaceline_last.tape_start();
         let x_sample = spaceline_last.sample;
-        let last_inside_index = y_sample.rem_into(step_index);
+        let last_inside_index = y_sample.rem_into_u64(step_index);
 
         // cmk we have to clone because we compress in place (clone only half???)
         let mut buffer0 = self.buffer0.clone();
@@ -1275,8 +1279,10 @@ impl Spacelines {
             }
             let inside_inside_index = down_step.divide_into(inside_index);
 
-            let empty_pixels =
-                AVec::from_iter(64, core::iter::repeat_n(Pixel::WHITE, spaceline_last.len()));
+            let empty_pixels = AVec::from_iter(
+                ALIGN,
+                core::iter::repeat_n(Pixel::WHITE, spaceline_last.len()),
+            );
             let empty = Spaceline::new2(
                 x_sample,
                 start,
@@ -1416,7 +1422,7 @@ impl SampledSpaceTime {
     #[inline(never)]
     fn snapshot(&mut self, machine: &Machine) {
         self.step_index += 1;
-        let inside_index = self.sample.rem_into(self.step_index);
+        let inside_index = self.sample.rem_into_u64(self.step_index);
 
         // if inside_index == self.sample.as_u64() - 1 {
         //     println!(
@@ -1933,7 +1939,7 @@ impl PowerOfTwo {
 
     //cmki
     #[inline(never)]
-    pub fn rem_into<T>(self, x: T) -> T
+    pub fn rem_into_u64<T>(self, x: T) -> T
     where
         T: Copy
             + core::ops::BitAnd<Output = T>
@@ -1942,6 +1948,18 @@ impl PowerOfTwo {
             + PartialEq,
     {
         x & (T::from(self.as_u64()) - T::from(1u64))
+    }
+
+    #[inline(never)]
+    pub fn rem_into_usize<T>(self, x: T) -> T
+    where
+        T: Copy
+            + core::ops::BitAnd<Output = T>
+            + core::ops::Sub<Output = T>
+            + From<usize>
+            + PartialEq,
+    {
+        x & (T::from(self.as_usize()) - T::from(1usize))
     }
 
     //cmki
@@ -2019,6 +2037,91 @@ impl PowerOfTwo {
 const fn prev_power_of_two(x: usize) -> usize {
     debug_assert!(x > 0, "x must be greater than 0");
     1usize << (usize::BITS as usize - x.leading_zeros() as usize - 1)
+}
+
+#[must_use]
+pub fn average_with_iterators(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
+    let mut result = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
+
+    // Process complete chunks
+    let chunk_iter = values.chunks_exact(step.as_usize());
+    let remainder = chunk_iter.remainder();
+
+    for chunk in chunk_iter {
+        let sum: u32 = chunk.iter().map(|&x| x as u32).sum();
+        let average = step.divide_into(sum * 255) as u8;
+        result.push(average);
+    }
+
+    // Handle the remainder - pad with zeros
+    if !remainder.is_empty() {
+        let sum: u32 = remainder.iter().map(|&x| x as u32).sum();
+        // We need to divide by step size, not remainder.len()
+        let average = step.divide_into(sum * 255) as u8;
+        result.push(average);
+    }
+
+    result
+}
+
+#[allow(clippy::missing_panics_doc)]
+#[must_use]
+pub fn average_with_simd<const LANES: usize>(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8>
+where
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    assert!(
+        { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
+        "LANES must be less than or equal to step and alignment"
+    );
+
+    let values_len = values.len();
+    let mut result = AVec::with_capacity(ALIGN, step.div_ceil_into(values_len));
+    let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
+
+    let (prefix, chunks, _suffix) = values.as_slice().as_simd::<LANES>();
+
+    // Since we're using AVec with 64-byte alignment, the prefix should be empty
+    debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
+    // Process SIMD chunks directly (each chunk is N elements)
+    let lanes_per_chunk = step.saturating_div(lanes);
+
+    if lanes_per_chunk == PowerOfTwo::ONE {
+        for chunk in chunks {
+            let sum = chunk.reduce_sum() as u32;
+            let average = step.divide_into(sum * 255) as u8;
+            result.push(average);
+        }
+    } else {
+        let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
+
+        // Process complete chunks
+        for sub_chunk in &mut chunk_iter {
+            // Sum the values within the vector - values are just 0 or 1
+            let sum: u32 = sub_chunk
+                .iter()
+                .map(|chunk| chunk.reduce_sum() as u32)
+                .sum();
+            let average = step.divide_into(sum * 255) as u8;
+            result.push(average);
+        }
+    }
+
+    // How many elements are unprocessed?
+    let unused_items = step.rem_into_usize(values_len);
+    if unused_items > 0 {
+        // sum the last missing_items
+        let sum: u32 = values
+            .iter()
+            .rev()
+            .take(unused_items)
+            .map(|&x| x as u32)
+            .sum();
+        let average = step.divide_into(sum * 255) as u8;
+        result.push(average);
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -2533,5 +2636,105 @@ mod tests {
         fs::write("tests/expected/bench63.png", &png_data).unwrap(); // cmk handle error
         println!("Elapsed png: {:?}", start.elapsed());
         Ok(())
+    }
+
+    #[allow(clippy::shadow_unrelated)]
+    #[test]
+    fn test_average() {
+        let values = AVec::from_slice(ALIGN, &[0, 0, 0, 1, 1, 0, 1, 1, 1]);
+
+        let step = PowerOfTwo::ONE;
+        let expected = &[0, 0, 0, 255, 255, 0, 255, 255, 255];
+        let result = average_with_iterators(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<1>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+
+        let step = PowerOfTwo::TWO;
+        let expected = &[0, 127, 127, 255, 127];
+        let result = average_with_iterators(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<1>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<2>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        // Expected to panic
+        // let result = average_with_simd::<4>(&values, step);
+        // assert_eq!(result.as_slice(), expected);
+
+        let step = PowerOfTwo::FOUR;
+        let expected = &[63, 191, 63];
+        let result = average_with_iterators(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<1>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<2>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<4>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+
+        let step = PowerOfTwo::EIGHT;
+        let expected = &[127, 31];
+        let result = average_with_iterators(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<1>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<2>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<4>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<8>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+
+        let step = PowerOfTwo::SIXTEEN;
+        let expected = &[79];
+        let result = average_with_iterators(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<1>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<2>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<4>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<8>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<16>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+
+        let step = PowerOfTwo::THIRTY_TWO;
+        let expected = &[39];
+        let result = average_with_iterators(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<1>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<2>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<4>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<8>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<16>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<32>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+
+        let step = PowerOfTwo::SIXTY_FOUR;
+        let expected = &[19];
+        let result = average_with_iterators(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<1>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<2>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<4>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<8>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<16>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<32>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+        let result = average_with_simd::<64>(&values, step);
+        assert_eq!(result.as_slice(), expected);
     }
 }
