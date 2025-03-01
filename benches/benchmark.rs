@@ -1,53 +1,90 @@
 #![feature(portable_simd)]
+#![feature(slice_take)]
 use aligned_vec::AVec;
 use busy_beaver_blaze::PowerOfTwo;
 use core::simd::prelude::*;
+use core::simd::{LaneCount, SupportedLaneCount};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::Rng;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-fn average_with_iterators(a: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
-    debug_assert!(step.rem_into(a.len() as u64) == 0);
-    let mut result = AVec::with_capacity(64, step.divide_into(a.len()));
-    for chunk in a.chunks_exact(step.as_usize()) {
+const ALIGN: usize = 64;
+
+fn average_with_iterators(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
+    let mut result = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
+
+    // Process complete chunks
+    let chunk_iter = values.chunks_exact(step.as_usize());
+    let remainder = chunk_iter.remainder();
+
+    for chunk in chunk_iter {
         let sum: u32 = chunk.iter().map(|&x| x as u32).sum();
         let average = step.divide_into(sum * 255) as u8;
         result.push(average);
     }
-    result
-}
 
-fn average_with_simd(a: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
-    debug_assert!(
-        step == PowerOfTwo::THIRTY_TWO,
-        "Step must be exactly 32 for SIMD implementation"
-    );
-    debug_assert!(
-        PowerOfTwo::THIRTY_TWO.divides_usize(a.len()),
-        "Vector length must be divisible by 32"
-    );
-
-    let mut result = AVec::with_capacity(64, step.divide_into(a.len()));
-
-    let (prefix, chunks, suffix) = a.as_slice().as_simd::<32>();
-
-    // Since we're using AVec with 64-byte alignment, the prefix should be empty
-    debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
-
-    // Process SIMD chunks directly (each chunk is 32 elements)
-    for chunk in chunks {
-        // Sum the values within the vector - values are just 0 or 1
-        let sum = chunk.reduce_sum();
-
-        // Calculate average (sum * 255 / step)
-        let average = step.divide_into(sum as u32 * 255) as u8;
+    // Handle the remainder - pad with zeros
+    if !remainder.is_empty() {
+        let sum: u32 = remainder.iter().map(|&x| x as u32).sum();
+        // We need to divide by step size, not remainder.len()
+        let average = step.divide_into(sum * 255) as u8;
         result.push(average);
     }
 
-    // Process any remaining elements in the suffix
-    for chunk in suffix.chunks_exact(step.as_usize()) {
-        let sum: u32 = chunk.iter().map(|&x| x as u32).sum();
+    result
+}
+
+fn average_with_simd<const LANES: usize>(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8>
+where
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    debug_assert!(
+        { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
+        "LANES must be less than or equal to step and alignment"
+    );
+
+    let mut result = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
+    let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
+
+    let (prefix, chunks, _suffix) = values.as_slice().as_simd::<LANES>();
+
+    // Since we're using AVec with 64-byte alignment, the prefix should be empty
+    debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
+    // Process SIMD chunks directly (each chunk is N elements)
+    let lanes_per_chunk = step.saturating_div(lanes);
+
+    if lanes_per_chunk == PowerOfTwo::ONE {
+        for chunk in chunks {
+            let sum = chunk.reduce_sum() as u32;
+            let average = step.divide_into(sum * 255) as u8;
+            result.push(average);
+        }
+    } else {
+        let mut chunk_iter = chunks.chunks_exact(step.saturating_div(lanes).as_usize());
+
+        // Process complete chunks
+        for sub_chunk in &mut chunk_iter {
+            // Sum the values within the vector - values are just 0 or 1
+            let sum: u32 = sub_chunk
+                .iter()
+                .map(|chunk| chunk.reduce_sum() as u32)
+                .sum();
+            let average = step.divide_into(sum * 255) as u8;
+            result.push(average);
+        }
+    }
+
+    // How many elements would we need to make values.len() a multiple of step?
+    let missing_items = step.offset_to_align(values.len());
+    if missing_items > 0 {
+        // sum the last missing_items
+        let sum: u32 = values
+            .iter()
+            .rev()
+            .take(missing_items)
+            .map(|&x| x as u32)
+            .sum();
         let average = step.divide_into(sum * 255) as u8;
         result.push(average);
     }
@@ -58,25 +95,25 @@ fn average_with_simd(a: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
 // benchmark average_with_iterators on a random 40K aligned vec using a step size of 32
 // Values are either 0 or 1.
 fn benchmark_function(c: &mut Criterion) {
-    let len = 40_000;
-    let step = PowerOfTwo::from_usize(32);
+    let len = 10_048;
+    let step = PowerOfTwo::from_usize(64);
     let seed = 0;
     let mut rng = StdRng::seed_from_u64(seed);
-    let a = AVec::from_iter(64, (0..len).map(|_| rng.random::<bool>() as u8));
+    let values = AVec::from_iter(64, (0..len).map(|_| rng.random::<bool>() as u8));
 
     let mut group = c.benchmark_group("averaging");
 
     group.bench_function("iterators", |b| {
         b.iter_with_setup(
-            || a.clone(),
-            |a_clone| average_with_iterators(black_box(&a_clone), black_box(step)),
+            || values.clone(),
+            |values_clone| average_with_iterators(black_box(&values_clone), black_box(step)),
         );
     });
 
     group.bench_function("simd", |b| {
         b.iter_with_setup(
-            || a.clone(),
-            |a_clone| average_with_simd(black_box(&a_clone), black_box(step)),
+            || values.clone(),
+            |values_clone| average_with_simd::<32>(black_box(&values_clone), black_box(step)),
         );
     });
 

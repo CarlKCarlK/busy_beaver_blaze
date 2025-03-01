@@ -1836,20 +1836,21 @@ impl PowerOfTwo {
 
     //cmki
     #[inline(never)]
-    fn offset_to_align(self, pixels_len: usize) -> usize {
+    #[must_use]
+    pub fn offset_to_align(self, len: usize) -> usize {
         debug_assert!(
             (self.0 as u32) < usize::BITS,
             "Cannot shift left by self.0 = {} for usize::BITS = {}, which would overflow.",
             self.0,
             usize::BITS
         );
-        pixels_len.wrapping_neg() & ((1 << self.0) - 1)
+        len.wrapping_neg() & ((1 << self.0) - 1)
     }
 
     //cmki
     #[inline(never)]
     #[must_use]
-    pub fn from_exp(value: u8) -> Self {
+    pub const fn from_exp(value: u8) -> Self {
         debug_assert!(value <= Self::MAX.0, "Value must be 63 or less");
         Self(value)
     }
@@ -1864,20 +1865,21 @@ impl PowerOfTwo {
     //cmki
     #[inline(never)]
     #[must_use]
-    const fn saturating_div(self, rhs: Self) -> Self {
+    pub const fn saturating_div(self, rhs: Self) -> Self {
         // Subtract exponents; if the subtrahend is larger, saturate to 0 aks One
         Self(self.0.saturating_sub(rhs.0))
     }
 
     //cmki
     #[inline(never)]
-    const fn assign_saturating_div_two(&mut self) {
+    pub const fn assign_saturating_div_two(&mut self) {
         self.0 = self.0.saturating_sub(1);
     }
 
     //cmki
     #[inline(never)]
-    fn double(self) -> Self {
+    #[must_use]
+    pub const fn double(self) -> Self {
         debug_assert!(self.0 < Self::MAX.0, "Value must be 63 or less");
         Self(self.0 + 1)
     }
@@ -1909,18 +1911,18 @@ impl PowerOfTwo {
     //cmki
     #[inline(never)]
     #[must_use]
-    pub fn from_usize(value: usize) -> Self {
+    pub const fn from_usize(value: usize) -> Self {
         debug_assert!(value.is_power_of_two(), "Value must be a power of two");
         Self::from_exp(value.trailing_zeros() as u8)
     }
 
-    //cmki
-    #[inline(never)]
-    #[must_use]
-    pub const fn from_usize_const(value: usize) -> Self {
-        // debug_assert!(value.is_power_of_two(), "Value must be a power of two");
-        Self(value.trailing_zeros() as u8)
-    }
+    // //cmki
+    // #[inline(never)]
+    // #[must_use]
+    // pub const fn from_usize_const(value: usize) -> Self {
+    //     debug_assert!(value.is_power_of_two(), "Value must be a power of two");
+    //     Self(value.trailing_zeros() as u8)
+    // }
 
     //cmki
     #[inline(never)]
@@ -1958,10 +1960,18 @@ impl PowerOfTwo {
     //cmki
     #[inline(never)]
     #[must_use]
-    pub fn div_ceil_into(self, other: i64) -> i64 {
-        let left = 1i64 << self.0; // Compute 2^b
-        debug_assert!(left > 0, "Smoothness value must be valid (b <= 63)");
-        (other + left - 1) >> self.0
+    pub fn div_ceil_into<T>(self, other: T) -> T
+    where
+        T: Copy
+            + core::ops::Add<Output = T>
+            + core::ops::Sub<Output = T>
+            + core::ops::Shl<u8, Output = T>
+            + core::ops::Shr<u8, Output = T>
+            + From<u8>,
+    {
+        let one = T::from(1);
+        let two_pow = one << self.0;
+        (other + two_pow - one) >> self.0
     }
 
     //cmki
