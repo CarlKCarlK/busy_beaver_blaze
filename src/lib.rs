@@ -20,7 +20,7 @@ use derive_more::derive::Display;
 use instant::Instant;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
-use rayon::prelude::*;
+use rayon::{current_num_threads, prelude::*};
 use smallvec::SmallVec;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
@@ -1051,6 +1051,8 @@ impl Spaceline {
         self.sample = sample;
     }
 
+    //cmki
+    #[inline(never)]
     fn merge(&mut self, other: &Self) {
         // cmk change to debug_assert?
         assert!(self.time < other.time, "real assert 2");
@@ -1096,7 +1098,7 @@ impl Spaceline {
         let tape_max_index = tape.max_index();
         let x_sample = sample_rate(tape_width, x_goal);
 
-        if step_index % 100_000 == 0 {
+        if step_index % 10_000_000 == 0 {
             println!(
                 "cmk Spaceline::new step_index {}, tape width {tape_width:?} ({tape_min_index}..={tape_max_index}), x_sample {:?}, x_goal {x_goal:?}",
                 step_index.separate_with_commas(),
@@ -2117,6 +2119,74 @@ pub fn average_with_iterators(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
     result
 }
 
+#[allow(clippy::missing_panics_doc, clippy::integer_division_remainder_used)]
+#[must_use]
+// cmk0000000 if this is used, do full correctness check
+pub fn average_with_simd_rayon<const LANES: usize>(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8>
+where
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    assert!(
+        { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
+        "LANES must be less than or equal to step and alignment"
+    );
+
+    let values_len = values.len();
+    let capacity = step.div_ceil_into(values_len);
+    let mut result = AVec::with_capacity(ALIGN, capacity);
+    result.resize(result.capacity(), 0); // Pre-fill with zeros
+    let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
+    let rayon_threads = current_num_threads();
+    let result_chunk_size = (capacity.div_ceil(rayon_threads * LANES)) * LANES;
+    let input_chunk_size = result_chunk_size * step.as_usize();
+    // Process SIMD chunks directly (each chunk is N elements)
+    let lanes_per_chunk = step.saturating_div(lanes);
+
+    result
+        .par_chunks_mut(result_chunk_size)
+        .zip(values.par_chunks(input_chunk_size))
+        .for_each(|(result_chunk, input_chunk)| {
+            let (prefix, chunks, _suffix) = input_chunk.as_simd::<LANES>();
+
+            // Since we're using AVec with 64-byte alignment, the prefix should be empty
+            debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
+
+            if lanes_per_chunk == PowerOfTwo::ONE {
+                for (average, chunk) in result_chunk.iter_mut().zip(chunks.iter()) {
+                    let sum = chunk.reduce_sum() as u32;
+                    *average = step.divide_into(sum * 255) as u8;
+                }
+            } else {
+                let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
+
+                // Process complete chunks
+                for (average, sub_chunk) in result_chunk.iter_mut().zip(&mut chunk_iter) {
+                    // Sum the values within the vector - values are just 0 or 1
+                    let sum: u32 = sub_chunk
+                        .iter()
+                        .map(|chunk| chunk.reduce_sum() as u32)
+                        .sum();
+                    *average = step.divide_into(sum * 255) as u8;
+                }
+            }
+
+            // How many elements are unprocessed?
+            let unused_items = step.rem_into_usize(values_len);
+            if unused_items > 0 {
+                // sum the last missing_items
+                let sum: u32 = values
+                    .iter()
+                    .rev()
+                    .take(unused_items)
+                    .map(|&x| x as u32)
+                    .sum();
+                *(result_chunk.last_mut().unwrap()) = step.divide_into(sum * 255) as u8;
+            }
+        });
+
+    result
+}
+
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_with_simd<const LANES: usize>(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8>
@@ -2606,10 +2676,10 @@ mod tests {
     fn benchmark63() -> Result<(), String> {
         // let start = std::time::Instant::now();
 
-        let early_stop = Some(150_000_000);
-        let chunk_size = 10_000_000;
-        // let early_stop = Some(50_000_000);
-        // let chunk_size = 5_000_000;
+        // let early_stop = Some(10_000_000_000);
+        // let chunk_size = 10_000_000;
+        let early_stop = Some(50_000_000);
+        let chunk_size = 5_000_000;
         // let early_stop = Some(5_000_000);
         // let chunk_size = 500_000;
 
@@ -2790,6 +2860,10 @@ mod tests {
         let result = average_with_simd::<32>(&values, step);
         assert_eq!(result.as_slice(), expected);
         let result = average_with_simd::<64>(&values, step);
+        assert_eq!(result.as_slice(), expected);
+
+        // Rayon is slower, but is it correct?
+        let result = average_with_simd_rayon::<64>(&values, step);
         assert_eq!(result.as_slice(), expected);
     }
 }
