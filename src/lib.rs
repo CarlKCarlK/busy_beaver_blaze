@@ -731,7 +731,7 @@ impl Pixel {
         for i in (0..slice.len()).step_by(down_step_usize) {
             sum += slice[i].0 as usize;
         }
-        let total_len = PowerOfTwo::from_usize(slice.len() + empty_count);
+        let total_len = PowerOfTwo::from_usize_unchecked(slice.len() + empty_count);
         let count = total_len.saturating_div(down_step);
         let mean = count.divide_into(sum) as u8;
         Self(mean)
@@ -744,7 +744,7 @@ impl Pixel {
         let sum: u32 = slice.iter().map(|pixel: &Self| pixel.0 as u32).sum();
         let count = slice.len() + empty_count as usize;
         debug_assert!(count.is_power_of_two(), "Count must be a power of two");
-        Self(PowerOfTwo::from_u64(count as u64).divide_into(sum) as u8)
+        Self(PowerOfTwo::from_u64_unchecked(count as u64).divide_into(sum) as u8)
     }
 }
 
@@ -1265,8 +1265,8 @@ impl Spacelines {
             let end = start + prev_power_of_two(whole.len() - start);
             let slice = &mut whole[start..end];
             debug_assert!(slice.len().is_power_of_two(), "real assert 10");
-            let slice_len = PowerOfTwo::from_usize(slice.len());
-            let weight = PowerOfTwo::from_usize(slice.len());
+            let slice_len = PowerOfTwo::from_usize_unchecked(slice.len());
+            let weight = PowerOfTwo::from_usize_unchecked(slice.len());
 
             // Binary tree reduction algorithm
             let mut gap = PowerOfTwo::ONE;
@@ -1418,6 +1418,7 @@ pub struct SampledSpaceTime {
     spacelines: Spacelines,
     x_smoothness: PowerOfTwo,
     y_smoothness: PowerOfTwo,
+    previous_space_line: Option<Spaceline>,
 }
 
 /// Create a new in which you give the `x_goal` (space)
@@ -1442,6 +1443,7 @@ impl SampledSpaceTime {
             spacelines: Spacelines::new(x_smoothness, buffer1_count),
             x_smoothness,
             y_smoothness,
+            previous_space_line: None,
         }
     }
 
@@ -1479,17 +1481,6 @@ impl SampledSpaceTime {
         self.step_index += 1;
         let inside_index = self.sample.rem_into_u64(self.step_index);
 
-        // if inside_index == self.sample.as_u64() - 1 {
-        //     println!(
-        //         "cmk snapshot {} {:?} {inside_index} buf: 0:{} 1:{}/{:?}",
-        //         self.step_index,
-        //         self.sample,
-        //         self.spacelines.buffer0.len(),
-        //         self.spacelines.buffer1.len(),
-        //         self.spacelines.buffer1_capacity
-        //     );
-        // }
-
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
             self.spacelines.flush_buffer0();
@@ -1501,22 +1492,22 @@ impl SampledSpaceTime {
             return;
         }
         let inside_inside_index = down_step.divide_into(inside_index);
-        let spaceline = Spaceline::new(
-            &machine.tape,
-            self.x_goal,
-            self.step_index,
-            self.x_smoothness,
-        );
+        let down_step_one = down_step == PowerOfTwo::ONE;
 
-        // if inside_index == self.sample.as_u64() - 1 {
-        //     println!(
-        //         "   cmk snapshot {} {:?} {inside_index} buf: 0:{} 1:{}/{:?} {inside_inside_index}",
-        //         self.step_index,
-        //         self.sample,
-        //         self.spacelines.buffer0.len(),
-        //         self.spacelines.buffer1.len(),
-        //         self.spacelines.buffer1_capacity
-        //     );
+        let spaceline =
+            if let Some(mut previous) = self.previous_space_line.take().filter(|_| down_step_one) {
+                previous.time = self.step_index;
+                previous
+            } else {
+                Spaceline::new(
+                    &machine.tape,
+                    self.x_goal,
+                    self.step_index,
+                    self.x_smoothness,
+                )
+            };
+        // if down_step_one {
+        //     self.previous_space_line = Some(spaceline.clone());
         // }
 
         self.spacelines
@@ -1964,7 +1955,7 @@ impl PowerOfTwo {
     //cmki
     #[inline(never)]
     #[must_use]
-    pub fn from_u64(value: u64) -> Self {
+    pub fn from_u64_unchecked(value: u64) -> Self {
         debug_assert!(value.is_power_of_two(), "Value must be a power of two");
         Self::from_exp(value.trailing_zeros() as u8)
     }
@@ -1972,8 +1963,26 @@ impl PowerOfTwo {
     //cmki
     #[inline(never)]
     #[must_use]
-    pub const fn from_usize(value: usize) -> Self {
+    pub const fn from_usize_unchecked(value: usize) -> Self {
         debug_assert!(value.is_power_of_two(), "Value must be a power of two");
+        Self::from_exp(value.trailing_zeros() as u8)
+    }
+
+    // from u64
+    #[allow(clippy::missing_panics_doc)]
+    //cmki
+    #[inline(never)]
+    #[must_use]
+    pub fn from_u64(value: u64) -> Self {
+        assert!(value.is_power_of_two(), "Value must be a power of two");
+        Self::from_exp(value.trailing_zeros() as u8)
+    }
+
+    //cmki
+    #[inline(never)]
+    #[must_use]
+    pub const fn from_usize(value: usize) -> Self {
+        assert!(value.is_power_of_two(), "Value must be a power of two");
         Self::from_exp(value.trailing_zeros() as u8)
     }
 
@@ -2122,7 +2131,11 @@ pub fn average_with_iterators(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
 #[allow(clippy::missing_panics_doc, clippy::integer_division_remainder_used)]
 #[must_use]
 // cmk0000000 if this is used, do full correctness check
-pub fn average_with_simd_rayon<const LANES: usize>(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8>
+pub fn average_with_simd_rayon<const LANES: usize>(
+    values: &AVec<u8>,
+    step: PowerOfTwo,
+    rayon_threads: usize,
+) -> AVec<u8>
 where
     LaneCount<LANES>: SupportedLaneCount,
 {
@@ -2136,7 +2149,6 @@ where
     let mut result = AVec::with_capacity(ALIGN, capacity);
     result.resize(result.capacity(), 0); // Pre-fill with zeros
     let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
-    let rayon_threads = current_num_threads();
     let result_chunk_size = (capacity.div_ceil(rayon_threads * LANES)) * LANES;
     let input_chunk_size = result_chunk_size * step.as_usize();
     // Process SIMD chunks directly (each chunk is N elements)
@@ -2803,10 +2815,12 @@ mod tests {
 
         // let early_stop = Some(10_000_000_000);
         // let chunk_size = 10_000_000;
-        let early_stop = Some(50_000_000);
-        let chunk_size = 5_000_000;
-        // let early_stop = Some(5_000_000);
-        // let chunk_size = 500_000;
+        // let early_stop = Some(50_000_000);
+        // let chunk_size = 5_000_000;
+        // let early_stop = Some(250_000_000);
+        // let chunk_size = 25_000_000;
+        let early_stop = Some(5_000_000);
+        let chunk_size = 500_000;
 
         let program_string = BB6_CONTENDER;
         let goal_x: u32 = 360;
@@ -2988,7 +3002,7 @@ mod tests {
         assert_eq!(result.as_slice(), expected);
 
         // Rayon is slower, but is it correct?
-        let result = average_with_simd_rayon::<64>(&values, step);
+        let result = average_with_simd_rayon::<64>(&values, step, 2);
         assert_eq!(result.as_slice(), expected);
 
         // Is count_ones correct?
