@@ -1,7 +1,8 @@
 #![feature(portable_simd)]
 use aligned_vec::AVec;
 use busy_beaver_blaze::{
-    ALIGN, PowerOfTwo, average_with_iterators, average_with_simd, average_with_simd_rayon,
+    ALIGN, PowerOfTwo, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
+    average_with_simd_rayon,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -64,17 +65,26 @@ fn large(c: &mut Criterion) {
         );
     });
 
-    group.bench_function("simd32rayon", |b| {
-        b.iter_with_setup(
-            || values.clone(),
-            |values_clone| average_with_simd_rayon::<32>(black_box(&values_clone), black_box(step)),
-        );
-    });
+    // group.bench_function("simd32rayon", |b| {
+    //     b.iter_with_setup(
+    //         || values.clone(),
+    //         |values_clone| average_with_simd_rayon::<32>(black_box(&values_clone), black_box(step)),
+    //     );
+    // });
 
-    group.bench_function("simd64rayon", |b| {
+    // group.bench_function("simd64rayon", |b| {
+    //     b.iter_with_setup(
+    //         || values.clone(),
+    //         |values_clone| average_with_simd_rayon::<64>(black_box(&values_clone), black_box(step)),
+    //     );
+    // });
+
+    group.bench_function("simd64_count_ones", |b| {
         b.iter_with_setup(
             || values.clone(),
-            |values_clone| average_with_simd_rayon::<64>(black_box(&values_clone), black_box(step)),
+            |values_clone| {
+                average_with_simd_count_ones64(black_box(&values_clone), black_box(step))
+            },
         );
     });
 
