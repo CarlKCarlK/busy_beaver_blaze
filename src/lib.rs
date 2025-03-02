@@ -2199,6 +2199,63 @@ where
     );
 
     let values_len = values.len();
+    let capacity = step.div_ceil_into(values_len);
+
+    // ✅ Pre-fill `result` with zeros to avoid `push()`
+    let mut result = AVec::with_capacity(ALIGN, capacity);
+    result.resize(capacity, 0);
+
+    let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
+    let (prefix, chunks, _suffix) = values.as_slice().as_simd::<LANES>();
+
+    debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
+    let lanes_per_chunk = step.saturating_div(lanes);
+
+    // ✅ Process chunks using `zip()`, no `push()`
+    if lanes_per_chunk == PowerOfTwo::ONE {
+        for (average, chunk) in result.iter_mut().zip(chunks.iter()) {
+            let sum = chunk.reduce_sum() as u32;
+            *average = step.divide_into(sum * 255) as u8;
+        }
+    } else {
+        let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
+
+        for (average, sub_chunk) in result.iter_mut().zip(&mut chunk_iter) {
+            let sum: u32 = sub_chunk
+                .iter()
+                .map(|chunk| chunk.reduce_sum() as u32)
+                .sum();
+            *average = step.divide_into(sum * 255) as u8;
+        }
+    }
+
+    // ✅ Efficiently handle remaining elements without `push()`
+    let unused_items = step.rem_into_usize(values_len);
+    if unused_items > 0 {
+        let sum: u32 = values[values_len - unused_items..]
+            .iter()
+            .map(|&x| x as u32)
+            .sum();
+        if let Some(last) = result.last_mut() {
+            *last = step.divide_into(sum * 255) as u8;
+        }
+    }
+
+    result
+}
+
+#[allow(clippy::missing_panics_doc)]
+#[must_use]
+pub fn average_with_simd_push<const LANES: usize>(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8>
+where
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    assert!(
+        { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
+        "LANES must be less than or equal to step and alignment"
+    );
+
+    let values_len = values.len();
     let mut result = AVec::with_capacity(ALIGN, step.div_ceil_into(values_len));
     let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
 
@@ -2936,6 +2993,9 @@ mod tests {
 
         // Is count_ones correct?
         let result = average_with_simd_count_ones64(&values, step);
+        assert_eq!(result.as_slice(), expected);
+
+        let result = average_with_simd_push::<64>(&values, step);
         assert_eq!(result.as_slice(), expected);
     }
 }
