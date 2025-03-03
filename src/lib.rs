@@ -1,5 +1,9 @@
 #![feature(portable_simd)]
 
+// Add the tests module
+#[cfg(test)]
+mod tests;
+
 // cmk00 Ideas for speedup:
 // cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
 // cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
@@ -202,6 +206,22 @@ impl Machine {
         }
 
         step_index + 1 // turn last index into count
+    }
+
+    #[wasm_bindgen]
+    #[inline]
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn state(&self) -> u8 {
+        self.state
+    }
+
+    #[wasm_bindgen]
+    #[inline]
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn tape_index(&self) -> i64 {
+        self.tape_index
     }
 }
 impl FromStr for Machine {
@@ -637,8 +657,8 @@ impl From<core::num::ParseIntError> for Error {
 pub struct BoolU8(u8);
 
 impl BoolU8 {
-    const FALSE: Self = Self(0);
-    const TRUE: Self = Self(1);
+    pub const FALSE: Self = Self(0);
+    pub const TRUE: Self = Self(1);
 }
 
 impl From<BoolU8> for u8 {
@@ -735,7 +755,6 @@ impl Pixel {
             "Both slices must have the same length"
         );
 
-        // Safety: Pixel is repr(transparent) around u8, so this cast is safe //cmk000 look at zerocopy or bytemuck
         let left_bytes: &mut [u8] = left.as_mut_bytes();
 
         let right_bytes: &[u8] = right.as_bytes();
@@ -813,11 +832,25 @@ impl From<u8> for Pixel {
     }
 }
 
+impl From<&u8> for Pixel {
+    #[inline]
+    fn from(value: &u8) -> Self {
+        Self(*value)
+    }
+}
+
 impl From<u32> for Pixel {
     #[inline]
     fn from(value: u32) -> Self {
         debug_assert!(value <= 255, "Value must be less than or equal to 255");
         Self(value as u8)
+    }
+}
+impl From<&u32> for Pixel {
+    #[inline]
+    fn from(value: &u32) -> Self {
+        debug_assert!(*value <= 255, "Value must be less than or equal to 255");
+        Self(*value as u8)
     }
 }
 
@@ -1296,8 +1329,8 @@ impl Spaceline {
 
 struct Spacelines {
     main: Vec<Spaceline>,
-    buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names
-    buffer1: Vec<Option<(u64, Spaceline)>>,
+    buffer0: Vec<(Spaceline, PowerOfTwo)>,  // cmk0 better names
+    buffer1: Vec<Option<(u64, Spaceline)>>, // cmk0 better names
     buffer1_capacity: PowerOfTwo,
 }
 
@@ -1462,7 +1495,7 @@ impl Spacelines {
         mut spaceline: Spaceline,
         mut weight: PowerOfTwo,
     ) {
-        while let Some((_last_mut_powerline, last_mut_weight)) = buffer0.last_mut() {
+        while let Some((_last_mute_spaceline, last_mut_weight)) = buffer0.last_mut() {
             // If current weight is smaller, just append to buffer
             if weight < *last_mut_weight {
                 buffer0.push((spaceline, weight));
@@ -1475,13 +1508,13 @@ impl Spacelines {
             );
 
             // Get ownership of the last element by popping
-            let (mut last_powerline, last_weight) = buffer0.pop().unwrap();
+            let (mut last_spaceline, last_weight) = buffer0.pop().unwrap();
 
             // Merge spacelines and double weight
-            last_powerline.merge(&spaceline);
+            last_spaceline.merge(&spaceline);
 
             // Continue with the merged spaceline and doubled weight
-            spaceline = last_powerline;
+            spaceline = last_spaceline;
             weight = last_weight.double();
 
             // If buffer is now empty, push and return
@@ -1888,6 +1921,32 @@ impl SpaceTimeMachine {
     #[must_use]
     pub fn is_halted(&self) -> bool {
         self.machine.is_halted()
+    }
+}
+
+impl SpaceTimeMachine {
+    #[inline]
+    #[must_use]
+    pub const fn machine(&self) -> &Machine {
+        &self.machine
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn step_index(&self) -> u64 {
+        self.space_time.step_index
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn state(&self) -> u8 {
+        self.machine.state()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn tape_index(&self) -> i64 {
+        self.machine.tape_index()
     }
 }
 
@@ -2462,665 +2521,4 @@ pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -
     }
 
     result
-}
-#[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use wasm_bindgen_test::wasm_bindgen_test;
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-    use super::*;
-
-    #[test]
-    fn bb5_champ() -> Result<(), Error> {
-        let mut machine: Machine = BB5_CHAMP.parse()?;
-
-        let debug_interval = 10_000_000;
-        let step_count = machine.debug_count(debug_interval);
-
-        println!(
-            "Final: Steps {}: {:?}, #1's {}",
-            step_count.separate_with_commas(),
-            machine,
-            machine.tape.count_ones()
-        );
-
-        assert_eq!(step_count, 47_176_870);
-        assert_eq!(machine.tape.count_ones(), 4098);
-        assert_eq!(machine.state, 7);
-        assert_eq!(machine.tape_index, -12242);
-
-        Ok(())
-    }
-
-    #[wasm_bindgen_test]
-    #[test]
-    fn bb5_champ_js() -> Result<(), String> {
-        let mut machine: Machine = Machine::from_string(BB5_CHAMP)?;
-
-        let early_stop_some = true;
-        let early_stop_number = 50_000_000;
-        let step_count = machine.count_js(early_stop_some, early_stop_number);
-
-        println!(
-            "Final: Steps {}: {:?}, #1's {}",
-            step_count.separate_with_commas(),
-            machine,
-            machine.tape.count_ones()
-        );
-
-        assert_eq!(step_count, 47_176_870);
-        assert_eq!(machine.tape.count_ones(), 4098);
-        assert_eq!(machine.state, 7);
-        assert_eq!(machine.tape_index, -12242);
-
-        Ok(())
-    }
-
-    /// See <https://en.wikipedia.org/wiki/Busy_beaver>
-    #[allow(clippy::shadow_reuse, clippy::integer_division_remainder_used)]
-    #[test]
-    fn bb5_champ_space_time_native() -> Result<(), Error> {
-        let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
-        // let mut machine: Machine = BB6_CONTENDER.parse()?;
-
-        let goal_x: u32 = 1000;
-        let goal_y: u32 = 1000;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-        let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk000000
-        let mut sample_space_time =
-            SampledSpaceTime::new(goal_x, goal_y, x_smoothness, y_smoothness, buffer1_count);
-
-        let early_stop = Some(10_500_000);
-        // let early_stop = Some(1_000_000);
-        let debug_interval = Some(1_000_000);
-
-        while let Some(previous_tape_index) = machine
-            .next()
-            .filter(|_| early_stop.is_none_or(|stop| sample_space_time.step_index + 1 < stop))
-        {
-            if debug_interval
-                .is_none_or(|debug_interval| sample_space_time.step_index % debug_interval == 0)
-            {
-                println!(
-                    "Step {}: {:?},\t{}",
-                    sample_space_time.step_index.separate_with_commas(),
-                    machine,
-                    machine.tape.index_range_to_string(-10..=10)
-                );
-            }
-
-            sample_space_time.snapshot(&machine, previous_tape_index);
-            // let _ = sample_space_time.to_png();
-        }
-
-        let png_data = sample_space_time.to_png()?;
-        fs::write("tests/expected/test.png", &png_data).unwrap(); // cmk handle error
-
-        println!(
-            "Final: Steps {}: {:?}, #1's {}",
-            sample_space_time.step_index.separate_with_commas(),
-            machine,
-            machine.tape.count_ones()
-        );
-
-        if early_stop.is_none() {
-            assert_eq!(sample_space_time.step_index, 47_176_870);
-            assert_eq!(machine.tape.count_ones(), 4098);
-            assert_eq!(machine.state, 7);
-            assert_eq!(machine.tape_index, -12242);
-        }
-
-        Ok(())
-    }
-
-    #[wasm_bindgen_test]
-    #[test]
-    fn bb5_champ_space_time_js() -> Result<(), String> {
-        let program_string = BB5_CHAMP;
-        let goal_x: u32 = 1000;
-        let goal_y: u32 = 1000;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-        let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE;
-        let n = 1_000_000;
-        let mut space_time_machine = SpaceTimeMachine::from_str(
-            program_string,
-            goal_x,
-            goal_y,
-            x_smoothness.log2(),
-            y_smoothness.log2(),
-            buffer1_count.log2(),
-        )?;
-
-        while space_time_machine.nth_js(n - 1) {
-            println!(
-                "Index {}: {:?}, #1's {}",
-                space_time_machine
-                    .space_time
-                    .step_index
-                    .separate_with_commas(),
-                space_time_machine.machine,
-                space_time_machine.machine.count_ones()
-            );
-        }
-
-        println!(
-            "Final: Steps {}: {:?}, #1's {}",
-            space_time_machine
-                .space_time
-                .step_index
-                .separate_with_commas(),
-            space_time_machine.machine,
-            space_time_machine.machine.count_ones()
-        );
-
-        let png_data = space_time_machine.png_data();
-        fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
-
-        assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
-        assert_eq!(space_time_machine.machine.count_ones(), 4098);
-        assert_eq!(space_time_machine.machine.state, 7);
-        assert_eq!(space_time_machine.machine.tape_index, -12242);
-
-        Ok(())
-    }
-
-    #[wasm_bindgen_test]
-    #[test]
-    fn seconds_bb5_champ_space_time_js() -> Result<(), String> {
-        let program_string = BB5_CHAMP;
-        let goal_x: u32 = 1000;
-        let goal_y: u32 = 1000;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-        let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk000000
-        let seconds = 0.25;
-        let mut space_time_machine = SpaceTimeMachine::from_str(
-            program_string,
-            goal_x,
-            goal_y,
-            x_smoothness.log2(),
-            y_smoothness.log2(),
-            buffer1_count.log2(),
-        )?;
-
-        while space_time_machine.step_for_secs_js(seconds, None, 100_000) {
-            println!(
-                "Index {}: {:?}, #1's {}",
-                space_time_machine
-                    .space_time
-                    .step_index
-                    .separate_with_commas(),
-                space_time_machine.machine,
-                space_time_machine.machine.count_ones()
-            );
-        }
-
-        println!(
-            "Final: Steps {}: {:?}, #1's {}",
-            space_time_machine
-                .space_time
-                .step_index
-                .separate_with_commas(),
-            space_time_machine.machine,
-            space_time_machine.machine.count_ones()
-        );
-
-        let png_data = space_time_machine.png_data();
-        fs::write("tests/expected/test2_js.png", &png_data)
-            .map_err(|error: std::io::Error| error.to_string())?;
-
-        assert_eq!(space_time_machine.space_time.step_index + 1, 47_176_870);
-        assert_eq!(space_time_machine.machine.count_ones(), 4098);
-        assert_eq!(space_time_machine.machine.state, 7);
-        assert_eq!(space_time_machine.machine.tape_index, -12242);
-
-        Ok(())
-    }
-
-    #[wasm_bindgen_test]
-    #[test]
-    fn machine_7_135_505() -> Result<(), Error> {
-        let _machine_a: Machine = MACHINE_7_135_505_A.parse()?;
-        let _machine_b: Machine = MACHINE_7_135_505_B.parse()?;
-        Ok(())
-    }
-
-    // Create a test that runs bb5 champ to halting and then prints the time it took
-    // to run the test
-    // cmk which of these should be bindgen tests?
-    #[wasm_bindgen_test]
-    #[test]
-    fn bb5_champ_time() {
-        let start = std::time::Instant::now();
-        let step_count = 1 + BB5_CHAMP.parse::<Machine>().unwrap().count();
-        let duration = start.elapsed();
-        println!(
-            "Steps: {}, Duration: {:?}",
-            step_count.separate_with_commas(),
-            duration
-        );
-        assert_eq!(step_count, 47_176_870);
-    }
-
-    #[test]
-    fn benchmark1() -> Result<(), String> {
-        let start = std::time::Instant::now();
-        let program_string = BB6_CONTENDER;
-        let goal_x: u32 = 360;
-        let goal_y: u32 = 432;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-        let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk0000000
-        let n = 500_000_000;
-        let mut space_time_machine = SpaceTimeMachine::from_str(
-            program_string,
-            goal_x,
-            goal_y,
-            x_smoothness.log2(),
-            y_smoothness.log2(),
-            buffer1_count.log2(),
-        )?;
-
-        space_time_machine.nth_js(n - 1);
-
-        println!("Elapsed: {:?}", start.elapsed());
-
-        println!(
-            "Final: Steps {}: {:?}, #1's {}",
-            space_time_machine
-                .space_time
-                .step_index
-                .separate_with_commas(),
-            space_time_machine.machine,
-            space_time_machine.machine.count_ones()
-        );
-
-        assert_eq!(space_time_machine.space_time.step_index, n);
-        assert_eq!(space_time_machine.machine.count_ones(), 10669);
-        assert_eq!(space_time_machine.machine.state, 1);
-        assert_eq!(space_time_machine.machine.tape_index, 34054);
-
-        // cmk LATER what is one method png_data and another to to_png?
-        let start2 = std::time::Instant::now();
-        let png_data = space_time_machine.png_data();
-        fs::write("tests/expected/bench.png", &png_data).unwrap(); // cmk handle error
-        println!("Elapsed png: {:?}", start2.elapsed());
-        Ok(())
-    }
-
-    #[allow(clippy::shadow_reuse)]
-    #[test]
-    #[wasm_bindgen_test]
-    fn benchmark2() -> Result<(), String> {
-        // let start = std::time::Instant::now();
-        let early_stop = Some(1_000_000_000);
-
-        let program_string = BB6_CONTENDER;
-        let goal_x: u32 = 360;
-        let goal_y: u32 = 432;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
-        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
-        let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk0000000
-        let mut space_time_machine = SpaceTimeMachine::from_str(
-            program_string,
-            goal_x,
-            goal_y,
-            x_smoothness.log2(),
-            y_smoothness.log2(),
-            buffer1_count.log2(),
-        )?;
-
-        let chunk_size = 100_000_000;
-        let mut total_steps = 1; // Start at 1 since first step is already taken
-
-        loop {
-            if early_stop.is_some_and(|early_stop| total_steps >= early_stop) {
-                break;
-            }
-
-            // Calculate next chunk size
-            let next_chunk = if total_steps == 1 {
-                chunk_size - 1
-            } else {
-                chunk_size
-            };
-
-            let next_chunk = early_stop.map_or(next_chunk, |early_stop| {
-                let remaining = early_stop - total_steps;
-                remaining.min(next_chunk)
-            });
-
-            // Run the next chunk
-            let continues = space_time_machine.nth_js(next_chunk - 1);
-            total_steps += next_chunk;
-
-            // Send intermediate update
-            println!(
-                "intermediate: {:?} Steps {}: {:?}, #1's {}",
-                0,
-                // start.elapsed(),
-                space_time_machine
-                    .space_time
-                    .step_index
-                    .separate_with_commas(),
-                space_time_machine.machine,
-                space_time_machine.machine.count_ones()
-            );
-
-            // let _png_data = space_time_machine.png_data();
-
-            // Exit if machine halted
-            if !continues {
-                break;
-            }
-        }
-
-        // Send final result
-
-        println!(
-            "Final: {:?} Steps {}: {:?}, #1's {}",
-            0, // start.elapsed(),
-            space_time_machine
-                .space_time
-                .step_index
-                .separate_with_commas(),
-            space_time_machine.machine,
-            space_time_machine.machine.count_ones(),
-        );
-
-        // // cmk LATER what is one method png_data and another to to_png?
-        // let start = std::time::Instant::now();
-        // let png_data = space_time_machine.png_data();
-        // fs::write("tests/expected/bench2.png", &png_data).unwrap(); // cmk handle error
-        // println!("Elapsed png: {:?}", start.elapsed());
-        Ok(())
-    }
-
-    // #[test]
-    #[allow(dead_code)]
-    fn benchmark3() -> Result<(), String> {
-        println!("Smoothness\tSteps\tOnes\tTime(ms)");
-
-        for smoothness in 0..=63 {
-            let start = std::time::Instant::now();
-            let program_string = BB5_CHAMP;
-            let goal_x: u32 = 360;
-            let goal_y: u32 = 432;
-            let x_smoothness = PowerOfTwo::from_exp(smoothness);
-            let y_smoothness = PowerOfTwo::from_exp(smoothness);
-            let buffer1_count = PowerOfTwo::ONE; // cmk0000000
-
-            let mut space_time_machine = SpaceTimeMachine::from_str(
-                program_string,
-                goal_x,
-                goal_y,
-                x_smoothness.log2(),
-                y_smoothness.log2(),
-                buffer1_count.log2(),
-            )?;
-
-            // Run to completion
-            while space_time_machine.nth_js(1_000_000 - 1) {}
-
-            let elapsed = start.elapsed().as_millis();
-            println!(
-                "{}\t{}\t{}\t{}",
-                smoothness,
-                space_time_machine.step_count(),
-                space_time_machine.count_ones(),
-                elapsed
-            );
-
-            // Generate PNG for first and last iteration
-            if smoothness == 0 || smoothness == 63 {
-                let png_data = space_time_machine.png_data();
-                fs::write(
-                    format!("tests/expected/bench3_smooth{smoothness}.png"),
-                    &png_data,
-                )
-                .map_err(|error| error.to_string())?;
-            }
-        }
-
-        Ok(())
-    }
-
-    #[allow(clippy::shadow_reuse)]
-    #[test]
-    #[wasm_bindgen_test]
-    fn benchmark63() -> Result<(), String> {
-        // let start = std::time::Instant::now();
-
-        // let early_stop = Some(10_000_000_000);
-        // let chunk_size = 100_000_000;
-        let early_stop = Some(50_000_000);
-        let chunk_size = 5_000_000;
-        // let early_stop = Some(250_000_000);
-        // let chunk_size = 25_000_000;
-        // let early_stop = Some(5_000_000);
-        // let chunk_size = 500_000;
-        let goal_x: u32 = 360;
-        let goal_y: u32 = 432;
-        // let goal_x: u32 = 1920;
-        // let goal_y: u32 = 1080;
-
-        let program_string = BB6_CONTENDER;
-        let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63); // cmk0000 63);
-        let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
-        let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(0);
-        let mut space_time_machine = SpaceTimeMachine::from_str(
-            program_string,
-            goal_x,
-            goal_y,
-            x_smoothness.log2(),
-            y_smoothness.log2(),
-            buffer1_count.log2(),
-        )?;
-
-        let mut total_steps = 1; // Start at 1 since first step is already taken
-
-        loop {
-            if early_stop.is_some_and(|early_stop| total_steps >= early_stop) {
-                break;
-            }
-
-            // Calculate next chunk size
-            let next_chunk = if total_steps == 1 {
-                chunk_size - 1
-            } else {
-                chunk_size
-            };
-
-            let next_chunk = early_stop.map_or(next_chunk, |early_stop| {
-                let remaining = early_stop - total_steps;
-                remaining.min(next_chunk)
-            });
-
-            // Run the next chunk
-            let continues = space_time_machine.nth_js(next_chunk - 1);
-            total_steps += next_chunk;
-
-            // Send intermediate update
-            println!(
-                "intermediate: {:?} Steps {}: {:?}, #1's {}",
-                0,
-                // start.elapsed(),
-                space_time_machine
-                    .space_time
-                    .step_index
-                    .separate_with_commas(),
-                space_time_machine.machine,
-                space_time_machine.machine.count_ones()
-            );
-
-            // let _png_data = space_time_machine.png_data();
-
-            // Exit if machine halted
-            if !continues {
-                break;
-            }
-        }
-
-        // Send final result
-
-        println!(
-            "Final: {:?} Steps {}: {:?}, #1's {}",
-            0, // start.elapsed(),
-            space_time_machine
-                .space_time
-                .step_index
-                .separate_with_commas(),
-            space_time_machine.machine,
-            space_time_machine.machine.count_ones(),
-        );
-
-        // cmk LATER what is one method png_data and another to to_png?
-        let start = std::time::Instant::now();
-        let png_data = space_time_machine.png_data();
-        fs::write("tests/expected/bench63.png", &png_data).unwrap(); // cmk handle error
-        println!("Elapsed png: {:?}", start.elapsed());
-        Ok(())
-    }
-
-    #[allow(
-        clippy::shadow_unrelated,
-        clippy::cognitive_complexity,
-        clippy::too_many_lines
-    )]
-    #[test]
-    fn test_average() {
-        let values = AVec::from_iter(
-            ALIGN,
-            [
-                BoolU8::FALSE,
-                BoolU8::FALSE,
-                BoolU8::FALSE,
-                BoolU8::TRUE,
-                BoolU8::TRUE,
-                BoolU8::FALSE,
-                BoolU8::TRUE,
-                BoolU8::TRUE,
-                BoolU8::TRUE,
-            ]
-            .iter()
-            .copied(),
-        );
-
-        let step = PowerOfTwo::ONE;
-        let bytes: &[u8] = &[0, 0, 0, 255, 255, 0, 255, 255, 255];
-        let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(|&byte| Pixel(byte)));
-
-        let result = average_with_iterators(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<1>(&values, step);
-        assert_eq!(result, expected);
-
-        let step = PowerOfTwo::TWO;
-        let bytes = &[0, 127, 127, 255, 127];
-        let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(|&byte| Pixel(byte)));
-
-        let result = average_with_iterators(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<1>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<2>(&values, step);
-        assert_eq!(result, expected);
-        // Expected to panic
-        // let result = average_with_simd::<4>(&values, step);
-        // assert_eq!(result, expected);
-
-        let step = PowerOfTwo::FOUR;
-        let bytes = &[63, 191, 63];
-        let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(|&byte| Pixel(byte)));
-        let result = average_with_iterators(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<1>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<2>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<4>(&values, step);
-        assert_eq!(result, expected);
-
-        let step = PowerOfTwo::EIGHT;
-        let bytes = &[127, 31];
-        let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(|&byte| Pixel(byte)));
-        let result = average_with_iterators(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<1>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<2>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<4>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<8>(&values, step);
-        assert_eq!(result, expected);
-
-        let step = PowerOfTwo::SIXTEEN;
-        let bytes = &[79];
-        let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(|&byte| Pixel(byte)));
-        let result = average_with_iterators(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<1>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<2>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<4>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<8>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<16>(&values, step);
-        assert_eq!(result, expected);
-
-        let step = PowerOfTwo::THIRTY_TWO;
-        let bytes = &[39];
-        let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(|&byte| Pixel(byte)));
-        let result = average_with_iterators(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<1>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<2>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<4>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<8>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<16>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<32>(&values, step);
-        assert_eq!(result, expected);
-
-        let step = PowerOfTwo::SIXTY_FOUR;
-        let bytes = &[19];
-        let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(|&byte| Pixel(byte)));
-        let result = average_with_iterators(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<1>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<2>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<4>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<8>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<16>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<32>(&values, step);
-        assert_eq!(result, expected);
-        let result = average_with_simd::<64>(&values, step);
-        assert_eq!(result, expected);
-
-        // Rayon is slower, but is it correct?
-        let result = average_with_simd_rayon::<64>(&values, step, 2);
-        assert_eq!(result, expected);
-
-        // Is count_ones correct?
-        let result = average_with_simd_count_ones64(&values, step);
-        assert_eq!(result, expected);
-
-        let result = average_with_simd_push::<64>(&values, step);
-        assert_eq!(result, expected);
-    }
 }
