@@ -187,6 +187,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-sys",
+ "zerocopy 0.8.21",
 ]
 
 [[package]]
