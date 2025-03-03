@@ -86,7 +86,7 @@ impl Default for Tape {
 
 impl Tape {
     //cmki
-    #[inline(never)]
+    #[inline]
     fn read(&self, index: i64) -> u8 {
         if index >= 0 {
             self.nonnegative.get(index as usize).copied().unwrap_or(0)
@@ -99,7 +99,7 @@ impl Tape {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[allow(clippy::shadow_reuse)]
     fn write(&mut self, index: i64, value: u8) {
         let (index, vec) = if index >= 0 {
@@ -139,19 +139,19 @@ impl Tape {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     pub fn min_index(&self) -> i64 {
         -(self.negative.len() as i64)
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     pub fn max_index(&self) -> i64 {
         self.nonnegative.len() as i64 - 1
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     pub fn width(&self) -> u64 {
         (self.max_index() - self.min_index() + 1) as u64
     }
@@ -179,7 +179,7 @@ impl Machine {
 
     #[wasm_bindgen]
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn count_ones(&self) -> u32 {
         self.tape.count_ones() as u32
@@ -187,7 +187,7 @@ impl Machine {
 
     #[wasm_bindgen]
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn is_halted(&self) -> bool {
@@ -237,7 +237,7 @@ impl Iterator for Machine {
     type Item = i64;
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let program = &self.program;
         let input = self.tape.read(self.tape_index);
@@ -290,7 +290,7 @@ impl Program {
     pub const MAX_STATE_COUNT: usize = Self::SYMBOL_COUNT * 50;
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn action(&self, state: u8, symbol: u8) -> &Action {
         let offset = state as usize * Self::SYMBOL_COUNT + symbol as usize;
         &self.state_to_symbol_to_action[offset]
@@ -567,7 +567,7 @@ struct Action {
 pub trait DebuggableIterator: Iterator {
     /// Runs the iterator while printing debug output at intervals.
     //cmki
-    #[inline(never)]
+    #[inline]
     fn debug_count(&mut self, debug_interval: usize) -> usize
     where
         Self: Sized + core::fmt::Debug, // ✅ Ensure Debug is implemented
@@ -643,7 +643,7 @@ impl Pixel {
     const WHITE: Self = Self(0);
     const SPLAT_1: Simd<u8, LANES_CMK> = Simd::<u8, LANES_CMK>::splat(1);
     //cmki
-    #[inline(never)]
+    #[inline]
     fn slice_merge_with_white(pixels: &mut [Self]) {
         // Safety: Pixel is repr(transparent) around u8, so this cast is safe
         let bytes: &mut [u8] = unsafe {
@@ -666,7 +666,7 @@ impl Pixel {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn slice_merge(left: &mut [Self], right: &[Self]) {
         //     for (left_pixel, right_pixel) in left.iter_mut().zip(right.iter()) {
         //         left_pixel.merge(*right_pixel);
@@ -714,13 +714,13 @@ impl Pixel {
         }
     }
     //cmki
-    #[inline(never)]
+    #[inline]
     const fn merge(&mut self, other: Self) {
         self.0 = (self.0 >> 1) + (other.0 >> 1) + ((self.0 & other.0) & 1);
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn merge_slice_down_sample(
         slice: &[Self],
         empty_count: usize,
@@ -739,8 +739,7 @@ impl Pixel {
     }
 
     //cmki
-    #[inline(never)]
-    #[inline(never)]
+    #[inline]
     fn merge_slice_all(slice: &[Self], empty_count: i64) -> Self {
         let sum: u32 = slice.iter().map(|pixel: &Self| pixel.0 as u32).sum();
         let count = slice.len() + empty_count as usize;
@@ -751,7 +750,7 @@ impl Pixel {
 
 impl From<u8> for Pixel {
     //cmki
-    #[inline(never)]
+    #[inline]
     fn from(value: u8) -> Self {
         debug_assert!(value <= 1, "Input value must be 0 or 1, got {value}");
         Self(value * 255)
@@ -800,7 +799,7 @@ impl Spaceline {
 
     // cmk0000 should remove this function
     //cmki
-    #[inline(never)]
+    #[inline]
     fn pixel_index(&self, index: usize) -> Pixel {
         let negative_len = self.negative.len();
         if index < negative_len {
@@ -812,7 +811,7 @@ impl Spaceline {
 
     // cmk0000 should remove this function
     //cmki
-    #[inline(never)]
+    #[inline]
     fn pixel_index_unbounded(&self, index: usize) -> Pixel {
         let negative_len = self.negative.len();
         if index < negative_len {
@@ -830,7 +829,7 @@ impl Spaceline {
 
     // cmk0000000000 must remove this function
     //cmki
-    #[inline(never)]
+    #[inline]
     fn new2(
         sample: PowerOfTwo,
         start: i64,
@@ -872,7 +871,7 @@ impl Spaceline {
 
     // cmk0000 should remove this function
     //cmki
-    #[inline(never)]
+    #[inline]
     fn pixel_index_mut(&mut self, index: usize) -> &mut Pixel {
         let negative_len = self.negative.len();
         if index < negative_len {
@@ -883,19 +882,19 @@ impl Spaceline {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn tape_start(&self) -> i64 {
         -((self.sample * self.negative.len()) as i64)
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn len(&self) -> usize {
         self.nonnegative.len() + self.negative.len()
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn resample_if_needed(&mut self, sample: PowerOfTwo) {
         // Sampling & Averaging 2 --
         // When we merge rows, we sometimes need to squeeze the earlier row to
@@ -963,7 +962,7 @@ impl Spaceline {
     //     assert!(self.len() == len, "real assert 13");
     // }
 
-    #[inline(never)]
+    #[inline]
     fn pixel_restart(&mut self, tape_start: i64, len: usize, sample: PowerOfTwo) {
         self.sample = sample;
         assert!(self.tape_start() <= tape_start, "real assert 11");
@@ -979,7 +978,7 @@ impl Spaceline {
 
     // cmk00000 simd?
     //cmki
-    #[inline(never)]
+    #[inline]
     fn resample_if_needed_slower(&mut self, sample: PowerOfTwo) {
         // Sampling & Averaging 2 --
         // When we merge rows, we sometimes need to squeeze the earlier row to
@@ -1052,7 +1051,7 @@ impl Spaceline {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn merge(&mut self, other: &Self) {
         // cmk change to debug_assert?
         assert!(self.time < other.time, "real assert 2");
@@ -1089,7 +1088,7 @@ impl Spaceline {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[allow(clippy::integer_division_remainder_used)]
     fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: PowerOfTwo) -> Self {
         // Sampling & Averaging 4 --
@@ -1114,10 +1113,6 @@ impl Spaceline {
                     average_with_iterators(&tape.negative, x_sample),
                     average_with_iterators(&tape.nonnegative, x_sample),
                 ),
-                // PowerOfTwo::FOUR => (
-                //     average_with_simd::<4>(&tape.negative, x_sample),
-                //     average_with_simd::<4>(&tape.nonnegative, x_sample),
-                // ),
                 PowerOfTwo::EIGHT => (
                     average_with_simd::<8>(&tape.negative, x_sample),
                     average_with_simd::<8>(&tape.nonnegative, x_sample),
@@ -1188,7 +1183,7 @@ impl Spaceline {
     }
 
     // cmk instead of &mut self and return bool. Better to take ownership of self and return Option<Self>
-    #[inline(never)]
+    #[inline]
     #[allow(clippy::integer_division_remainder_used)]
     #[must_use]
     fn redo_pixel(
@@ -1288,7 +1283,7 @@ impl Spacelines {
 
     #[allow(clippy::min_ident_chars)]
     //cmki
-    #[inline(never)]
+    #[inline]
     fn compress_average(&mut self) {
         assert!(self.buffer0.is_empty(), "real assert b2");
         assert!(fast_is_even(self.main.len()), "real assert 11");
@@ -1307,7 +1302,7 @@ impl Spacelines {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn compress_take_first(&mut self, new_sample: PowerOfTwo) {
         assert!(self.buffer0.is_empty(), "real assert e2");
         assert!(fast_is_even(self.main.len()), "real assert e11");
@@ -1413,7 +1408,7 @@ impl Spacelines {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn push_internal(
         buffer0: &mut Vec<(Spaceline, PowerOfTwo)>,
         _inside_index: u64,
@@ -1454,7 +1449,7 @@ impl Spacelines {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn push(&mut self, inside_index: u64, y_sample: PowerOfTwo, spaceline: Spaceline) {
         // Calculate buffer capacity
         let capacity = self.buffer1_capacity.min(y_sample);
@@ -1487,7 +1482,7 @@ pub struct SampledSpaceTime {
 /// inner is a vector of one spaceline
 impl SampledSpaceTime {
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn new(
         x_goal: u32,
@@ -1537,7 +1532,7 @@ impl SampledSpaceTime {
     //  Maybe pre-subtract 1 from sample
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
         self.step_index += 1;
         let inside_index = self.sample.rem_into_u64(self.step_index);
@@ -1712,7 +1707,7 @@ impl Iterator for SpaceTimeMachine {
     type Item = ();
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let previous_tape_index = self.machine.next()?;
         self.space_time.snapshot(&self.machine, previous_tape_index);
@@ -1823,7 +1818,7 @@ impl SpaceTimeMachine {
 
     #[wasm_bindgen]
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn png_data(&mut self) -> Vec<u8> {
         self.space_time
@@ -1833,7 +1828,7 @@ impl SpaceTimeMachine {
 
     #[wasm_bindgen]
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn step_count(&self) -> u64 {
@@ -1842,7 +1837,7 @@ impl SpaceTimeMachine {
 
     #[wasm_bindgen]
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn count_ones(&self) -> u32 {
         self.machine.count_ones()
@@ -1850,7 +1845,7 @@ impl SpaceTimeMachine {
 
     #[wasm_bindgen]
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn is_halted(&self) -> bool {
         self.machine.is_halted()
@@ -1867,7 +1862,7 @@ pub struct LogStepIterator {
 
 impl LogStepIterator {
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn new(max_value: u64, total_frames: u32) -> Self {
         Self {
@@ -1910,7 +1905,7 @@ impl Iterator for LogStepIterator {
 }
 
 //cmki
-#[inline(never)]
+#[inline]
 fn fast_is_even<T>(x: T) -> bool
 where
     T: Copy + core::ops::BitAnd<Output = T> + core::ops::Sub<Output = T> + From<u8> + PartialEq,
@@ -1926,7 +1921,7 @@ impl core::ops::Div for PowerOfTwo {
 
     /// Will always be at least 1.
     //cmki
-    #[inline(never)]
+    #[inline]
     fn div(self, rhs: Self) -> Self::Output {
         debug_assert!(
             self.0 >= rhs.0,
@@ -1940,7 +1935,7 @@ impl core::ops::Mul<usize> for PowerOfTwo {
     type Output = usize;
 
     //cmki
-    #[inline(never)]
+    #[inline]
     fn mul(self, rhs: usize) -> Self::Output {
         // Multiply rhs by 2^(self.0)
         // This is equivalent to shifting rhs left by self.0 bits.
@@ -1963,7 +1958,7 @@ impl PowerOfTwo {
     pub const MAX: Self = Self(63);
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn offset_to_align(self, len: usize) -> usize {
         debug_assert!(
@@ -1976,7 +1971,7 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn from_exp(value: u8) -> Self {
         debug_assert!(value <= Self::MAX.0, "Value must be 63 or less");
@@ -1984,14 +1979,14 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn as_u64(self) -> u64 {
         1 << self.0
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn saturating_div(self, rhs: Self) -> Self {
         // Subtract exponents; if the subtrahend is larger, saturate to 0 aks One
@@ -1999,13 +1994,13 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     pub const fn assign_saturating_div_two(&mut self) {
         self.0 = self.0.saturating_sub(1);
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn double(self) -> Self {
         debug_assert!(self.0 < Self::MAX.0, "Value must be 63 or less");
@@ -2013,7 +2008,7 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn as_usize(self) -> usize {
         let bits = core::mem::size_of::<usize>() * 8;
@@ -2029,7 +2024,7 @@ impl PowerOfTwo {
     // from u64
     #[allow(clippy::missing_panics_doc)]
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn from_u64_unchecked(value: u64) -> Self {
         debug_assert!(value.is_power_of_two(), "Value must be a power of two");
@@ -2037,7 +2032,7 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn from_usize_unchecked(value: usize) -> Self {
         debug_assert!(value.is_power_of_two(), "Value must be a power of two");
@@ -2047,7 +2042,7 @@ impl PowerOfTwo {
     // from u64
     #[allow(clippy::missing_panics_doc)]
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn from_u64(value: u64) -> Self {
         assert!(value.is_power_of_two(), "Value must be a power of two");
@@ -2055,7 +2050,7 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn from_usize(value: usize) -> Self {
         assert!(value.is_power_of_two(), "Value must be a power of two");
@@ -2063,7 +2058,7 @@ impl PowerOfTwo {
     }
 
     // //cmki
-    // #[inline(never)]
+    // #[inline]
     // #[must_use]
     // pub const fn from_usize_const(value: usize) -> Self {
     //     debug_assert!(value.is_power_of_two(), "Value must be a power of two");
@@ -2071,14 +2066,14 @@ impl PowerOfTwo {
     // }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn log2(self) -> u8 {
         self.0
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     pub fn rem_into_u64<T>(self, x: T) -> T
     where
         T: Copy
@@ -2090,7 +2085,7 @@ impl PowerOfTwo {
         x & (T::from(self.as_u64()) - T::from(1u64))
     }
 
-    #[inline(never)]
+    #[inline]
     pub fn rem_into_usize<T>(self, x: T) -> T
     where
         T: Copy
@@ -2103,7 +2098,7 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn rem_euclid_into(self, dividend: i64) -> i64 {
         let divisor = 1i64 << self.0; // Compute 2^n
@@ -2116,7 +2111,7 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub fn div_ceil_into<T>(self, other: T) -> T
     where
@@ -2133,7 +2128,7 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     pub fn divide_into<T>(self, x: T) -> T
     where
         T: Copy + core::ops::Shr<u8, Output = T>,
@@ -2142,7 +2137,7 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn divides_u64(self, x: u64) -> bool {
         // If x is divisible by 2^(self.0), shifting right then left recovers x.
@@ -2150,20 +2145,20 @@ impl PowerOfTwo {
     }
 
     //cmki
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn divides_i64(self, x: i64) -> bool {
         (x >> self.0) << self.0 == x
     }
 
-    #[inline(never)]
+    #[inline]
     #[must_use]
     pub const fn divides_usize(self, x: usize) -> bool {
         (x >> self.0) << self.0 == x
     }
 
     // //cmki
-    // #[inline(never)]
+    // #[inline]
     // #[must_use]
     // pub const fn divides_smoothness(self, other: Self) -> bool {
     //     self.0 <= other.0
@@ -2171,7 +2166,7 @@ impl PowerOfTwo {
 }
 
 //cmki
-#[inline(never)]
+#[inline]
 /// This returns the largest power of two that is less than or equal
 /// to the input number x.
 const fn prev_power_of_two(x: usize) -> usize {
@@ -2890,18 +2885,20 @@ mod tests {
     fn benchmark63() -> Result<(), String> {
         // let start = std::time::Instant::now();
 
-        // let early_stop = Some(10_000_000_000);
-        // let chunk_size = 10_000_000;
+        let early_stop = Some(10_000_000_000);
+        let chunk_size = 100_000_000;
         // let early_stop = Some(50_000_000);
         // let chunk_size = 5_000_000;
-        let early_stop = Some(250_000_000);
-        let chunk_size = 25_000_000;
+        // let early_stop = Some(250_000_000);
+        // let chunk_size = 25_000_000;
         // let early_stop = Some(5_000_000);
         // let chunk_size = 500_000;
+        // let goal_x: u32 = 360;
+        // let goal_y: u32 = 432;
+        let goal_x: u32 = 1920;
+        let goal_y: u32 = 1080;
 
         let program_string = BB6_CONTENDER;
-        let goal_x: u32 = 360;
-        let goal_y: u32 = 432;
         let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63); // cmk0000 63);
         let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
         let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(0);
