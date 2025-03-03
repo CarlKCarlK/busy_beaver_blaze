@@ -160,7 +160,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         )?;
     }
 
-    println!("Elapsed: {:?}", start.elapsed());
+    println!("Elapsed: {:?}, output_dir: {output_dir:?}", start.elapsed());
     Ok(())
 }
 

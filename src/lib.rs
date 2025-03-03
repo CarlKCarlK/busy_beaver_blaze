@@ -20,7 +20,7 @@ use derive_more::derive::Display;
 use instant::Instant;
 use itertools::Itertools;
 use png::{BitDepth, ColorType, Encoder};
-use rayon::{current_num_threads, prelude::*};
+use rayon::prelude::*;
 use smallvec::SmallVec;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
@@ -85,7 +85,6 @@ impl Default for Tape {
 }
 
 impl Tape {
-    //cmki
     #[inline]
     fn read(&self, index: i64) -> u8 {
         if index >= 0 {
@@ -98,7 +97,6 @@ impl Tape {
         }
     }
 
-    //cmki
     #[inline]
     #[allow(clippy::shadow_reuse)]
     fn write(&mut self, index: i64, value: u8) {
@@ -138,20 +136,18 @@ impl Tape {
         s
     }
 
-    //cmki
     #[inline]
     pub fn min_index(&self) -> i64 {
         -(self.negative.len() as i64)
     }
 
-    //cmki
     #[inline]
     pub fn max_index(&self) -> i64 {
         self.nonnegative.len() as i64 - 1
     }
 
-    //cmki
     #[inline]
+    #[allow(dead_code)]
     pub fn width(&self) -> u64 {
         (self.max_index() - self.min_index() + 1) as u64
     }
@@ -178,7 +174,6 @@ impl Machine {
     }
 
     #[wasm_bindgen]
-    //cmki
     #[inline]
     #[must_use]
     pub fn count_ones(&self) -> u32 {
@@ -186,7 +181,6 @@ impl Machine {
     }
 
     #[wasm_bindgen]
-    //cmki
     #[inline]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
@@ -236,7 +230,6 @@ impl fmt::Debug for Machine {
 impl Iterator for Machine {
     type Item = i64;
 
-    //cmki
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let program = &self.program;
@@ -289,7 +282,6 @@ impl Program {
     pub const SYMBOL_COUNT: usize = 2;
     pub const MAX_STATE_COUNT: usize = Self::SYMBOL_COUNT * 50;
 
-    //cmki
     #[inline]
     fn action(&self, state: u8, symbol: u8) -> &Action {
         let offset = state as usize * Self::SYMBOL_COUNT + symbol as usize;
@@ -566,7 +558,6 @@ struct Action {
 /// A trait for iterators that can print debug output at intervals.
 pub trait DebuggableIterator: Iterator {
     /// Runs the iterator while printing debug output at intervals.
-    //cmki
     #[inline]
     fn debug_count(&mut self, debug_interval: usize) -> usize
     where
@@ -642,7 +633,6 @@ struct Pixel(u8);
 impl Pixel {
     const WHITE: Self = Self(0);
     const SPLAT_1: Simd<u8, LANES_CMK> = Simd::<u8, LANES_CMK>::splat(1);
-    //cmki
     #[inline]
     fn slice_merge_with_white(pixels: &mut [Self]) {
         // Safety: Pixel is repr(transparent) around u8, so this cast is safe
@@ -665,7 +655,6 @@ impl Pixel {
         }
     }
 
-    //cmki
     #[inline]
     fn slice_merge(left: &mut [Self], right: &[Self]) {
         //     for (left_pixel, right_pixel) in left.iter_mut().zip(right.iter()) {
@@ -713,13 +702,11 @@ impl Pixel {
             *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
         }
     }
-    //cmki
     #[inline]
     const fn merge(&mut self, other: Self) {
         self.0 = (self.0 >> 1) + (other.0 >> 1) + ((self.0 & other.0) & 1);
     }
 
-    //cmki
     #[inline]
     fn merge_slice_down_sample(
         slice: &[Self],
@@ -738,7 +725,6 @@ impl Pixel {
         Self(mean)
     }
 
-    //cmki
     #[inline]
     fn merge_slice_all(slice: &[Self], empty_count: i64) -> Self {
         let sum: u32 = slice.iter().map(|pixel: &Self| pixel.0 as u32).sum();
@@ -749,7 +735,6 @@ impl Pixel {
 }
 
 impl From<u8> for Pixel {
-    //cmki
     #[inline]
     fn from(value: u8) -> Self {
         debug_assert!(value <= 1, "Input value must be 0 or 1, got {value}");
@@ -785,20 +770,19 @@ struct Spaceline {
 impl Spaceline {
     // cmk good name??
     fn new0(smoothness: PowerOfTwo) -> Self {
-        let mut v = AVec::new(1);
-        v.push(Pixel::WHITE);
+        let mut vector = AVec::new(1);
+        vector.push(Pixel::WHITE);
 
         Self {
             sample: PowerOfTwo::ONE,
             negative: AVec::new(ALIGN),
-            nonnegative: v,
+            nonnegative: vector,
             time: 0,
             smoothness,
         }
     }
 
     // cmk0000 should remove this function
-    //cmki
     #[inline]
     fn pixel_index(&self, index: usize) -> Pixel {
         let negative_len = self.negative.len();
@@ -810,7 +794,6 @@ impl Spaceline {
     }
 
     // cmk0000 should remove this function
-    //cmki
     #[inline]
     fn pixel_index_unbounded(&self, index: usize) -> Pixel {
         let negative_len = self.negative.len();
@@ -828,7 +811,6 @@ impl Spaceline {
     }
 
     // cmk0000000000 must remove this function
-    //cmki
     #[inline]
     fn new2(
         sample: PowerOfTwo,
@@ -870,7 +852,6 @@ impl Spaceline {
     }
 
     // cmk0000 should remove this function
-    //cmki
     #[inline]
     fn pixel_index_mut(&mut self, index: usize) -> &mut Pixel {
         let negative_len = self.negative.len();
@@ -881,19 +862,16 @@ impl Spaceline {
         }
     }
 
-    //cmki
     #[inline]
     fn tape_start(&self) -> i64 {
         -((self.sample * self.negative.len()) as i64)
     }
 
-    //cmki
     #[inline]
     fn len(&self) -> usize {
         self.nonnegative.len() + self.negative.len()
     }
 
-    //cmki
     #[inline]
     fn resample_if_needed(&mut self, sample: PowerOfTwo) {
         // Sampling & Averaging 2 --
@@ -977,7 +955,6 @@ impl Spaceline {
     }
 
     // cmk00000 simd?
-    //cmki
     #[inline]
     fn resample_if_needed_slower(&mut self, sample: PowerOfTwo) {
         // Sampling & Averaging 2 --
@@ -1050,7 +1027,6 @@ impl Spaceline {
         self.sample = sample;
     }
 
-    //cmki
     #[inline]
     fn merge(&mut self, other: &Self) {
         // cmk change to debug_assert?
@@ -1087,9 +1063,8 @@ impl Spaceline {
         Pixel::slice_merge(&mut self.nonnegative, &other.nonnegative);
     }
 
-    //cmki
     #[inline]
-    #[allow(clippy::integer_division_remainder_used)]
+    #[allow(clippy::integer_division_remainder_used, clippy::shadow_reuse)]
     fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: PowerOfTwo) -> Self {
         // Sampling & Averaging 4 --
         let tape_min_index = tape.min_index();
@@ -1235,7 +1210,7 @@ impl Spaceline {
             // Calculate sum functionally using range and filter_map
             let sum: u32 = (tape_slice_start..tape_slice_start + x_sample_usize)
                 .step_by(down_step.as_usize())
-                .filter_map(|i| part.get(i).map(|&v| u32::from(v)))
+                .filter_map(|i| part.get(i).map(|&value| u32::from(value)))
                 .sum();
             let mean = down_sample.divide_into(sum * 255) as u8;
             *pixel = Pixel(mean);
@@ -1282,7 +1257,6 @@ impl Spacelines {
     }
 
     #[allow(clippy::min_ident_chars)]
-    //cmki
     #[inline]
     fn compress_average(&mut self) {
         assert!(self.buffer0.is_empty(), "real assert b2");
@@ -1301,7 +1275,6 @@ impl Spacelines {
             .collect();
     }
 
-    //cmki
     #[inline]
     fn compress_take_first(&mut self, new_sample: PowerOfTwo) {
         assert!(self.buffer0.is_empty(), "real assert e2");
@@ -1407,7 +1380,6 @@ impl Spacelines {
         buffer0.pop().unwrap().0
     }
 
-    //cmki
     #[inline]
     fn push_internal(
         buffer0: &mut Vec<(Spaceline, PowerOfTwo)>,
@@ -1448,7 +1420,6 @@ impl Spacelines {
         buffer0.push((spaceline, weight));
     }
 
-    //cmki
     #[inline]
     fn push(&mut self, inside_index: u64, y_sample: PowerOfTwo, spaceline: Spaceline) {
         // Calculate buffer capacity
@@ -1481,7 +1452,6 @@ pub struct SampledSpaceTime {
 /// and the `y_goal` (time). The sample starts at 1 and
 /// inner is a vector of one spaceline
 impl SampledSpaceTime {
-    //cmki
     #[inline]
     #[must_use]
     pub fn new(
@@ -1531,7 +1501,6 @@ impl SampledSpaceTime {
     //  Also: Inline the top part of the function.
     //  Maybe pre-subtract 1 from sample
 
-    //cmki
     #[inline]
     fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
         self.step_index += 1;
@@ -1706,7 +1675,6 @@ pub struct SpaceTimeMachine {
 impl Iterator for SpaceTimeMachine {
     type Item = ();
 
-    //cmki
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let previous_tape_index = self.machine.next()?;
@@ -1817,7 +1785,6 @@ impl SpaceTimeMachine {
     }
 
     #[wasm_bindgen]
-    //cmki
     #[inline]
     #[must_use]
     pub fn png_data(&mut self) -> Vec<u8> {
@@ -1827,7 +1794,6 @@ impl SpaceTimeMachine {
     }
 
     #[wasm_bindgen]
-    //cmki
     #[inline]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
@@ -1836,7 +1802,6 @@ impl SpaceTimeMachine {
     }
 
     #[wasm_bindgen]
-    //cmki
     #[inline]
     #[must_use]
     pub fn count_ones(&self) -> u32 {
@@ -1844,7 +1809,6 @@ impl SpaceTimeMachine {
     }
 
     #[wasm_bindgen]
-    //cmki
     #[inline]
     #[must_use]
     pub fn is_halted(&self) -> bool {
@@ -1861,7 +1825,6 @@ pub struct LogStepIterator {
 }
 
 impl LogStepIterator {
-    //cmki
     #[inline]
     #[must_use]
     pub const fn new(max_value: u64, total_frames: u32) -> Self {
@@ -1904,7 +1867,6 @@ impl Iterator for LogStepIterator {
     }
 }
 
-//cmki
 #[inline]
 fn fast_is_even<T>(x: T) -> bool
 where
@@ -1920,7 +1882,6 @@ impl core::ops::Div for PowerOfTwo {
     type Output = Self;
 
     /// Will always be at least 1.
-    //cmki
     #[inline]
     fn div(self, rhs: Self) -> Self::Output {
         debug_assert!(
@@ -1934,7 +1895,6 @@ impl core::ops::Div for PowerOfTwo {
 impl core::ops::Mul<usize> for PowerOfTwo {
     type Output = usize;
 
-    //cmki
     #[inline]
     fn mul(self, rhs: usize) -> Self::Output {
         // Multiply rhs by 2^(self.0)
@@ -1957,7 +1917,6 @@ impl PowerOfTwo {
     pub const MIN: Self = Self(0);
     pub const MAX: Self = Self(63);
 
-    //cmki
     #[inline]
     #[must_use]
     pub fn offset_to_align(self, len: usize) -> usize {
@@ -1970,7 +1929,6 @@ impl PowerOfTwo {
         len.wrapping_neg() & ((1 << self.0) - 1)
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn from_exp(value: u8) -> Self {
@@ -1978,14 +1936,12 @@ impl PowerOfTwo {
         Self(value)
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn as_u64(self) -> u64 {
         1 << self.0
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn saturating_div(self, rhs: Self) -> Self {
@@ -1993,13 +1949,11 @@ impl PowerOfTwo {
         Self(self.0.saturating_sub(rhs.0))
     }
 
-    //cmki
     #[inline]
     pub const fn assign_saturating_div_two(&mut self) {
         self.0 = self.0.saturating_sub(1);
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn double(self) -> Self {
@@ -2007,7 +1961,6 @@ impl PowerOfTwo {
         Self(self.0 + 1)
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub fn as_usize(self) -> usize {
@@ -2023,7 +1976,6 @@ impl PowerOfTwo {
 
     // from u64
     #[allow(clippy::missing_panics_doc)]
-    //cmki
     #[inline]
     #[must_use]
     pub fn from_u64_unchecked(value: u64) -> Self {
@@ -2031,7 +1983,6 @@ impl PowerOfTwo {
         Self::from_exp(value.trailing_zeros() as u8)
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn from_usize_unchecked(value: usize) -> Self {
@@ -2041,7 +1992,6 @@ impl PowerOfTwo {
 
     // from u64
     #[allow(clippy::missing_panics_doc)]
-    //cmki
     #[inline]
     #[must_use]
     pub fn from_u64(value: u64) -> Self {
@@ -2049,7 +1999,6 @@ impl PowerOfTwo {
         Self::from_exp(value.trailing_zeros() as u8)
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn from_usize(value: usize) -> Self {
@@ -2057,22 +2006,19 @@ impl PowerOfTwo {
         Self::from_exp(value.trailing_zeros() as u8)
     }
 
-    // //cmki
-    // #[inline]
+    //     // #[inline]
     // #[must_use]
     // pub const fn from_usize_const(value: usize) -> Self {
     //     debug_assert!(value.is_power_of_two(), "Value must be a power of two");
     //     Self(value.trailing_zeros() as u8)
     // }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn log2(self) -> u8 {
         self.0
     }
 
-    //cmki
     #[inline]
     pub fn rem_into_u64<T>(self, x: T) -> T
     where
@@ -2097,7 +2043,6 @@ impl PowerOfTwo {
         x & (T::from(self.as_usize()) - T::from(1usize))
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub fn rem_euclid_into(self, dividend: i64) -> i64 {
@@ -2110,7 +2055,6 @@ impl PowerOfTwo {
         remainder + (divisor & (remainder >> Self::MAX.0))
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub fn div_ceil_into<T>(self, other: T) -> T
@@ -2127,7 +2071,6 @@ impl PowerOfTwo {
         (other + two_pow - one) >> self.0
     }
 
-    //cmki
     #[inline]
     pub fn divide_into<T>(self, x: T) -> T
     where
@@ -2136,7 +2079,6 @@ impl PowerOfTwo {
         x >> self.0
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn divides_u64(self, x: u64) -> bool {
@@ -2144,7 +2086,6 @@ impl PowerOfTwo {
         (x >> self.0) << self.0 == x
     }
 
-    //cmki
     #[inline]
     #[must_use]
     pub const fn divides_i64(self, x: i64) -> bool {
@@ -2157,15 +2098,13 @@ impl PowerOfTwo {
         (x >> self.0) << self.0 == x
     }
 
-    // //cmki
-    // #[inline]
+    //     // #[inline]
     // #[must_use]
     // pub const fn divides_smoothness(self, other: Self) -> bool {
     //     self.0 <= other.0
     // }
 }
 
-//cmki
 #[inline]
 /// This returns the largest power of two that is less than or equal
 /// to the input number x.
@@ -2387,7 +2326,7 @@ where
     result
 }
 
-#[allow(clippy::missing_panics_doc)]
+#[allow(clippy::missing_panics_doc, clippy::shadow_reuse)]
 #[must_use]
 pub fn average_with_simd_count_ones64(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
     const LANES: usize = 64;
@@ -2832,6 +2771,7 @@ mod tests {
     }
 
     // #[test]
+    #[allow(dead_code)]
     fn benchmark3() -> Result<(), String> {
         println!("Smoothness\tSteps\tOnes\tTime(ms)");
 
@@ -2885,18 +2825,18 @@ mod tests {
     fn benchmark63() -> Result<(), String> {
         // let start = std::time::Instant::now();
 
-        let early_stop = Some(10_000_000_000);
-        let chunk_size = 100_000_000;
-        // let early_stop = Some(50_000_000);
-        // let chunk_size = 5_000_000;
+        // let early_stop = Some(10_000_000_000);
+        // let chunk_size = 100_000_000;
+        let early_stop = Some(50_000_000);
+        let chunk_size = 5_000_000;
         // let early_stop = Some(250_000_000);
         // let chunk_size = 25_000_000;
         // let early_stop = Some(5_000_000);
         // let chunk_size = 500_000;
-        // let goal_x: u32 = 360;
-        // let goal_y: u32 = 432;
-        let goal_x: u32 = 1920;
-        let goal_y: u32 = 1080;
+        let goal_x: u32 = 360;
+        let goal_y: u32 = 432;
+        // let goal_x: u32 = 1920;
+        // let goal_y: u32 = 1080;
 
         let program_string = BB6_CONTENDER;
         let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63); // cmk0000 63);
@@ -2976,7 +2916,7 @@ mod tests {
         Ok(())
     }
 
-    #[allow(clippy::shadow_unrelated)]
+    #[allow(clippy::shadow_unrelated, clippy::cognitive_complexity)]
     #[test]
     fn test_average() {
         let values = AVec::from_slice(ALIGN, &[0, 0, 0, 1, 1, 0, 1, 1, 1]);
