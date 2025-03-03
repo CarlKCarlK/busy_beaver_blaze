@@ -14,7 +14,7 @@ fn small(criterion: &mut Criterion) {
     let step = PowerOfTwo::from_usize_unchecked(64);
     let seed = 0;
     let mut rng = StdRng::seed_from_u64(seed);
-    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>() as u8));
+    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
 
     let mut group = criterion.benchmark_group("small");
 
@@ -40,7 +40,7 @@ fn large(criterion: &mut Criterion) {
     let step = PowerOfTwo::from_usize_unchecked(512);
     let seed = 0;
     let mut rng = StdRng::seed_from_u64(seed);
-    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>() as u8));
+    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
 
     let mut group = criterion.benchmark_group("large");
 
@@ -103,7 +103,7 @@ fn len_100m(criterion: &mut Criterion) {
     let step = PowerOfTwo::from_usize(65536);
     let seed = 0;
     let mut rng = StdRng::seed_from_u64(seed);
-    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>() as u8));
+    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
 
     let mut group = criterion.benchmark_group("len_100m");
 

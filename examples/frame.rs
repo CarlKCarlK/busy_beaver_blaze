@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 
     let resolution = std::env::args()
         .nth(2)
-        .map(|arg| Resolution::from_str(&arg))
+        .map(|str| Resolution::from_str(&str))
         .transpose()?
         .unwrap_or(Resolution::Tiny); // cmk2K
     let (goal_x, goal_y) = resolution.dimensions();

@@ -71,8 +71,8 @@ pub const MACHINE_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
 
 #[derive(Debug)]
 struct Tape {
-    nonnegative: AVec<u8>,
-    negative: AVec<u8>,
+    nonnegative: AVec<BoolU8>,
+    negative: AVec<BoolU8>,
 }
 
 impl Default for Tape {
@@ -86,20 +86,23 @@ impl Default for Tape {
 
 impl Tape {
     #[inline]
-    fn read(&self, index: i64) -> u8 {
+    fn read(&self, index: i64) -> BoolU8 {
         if index >= 0 {
-            self.nonnegative.get(index as usize).copied().unwrap_or(0)
+            self.nonnegative
+                .get(index as usize)
+                .copied()
+                .unwrap_or(BoolU8::FALSE)
         } else {
             self.negative
                 .get((-index - 1) as usize)
                 .copied()
-                .unwrap_or(0)
+                .unwrap_or(BoolU8::FALSE)
         }
     }
 
     #[inline]
     #[allow(clippy::shadow_reuse)]
-    fn write(&mut self, index: i64, value: u8) {
+    fn write(&mut self, index: i64, value: BoolU8) {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)
         } else {
@@ -122,7 +125,7 @@ impl Tape {
         self.nonnegative
             .iter()
             .chain(self.negative.iter()) // Combine both vectors
-            .map(|&x| usize::from(x == 1))
+            .map(usize::from)
             .sum()
     }
 
@@ -283,8 +286,8 @@ impl Program {
     pub const MAX_STATE_COUNT: usize = Self::SYMBOL_COUNT * 50;
 
     #[inline]
-    fn action(&self, state: u8, symbol: u8) -> &Action {
-        let offset = state as usize * Self::SYMBOL_COUNT + symbol as usize;
+    fn action(&self, state: u8, symbol: BoolU8) -> &Action {
+        let offset = state as usize * Self::SYMBOL_COUNT + usize::from(symbol);
         &self.state_to_symbol_to_action[offset]
     }
     fn parse_state(input: impl AsRef<str>) -> Result<char, Error> {
@@ -306,13 +309,13 @@ impl Program {
         if asciis == b"---" {
             return Ok(Action {
                 next_state: 25,
-                next_symbol: 0,
+                next_symbol: BoolU8::FALSE,
                 direction: -1,
             });
         }
         let next_symbol = match asciis[0] {
-            b'0' => 0,
-            b'1' => 1,
+            b'0' => BoolU8::FALSE,
+            b'1' => BoolU8::TRUE,
             _ => return Err(Error::InvalidChar),
         };
         let direction = match asciis[1] {
@@ -551,7 +554,7 @@ impl Program {
 #[derive(Debug)]
 struct Action {
     next_state: u8,
-    next_symbol: u8,
+    next_symbol: BoolU8,
     direction: i8,
 }
 
@@ -626,6 +629,59 @@ impl From<core::num::ParseIntError> for Error {
         Self::ParseIntError(err)
     }
 }
+
+#[repr(transparent)]
+#[derive(Debug, Default, Display, Copy, Clone)]
+pub struct BoolU8(u8);
+
+impl BoolU8 {
+    const FALSE: Self = Self(0);
+    const TRUE: Self = Self(1);
+}
+
+impl From<BoolU8> for u8 {
+    #[inline]
+    fn from(bool_u8: BoolU8) -> Self {
+        bool_u8.0
+    }
+}
+
+impl From<BoolU8> for usize {
+    fn from(bool_u8: BoolU8) -> Self {
+        bool_u8.0 as Self
+    }
+}
+
+impl From<BoolU8> for u32 {
+    fn from(bool_u8: BoolU8) -> Self {
+        bool_u8.0 as Self
+    }
+}
+
+impl From<BoolU8> for Pixel {
+    fn from(bool_u8: BoolU8) -> Self {
+        Self(bool_u8.0 * 255) // Maps 0 → 0, 1 → 255
+    }
+}
+
+impl From<bool> for BoolU8 {
+    fn from(bool_: bool) -> Self {
+        Self(bool_ as u8) // Maps `false -> FALSE`, `true -> TRUE`
+    }
+}
+
+impl From<&BoolU8> for usize {
+    fn from(bool_u8: &BoolU8) -> Self {
+        bool_u8.0 as Self
+    }
+}
+
+impl From<&BoolU8> for u32 {
+    fn from(bool_u8: &BoolU8) -> Self {
+        bool_u8.0 as Self
+    }
+}
+
 #[repr(transparent)]
 #[derive(Debug, Default, Display, Copy, Clone)]
 struct Pixel(u8);
@@ -734,11 +790,10 @@ impl Pixel {
     }
 }
 
-impl From<u8> for Pixel {
+impl From<bool> for Pixel {
     #[inline]
-    fn from(value: u8) -> Self {
-        debug_assert!(value <= 1, "Input value must be 0 or 1, got {value}");
-        Self(value * 255)
+    fn from(value: bool) -> Self {
+        Self(value as u8 * 255)
     }
 }
 
@@ -1210,7 +1265,7 @@ impl Spaceline {
             // Calculate sum functionally using range and filter_map
             let sum: u32 = (tape_slice_start..tape_slice_start + x_sample_usize)
                 .step_by(down_step.as_usize())
-                .filter_map(|i| part.get(i).map(|&value| u32::from(value)))
+                .filter_map(|i| part.get(i).map(u32::from))
                 .sum();
             let mean = down_sample.divide_into(sum * 255) as u8;
             *pixel = Pixel(mean);
@@ -2114,7 +2169,7 @@ const fn prev_power_of_two(x: usize) -> usize {
 }
 
 #[must_use]
-pub fn average_with_iterators(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
+pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<u8> {
     let mut result = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks
@@ -2122,14 +2177,14 @@ pub fn average_with_iterators(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
     let remainder = chunk_iter.remainder();
 
     for chunk in chunk_iter {
-        let sum: u32 = chunk.iter().map(|&x| x as u32).sum();
+        let sum: u32 = chunk.iter().map(u32::from).sum();
         let average = step.divide_into(sum * 255) as u8;
         result.push(average);
     }
 
     // Handle the remainder - pad with zeros
     if !remainder.is_empty() {
-        let sum: u32 = remainder.iter().map(|&x| x as u32).sum();
+        let sum: u32 = remainder.iter().map(u32::from).sum();
         // We need to divide by step size, not remainder.len()
         let average = step.divide_into(sum * 255) as u8;
         result.push(average);
@@ -2142,7 +2197,7 @@ pub fn average_with_iterators(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
 #[must_use]
 // cmk0000000 if this is used, do full correctness check
 pub fn average_with_simd_rayon<const LANES: usize>(
-    values: &AVec<u8>,
+    values: &AVec<BoolU8>,
     step: PowerOfTwo,
     rayon_threads: usize,
 ) -> AVec<u8>
@@ -2168,6 +2223,9 @@ where
         .par_chunks_mut(result_chunk_size)
         .zip(values.par_chunks(input_chunk_size))
         .for_each(|(result_chunk, input_chunk)| {
+            let input_chunk = unsafe {
+                core::slice::from_raw_parts(input_chunk.as_ptr().cast::<u8>(), input_chunk.len())
+            };
             let (prefix, chunks, _suffix) = input_chunk.as_simd::<LANES>();
 
             // Since we're using AVec with 64-byte alignment, the prefix should be empty
@@ -2196,12 +2254,7 @@ where
             let unused_items = step.rem_into_usize(values_len);
             if unused_items > 0 {
                 // sum the last missing_items
-                let sum: u32 = values
-                    .iter()
-                    .rev()
-                    .take(unused_items)
-                    .map(|&x| x as u32)
-                    .sum();
+                let sum: u32 = values.iter().rev().take(unused_items).map(u32::from).sum();
                 *(result_chunk.last_mut().unwrap()) = step.divide_into(sum * 255) as u8;
             }
         });
@@ -2211,7 +2264,7 @@ where
 
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
-pub fn average_with_simd<const LANES: usize>(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8>
+pub fn average_with_simd<const LANES: usize>(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<u8>
 where
     LaneCount<LANES>: SupportedLaneCount,
 {
@@ -2228,7 +2281,10 @@ where
     result.resize(capacity, 0);
 
     let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
-    let (prefix, chunks, _suffix) = values.as_slice().as_simd::<LANES>();
+    let slice_bool = values.as_slice();
+    let slice_u8 =
+        unsafe { core::slice::from_raw_parts(slice_bool.as_ptr().cast::<u8>(), slice_bool.len()) };
+    let (prefix, chunks, _suffix) = slice_u8.as_simd::<LANES>();
 
     debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
     let lanes_per_chunk = step.saturating_div(lanes);
@@ -2256,7 +2312,7 @@ where
     if unused_items > 0 {
         let sum: u32 = values[values_len - unused_items..]
             .iter()
-            .map(|&x| x as u32)
+            .map(u32::from)
             .sum();
         if let Some(last) = result.last_mut() {
             *last = step.divide_into(sum * 255) as u8;
@@ -2268,7 +2324,10 @@ where
 
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
-pub fn average_with_simd_push<const LANES: usize>(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8>
+pub fn average_with_simd_push<const LANES: usize>(
+    values: &AVec<BoolU8>,
+    step: PowerOfTwo,
+) -> AVec<u8>
 where
     LaneCount<LANES>: SupportedLaneCount,
 {
@@ -2276,12 +2335,14 @@ where
         { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
         "LANES must be less than or equal to step and alignment"
     );
+    let values_u8 =
+        unsafe { core::slice::from_raw_parts(values.as_ptr().cast::<u8>(), values.len()) };
 
-    let values_len = values.len();
+    let values_len = values_u8.len();
     let mut result = AVec::with_capacity(ALIGN, step.div_ceil_into(values_len));
     let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
 
-    let (prefix, chunks, _suffix) = values.as_slice().as_simd::<LANES>();
+    let (prefix, chunks, _suffix) = values_u8.as_simd::<LANES>();
 
     // Since we're using AVec with 64-byte alignment, the prefix should be empty
     debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
@@ -2313,7 +2374,7 @@ where
     let unused_items = step.rem_into_usize(values_len);
     if unused_items > 0 {
         // sum the last missing_items
-        let sum: u32 = values
+        let sum: u32 = values_u8
             .iter()
             .rev()
             .take(unused_items)
@@ -2328,7 +2389,7 @@ where
 
 #[allow(clippy::missing_panics_doc, clippy::shadow_reuse)]
 #[must_use]
-pub fn average_with_simd_count_ones64(values: &AVec<u8>, step: PowerOfTwo) -> AVec<u8> {
+pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<u8> {
     const LANES: usize = 64;
     assert!(
         { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
@@ -2339,7 +2400,9 @@ pub fn average_with_simd_count_ones64(values: &AVec<u8>, step: PowerOfTwo) -> AV
     let mut result = AVec::with_capacity(ALIGN, step.div_ceil_into(values_len));
     let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
 
-    let (prefix, chunks, _suffix) = values.as_slice().as_simd::<LANES>();
+    let values_slice =
+        unsafe { core::slice::from_raw_parts(values.as_ptr().cast::<u8>(), values.len()) };
+    let (prefix, chunks, _suffix) = values_slice.as_simd::<LANES>();
 
     // Since we're using AVec with 64-byte alignment, the prefix should be empty
     debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
@@ -2382,12 +2445,7 @@ pub fn average_with_simd_count_ones64(values: &AVec<u8>, step: PowerOfTwo) -> AV
     let unused_items = step.rem_into_usize(values_len);
     if unused_items > 0 {
         // sum the last missing_items
-        let sum: u32 = values
-            .iter()
-            .rev()
-            .take(unused_items)
-            .map(|&x| x as u32)
-            .sum();
+        let sum: u32 = values.iter().rev().take(unused_items).map(u32::from).sum();
         let average = step.divide_into(sum * 255) as u8;
         result.push(average);
     }
@@ -2919,7 +2977,22 @@ mod tests {
     #[allow(clippy::shadow_unrelated, clippy::cognitive_complexity)]
     #[test]
     fn test_average() {
-        let values = AVec::from_slice(ALIGN, &[0, 0, 0, 1, 1, 0, 1, 1, 1]);
+        let values = AVec::from_iter(
+            ALIGN,
+            [
+                BoolU8::FALSE,
+                BoolU8::FALSE,
+                BoolU8::FALSE,
+                BoolU8::TRUE,
+                BoolU8::TRUE,
+                BoolU8::FALSE,
+                BoolU8::TRUE,
+                BoolU8::TRUE,
+                BoolU8::TRUE,
+            ]
+            .iter()
+            .copied(),
+        );
 
         let step = PowerOfTwo::ONE;
         let expected = &[0, 0, 0, 255, 255, 0, 255, 255, 255];
