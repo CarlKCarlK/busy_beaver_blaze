@@ -74,35 +74,20 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         PowerOfTwo::from_exp(x_smoothness).log2(),
         PowerOfTwo::from_exp(y_smoothness).log2(),
     );
-    let buffer1_count = 0; // cmk0000000
-
     let mut space_by_time_machine = match machine_name.as_str() {
-        "bb5_champ" => {
-            SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_2, max_y_2, buffer1_count)?
+        "bb5_champ" => SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_2, max_y_2)?,
+        "bb6_contender" => {
+            SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_2, max_y_2)?
         }
-        "bb6_contender" => SpaceByTimeMachine::from_str(
-            BB6_CONTENDER,
-            up_x,
-            up_y,
-            max_x_2,
-            max_y_2,
-            buffer1_count,
-        )?,
-        "bb6_contender2" => SpaceByTimeMachine::from_str(
-            BB6_CONTENDER,
-            up_x,
-            up_y,
-            max_x_2,
-            max_y_2,
-            buffer1_count,
-        )?,
+        "bb6_contender2" => {
+            SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_2, max_y_2)?
+        }
         "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => SpaceByTimeMachine::from_str(
             "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
             up_x,
             up_y,
             max_x_2,
             max_y_2,
-            buffer1_count,
         )?,
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };

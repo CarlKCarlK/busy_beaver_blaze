@@ -417,7 +417,8 @@ where
 #[inline]
 /// This returns the largest power of two that is less than or equal
 /// to the input number x.
-const fn prev_power_of_two(x: usize) -> usize {
+#[must_use]
+pub const fn prev_power_of_two(x: usize) -> usize {
     debug_assert!(x > 0, "x must be greater than 0");
     1usize << (usize::BITS as usize - x.leading_zeros() as usize - 1)
 }

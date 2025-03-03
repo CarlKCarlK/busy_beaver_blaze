@@ -25,14 +25,13 @@ impl SpaceByTime {
         y_goal: u32,
         x_smoothness: PowerOfTwo,
         y_smoothness: PowerOfTwo,
-        buffer1_count: PowerOfTwo,
     ) -> Self {
         Self {
             step_index: 0,
             x_goal,
             y_goal,
             sample: PowerOfTwo::ONE,
-            spacelines: Spacelines::new(x_smoothness, buffer1_count),
+            spacelines: Spacelines::new(x_smoothness),
             x_smoothness,
             y_smoothness,
             previous_space_line: None,
@@ -116,8 +115,7 @@ impl SpaceByTime {
             self.previous_space_line = Some(spaceline.clone());
         }
 
-        self.spacelines
-            .push(inside_inside_index, self.sample, spaceline);
+        self.spacelines.push(inside_inside_index, spaceline);
     }
 
     #[allow(clippy::wrong_self_convention)] // cmk00 consider better name to this function

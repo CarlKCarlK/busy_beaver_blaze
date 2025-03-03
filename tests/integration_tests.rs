@@ -63,7 +63,6 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
     let goal_y: u32 = 1000;
     let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
     let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-    let buffer1_count: PowerOfTwo = PowerOfTwo::ONE;
     let n = 1_000_000;
     let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
@@ -71,7 +70,6 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
         goal_y,
         x_smoothness.log2(),
         y_smoothness.log2(),
-        buffer1_count.log2(),
     )?;
 
     while space_by_time_machine.nth_js(n - 1) {
@@ -109,7 +107,6 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
     let goal_y: u32 = 1000;
     let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
     let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-    let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk000000
     let seconds = 0.25;
     let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
@@ -117,7 +114,6 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
         goal_y,
         x_smoothness.log2(),
         y_smoothness.log2(),
-        buffer1_count.log2(),
     )?;
 
     while space_by_time_machine.step_for_secs_js(seconds, None, 100_000) {
@@ -181,7 +177,6 @@ fn benchmark1() -> Result<(), String> {
     let goal_y: u32 = 432;
     let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
     let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-    let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk0000000
     let n = 500_000_000;
     let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
@@ -189,7 +184,6 @@ fn benchmark1() -> Result<(), String> {
         goal_y,
         x_smoothness.log2(),
         y_smoothness.log2(),
-        buffer1_count.log2(),
     )?;
 
     space_by_time_machine.nth_js(n - 1);
@@ -228,14 +222,12 @@ fn benchmark2() -> Result<(), String> {
     let goal_y: u32 = 432;
     let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
     let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
-    let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk0000000
     let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
         goal_x,
         goal_y,
         x_smoothness.log2(),
         y_smoothness.log2(),
-        buffer1_count.log2(),
     )?;
 
     let chunk_size = 100_000_000;
@@ -310,7 +302,6 @@ fn benchmark3() -> Result<(), String> {
         let goal_y: u32 = 432;
         let x_smoothness = PowerOfTwo::from_exp(smoothness);
         let y_smoothness = PowerOfTwo::from_exp(smoothness);
-        let buffer1_count = PowerOfTwo::ONE; // cmk0000000
 
         let mut space_by_time_machine = SpaceByTimeMachine::from_str(
             program_string,
@@ -318,7 +309,6 @@ fn benchmark3() -> Result<(), String> {
             goal_y,
             x_smoothness.log2(),
             y_smoothness.log2(),
-            buffer1_count.log2(),
         )?;
 
         // Run to completion
@@ -369,14 +359,12 @@ fn benchmark63() -> Result<(), String> {
     let program_string = BB6_CONTENDER;
     let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63); // cmk0000 63);
     let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
-    let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(0);
     let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
         goal_x,
         goal_y,
         x_smoothness.log2(),
         y_smoothness.log2(),
-        buffer1_count.log2(),
     )?;
 
     let mut total_steps = 1; // Start at 1 since first step is already taken

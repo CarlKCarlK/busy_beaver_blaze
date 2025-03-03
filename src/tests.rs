@@ -18,9 +18,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     let goal_y: u32 = 1000;
     let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
     let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-    let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk000000
-    let mut sample_space_by_time =
-        SpaceByTime::new(goal_x, goal_y, x_smoothness, y_smoothness, buffer1_count);
+    let mut sample_space_by_time = SpaceByTime::new(goal_x, goal_y, x_smoothness, y_smoothness);
 
     let early_stop = Some(10_500_000);
     // let early_stop = Some(1_000_000);

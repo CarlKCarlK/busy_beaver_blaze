@@ -33,7 +33,6 @@ impl SpaceByTimeMachine {
         goal_y: u32,
         x_smoothness: u8,
         y_smoothness: u8,
-        buffer1_count: u8,
     ) -> Result<Self, String> {
         Ok(Self {
             machine: Machine::from_string(s)?,
@@ -42,7 +41,6 @@ impl SpaceByTimeMachine {
                 goal_y,
                 PowerOfTwo::from_exp(x_smoothness),
                 PowerOfTwo::from_exp(y_smoothness),
-                PowerOfTwo::from_exp(buffer1_count),
             ),
         })
     }

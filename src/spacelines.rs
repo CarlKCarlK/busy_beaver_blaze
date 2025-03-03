@@ -8,18 +8,14 @@ use crate::{
 
 pub(crate) struct Spacelines {
     main: Vec<Spaceline>,
-    buffer0: Vec<(Spaceline, PowerOfTwo)>,  // cmk0 better names
-    buffer1: Vec<Option<(u64, Spaceline)>>, // cmk0 better names
-    buffer1_capacity: PowerOfTwo,
+    buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names
 }
 
 impl Spacelines {
-    pub(crate) fn new(smoothness: PowerOfTwo, buffer1_count: PowerOfTwo) -> Self {
+    pub(crate) fn new(smoothness: PowerOfTwo) -> Self {
         Self {
             main: vec![Spaceline::new0(smoothness)],
             buffer0: Vec::new(),
-            buffer1: Vec::with_capacity(buffer1_count.as_usize()),
-            buffer1_capacity: buffer1_count,
         }
     }
     pub(crate) fn len(&self) -> usize {
@@ -35,7 +31,6 @@ impl Spacelines {
     }
 
     pub(crate) fn flush_buffer0(&mut self) {
-        self.flush_buffer1();
         // We now have a buffer that needs to be flushed at the end
         if !self.buffer0.is_empty() {
             assert!(self.buffer0.len() == 1, "real assert 13");
@@ -71,48 +66,12 @@ impl Spacelines {
             .retain(|spaceline| new_sample.divides_u64(spaceline.time));
     }
 
-    fn flush_buffer1(&mut self) {
-        if self.buffer1.is_empty() {
-            return;
-        }
-        let mut whole = core::mem::take(&mut self.buffer1);
-        let mut start = 0usize;
-        while start < whole.len() {
-            let end = start + prev_power_of_two(whole.len() - start);
-            let slice = &mut whole[start..end];
-            debug_assert!(slice.len().is_power_of_two(), "real assert 10");
-            let slice_len = PowerOfTwo::from_usize_unchecked(slice.len());
-            let weight = PowerOfTwo::from_usize_unchecked(slice.len());
-
-            // Binary tree reduction algorithm
-            let mut gap = PowerOfTwo::ONE;
-
-            while gap.as_usize() < slice.len() {
-                slice.chunks_mut(gap.double().as_usize()).for_each(|chunk| {
-                    let (left_index, right_index) = (0, gap.as_usize());
-                    let (_, right_spaceline) = chunk[right_index].take().unwrap();
-                    let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
-                    left_spaceline.merge(&right_spaceline);
-                });
-                gap = gap.double();
-            }
-
-            // Extract the final merged result
-            let (first_index, merged_spaceline) = slice[0].take().unwrap();
-            Self::push_internal(&mut self.buffer0, first_index, merged_spaceline, weight);
-            start = end;
-        }
-    }
-
     pub(crate) fn last(
         &mut self,
         step_index: u64,
         y_sample: PowerOfTwo,
         y_smoothness: PowerOfTwo,
     ) -> Spaceline {
-        // If we're going to create a PNG, we need to move buffer1 into buffer0
-        self.flush_buffer1();
-
         if self.buffer0.is_empty() {
             // cmk would be nice to remove this clone
             return self.main.last().unwrap().clone();
@@ -194,18 +153,7 @@ impl Spacelines {
     }
 
     #[inline]
-    pub(crate) fn push(&mut self, inside_index: u64, y_sample: PowerOfTwo, spaceline: Spaceline) {
-        // Calculate buffer capacity
-        let capacity = self.buffer1_capacity.min(y_sample);
-
-        // If less than 4 spacelines go into one image line, skip buffer1
-        if capacity < PowerOfTwo::FOUR {
-            Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
-        } else if self.buffer1.len() < capacity.as_usize() {
-            self.buffer1.push(Some((inside_index, spaceline)));
-        } else {
-            self.flush_buffer1();
-            self.buffer1.push(Some((inside_index, spaceline)));
-        }
+    pub(crate) fn push(&mut self, inside_index: u64, spaceline: Spaceline) {
+        Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
     }
 }
