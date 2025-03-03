@@ -4,6 +4,9 @@
 #[cfg(test)]
 mod tests;
 
+// Add the tape module
+mod tape;
+
 // cmk00 Ideas for speedup:
 // cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
 // cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
@@ -27,6 +30,8 @@ use smallvec::SmallVec;
 use thousands::Separable;
 use wasm_bindgen::prelude::*;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
+// Export Tape from the tape module
+pub use tape::Tape;
 
 const LANES_CMK: usize = 32;
 pub const ALIGN: usize = 64;
@@ -74,93 +79,6 @@ D	1RE	1LC
 E	0LA	0RE
 ";
 pub const MACHINE_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
-
-#[derive(Debug)]
-struct Tape {
-    nonnegative: AVec<BoolU8>,
-    negative: AVec<BoolU8>,
-}
-
-impl Default for Tape {
-    fn default() -> Self {
-        Self {
-            nonnegative: AVec::new(ALIGN),
-            negative: AVec::new(ALIGN),
-        }
-    }
-}
-
-impl Tape {
-    #[inline]
-    fn read(&self, index: i64) -> BoolU8 {
-        if index >= 0 {
-            self.nonnegative
-                .get(index as usize)
-                .copied()
-                .unwrap_or(BoolU8::FALSE)
-        } else {
-            self.negative
-                .get((-index - 1) as usize)
-                .copied()
-                .unwrap_or(BoolU8::FALSE)
-        }
-    }
-
-    #[inline]
-    #[allow(clippy::shadow_reuse)]
-    fn write(&mut self, index: i64, value: BoolU8) {
-        let (index, vec) = if index >= 0 {
-            (index as usize, &mut self.nonnegative)
-        } else {
-            ((-index - 1) as usize, &mut self.negative) // cmk this code appear more than once
-        };
-
-        if index == vec.len() {
-            // We are exactly one index beyond the current length
-            vec.push(value);
-        } else {
-            // Assert that we're never more than one index beyond
-            assert!(
-                index < vec.len(),
-                "Index is more than one beyond current length!"
-            );
-            vec[index] = value;
-        }
-    }
-    fn count_ones(&self) -> usize {
-        self.nonnegative
-            .iter()
-            .chain(self.negative.iter()) // Combine both vectors
-            .map(usize::from)
-            .sum()
-    }
-
-    #[cfg(test)]
-    #[allow(clippy::min_ident_chars)]
-    pub fn index_range_to_string(&self, range: core::ops::RangeInclusive<i64>) -> String {
-        let mut s = String::new();
-        for i in range {
-            s.push_str(&self.read(i).to_string());
-        }
-        s
-    }
-
-    #[inline]
-    pub fn min_index(&self) -> i64 {
-        -(self.negative.len() as i64)
-    }
-
-    #[inline]
-    pub fn max_index(&self) -> i64 {
-        self.nonnegative.len() as i64 - 1
-    }
-
-    #[inline]
-    #[allow(dead_code)]
-    pub fn width(&self) -> u64 {
-        (self.max_index() - self.min_index() + 1) as u64
-    }
-}
 
 #[wasm_bindgen]
 pub struct Machine {
