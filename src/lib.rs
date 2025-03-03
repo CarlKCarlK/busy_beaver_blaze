@@ -845,7 +845,7 @@ impl Spacelines {
     }
 }
 
-pub struct SampledSpaceTime {
+pub struct SpaceByTime {
     step_index: u64,
     x_goal: u32,
     y_goal: u32,
@@ -859,7 +859,7 @@ pub struct SampledSpaceTime {
 /// Create a new in which you give the `x_goal` (space)
 /// and the `y_goal` (time). The sample starts at 1 and
 /// inner is a vector of one spaceline
-impl SampledSpaceTime {
+impl SpaceByTime {
     #[inline]
     #[must_use]
     pub fn new(
@@ -1073,14 +1073,14 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
 }
 
 #[wasm_bindgen]
-pub struct SpaceTimeMachine {
+pub struct SpaceByTimeMachine {
     machine: Machine,
-    space_time: SampledSpaceTime,
+    space_time: SpaceByTime,
 }
 
 // impl iterator for spacetime machine
 #[allow(clippy::missing_trait_methods)]
-impl Iterator for SpaceTimeMachine {
+impl Iterator for SpaceByTimeMachine {
     type Item = ();
 
     #[inline]
@@ -1093,7 +1093,7 @@ impl Iterator for SpaceTimeMachine {
 
 #[wasm_bindgen]
 #[allow(clippy::min_ident_chars)]
-impl SpaceTimeMachine {
+impl SpaceByTimeMachine {
     #[wasm_bindgen(constructor)]
     pub fn from_str(
         s: &str,
@@ -1105,7 +1105,7 @@ impl SpaceTimeMachine {
     ) -> Result<Self, String> {
         Ok(Self {
             machine: Machine::from_string(s)?,
-            space_time: SampledSpaceTime::new(
+            space_time: SpaceByTime::new(
                 goal_x,
                 goal_y,
                 PowerOfTwo::from_exp(x_smoothness),
@@ -1224,7 +1224,7 @@ impl SpaceTimeMachine {
     }
 }
 
-impl SpaceTimeMachine {
+impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
     pub const fn machine(&self) -> &Machine {

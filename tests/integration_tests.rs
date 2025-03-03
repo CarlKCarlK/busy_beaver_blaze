@@ -2,7 +2,7 @@ use std::fs;
 
 use busy_beaver_blaze::{
     BB5_CHAMP, BB6_CONTENDER, DebuggableIterator, Error, MACHINE_7_135_505_A, MACHINE_7_135_505_B,
-    Machine, PowerOfTwo, SpaceTimeMachine,
+    Machine, PowerOfTwo, SpaceByTimeMachine,
 };
 use thousands::Separable;
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -57,7 +57,7 @@ fn bb5_champ_js() -> Result<(), String> {
 
 #[wasm_bindgen_test]
 #[test]
-fn bb5_champ_space_time_js() -> Result<(), String> {
+fn bb5_champ_space_by_time_js() -> Result<(), String> {
     let program_string = BB5_CHAMP;
     let goal_x: u32 = 1000;
     let goal_y: u32 = 1000;
@@ -65,7 +65,7 @@ fn bb5_champ_space_time_js() -> Result<(), String> {
     let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
     let buffer1_count: PowerOfTwo = PowerOfTwo::ONE;
     let n = 1_000_000;
-    let mut space_time_machine = SpaceTimeMachine::from_str(
+    let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
         goal_x,
         goal_y,
@@ -74,36 +74,36 @@ fn bb5_champ_space_time_js() -> Result<(), String> {
         buffer1_count.log2(),
     )?;
 
-    while space_time_machine.nth_js(n - 1) {
+    while space_by_time_machine.nth_js(n - 1) {
         println!(
             "Index {}: {:?}, #1's {}",
-            space_time_machine.step_index().separate_with_commas(),
-            space_time_machine.machine(),
-            space_time_machine.count_ones()
+            space_by_time_machine.step_index().separate_with_commas(),
+            space_by_time_machine.machine(),
+            space_by_time_machine.count_ones()
         );
     }
 
     println!(
         "Final: Steps {}: {:?}, #1's {}",
-        space_time_machine.step_index().separate_with_commas(),
-        space_time_machine.machine(),
-        space_time_machine.count_ones()
+        space_by_time_machine.step_index().separate_with_commas(),
+        space_by_time_machine.machine(),
+        space_by_time_machine.count_ones()
     );
 
-    let png_data = space_time_machine.png_data();
+    let png_data = space_by_time_machine.png_data();
     fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
 
-    assert_eq!(space_time_machine.step_index() + 1, 47_176_870);
-    assert_eq!(space_time_machine.count_ones(), 4098);
-    assert_eq!(space_time_machine.state(), 7);
-    assert_eq!(space_time_machine.tape_index(), -12242);
+    assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
+    assert_eq!(space_by_time_machine.count_ones(), 4098);
+    assert_eq!(space_by_time_machine.state(), 7);
+    assert_eq!(space_by_time_machine.tape_index(), -12242);
 
     Ok(())
 }
 
 #[wasm_bindgen_test]
 #[test]
-fn seconds_bb5_champ_space_time_js() -> Result<(), String> {
+fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
     let program_string = BB5_CHAMP;
     let goal_x: u32 = 1000;
     let goal_y: u32 = 1000;
@@ -111,7 +111,7 @@ fn seconds_bb5_champ_space_time_js() -> Result<(), String> {
     let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
     let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk000000
     let seconds = 0.25;
-    let mut space_time_machine = SpaceTimeMachine::from_str(
+    let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
         goal_x,
         goal_y,
@@ -120,30 +120,30 @@ fn seconds_bb5_champ_space_time_js() -> Result<(), String> {
         buffer1_count.log2(),
     )?;
 
-    while space_time_machine.step_for_secs_js(seconds, None, 100_000) {
+    while space_by_time_machine.step_for_secs_js(seconds, None, 100_000) {
         println!(
             "Index {}: {:?}, #1's {}",
-            space_time_machine.step_index().separate_with_commas(),
-            space_time_machine.machine(),
-            space_time_machine.count_ones()
+            space_by_time_machine.step_index().separate_with_commas(),
+            space_by_time_machine.machine(),
+            space_by_time_machine.count_ones()
         );
     }
 
     println!(
         "Final: Steps {}: {:?}, #1's {}",
-        space_time_machine.step_index().separate_with_commas(),
-        space_time_machine.machine(),
-        space_time_machine.count_ones()
+        space_by_time_machine.step_index().separate_with_commas(),
+        space_by_time_machine.machine(),
+        space_by_time_machine.count_ones()
     );
 
-    let png_data = space_time_machine.png_data();
+    let png_data = space_by_time_machine.png_data();
     fs::write("tests/expected/test2_js.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
-    assert_eq!(space_time_machine.step_index() + 1, 47_176_870);
-    assert_eq!(space_time_machine.count_ones(), 4098);
-    assert_eq!(space_time_machine.state(), 7);
-    assert_eq!(space_time_machine.tape_index(), -12242);
+    assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
+    assert_eq!(space_by_time_machine.count_ones(), 4098);
+    assert_eq!(space_by_time_machine.state(), 7);
+    assert_eq!(space_by_time_machine.tape_index(), -12242);
 
     Ok(())
 }
@@ -183,7 +183,7 @@ fn benchmark1() -> Result<(), String> {
     let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
     let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk0000000
     let n = 500_000_000;
-    let mut space_time_machine = SpaceTimeMachine::from_str(
+    let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
         goal_x,
         goal_y,
@@ -192,25 +192,25 @@ fn benchmark1() -> Result<(), String> {
         buffer1_count.log2(),
     )?;
 
-    space_time_machine.nth_js(n - 1);
+    space_by_time_machine.nth_js(n - 1);
 
     println!("Elapsed: {:?}", start.elapsed());
 
     println!(
         "Final: Steps {}: {:?}, #1's {}",
-        space_time_machine.step_index().separate_with_commas(),
-        space_time_machine.machine(),
-        space_time_machine.count_ones()
+        space_by_time_machine.step_index().separate_with_commas(),
+        space_by_time_machine.machine(),
+        space_by_time_machine.count_ones()
     );
 
-    assert_eq!(space_time_machine.step_index(), n);
-    assert_eq!(space_time_machine.count_ones(), 10669);
-    assert_eq!(space_time_machine.state(), 1);
-    assert_eq!(space_time_machine.tape_index(), 34054);
+    assert_eq!(space_by_time_machine.step_index(), n);
+    assert_eq!(space_by_time_machine.count_ones(), 10669);
+    assert_eq!(space_by_time_machine.state(), 1);
+    assert_eq!(space_by_time_machine.tape_index(), 34054);
 
     // cmk LATER what is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
-    let png_data = space_time_machine.png_data();
+    let png_data = space_by_time_machine.png_data();
     fs::write("tests/expected/bench.png", &png_data).unwrap(); // cmk handle error
     println!("Elapsed png: {:?}", start2.elapsed());
     Ok(())
@@ -229,7 +229,7 @@ fn benchmark2() -> Result<(), String> {
     let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
     let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(0);
     let buffer1_count: PowerOfTwo = PowerOfTwo::ONE; // cmk0000000
-    let mut space_time_machine = SpaceTimeMachine::from_str(
+    let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
         goal_x,
         goal_y,
@@ -259,7 +259,7 @@ fn benchmark2() -> Result<(), String> {
         });
 
         // Run the next chunk
-        let continues = space_time_machine.nth_js(next_chunk - 1);
+        let continues = space_by_time_machine.nth_js(next_chunk - 1);
         total_steps += next_chunk;
 
         // Send intermediate update
@@ -267,12 +267,12 @@ fn benchmark2() -> Result<(), String> {
             "intermediate: {:?} Steps {}: {:?}, #1's {}",
             0,
             // start.elapsed(),
-            space_time_machine.step_index().separate_with_commas(),
-            space_time_machine.machine(),
-            space_time_machine.count_ones()
+            space_by_time_machine.step_index().separate_with_commas(),
+            space_by_time_machine.machine(),
+            space_by_time_machine.count_ones()
         );
 
-        // let _png_data = space_time_machine.png_data();
+        // let _png_data = space_by_time_machine.png_data();
 
         // Exit if machine halted
         if !continues {
@@ -285,14 +285,14 @@ fn benchmark2() -> Result<(), String> {
     println!(
         "Final: {:?} Steps {}: {:?}, #1's {}",
         0, // start.elapsed(),
-        space_time_machine.step_index().separate_with_commas(),
-        space_time_machine.machine(),
-        space_time_machine.count_ones(),
+        space_by_time_machine.step_index().separate_with_commas(),
+        space_by_time_machine.machine(),
+        space_by_time_machine.count_ones(),
     );
 
     // // cmk LATER what is one method png_data and another to to_png?
     // let start = std::time::Instant::now();
-    // let png_data = space_time_machine.png_data();
+    // let png_data = space_by_time_machine.png_data();
     // fs::write("tests/expected/bench2.png", &png_data).unwrap(); // cmk handle error
     // println!("Elapsed png: {:?}", start.elapsed());
     Ok(())
@@ -312,7 +312,7 @@ fn benchmark3() -> Result<(), String> {
         let y_smoothness = PowerOfTwo::from_exp(smoothness);
         let buffer1_count = PowerOfTwo::ONE; // cmk0000000
 
-        let mut space_time_machine = SpaceTimeMachine::from_str(
+        let mut space_by_time_machine = SpaceByTimeMachine::from_str(
             program_string,
             goal_x,
             goal_y,
@@ -322,20 +322,20 @@ fn benchmark3() -> Result<(), String> {
         )?;
 
         // Run to completion
-        while space_time_machine.nth_js(1_000_000 - 1) {}
+        while space_by_time_machine.nth_js(1_000_000 - 1) {}
 
         let elapsed = start.elapsed().as_millis();
         println!(
             "{}\t{}\t{}\t{}",
             smoothness,
-            space_time_machine.step_count(),
-            space_time_machine.count_ones(),
+            space_by_time_machine.step_count(),
+            space_by_time_machine.count_ones(),
             elapsed
         );
 
         // Generate PNG for first and last iteration
         if smoothness == 0 || smoothness == 63 {
-            let png_data = space_time_machine.png_data();
+            let png_data = space_by_time_machine.png_data();
             fs::write(
                 format!("tests/expected/bench3_smooth{smoothness}.png"),
                 &png_data,
@@ -370,7 +370,7 @@ fn benchmark63() -> Result<(), String> {
     let x_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63); // cmk0000 63);
     let y_smoothness: PowerOfTwo = PowerOfTwo::from_exp(63);
     let buffer1_count: PowerOfTwo = PowerOfTwo::from_exp(0);
-    let mut space_time_machine = SpaceTimeMachine::from_str(
+    let mut space_by_time_machine = SpaceByTimeMachine::from_str(
         program_string,
         goal_x,
         goal_y,
@@ -399,7 +399,7 @@ fn benchmark63() -> Result<(), String> {
         });
 
         // Run the next chunk
-        let continues = space_time_machine.nth_js(next_chunk - 1);
+        let continues = space_by_time_machine.nth_js(next_chunk - 1);
         total_steps += next_chunk;
 
         // Send intermediate update
@@ -407,12 +407,12 @@ fn benchmark63() -> Result<(), String> {
             "intermediate: {:?} Steps {}: {:?}, #1's {}",
             0,
             // start.elapsed(),
-            space_time_machine.step_index().separate_with_commas(),
-            space_time_machine.machine(),
-            space_time_machine.count_ones()
+            space_by_time_machine.step_index().separate_with_commas(),
+            space_by_time_machine.machine(),
+            space_by_time_machine.count_ones()
         );
 
-        // let _png_data = space_time_machine.png_data();
+        // let _png_data = space_by_time_machine.png_data();
 
         // Exit if machine halted
         if !continues {
@@ -425,14 +425,14 @@ fn benchmark63() -> Result<(), String> {
     println!(
         "Final: {:?} Steps {}: {:?}, #1's {}",
         0, // start.elapsed(),
-        space_time_machine.step_index().separate_with_commas(),
-        space_time_machine.machine(),
-        space_time_machine.count_ones(),
+        space_by_time_machine.step_index().separate_with_commas(),
+        space_by_time_machine.machine(),
+        space_by_time_machine.count_ones(),
     );
 
     // cmk LATER what is one method png_data and another to to_png?
     let start = std::time::Instant::now();
-    let png_data = space_time_machine.png_data();
+    let png_data = space_by_time_machine.png_data();
     fs::write("tests/expected/bench63.png", &png_data).unwrap(); // cmk handle error
     println!("Elapsed png: {:?}", start.elapsed());
     Ok(())

@@ -1,5 +1,5 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, SpaceTimeMachine};
+use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, SpaceByTimeMachine};
 use core::str::FromStr;
 use image::Rgba;
 use image::{DynamicImage, imageops::FilterType};
@@ -71,11 +71,11 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     let buffer1_count = 0; // cmk0000000
 
     let (up_x, up_y) = (goal_x, goal_y);
-    let (mut space_time_machine, end_step, num_frames, (output_dir, run_id)) = match machine_name
+    let (mut space_by_time_machine, end_step, num_frames, (output_dir, run_id)) = match machine_name
         .as_str()
     {
         "bb5_champ" => {
-            let machine = SpaceTimeMachine::from_str(
+            let machine = SpaceByTimeMachine::from_str(
                 BB5_CHAMP,
                 up_x,
                 up_y,
@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             (machine, 47_176_870, 1000, dir_info)
         }
         "bb6_contender" => {
-            let machine = SpaceTimeMachine::from_str(
+            let machine = SpaceByTimeMachine::from_str(
                 BB6_CONTENDER,
                 up_x,
                 up_y,
@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             (machine, 1_000_000_000_000u64, 2000, dir_info)
         }
         "bb6_contender2" => {
-            let machine = SpaceTimeMachine::from_str(
+            let machine = SpaceByTimeMachine::from_str(
                 BB6_CONTENDER,
                 up_x,
                 up_y,
@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             (machine, 1_000_000_000u64, 1000, dir_info)
         }
         "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
-            let machine = SpaceTimeMachine::from_str(
+            let machine = SpaceByTimeMachine::from_str(
                 "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
                 up_x,
                 up_y,
@@ -135,13 +135,13 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     let log_iter = LogStepIterator::new(end_step, num_frames);
 
     for (frame_index, goal_step_index) in log_iter.enumerate() {
-        let actual_step_index = space_time_machine.step_count() - 1;
+        let actual_step_index = space_by_time_machine.step_count() - 1;
         if goal_step_index > actual_step_index
-            && !space_time_machine.nth_js(goal_step_index - actual_step_index - 1)
+            && !space_by_time_machine.nth_js(goal_step_index - actual_step_index - 1)
         {
             break;
         }
-        let actual_step_index = space_time_machine.step_count() - 1;
+        let actual_step_index = space_by_time_machine.step_count() - 1;
         println!(
             "run_id: {}, Frame {}, time so far {:?}",
             run_id,
@@ -150,7 +150,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         );
 
         save_frame(
-            &mut space_time_machine,
+            &mut space_by_time_machine,
             &output_dir,
             run_id,
             frame_index as u32,
@@ -165,7 +165,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 }
 
 fn save_frame(
-    machine: &mut SpaceTimeMachine,
+    machine: &mut SpaceByTimeMachine,
     output_dir: &Path,
     run_id: u32,
     frame: u32,

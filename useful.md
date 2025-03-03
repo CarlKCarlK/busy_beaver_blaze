@@ -10,7 +10,7 @@ cargo build --release
 ## Rust image test
 
 ```bash
-cargo test bb5_champ_space_time --release -- --nocapture
+cargo test bb5_champ_space_by_time --release -- --nocapture
 ```
 
 ## Package for WASM

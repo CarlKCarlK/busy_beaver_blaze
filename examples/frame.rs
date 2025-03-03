@@ -1,4 +1,6 @@
-use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PowerOfTwo, SpaceTimeMachine};
+use busy_beaver_blaze::{
+    BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PowerOfTwo, SpaceByTimeMachine,
+};
 use core::str::FromStr;
 use std::{fs, path::Path};
 
@@ -74,17 +76,27 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     );
     let buffer1_count = 0; // cmk0000000
 
-    let mut space_time_machine = match machine_name.as_str() {
+    let mut space_by_time_machine = match machine_name.as_str() {
         "bb5_champ" => {
-            SpaceTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_2, max_y_2, buffer1_count)?
+            SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_2, max_y_2, buffer1_count)?
         }
-        "bb6_contender" => {
-            SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_2, max_y_2, buffer1_count)?
-        }
-        "bb6_contender2" => {
-            SpaceTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_2, max_y_2, buffer1_count)?
-        }
-        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => SpaceTimeMachine::from_str(
+        "bb6_contender" => SpaceByTimeMachine::from_str(
+            BB6_CONTENDER,
+            up_x,
+            up_y,
+            max_x_2,
+            max_y_2,
+            buffer1_count,
+        )?,
+        "bb6_contender2" => SpaceByTimeMachine::from_str(
+            BB6_CONTENDER,
+            up_x,
+            up_y,
+            max_x_2,
+            max_y_2,
+            buffer1_count,
+        )?,
+        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => SpaceByTimeMachine::from_str(
             "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
             up_x,
             up_y,
@@ -101,9 +113,9 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         if goal_step_index == 0 {
             continue;
         }
-        let actual_step_index = space_time_machine.step_count() - 1;
+        let actual_step_index = space_by_time_machine.step_count() - 1;
         if goal_step_index > actual_step_index
-            && !space_time_machine.nth_js(goal_step_index - actual_step_index - 1)
+            && !space_by_time_machine.nth_js(goal_step_index - actual_step_index - 1)
         {
             break;
         }
@@ -114,7 +126,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         let out_info = Path::new(f.as_str());
         fs::create_dir_all(out_info.parent().unwrap())?;
 
-        let png_data = space_time_machine.png_data();
+        let png_data = space_by_time_machine.png_data();
         let base = image::load_from_memory(&png_data)?;
         base.save(out_info)?;
     }
