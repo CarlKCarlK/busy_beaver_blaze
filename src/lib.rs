@@ -105,7 +105,7 @@ impl Tape {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)
         } else {
-            ((-index - 1) as usize, &mut self.negative)
+            ((-index - 1) as usize, &mut self.negative) // cmk this code appear more than once
         };
 
         if index == vec.len() {
@@ -234,7 +234,7 @@ impl fmt::Debug for Machine {
 
 #[allow(clippy::missing_trait_methods)]
 impl Iterator for Machine {
-    type Item = ();
+    type Item = i64;
 
     //cmki
     #[inline(never)]
@@ -243,10 +243,11 @@ impl Iterator for Machine {
         let input = self.tape.read(self.tape_index);
         let action = program.action(self.state, input);
         self.tape.write(self.tape_index, action.next_symbol);
+        let previous_index = self.tape_index;
         self.tape_index += action.direction as i64;
         self.state = action.next_state;
         if self.state < program.state_count {
-            Some(())
+            Some(previous_index)
         } else {
             None
         }
@@ -830,7 +831,6 @@ impl Spaceline {
     // cmk0000000000 must remove this function
     //cmki
     #[inline(never)]
-    #[inline(never)]
     fn new2(
         sample: PowerOfTwo,
         start: i64,
@@ -1093,9 +1093,9 @@ impl Spaceline {
     #[allow(clippy::integer_division_remainder_used)]
     fn new(tape: &Tape, x_goal: u32, step_index: u64, x_smoothness: PowerOfTwo) -> Self {
         // Sampling & Averaging 4 --
-        let tape_width = tape.width();
         let tape_min_index = tape.min_index();
         let tape_max_index = tape.max_index();
+        let tape_width = (tape_max_index - tape_min_index + 1) as u64;
         let x_sample = sample_rate(tape_width, x_goal);
 
         if step_index % 10_000_000 == 0 {
@@ -1185,6 +1185,67 @@ impl Spaceline {
         }
 
         Self::new2(x_sample, sample_start, pixels, step_index, x_smoothness)
+    }
+
+    // cmk instead of &mut self and return bool. Better to take ownership of self and return Option<Self>
+    #[inline(never)]
+    #[allow(clippy::integer_division_remainder_used)]
+    #[must_use]
+    fn redo_pixel(
+        &mut self,
+        previous_tape_index: i64,
+        tape: &Tape,
+        x_goal: u32,
+        step_index: u64,
+        x_smoothness: PowerOfTwo,
+    ) -> bool {
+        self.time = step_index;
+
+        // Sampling & Averaging 4 --
+        let tape_min_index = tape.min_index();
+        let tape_max_index = tape.max_index();
+        assert!(tape_min_index <= previous_tape_index && previous_tape_index <= tape_max_index);
+        let tape_width = (tape_max_index - tape_min_index + 1) as u64;
+        let x_sample = sample_rate(tape_width, x_goal);
+        let x_sample_usize = x_sample.as_usize();
+        if self.sample != x_sample {
+            return false;
+        }
+
+        let (part, pixels, part_index) = if previous_tape_index < 0 {
+            let part_index = (-previous_tape_index - 1) as u64;
+            (&tape.negative, &mut self.negative, part_index)
+        } else {
+            let part_index = previous_tape_index as u64;
+            (&tape.nonnegative, &mut self.nonnegative, part_index)
+        };
+        let pixel_index = x_sample.divide_into(part_index) as usize;
+
+        assert!(pixel_index <= pixels.len());
+        if pixel_index == pixels.len() {
+            pixels.push(Pixel::WHITE);
+        }
+        let pixel = &mut pixels[pixel_index];
+        let tape_slice_start = x_sample * pixel_index;
+
+        // cmk0000000000000
+        let down_sample = x_sample.min(x_smoothness);
+        let down_step = x_sample.saturating_div(down_sample);
+
+        if down_sample == PowerOfTwo::ONE {
+            // With least smoothness, we just read the pixels directly.
+            // Directly read and convert the pixel from the tape.
+            *pixel = Pixel::from(part[tape_slice_start]); // cmk000 must hide this constructor even here
+        } else {
+            // Calculate sum functionally using range and filter_map
+            let sum: u32 = (tape_slice_start..tape_slice_start + x_sample_usize)
+                .step_by(down_step.as_usize())
+                .filter_map(|i| part.get(i).map(|&v| u32::from(v)))
+                .sum();
+            let mean = down_sample.divide_into(sum * 255) as u8;
+            *pixel = Pixel(mean);
+        }
+        true
     }
 }
 
@@ -1477,7 +1538,7 @@ impl SampledSpaceTime {
 
     //cmki
     #[inline(never)]
-    fn snapshot(&mut self, machine: &Machine) {
+    fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
         self.step_index += 1;
         let inside_index = self.sample.rem_into_u64(self.step_index);
 
@@ -1496,8 +1557,23 @@ impl SampledSpaceTime {
 
         let spaceline =
             if let Some(mut previous) = self.previous_space_line.take().filter(|_| down_step_one) {
-                previous.time = self.step_index;
-                previous
+                // cmk messy code
+                if previous.redo_pixel(
+                    previous_tape_index,
+                    &machine.tape,
+                    self.x_goal,
+                    self.step_index,
+                    self.x_smoothness,
+                ) {
+                    previous
+                } else {
+                    Spaceline::new(
+                        &machine.tape,
+                        self.x_goal,
+                        self.step_index,
+                        self.x_smoothness,
+                    )
+                }
             } else {
                 Spaceline::new(
                     &machine.tape,
@@ -1506,9 +1582,9 @@ impl SampledSpaceTime {
                     self.x_smoothness,
                 )
             };
-        // if down_step_one {
-        //     self.previous_space_line = Some(spaceline.clone());
-        // }
+        if down_step_one {
+            self.previous_space_line = Some(spaceline.clone());
+        }
 
         self.spacelines
             .push(inside_inside_index, self.sample, spaceline);
@@ -1638,8 +1714,8 @@ impl Iterator for SpaceTimeMachine {
     //cmki
     #[inline(never)]
     fn next(&mut self) -> Option<Self::Item> {
-        self.machine.next()?;
-        self.space_time.snapshot(&self.machine);
+        let previous_tape_index = self.machine.next()?;
+        self.space_time.snapshot(&self.machine, previous_tape_index);
         Some(())
     }
 }
@@ -2457,8 +2533,9 @@ mod tests {
         // let early_stop = Some(1_000_000);
         let debug_interval = Some(1_000_000);
 
-        while machine.next().is_some()
-            && early_stop.is_none_or(|early_stop| sample_space_time.step_index + 1 < early_stop)
+        while let Some(previous_tape_index) = machine
+            .next()
+            .filter(|_| early_stop.is_none_or(|stop| sample_space_time.step_index + 1 < stop))
         {
             if debug_interval
                 .is_none_or(|debug_interval| sample_space_time.step_index % debug_interval == 0)
@@ -2471,7 +2548,7 @@ mod tests {
                 );
             }
 
-            sample_space_time.snapshot(&machine);
+            sample_space_time.snapshot(&machine, previous_tape_index);
             // let _ = sample_space_time.to_png();
         }
 
@@ -2817,10 +2894,10 @@ mod tests {
         // let chunk_size = 10_000_000;
         // let early_stop = Some(50_000_000);
         // let chunk_size = 5_000_000;
-        // let early_stop = Some(250_000_000);
-        // let chunk_size = 25_000_000;
-        let early_stop = Some(5_000_000);
-        let chunk_size = 500_000;
+        let early_stop = Some(250_000_000);
+        let chunk_size = 25_000_000;
+        // let early_stop = Some(5_000_000);
+        // let chunk_size = 500_000;
 
         let program_string = BB6_CONTENDER;
         let goal_x: u32 = 360;
