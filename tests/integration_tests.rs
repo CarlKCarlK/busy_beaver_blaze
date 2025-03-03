@@ -345,10 +345,10 @@ fn benchmark63() -> Result<(), String> {
 
     // let early_stop = Some(10_000_000_000);
     // let chunk_size = 100_000_000;
-    let early_stop = Some(50_000_000);
-    let chunk_size = 5_000_000;
-    // let early_stop = Some(250_000_000);
-    // let chunk_size = 25_000_000;
+    // let early_stop = Some(50_000_000);
+    // let chunk_size = 5_000_000;
+    let early_stop = Some(250_000_000);
+    let chunk_size = 25_000_000;
     // let early_stop = Some(5_000_000);
     // let chunk_size = 500_000;
     let goal_x: u32 = 360;
