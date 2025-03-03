@@ -1,4 +1,4 @@
-use crate::LANES_CMK;
+use crate::{LANES_CMK, PixelPolicy};
 use core::simd::prelude::*;
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -82,18 +82,21 @@ impl Pixel {
     pub(crate) fn merge_slice_down_sample(
         slice: &[Self],
         empty_count: usize,
-        down_step: crate::PowerOfTwo,
-        down_step_usize: usize,
+        pixel_policy: PixelPolicy,
     ) -> Self {
-        debug_assert!(down_step.as_usize() == down_step_usize);
-        let mut sum: usize = 0;
-        for i in (0..slice.len()).step_by(down_step_usize) {
-            sum += slice[i].0 as usize;
+        match pixel_policy {
+            PixelPolicy::Sampling => slice[0],
+            PixelPolicy::Binning => {
+                // cmk0000 make this faster with SIMD or at least more functional
+                let mut sum: usize = 0;
+                for i in 0..slice.len() {
+                    sum += slice[i].0 as usize;
+                }
+                let total_len = crate::PowerOfTwo::from_usize_unchecked(slice.len() + empty_count);
+                let mean = total_len.divide_into(sum) as u8;
+                Self(mean)
+            }
         }
-        let total_len = crate::PowerOfTwo::from_usize_unchecked(slice.len() + empty_count);
-        let count = total_len.saturating_div(down_step);
-        let mean = count.divide_into(sum) as u8;
-        Self(mean)
     }
 
     #[inline]

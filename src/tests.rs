@@ -1,5 +1,5 @@
 use crate::{
-    ALIGN, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
+    ALIGN, PixelPolicy, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
     average_with_simd_push, bool_u8::BoolU8, pixel::Pixel,
 };
 #[cfg(test)]
@@ -16,9 +16,8 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
 
     let goal_x: u32 = 1000;
     let goal_y: u32 = 1000;
-    let x_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-    let y_smoothness: PowerOfTwo = PowerOfTwo::ONE;
-    let mut sample_space_by_time = SpaceByTime::new(goal_x, goal_y, x_smoothness, y_smoothness);
+    let pixel_policy: PixelPolicy = PixelPolicy::Sampling;
+    let mut sample_space_by_time = SpaceByTime::new(goal_x, goal_y, pixel_policy);
 
     let early_stop = Some(10_500_000);
     // let early_stop = Some(1_000_000);

@@ -1,6 +1,6 @@
 use crate::{
-    Error, Machine, Pixel, encode_png, power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline,
-    spacelines::Spacelines,
+    Error, Machine, Pixel, PixelPolicy, encode_png, power_of_two::PowerOfTwo, sample_rate,
+    spaceline::Spaceline, spacelines::Spacelines,
 };
 
 pub struct SpaceByTime {
@@ -9,8 +9,7 @@ pub struct SpaceByTime {
     y_goal: u32,
     sample: PowerOfTwo,
     spacelines: Spacelines,
-    x_smoothness: PowerOfTwo,
-    y_smoothness: PowerOfTwo,
+    pixel_policy: PixelPolicy,
     previous_space_line: Option<Spaceline>,
 }
 
@@ -20,20 +19,14 @@ pub struct SpaceByTime {
 impl SpaceByTime {
     #[inline]
     #[must_use]
-    pub fn new(
-        x_goal: u32,
-        y_goal: u32,
-        x_smoothness: PowerOfTwo,
-        y_smoothness: PowerOfTwo,
-    ) -> Self {
+    pub fn new(x_goal: u32, y_goal: u32, pixel_policy: PixelPolicy) -> Self {
         Self {
             step_index: 0,
             x_goal,
             y_goal,
             sample: PowerOfTwo::ONE,
-            spacelines: Spacelines::new(x_smoothness),
-            x_smoothness,
-            y_smoothness,
+            spacelines: Spacelines::new(pixel_policy),
+            pixel_policy,
             previous_space_line: None,
         }
     }
@@ -50,10 +43,9 @@ impl SpaceByTime {
                 "real assert 10"
             );
             self.sample = new_sample;
-            if new_sample <= self.y_smoothness {
-                self.spacelines.compress_average();
-            } else {
-                self.spacelines.compress_take_first(new_sample);
+            match self.pixel_policy {
+                PixelPolicy::Binning => self.spacelines.compress_average(),
+                PixelPolicy::Sampling => self.spacelines.compress_take_first(new_sample),
             }
         }
     }
@@ -71,58 +63,67 @@ impl SpaceByTime {
         self.step_index += 1;
         let inside_index = self.sample.rem_into_u64(self.step_index);
 
-        if inside_index == 0 {
-            // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-            self.spacelines.flush_buffer0();
-            self.compress_if_needed();
-        }
-
-        let down_step = self.sample.saturating_div(self.y_smoothness);
-        if !down_step.divides_u64(inside_index) {
-            return;
-        }
-        let inside_inside_index = down_step.divide_into(inside_index);
-        let down_step_one = down_step == PowerOfTwo::ONE;
-
-        let spaceline =
-            if let Some(mut previous) = self.previous_space_line.take().filter(|_| down_step_one) {
-                // cmk messy code
-                if previous.redo_pixel(
-                    previous_tape_index,
-                    &machine.tape,
-                    self.x_goal,
-                    self.step_index,
-                    self.x_smoothness,
-                ) {
-                    previous
+        match self.pixel_policy {
+            PixelPolicy::Binning => {
+                if inside_index == 0 {
+                    // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
+                    self.spacelines.flush_buffer0();
+                    self.compress_if_needed();
+                }
+                let spaceline = if let Some(mut previous) = self.previous_space_line.take() {
+                    // cmk messy code
+                    if previous.redo_pixel(
+                        previous_tape_index,
+                        &machine.tape,
+                        self.x_goal,
+                        self.step_index,
+                        self.pixel_policy,
+                    ) {
+                        previous
+                    } else {
+                        Spaceline::new(
+                            &machine.tape,
+                            self.x_goal,
+                            self.step_index,
+                            self.pixel_policy,
+                        )
+                    }
                 } else {
                     Spaceline::new(
                         &machine.tape,
                         self.x_goal,
                         self.step_index,
-                        self.x_smoothness,
+                        self.pixel_policy,
                     )
+                };
+                self.previous_space_line = Some(spaceline.clone());
+                self.spacelines.push(inside_index, spaceline);
+            }
+            PixelPolicy::Sampling => {
+                if inside_index != 0 {
+                    return;
                 }
-            } else {
-                Spaceline::new(
-                    &machine.tape,
-                    self.x_goal,
-                    self.step_index,
-                    self.x_smoothness,
-                )
-            };
-        if down_step_one {
-            self.previous_space_line = Some(spaceline.clone());
+                // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
+                self.spacelines.flush_buffer0();
+                self.compress_if_needed();
+                self.spacelines.push(
+                    0,
+                    Spaceline::new(
+                        &machine.tape,
+                        self.x_goal,
+                        self.step_index,
+                        self.pixel_policy,
+                    ),
+                );
+            }
         }
-
-        self.spacelines.push(inside_inside_index, spaceline);
     }
 
     #[allow(clippy::wrong_self_convention)] // cmk00 consider better name to this function
     pub fn to_png(&mut self) -> Result<Vec<u8>, Error> {
         let last = self
             .spacelines
-            .last(self.step_index, self.sample, self.y_smoothness);
+            .last(self.step_index, self.sample, self.pixel_policy);
         let x_sample: PowerOfTwo = last.sample;
         let tape_width: u64 = (x_sample * last.len()) as u64;
         let tape_min_index = last.tape_start();
@@ -151,7 +152,9 @@ impl SpaceByTime {
                     local_x_sample.divide_into(tape_index - local_start);
 
                 // this helps medium bb6 go from 5 seconds to 3.5
-                if local_per_x_sample == PowerOfTwo::ONE || self.x_smoothness == PowerOfTwo::ONE {
+                if local_per_x_sample == PowerOfTwo::ONE
+                    || self.pixel_policy == PixelPolicy::Sampling
+                {
                     {
                         if local_spaceline_start >= spaceline.len() as i64 {
                             break;

@@ -9,6 +9,7 @@ mod bool_u8;
 mod log_step_iterator;
 mod machine;
 mod pixel;
+mod pixel_policy;
 mod power_of_two;
 mod space_by_time;
 mod space_by_time_machine;
@@ -34,6 +35,7 @@ use zerocopy::IntoBytes;
 // Export types from modules
 pub use log_step_iterator::LogStepIterator;
 pub use machine::Machine;
+pub use pixel_policy::PixelPolicy;
 pub use power_of_two::PowerOfTwo;
 pub use space_by_time::SpaceByTime;
 pub use space_by_time_machine::SpaceByTimeMachine;

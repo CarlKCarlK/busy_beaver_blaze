@@ -29,7 +29,7 @@ impl core::ops::Mul<usize> for PowerOfTwo {
 // cmk make the auto constructor so private that it can't be used w/ modules, so that new check is run.
 
 impl PowerOfTwo {
-    /// The smallest valid `Smoothness` value, representing `2^0 = 1`.
+    /// The smallest valid `pixel_policy` value, representing `2^0 = 1`.
     pub const ONE: Self = Self(0);
     pub const TWO: Self = Self(1);
     pub const FOUR: Self = Self(2);
@@ -223,7 +223,7 @@ impl PowerOfTwo {
 
     //     // #[inline]
     // #[must_use]
-    // pub const fn divides_smoothness(self, other: Self) -> bool {
+    // pub const fn divides_pixel_policy(self, other: Self) -> bool {
     //     self.0 <= other.0
     // }
 }

@@ -16,7 +16,7 @@
   - 50 billion steps in about 10 minutes.
 - Supports common Turing machine formats: "Symbol Major," "State Major," and ["Standard Format"](https://discuss.bbchallenge.org/t/standard-tm-text-format/60).
 - Optional **perfect averaging** for tape visualization. `Smooth` defaults to 0 for fast sampling. Higher values improve quality at the cost of speed—63 enables perfect averaging.
-- You can set settings via the URL hash fragment, for example, `#program=bb5&earlyStop=false&smoothness=3`. Include `run=true` to run the program immediately.
+- You can set settings via the URL hash fragment, for example, `#program=bb5&earlyStop=false&pixel_policy=3`. Include `run=true` to run the program immediately.
 
 ## Techniques
 

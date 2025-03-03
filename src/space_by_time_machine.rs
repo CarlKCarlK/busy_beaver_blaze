@@ -1,7 +1,7 @@
 use instant::Instant;
 use wasm_bindgen::prelude::*;
 
-use crate::{Machine, power_of_two::PowerOfTwo, space_by_time::SpaceByTime};
+use crate::{Machine, PixelPolicy, space_by_time::SpaceByTime};
 
 #[wasm_bindgen]
 pub struct SpaceByTimeMachine {
@@ -27,20 +27,17 @@ impl Iterator for SpaceByTimeMachine {
 #[allow(clippy::min_ident_chars)]
 impl SpaceByTimeMachine {
     #[wasm_bindgen(constructor)]
-    pub fn from_str(
-        s: &str,
-        goal_x: u32,
-        goal_y: u32,
-        x_smoothness: u8,
-        y_smoothness: u8,
-    ) -> Result<Self, String> {
+    pub fn from_str(s: &str, goal_x: u32, goal_y: u32, binning: bool) -> Result<Self, String> {
         Ok(Self {
             machine: Machine::from_string(s)?,
             space_by_time: SpaceByTime::new(
                 goal_x,
                 goal_y,
-                PowerOfTwo::from_exp(x_smoothness),
-                PowerOfTwo::from_exp(y_smoothness),
+                if binning {
+                    PixelPolicy::Binning
+                } else {
+                    PixelPolicy::Sampling
+                },
             ),
         })
     }

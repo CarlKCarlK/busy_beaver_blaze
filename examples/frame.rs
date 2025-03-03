@@ -1,6 +1,4 @@
-use busy_beaver_blaze::{
-    BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PowerOfTwo, SpaceByTimeMachine,
-};
+use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, SpaceByTimeMachine};
 use core::str::FromStr;
 use std::{fs, path::Path};
 
@@ -53,42 +51,25 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         .unwrap_or(Resolution::Tiny); // cmk2K
     let (goal_x, goal_y) = resolution.dimensions();
 
-    let x_smoothness = std::env::args()
+    let binning: bool = std::env::args()
         .nth(3)
         .and_then(|arg| arg.parse().ok())
-        .unwrap_or(1);
-    let y_smoothness = std::env::args()
-        .nth(4)
-        .and_then(|arg| arg.parse().ok())
-        .unwrap_or(1);
+        .unwrap_or(true);
     let run_id = std::env::args()
-        .nth(5)
+        .nth(4)
         .and_then(|arg| arg.parse().ok())
         .unwrap_or(0);
 
     let (up_x, up_y) = (goal_x, goal_y);
     let end_step = 18_349_821;
     let num_frames = 2;
-
-    let (max_x_2, max_y_2) = (
-        PowerOfTwo::from_exp(x_smoothness).log2(),
-        PowerOfTwo::from_exp(y_smoothness).log2(),
-    );
     let mut space_by_time_machine = match machine_name.as_str() {
-        "bb5_champ" => SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, max_x_2, max_y_2)?,
-        "bb6_contender" => {
-            SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_2, max_y_2)?
+        "bb5_champ" => SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, binning)?,
+        "bb6_contender" => SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning)?,
+        "bb6_contender2" => SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning)?,
+        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
+            SpaceByTimeMachine::from_str("1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---", up_x, up_y, binning)?
         }
-        "bb6_contender2" => {
-            SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, max_x_2, max_y_2)?
-        }
-        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => SpaceByTimeMachine::from_str(
-            "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
-            up_x,
-            up_y,
-            max_x_2,
-            max_y_2,
-        )?,
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
 
@@ -105,7 +86,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             break;
         }
         let f = format!(
-            r"m:\deldir\bb\frame\{run_id}\{machine_name}_{resolution:?}_{x_smoothness}_{y_smoothness}_{goal_step_index}_{:?}.png",
+            r"m:\deldir\bb\frame\{run_id}\{machine_name}_{resolution:?}_{binning}_{goal_step_index}_{:?}.png",
             start.elapsed()
         );
         let out_info = Path::new(f.as_str());
