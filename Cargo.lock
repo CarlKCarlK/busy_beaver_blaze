@@ -181,7 +181,6 @@ dependencies = [
  "num-traits",
  "png",
  "rand 0.9.0",
- "rayon",
  "smallvec",
  "thousands",
  "wasm-bindgen",

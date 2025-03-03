@@ -29,7 +29,6 @@ use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
 use derive_more::{Error as DeriveError, derive::Display};
 use pixel::Pixel;
 use png::{BitDepth, ColorType, Encoder};
-use rayon::prelude::*;
 use thousands::Separable;
 use zerocopy::IntoBytes;
 // Export types from modules
@@ -218,72 +217,6 @@ pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<P
         let average = step.divide_into(sum * 255).into();
         result.push(average);
     }
-
-    result
-}
-
-#[allow(clippy::missing_panics_doc, clippy::integer_division_remainder_used)]
-#[must_use]
-// cmk0000000 if this is used, do full correctness check
-pub fn average_with_simd_rayon<const LANES: usize>(
-    values: &AVec<BoolU8>,
-    step: PowerOfTwo,
-    rayon_threads: usize,
-) -> AVec<Pixel>
-where
-    LaneCount<LANES>: SupportedLaneCount,
-{
-    assert!(
-        { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
-        "LANES must be less than or equal to step and alignment"
-    );
-
-    let values_len = values.len();
-    let capacity = step.div_ceil_into(values_len);
-    let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, capacity);
-    result.resize(result.capacity(), Pixel::WHITE); // Pre-fill with zeros
-    let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
-    let result_chunk_size = (capacity.div_ceil(rayon_threads * LANES)) * LANES;
-    let input_chunk_size = result_chunk_size * step.as_usize();
-    // Process SIMD chunks directly (each chunk is N elements)
-    let lanes_per_chunk = step.saturating_div(lanes);
-
-    result
-        .par_chunks_mut(result_chunk_size)
-        .zip(values.par_chunks(input_chunk_size))
-        .for_each(|(result_chunk, input_chunk)| {
-            let (prefix, chunks, _suffix) = input_chunk.as_bytes().as_simd::<LANES>();
-
-            // Since we're using AVec with 64-byte alignment, the prefix should be empty
-            debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
-
-            if lanes_per_chunk == PowerOfTwo::ONE {
-                for (average, chunk) in result_chunk.iter_mut().zip(chunks.iter()) {
-                    let sum = chunk.reduce_sum() as u32;
-                    *average = step.divide_into(sum * 255).into();
-                }
-            } else {
-                let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
-
-                // Process complete chunks
-                for (average, sub_chunk) in result_chunk.iter_mut().zip(&mut chunk_iter) {
-                    // Sum the values within the vector - values are just 0 or 1
-                    let sum: u32 = sub_chunk
-                        .iter()
-                        .map(|chunk| chunk.reduce_sum() as u32)
-                        .sum();
-                    *average = step.divide_into(sum * 255).into();
-                }
-            }
-
-            // How many elements are unprocessed?
-            let unused_items = step.rem_into_usize(values_len);
-            if unused_items > 0 {
-                // sum the last missing_items
-                let sum: u32 = values.iter().rev().take(unused_items).map(u32::from).sum();
-                *(result_chunk.last_mut().unwrap()) = step.divide_into(sum * 255).into();
-            }
-        });
 
     result
 }

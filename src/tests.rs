@@ -1,6 +1,6 @@
 use crate::{
     ALIGN, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
-    average_with_simd_push, average_with_simd_rayon, bool_u8::BoolU8, pixel::Pixel,
+    average_with_simd_push, bool_u8::BoolU8, pixel::Pixel,
 };
 #[cfg(test)]
 use crate::{BB5_CHAMP, Error, Machine, PowerOfTwo, SpaceByTime};
@@ -190,10 +190,6 @@ fn test_average() {
     let result = average_with_simd::<32>(&values, step);
     assert_eq!(result, expected);
     let result = average_with_simd::<64>(&values, step);
-    assert_eq!(result, expected);
-
-    // Rayon is slower, but is it correct?
-    let result = average_with_simd_rayon::<64>(&values, step, 2);
     assert_eq!(result, expected);
 
     // Is count_ones correct?

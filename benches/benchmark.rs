@@ -2,7 +2,7 @@
 use aligned_vec::AVec;
 use busy_beaver_blaze::{
     ALIGN, PowerOfTwo, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
-    average_with_simd_push, average_with_simd_rayon,
+    average_with_simd_push,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -65,20 +65,6 @@ fn large(criterion: &mut Criterion) {
         );
     });
 
-    // group.bench_function("simd32rayon", |bencher| {
-    //     bencher.iter_with_setup(
-    //         || values.clone(),
-    //         |values_clone| average_with_simd_rayon::<32>(black_box(&values_clone), black_box(step)),
-    //     );
-    // });
-
-    // group.bench_function("simd64rayon", |bencher| {
-    //     bencher.iter_with_setup(
-    //         || values.clone(),
-    //         |values_clone| average_with_simd_rayon::<64>(black_box(&values_clone), black_box(step)),
-    //     );
-    // });
-
     // group.bench_function("simd64_count_ones", |bencher| {
     //     bencher.iter_with_setup(
     //         || values.clone(),
@@ -128,57 +114,6 @@ fn len_100m(criterion: &mut Criterion) {
         );
     });
 
-    group.bench_function("simd32rayon2", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| {
-                average_with_simd_rayon::<32>(black_box(&values_clone), black_box(step), 2)
-            },
-        );
-    });
-
-    group.bench_function("simd64rayon1", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| {
-                average_with_simd_rayon::<64>(black_box(&values_clone), black_box(step), 1)
-            },
-        );
-    });
-
-    group.bench_function("simd64rayon2", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| {
-                average_with_simd_rayon::<64>(black_box(&values_clone), black_box(step), 2)
-            },
-        );
-    });
-
-    group.bench_function("simd64rayon4", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| {
-                average_with_simd_rayon::<64>(black_box(&values_clone), black_box(step), 4)
-            },
-        );
-    });
-    group.bench_function("simd64rayon8", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| {
-                average_with_simd_rayon::<64>(black_box(&values_clone), black_box(step), 8)
-            },
-        );
-    });
-    group.bench_function("simd64rayon16", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| {
-                average_with_simd_rayon::<64>(black_box(&values_clone), black_box(step), 16)
-            },
-        );
-    });
     group.bench_function("simd64_count_ones", |bencher| {
         bencher.iter_with_setup(
             || values.clone(),

@@ -1,6 +1,5 @@
 use aligned_vec::AVec;
 use itertools::Itertools;
-use rayon::{iter::ParallelIterator, slice::ParallelSliceMut};
 
 use crate::{
     ALIGN, fast_is_even, pixel::Pixel, power_of_two::PowerOfTwo, prev_power_of_two,
@@ -89,26 +88,12 @@ impl Spacelines {
             let mut gap = PowerOfTwo::ONE;
 
             while gap.as_usize() < slice.len() {
-                let pair_count = slice_len.saturating_div(gap);
-                // cmk0000 for now, always run sequentially
-                if pair_count >= PowerOfTwo::MAX {
-                    // Process pairs in parallel
-                    slice
-                        .par_chunks_mut(gap.double().as_usize())
-                        .for_each(|chunk| {
-                            let (left_index, right_index) = (0, gap.as_usize());
-                            let (_, right_spaceline) = chunk[right_index].take().unwrap();
-                            let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
-                            left_spaceline.merge(&right_spaceline);
-                        });
-                } else {
-                    slice.chunks_mut(gap.double().as_usize()).for_each(|chunk| {
-                        let (left_index, right_index) = (0, gap.as_usize());
-                        let (_, right_spaceline) = chunk[right_index].take().unwrap();
-                        let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
-                        left_spaceline.merge(&right_spaceline);
-                    });
-                }
+                slice.chunks_mut(gap.double().as_usize()).for_each(|chunk| {
+                    let (left_index, right_index) = (0, gap.as_usize());
+                    let (_, right_spaceline) = chunk[right_index].take().unwrap();
+                    let (_, left_spaceline) = chunk[left_index].as_mut().unwrap();
+                    left_spaceline.merge(&right_spaceline);
+                });
                 gap = gap.double();
             }
 
