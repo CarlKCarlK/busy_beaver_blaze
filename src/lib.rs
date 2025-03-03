@@ -1075,7 +1075,7 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
 #[wasm_bindgen]
 pub struct SpaceByTimeMachine {
     machine: Machine,
-    space_time: SpaceByTime,
+    space_by_time: SpaceByTime,
 }
 
 // impl iterator for spacetime machine
@@ -1086,7 +1086,8 @@ impl Iterator for SpaceByTimeMachine {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let previous_tape_index = self.machine.next()?;
-        self.space_time.snapshot(&self.machine, previous_tape_index);
+        self.space_by_time
+            .snapshot(&self.machine, previous_tape_index);
         Some(())
     }
 }
@@ -1105,7 +1106,7 @@ impl SpaceByTimeMachine {
     ) -> Result<Self, String> {
         Ok(Self {
             machine: Machine::from_string(s)?,
-            space_time: SpaceByTime::new(
+            space_by_time: SpaceByTime::new(
                 goal_x,
                 goal_y,
                 PowerOfTwo::from_exp(x_smoothness),
@@ -1196,7 +1197,7 @@ impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
     pub fn png_data(&mut self) -> Vec<u8> {
-        self.space_time
+        self.space_by_time
             .to_png()
             .unwrap_or_else(|e| format!("{e:?}").into_bytes())
     }
@@ -1206,7 +1207,7 @@ impl SpaceByTimeMachine {
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn step_count(&self) -> u64 {
-        self.space_time.step_index + 1
+        self.space_by_time.step_index + 1
     }
 
     #[wasm_bindgen]
@@ -1234,7 +1235,7 @@ impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
     pub const fn step_index(&self) -> u64 {
-        self.space_time.step_index
+        self.space_by_time.step_index
     }
 
     #[inline]
