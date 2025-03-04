@@ -391,71 +391,41 @@ fn benchmark63() -> Result<(), String> {
 #[test]
 #[wasm_bindgen_test]
 fn parts() -> Result<(), String> {
-    let skip = 50_000_000;
-    let early_stop = Some(100_000_000);
-    let chunk_size = 10_000_000;
-    let goal_x: u32 = 1920;
-    let goal_y: u32 = 1080;
+    let early_stop = 250_000_000u64;
+    let goal_x: u32 = 360;
+    let goal_y: u32 = 432;
     let program_string = BB6_CONTENDER;
     let binning = true;
-    let mut space_by_time_machine =
-        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, skip)?;
 
-    let mut total_steps = 1; // Start at 1 since first step is already taken
+    let part_count = 4;
+    let part_size = early_stop.div_ceil(part_count);
+    let range_list: Vec<_> = (0..early_stop)
+        .step_by(part_size as usize)
+        .map(|start| start..(start + part_size).min(early_stop))
+        .collect();
 
-    loop {
-        if early_stop.is_some_and(|early_stop| total_steps >= early_stop) {
-            break;
-        }
-
-        // Calculate next chunk size
-        let next_chunk = if total_steps == 1 {
-            chunk_size - 1
-        } else {
-            chunk_size
-        };
-
-        let next_chunk = early_stop.map_or(next_chunk, |early_stop| {
-            let remaining = early_stop - total_steps;
-            remaining.min(next_chunk)
-        });
+    let mut results: Vec<(bool, SpaceByTimeMachine)> = vec![];
+    for (part_index, range) in range_list.iter().enumerate() {
+        let (start, end) = (range.start, range.end);
+        println!("{part_index}: Start: {start}, End: {end}");
+        let mut space_by_time_machine =
+            SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, start)?;
 
         // Run the next chunk
-        let continues = space_by_time_machine.nth_js(next_chunk - 1);
-        total_steps += next_chunk;
-
-        // Send intermediate update
-        println!(
-            "intermediate: {:?} Steps {}: {:?}, #1's {}",
-            0,
-            // start.elapsed(),
-            space_by_time_machine.step_index().separate_with_commas(),
-            space_by_time_machine.machine(),
-            space_by_time_machine.count_ones()
-        );
-
-        // let _png_data = space_by_time_machine.png_data();
-
-        // Exit if machine halted
-        if !continues {
-            break;
-        }
+        let continues = space_by_time_machine.nth_js(end - start - 1);
+        results.push((continues, space_by_time_machine));
     }
 
-    // Send final result
-
-    println!(
-        "Final: {:?} Steps {}: {:?}, #1's {}",
-        0, // start.elapsed(),
-        space_by_time_machine.step_index().separate_with_commas(),
-        space_by_time_machine.machine(),
-        space_by_time_machine.count_ones(),
-    );
-
-    // cmk LATER what is one method png_data and another to to_png?
-    let start = std::time::Instant::now();
-    let png_data = space_by_time_machine.png_data();
-    fs::write("tests/expected/parts.png", &png_data).unwrap(); // cmk handle error
-    println!("Elapsed png: {:?}", start.elapsed());
+    for (part_index, (continues, mut space_by_time_machine)) in results.into_iter().enumerate() {
+        println!(
+            "Final: part_index{part_index}, continues{continues} {:?} Steps {}: {:?}, #1's {}",
+            0, // start.elapsed(),
+            space_by_time_machine.step_index().separate_with_commas(),
+            space_by_time_machine.machine(),
+            space_by_time_machine.count_ones(),
+        );
+        let png_data = space_by_time_machine.png_data();
+        fs::write(format!("tests/expected/part{part_index}.png"), &png_data).unwrap(); // cmk handle error
+    }
     Ok(())
 }

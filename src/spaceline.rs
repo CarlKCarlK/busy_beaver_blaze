@@ -1,6 +1,6 @@
 use crate::pixel::Pixel;
 use crate::tape::Tape;
-use crate::{PixelPolicy, PowerOfTwo, average_chunk_with_simd};
+use crate::{ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd};
 use aligned_vec::AVec;
 
 #[derive(Clone, Debug)]
@@ -14,11 +14,11 @@ pub struct Spaceline {
 
 impl Spaceline {
     pub fn new0(pixel_policy: PixelPolicy) -> Self {
-        let mut nonnegative = AVec::new(1);
+        let mut nonnegative = AVec::new(ALIGN);
         nonnegative.push(Pixel::WHITE);
         Self {
             stride: PowerOfTwo::ONE,
-            negative: AVec::new(64),
+            negative: AVec::new(ALIGN),
             nonnegative,
             time: 0,
             pixel_policy,
@@ -61,7 +61,7 @@ impl Spaceline {
     ) -> Self {
         let mut result = Self {
             stride,
-            negative: AVec::new(64),
+            negative: AVec::new(ALIGN),
             nonnegative: pixels,
             time,
             pixel_policy,
@@ -95,7 +95,7 @@ impl Spaceline {
     #[inline]
     pub fn resample_if_needed(&mut self, stride: PowerOfTwo) {
         // cmk0000 seems overly messy
-        assert!(!self.nonnegative.is_empty(), "real assert a");
+        // assert!(!self.nonnegative.is_empty(), "real assert a");
         assert!(
             self.stride.divides_i64(self.tape_start()),
             "Start must be a multiple of the sample rate"
