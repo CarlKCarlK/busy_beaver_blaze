@@ -64,7 +64,7 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
     let binning = false;
     let n = 1_000_000;
     let mut space_by_time_machine =
-        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning)?;
+        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
 
     while space_by_time_machine.nth_js(n - 1) {
         println!(
@@ -102,7 +102,7 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
     let binning = false;
     let seconds = 0.25;
     let mut space_by_time_machine =
-        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning)?;
+        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
 
     while space_by_time_machine.step_for_secs_js(seconds, None, 100_000) {
         println!(
@@ -166,7 +166,7 @@ fn benchmark1() -> Result<(), String> {
     let binning = false;
     let n = 500_000_000;
     let mut space_by_time_machine =
-        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning)?;
+        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
 
     space_by_time_machine.nth_js(n - 1);
 
@@ -204,7 +204,7 @@ fn benchmark2() -> Result<(), String> {
     let goal_y: u32 = 432;
     let binning = false;
     let mut space_by_time_machine =
-        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning)?;
+        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
 
     let chunk_size = 100_000_000;
     let mut total_steps = 1; // Start at 1 since first step is already taken
@@ -278,7 +278,7 @@ fn benchmark3() -> Result<(), String> {
         let goal_y: u32 = 432;
 
         let mut space_by_time_machine =
-            SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning)?;
+            SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
 
         // Run to completion
         while space_by_time_machine.nth_js(1_000_000 - 1) {}
@@ -326,7 +326,7 @@ fn benchmark63() -> Result<(), String> {
     let program_string = BB6_CONTENDER;
     let binning = true;
     let mut space_by_time_machine =
-        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning)?;
+        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
 
     let mut total_steps = 1; // Start at 1 since first step is already taken
 
@@ -383,6 +383,79 @@ fn benchmark63() -> Result<(), String> {
     let start = std::time::Instant::now();
     let png_data = space_by_time_machine.png_data();
     fs::write("tests/expected/bench63.png", &png_data).unwrap(); // cmk handle error
+    println!("Elapsed png: {:?}", start.elapsed());
+    Ok(())
+}
+
+#[allow(clippy::shadow_reuse)]
+#[test]
+#[wasm_bindgen_test]
+fn parts() -> Result<(), String> {
+    let skip = 50_000_000;
+    let early_stop = Some(100_000_000);
+    let chunk_size = 10_000_000;
+    let goal_x: u32 = 1920;
+    let goal_y: u32 = 1080;
+    let program_string = BB6_CONTENDER;
+    let binning = true;
+    let mut space_by_time_machine =
+        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, skip)?;
+
+    let mut total_steps = 1; // Start at 1 since first step is already taken
+
+    loop {
+        if early_stop.is_some_and(|early_stop| total_steps >= early_stop) {
+            break;
+        }
+
+        // Calculate next chunk size
+        let next_chunk = if total_steps == 1 {
+            chunk_size - 1
+        } else {
+            chunk_size
+        };
+
+        let next_chunk = early_stop.map_or(next_chunk, |early_stop| {
+            let remaining = early_stop - total_steps;
+            remaining.min(next_chunk)
+        });
+
+        // Run the next chunk
+        let continues = space_by_time_machine.nth_js(next_chunk - 1);
+        total_steps += next_chunk;
+
+        // Send intermediate update
+        println!(
+            "intermediate: {:?} Steps {}: {:?}, #1's {}",
+            0,
+            // start.elapsed(),
+            space_by_time_machine.step_index().separate_with_commas(),
+            space_by_time_machine.machine(),
+            space_by_time_machine.count_ones()
+        );
+
+        // let _png_data = space_by_time_machine.png_data();
+
+        // Exit if machine halted
+        if !continues {
+            break;
+        }
+    }
+
+    // Send final result
+
+    println!(
+        "Final: {:?} Steps {}: {:?}, #1's {}",
+        0, // start.elapsed(),
+        space_by_time_machine.step_index().separate_with_commas(),
+        space_by_time_machine.machine(),
+        space_by_time_machine.count_ones(),
+    );
+
+    // cmk LATER what is one method png_data and another to to_png?
+    let start = std::time::Instant::now();
+    let png_data = space_by_time_machine.png_data();
+    fs::write("tests/expected/parts.png", &png_data).unwrap(); // cmk handle error
     println!("Elapsed png: {:?}", start.elapsed());
     Ok(())
 }

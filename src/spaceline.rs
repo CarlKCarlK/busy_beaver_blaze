@@ -14,12 +14,12 @@ pub struct Spaceline {
 
 impl Spaceline {
     pub fn new0(pixel_policy: PixelPolicy) -> Self {
-        let mut vector = AVec::new(1);
-        vector.push(Pixel::WHITE);
+        let mut nonnegative = AVec::new(1);
+        nonnegative.push(Pixel::WHITE);
         Self {
             stride: PowerOfTwo::ONE,
             negative: AVec::new(64),
-            nonnegative: vector,
+            nonnegative,
             time: 0,
             pixel_policy,
         }
@@ -112,7 +112,6 @@ impl Spaceline {
         assert!(stride >= self.stride, "real assert 12");
         let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
         assert!(old_items_to_use <= self.len() as u64, "real assert d10");
-        // let down_step = stride.saturating_div(self.pixel_policy);
         let pixel0 = Pixel::merge_slice_down_sample(
             &self.pixel_range(0, old_items_to_use as usize),
             old_items_to_add as usize,
@@ -321,5 +320,3 @@ impl Spaceline {
         true
     }
 }
-
-// ...existing code continues...

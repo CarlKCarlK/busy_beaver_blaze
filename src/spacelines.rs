@@ -2,7 +2,8 @@ use aligned_vec::AVec;
 use itertools::Itertools;
 
 use crate::{
-    ALIGN, PixelPolicy, fast_is_even, pixel::Pixel, power_of_two::PowerOfTwo, spaceline::Spaceline,
+    ALIGN, PixelPolicy, Tape, fast_is_even, pixel::Pixel, power_of_two::PowerOfTwo,
+    spaceline::Spaceline,
 };
 
 pub(crate) struct Spacelines {
@@ -11,12 +12,26 @@ pub(crate) struct Spacelines {
 }
 
 impl Spacelines {
-    pub(crate) fn new(pixel_policy: PixelPolicy) -> Self {
+    pub(crate) fn new0(pixel_policy: PixelPolicy) -> Self {
         Self {
             main: vec![Spaceline::new0(pixel_policy)],
             buffer0: Vec::new(),
         }
     }
+
+    pub(crate) fn new_skipped(
+        tape: &Tape,
+        x_goal: u32,
+        step_index: u64,
+        pixel_policy: PixelPolicy,
+    ) -> Self {
+        let spaceline = Spaceline::new(tape, x_goal, step_index, pixel_policy);
+        Self {
+            main: vec![spaceline],
+            buffer0: Vec::new(),
+        }
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.main.len() + usize::from(!self.buffer0.is_empty())
     }

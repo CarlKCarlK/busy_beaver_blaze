@@ -64,12 +64,16 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     let end_step = 18_349_821;
     let num_frames = 2;
     let mut space_by_time_machine = match machine_name.as_str() {
-        "bb5_champ" => SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, binning)?,
-        "bb6_contender" => SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning)?,
-        "bb6_contender2" => SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning)?,
-        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
-            SpaceByTimeMachine::from_str("1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---", up_x, up_y, binning)?
-        }
+        "bb5_champ" => SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, binning, 0)?,
+        "bb6_contender" => SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning, 0)?,
+        "bb6_contender2" => SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning, 0)?,
+        "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => SpaceByTimeMachine::from_str(
+            "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
+            up_x,
+            up_y,
+            binning,
+            0,
+        )?,
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
 

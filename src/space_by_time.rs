@@ -1,10 +1,11 @@
 use crate::{
-    Error, Machine, Pixel, PixelPolicy, encode_png, power_of_two::PowerOfTwo, sample_rate,
+    Error, Machine, Pixel, PixelPolicy, Tape, encode_png, power_of_two::PowerOfTwo, sample_rate,
     spaceline::Spaceline, spacelines::Spacelines,
 };
 
 pub struct SpaceByTime {
-    pub(crate) step_index: u64,
+    skip: u64,
+    step_index: u64,
     x_goal: u32,
     y_goal: u32,
     stride: PowerOfTwo,
@@ -19,16 +20,45 @@ pub struct SpaceByTime {
 impl SpaceByTime {
     #[inline]
     #[must_use]
-    pub fn new(x_goal: u32, y_goal: u32, pixel_policy: PixelPolicy) -> Self {
+    pub fn new0(x_goal: u32, y_goal: u32, pixel_policy: PixelPolicy) -> Self {
         Self {
+            skip: 0,
             step_index: 0,
             x_goal,
             y_goal,
             stride: PowerOfTwo::ONE,
-            spacelines: Spacelines::new(pixel_policy),
+            spacelines: Spacelines::new0(pixel_policy),
             pixel_policy,
             previous_space_line: None,
         }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn new_skipped(
+        tape: &Tape,
+        skip: u64,
+        x_goal: u32,
+        y_goal: u32,
+        pixel_policy: PixelPolicy,
+    ) -> Self {
+        // cmk000 confusing to refer to both machine time and space time as "step_count"
+        Self {
+            skip,
+            step_index: 0,
+            x_goal,
+            y_goal,
+            stride: PowerOfTwo::ONE,
+            spacelines: Spacelines::new_skipped(tape, x_goal, skip, pixel_policy),
+            pixel_policy,
+            previous_space_line: None,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn step_index(&self) -> u64 {
+        self.step_index
     }
 
     fn compress_if_needed(&mut self) {
@@ -74,25 +104,25 @@ impl SpaceByTime {
                     // cmk messy code
                     if previous.redo_pixel(
                         previous_tape_index,
-                        &machine.tape,
+                        machine.tape(),
                         self.x_goal,
-                        self.step_index,
+                        self.step_index + self.skip,
                         self.pixel_policy,
                     ) {
                         previous
                     } else {
                         Spaceline::new(
-                            &machine.tape,
+                            machine.tape(),
                             self.x_goal,
-                            self.step_index,
+                            self.step_index + self.skip,
                             self.pixel_policy,
                         )
                     }
                 } else {
                     Spaceline::new(
-                        &machine.tape,
+                        machine.tape(),
                         self.x_goal,
-                        self.step_index,
+                        self.step_index + self.skip,
                         self.pixel_policy,
                     )
                 };
@@ -107,7 +137,7 @@ impl SpaceByTime {
                 self.spacelines.flush_buffer0();
                 self.compress_if_needed();
                 self.spacelines.push(Spaceline::new(
-                    &machine.tape,
+                    machine.tape(),
                     self.x_goal,
                     self.step_index,
                     self.pixel_policy,

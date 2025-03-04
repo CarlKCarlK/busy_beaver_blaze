@@ -69,17 +69,17 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         .as_str()
     {
         "bb5_champ" => {
-            let machine = SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, binning)?;
+            let machine = SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, binning, 0)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb5_champ")?;
             (machine, 47_176_870, 1000, dir_info)
         }
         "bb6_contender" => {
-            let machine = SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning)?;
+            let machine = SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning, 0)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
             (machine, 1_000_000_000_000u64, 2000, dir_info)
         }
         "bb6_contender2" => {
-            let machine = SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning)?;
+            let machine = SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning, 0)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender2")?;
             (machine, 1_000_000_000u64, 1000, dir_info)
         }
@@ -89,6 +89,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
                 up_x,
                 up_y,
                 binning,
+                0,
             )?;
             let dir_info =
                 create_sequential_subdir(r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;

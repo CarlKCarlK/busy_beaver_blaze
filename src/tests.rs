@@ -17,7 +17,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     let goal_x: u32 = 1000;
     let goal_y: u32 = 1000;
     let pixel_policy: PixelPolicy = PixelPolicy::Sampling;
-    let mut sample_space_by_time = SpaceByTime::new(goal_x, goal_y, pixel_policy);
+    let mut sample_space_by_time = SpaceByTime::new0(goal_x, goal_y, pixel_policy);
 
     let early_stop = Some(10_500_000);
     // let early_stop = Some(1_000_000);
@@ -25,16 +25,16 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
 
     while let Some(previous_tape_index) = machine
         .next()
-        .filter(|_| early_stop.is_none_or(|stop| sample_space_by_time.step_index + 1 < stop))
+        .filter(|_| early_stop.is_none_or(|stop| sample_space_by_time.step_index() + 1 < stop))
     {
         if debug_interval
-            .is_none_or(|debug_interval| sample_space_by_time.step_index % debug_interval == 0)
+            .is_none_or(|debug_interval| sample_space_by_time.step_index() % debug_interval == 0)
         {
             println!(
                 "Step {}: {:?},\t{}",
-                sample_space_by_time.step_index.separate_with_commas(),
+                sample_space_by_time.step_index().separate_with_commas(),
                 machine,
-                machine.tape.index_range_to_string(-10..=10)
+                machine.tape().index_range_to_string(-10..=10)
             );
         }
 
@@ -47,13 +47,13 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
 
     println!(
         "Final: Steps {}: {:?}, #1's {}",
-        sample_space_by_time.step_index.separate_with_commas(),
+        sample_space_by_time.step_index().separate_with_commas(),
         machine,
         machine.count_ones()
     );
 
     if early_stop.is_none() {
-        assert_eq!(sample_space_by_time.step_index, 47_176_870);
+        assert_eq!(sample_space_by_time.step_index(), 47_176_870);
         assert_eq!(machine.count_ones(), 4098);
         assert_eq!(machine.state(), 7);
         assert_eq!(machine.tape_index(), -12242);

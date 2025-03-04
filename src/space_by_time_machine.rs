@@ -27,18 +27,33 @@ impl Iterator for SpaceByTimeMachine {
 #[allow(clippy::min_ident_chars)]
 impl SpaceByTimeMachine {
     #[wasm_bindgen(constructor)]
-    pub fn from_str(s: &str, goal_x: u32, goal_y: u32, binning: bool) -> Result<Self, String> {
+    pub fn from_str(
+        program: &str,
+        goal_x: u32,
+        goal_y: u32,
+        binning: bool,
+        skip: u64,
+    ) -> Result<Self, String> {
+        let mut machine = Machine::from_string(program)?;
+        for _ in 0..skip {
+            if machine.next().is_none() {
+                return Err("Machine halted while skipping".to_owned());
+            }
+        }
+        let space_by_time = SpaceByTime::new_skipped(
+            machine.tape(),
+            skip,
+            goal_x,
+            goal_y,
+            if binning {
+                PixelPolicy::Binning
+            } else {
+                PixelPolicy::Sampling
+            },
+        );
         Ok(Self {
-            machine: Machine::from_string(s)?,
-            space_by_time: SpaceByTime::new(
-                goal_x,
-                goal_y,
-                if binning {
-                    PixelPolicy::Binning
-                } else {
-                    PixelPolicy::Sampling
-                },
-            ),
+            machine,
+            space_by_time,
         })
     }
 
@@ -133,7 +148,7 @@ impl SpaceByTimeMachine {
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn step_count(&self) -> u64 {
-        self.space_by_time.step_index + 1
+        self.space_by_time.step_index() + 1
     }
 
     #[wasm_bindgen]
@@ -161,7 +176,7 @@ impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
     pub const fn step_index(&self) -> u64 {
-        self.space_by_time.step_index
+        self.space_by_time.step_index()
     }
 
     #[inline]

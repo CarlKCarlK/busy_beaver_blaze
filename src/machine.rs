@@ -7,15 +7,15 @@ use wasm_bindgen::prelude::*;
 pub struct Machine {
     state: u8,
     tape_index: i64,
-    pub(crate) tape: Tape,
+    tape: Tape,
     program: Program,
 }
 
 #[wasm_bindgen]
 impl Machine {
     #[wasm_bindgen(constructor)]
-    pub fn from_string(input: &str) -> Result<Self, String> {
-        input.parse().map_err(|error| format!("{error:?}"))
+    pub fn from_string(program: &str) -> Result<Self, String> {
+        program.parse().map_err(|error| format!("{error:?}"))
     }
 
     #[wasm_bindgen]
@@ -63,6 +63,14 @@ impl Machine {
     #[allow(clippy::missing_const_for_fn)]
     pub fn tape_index(&self) -> i64 {
         self.tape_index
+    }
+}
+
+impl Machine {
+    #[inline]
+    #[must_use]
+    pub const fn tape(&self) -> &Tape {
+        &self.tape
     }
 }
 
