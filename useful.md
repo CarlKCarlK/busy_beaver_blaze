@@ -16,7 +16,7 @@ cargo test bb5_champ_space_by_time --release -- --nocapture
 ## Package for WASM
 
 ```bash
-wasm-pack build --out-dir docs/v0.2.3/pkg --target web && del docs\v0.2.3\pkg\.gitignore
+wasm-pack build --out-dir docs/v0.2.4/pkg --target web && del docs\v0.2.4\pkg\.gitignore
 ```
 
 ## Make movie frames

@@ -1,3 +1,4 @@
+#![cfg(not(target_arch = "wasm32"))]
 #![feature(portable_simd)]
 use aligned_vec::AVec;
 use busy_beaver_blaze::{

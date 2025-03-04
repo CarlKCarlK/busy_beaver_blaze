@@ -23,26 +23,6 @@ impl Pixel {
     pub(crate) const WHITE: Self = Self(0);
     const SPLAT_1: Simd<u8, LANES_CMK> = Simd::<u8, LANES_CMK>::splat(1);
 
-    // // cmk000000
-    // #[inline]
-    // pub(crate) fn slice_merge_with_white(pixels: &mut [Self]) {
-    //     // Safety: Pixel is repr(transparent) around u8, so this cast is safe
-    //     let bytes: &mut [u8] = pixels.as_mut_bytes();
-
-    //     // Process with SIMD where possible
-    //     let (prefix, chunks, suffix) = bytes.as_simd_mut::<LANES_CMK>();
-
-    //     // Process SIMD chunks
-    //     for chunk in chunks {
-    //         *chunk >>= Self::SPLAT_1;
-    //     }
-
-    //     // Process remaining elements
-    //     for byte in prefix.iter_mut().chain(suffix.iter_mut()) {
-    //         *byte >>= 1;
-    //     }
-    // }
-
     #[inline]
     pub(crate) fn slice_merge(left: &mut [Self], right: &[Self]) {
         debug_assert_eq!(
@@ -74,12 +54,6 @@ impl Pixel {
         }
     }
 
-    // cmk000000
-    // #[inline]
-    // pub(crate) const fn merge(&mut self, other: Self) {
-    //     self.0 = (self.0 >> 1) + (other.0 >> 1) + ((self.0 & other.0) & 1);
-    // }
-
     #[inline]
     pub(crate) fn merge_slice_down_sample(
         slice: &[Self],
@@ -89,7 +63,7 @@ impl Pixel {
         match pixel_policy {
             PixelPolicy::Sampling => slice[0],
             PixelPolicy::Binning => {
-                // cmk0000 make this faster with SIMD or at least more functional
+                // cmk000000 make this faster with SIMD or at least more functional
                 let sum: u32 = slice.iter().map(|pixel| pixel.0 as u32).sum();
                 let total_len = crate::PowerOfTwo::from_usize_unchecked(slice.len() + empty_count);
                 let mean = total_len.divide_into(sum) as u8;

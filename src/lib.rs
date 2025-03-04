@@ -17,13 +17,6 @@ mod spaceline;
 mod spacelines;
 mod tape;
 
-// cmk00 Ideas for speedup:
-// cmk00    Use nightly simd to average adjacent cells (only useful when at higher smoothing)
-// cmk00    Build up 64 (or 128 or 256) rows without merging then use a Rayon parallel tree merge (see https://chatgpt.com/share/67bb94cb-4ba4-800c-b430-c45a5eb46715)
-// cmk00    Better than doing a tree merge would be having different final lines processed in parallel
-
-// cmk Could u8 in tape be a bool? (also in average_with_X)
-
 use aligned_vec::AVec;
 use bool_u8::BoolU8;
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
@@ -287,7 +280,6 @@ pub fn average_chunk_with_simd<const LANES: usize>(chunk: &[BoolU8], step: Power
 where
     LaneCount<LANES>: SupportedLaneCount,
 {
-    // cmk00000 make these debug_asserts
     debug_assert!(
         { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
         "LANES must be less than or equal to step and alignment"
