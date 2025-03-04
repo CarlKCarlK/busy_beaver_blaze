@@ -2,7 +2,6 @@ use crate::pixel::Pixel;
 use crate::tape::Tape;
 use crate::{PixelPolicy, PowerOfTwo};
 use aligned_vec::AVec;
-use smallvec::SmallVec;
 
 #[derive(Clone, Debug)]
 pub struct Spaceline {

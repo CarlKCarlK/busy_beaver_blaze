@@ -140,7 +140,7 @@ impl SpaceByTime {
             for x in x_start as u32..x_actual {
                 let tape_index: i64 = (x_sample * x as usize) as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
-                assert!(
+                debug_assert!(
                     tape_index >= *local_start,
                     "real assert if x_start is correct"
                 );
