@@ -1,6 +1,5 @@
 use aligned_vec::AVec;
 use itertools::Itertools;
-use num_traits::Pow;
 
 use crate::{
     ALIGN, PixelPolicy, fast_is_even, pixel::Pixel, power_of_two::PowerOfTwo, spaceline::Spaceline,
@@ -67,16 +66,11 @@ impl Spacelines {
     }
 
     pub(crate) fn last(
-        &mut self,
+        &self,
         step_index: u64,
         y_sample: PowerOfTwo,
         pixel_policy: PixelPolicy,
     ) -> Spaceline {
-        let y_smoothness = match pixel_policy {
-            PixelPolicy::Sampling => PowerOfTwo::ONE,
-            PixelPolicy::Binning => PowerOfTwo::MAX,
-        };
-
         if self.buffer0.is_empty() {
             // cmk would be nice to remove this clone
             return self.main.last().unwrap().clone();
@@ -85,7 +79,6 @@ impl Spacelines {
 
         let buffer_last = self.buffer0.last().unwrap();
         let spaceline_last = &buffer_last.0;
-        let weight = buffer_last.1; // cmk0000 should this be used?
         let time = spaceline_last.time;
         let start = spaceline_last.tape_start();
         let x_sample = spaceline_last.sample;
@@ -93,83 +86,49 @@ impl Spacelines {
 
         // cmk we have to clone because we compress in place (clone only half???)
         let mut buffer0 = self.buffer0.clone();
-        for inside_index in last_inside_index + 1..y_sample.as_u64() {
-            let down_step = y_sample.saturating_div(y_smoothness);
-            if !down_step.divides_u64(inside_index) {
-                continue;
-            }
-            let inside_inside_index = down_step.divide_into(inside_index);
+        match pixel_policy {
+            PixelPolicy::Sampling => {
+                // what's the small number I need to add to last_inside_index to create a multiple of y_sample?
+                let smallest = y_sample.offset_to_align(last_inside_index as usize);
+                if smallest != 0 {
+                    let mut empty_pixels =
+                        AVec::<Pixel>::with_capacity(ALIGN, spaceline_last.len());
+                    empty_pixels.resize(spaceline_last.len(), Pixel::WHITE);
 
-            let empty_pixels = AVec::from_iter(
-                ALIGN,
-                core::iter::repeat_n(Pixel::WHITE, spaceline_last.len()),
-            );
-            let empty = Spaceline::new2(
-                x_sample,
-                start,
-                empty_pixels,
-                time + inside_index - last_inside_index,
-                spaceline_last.pixel_policy,
-            );
-            Self::push_internal(&mut buffer0, inside_inside_index, empty, PowerOfTwo::ONE);
+                    let empty = Spaceline::new2(
+                        x_sample,
+                        start,
+                        empty_pixels,
+                        time + smallest as u64,
+                        spaceline_last.pixel_policy,
+                    );
+                    Self::push_internal(&mut buffer0, empty, PowerOfTwo::ONE);
+                }
+            }
+            PixelPolicy::Binning => {
+                for inside_index in last_inside_index + 1..y_sample.as_u64() {
+                    let mut empty_pixels =
+                        AVec::<Pixel>::with_capacity(ALIGN, spaceline_last.len());
+                    empty_pixels.resize(spaceline_last.len(), Pixel::WHITE);
+                    let empty = Spaceline::new2(
+                        x_sample,
+                        start,
+                        empty_pixels,
+                        time + inside_index - last_inside_index,
+                        spaceline_last.pixel_policy,
+                    );
+                    Self::push_internal(&mut buffer0, empty, PowerOfTwo::ONE);
+                }
+            }
         }
+
         assert!(buffer0.len() == 1, "real assert b3");
         buffer0.pop().unwrap().0
     }
 
-    // pub(crate) fn last(
-    //     &mut self,
-    //     step_index: u64,
-    //     y_sample: PowerOfTwo,
-    //     pixel_policy: PixelPolicy,
-    // ) -> Spaceline {
-    //     if self.buffer0.is_empty() {
-    //         // cmk would be nice to remove this clone
-    //         return self.main.last().unwrap().clone();
-    //     }
-    //     // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
-
-    //     let buffer_last = self.buffer0.last().unwrap();
-    //     let spaceline_last = &buffer_last.0;
-    //     let weight = buffer_last.1; // cmk0000 should this be used?
-    //     let time = spaceline_last.time;
-    //     let start = spaceline_last.tape_start();
-    //     let x_sample = spaceline_last.sample;
-    //     let last_inside_index = y_sample.rem_into_u64(step_index);
-
-    //     // cmk we have to clone because we compress in place (clone only half???)
-    //     let mut buffer0 = self.buffer0.clone();
-    //     for inside_index in last_inside_index + 1..y_sample.as_u64() { //cmk000000000 why are we counting one by one when sampling?
-    //         let inside_inside_index = match pixel_policy {
-    //             PixelPolicy::Sampling => {
-    //                 let inside_inside_index = y_sample.divide_into(inside_index);
-    //                 if inside_inside_index != 0 {
-    //                     continue;
-    //                 }
-    //                 0
-    //             }
-    //             PixelPolicy::Binning => inside_index,
-    //         };
-
-    //         let mut empty_pixels = AVec::<Pixel>::with_capacity(ALIGN, spaceline_last.len());
-    //         empty_pixels.resize(spaceline_last.len(), Pixel::WHITE);
-    //         let empty = Spaceline::new2(
-    //             x_sample,
-    //             start,
-    //             empty_pixels,
-    //             time + inside_index - last_inside_index,
-    //             spaceline_last.pixel_policy,
-    //         );
-    //         Self::push_internal(&mut buffer0, inside_inside_index, empty, PowerOfTwo::ONE);
-    //     }
-    //     assert!(buffer0.len() == 1, "real assert b3");
-    //     buffer0.pop().unwrap().0
-    // }
-
     #[inline]
     fn push_internal(
         buffer0: &mut Vec<(Spaceline, PowerOfTwo)>,
-        _inside_index: u64,
         mut spaceline: Spaceline,
         mut weight: PowerOfTwo,
     ) {
@@ -207,7 +166,7 @@ impl Spacelines {
     }
 
     #[inline]
-    pub(crate) fn push(&mut self, inside_index: u64, spaceline: Spaceline) {
-        Self::push_internal(&mut self.buffer0, inside_index, spaceline, PowerOfTwo::ONE);
+    pub(crate) fn push(&mut self, spaceline: Spaceline) {
+        Self::push_internal(&mut self.buffer0, spaceline, PowerOfTwo::ONE);
     }
 }

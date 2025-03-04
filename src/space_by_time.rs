@@ -97,7 +97,7 @@ impl SpaceByTime {
                     )
                 };
                 self.previous_space_line = Some(spaceline.clone());
-                self.spacelines.push(inside_index, spaceline);
+                self.spacelines.push(spaceline);
             }
             PixelPolicy::Sampling => {
                 if inside_index != 0 {
@@ -106,15 +106,12 @@ impl SpaceByTime {
                 // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                 self.spacelines.flush_buffer0();
                 self.compress_if_needed();
-                self.spacelines.push(
-                    0,
-                    Spaceline::new(
-                        &machine.tape,
-                        self.x_goal,
-                        self.step_index,
-                        self.pixel_policy,
-                    ),
-                );
+                self.spacelines.push(Spaceline::new(
+                    &machine.tape,
+                    self.x_goal,
+                    self.step_index,
+                    self.pixel_policy,
+                ));
             }
         }
     }
