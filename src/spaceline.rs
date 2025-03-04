@@ -1,6 +1,6 @@
 use crate::pixel::Pixel;
 use crate::tape::Tape;
-use crate::{PixelPolicy, PowerOfTwo};
+use crate::{PixelPolicy, PowerOfTwo, average_chunk_with_simd};
 use aligned_vec::AVec;
 
 #[derive(Clone, Debug)]
@@ -282,23 +282,40 @@ impl Spaceline {
             (&tape.nonnegative, &mut self.nonnegative, part_index)
         };
         let pixel_index = x_stride.divide_into(part_index) as usize;
-        assert!(pixel_index <= pixels.len());
+        debug_assert!(pixel_index <= pixels.len());
         if pixel_index == pixels.len() {
             pixels.push(Pixel::WHITE);
         }
         let pixel = &mut pixels[pixel_index];
-        let tape_slice_start = x_stride * pixel_index;
         match pixel_policy {
             PixelPolicy::Binning => {
-                // cmk000000 could be faster??
-                let sum: u32 = (tape_slice_start..tape_slice_start + x_stride.as_usize())
-                    .filter_map(|i| part.get(i).map(u32::from))
-                    .sum();
-                let mean = x_stride.divide_into(sum * 255) as u8;
-                *pixel = Pixel(mean);
+                let tape_slice_start = x_stride * pixel_index;
+                let tape_slice_end = tape_slice_start + x_stride.as_usize();
+                // If tape is short, then sum one by one
+                if part.len() < tape_slice_end {
+                    let sum: u32 = (tape_slice_start..part.len())
+                        .map(|i| u32::from(part[i]))
+                        .sum();
+                    let mean = x_stride.divide_into(sum * 255) as u8;
+                    *pixel = Pixel::from(mean);
+                } else {
+                    let slice = &part[tape_slice_start..tape_slice_end];
+
+                    // cmk00000 benchmark this
+                    *pixel = match x_stride {
+                        PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => {
+                            let sum: u32 = slice.iter().map(u32::from).sum();
+                            (x_stride.divide_into(sum * 255) as u8).into()
+                        }
+                        PowerOfTwo::EIGHT => average_chunk_with_simd::<8>(slice, x_stride),
+                        PowerOfTwo::SIXTEEN => average_chunk_with_simd::<16>(slice, x_stride),
+                        PowerOfTwo::THIRTY_TWO => average_chunk_with_simd::<32>(slice, x_stride),
+                        _ => average_chunk_with_simd::<64>(slice, x_stride),
+                    };
+                }
             }
             PixelPolicy::Sampling => {
-                *pixel = Pixel::from(part[tape_slice_start]);
+                *pixel = Pixel::from(part[x_stride * pixel_index]);
             }
         }
         true

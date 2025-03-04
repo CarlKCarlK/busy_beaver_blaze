@@ -229,7 +229,7 @@ pub fn average_with_simd<const LANES: usize>(values: &AVec<BoolU8>, step: PowerO
 where
     LaneCount<LANES>: SupportedLaneCount,
 {
-    assert!(
+    debug_assert!(
         { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
         "LANES must be less than or equal to step and alignment"
     );
@@ -279,6 +279,47 @@ where
     }
 
     result
+}
+
+#[allow(clippy::missing_panics_doc)]
+#[must_use]
+pub fn average_chunk_with_simd<const LANES: usize>(chunk: &[BoolU8], step: PowerOfTwo) -> Pixel
+where
+    LaneCount<LANES>: SupportedLaneCount,
+{
+    // cmk00000 make these debug_asserts
+    debug_assert!(
+        { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
+        "LANES must be less than or equal to step and alignment"
+    );
+    debug_assert!(
+        chunk.len() == step.as_usize(),
+        "Chunk must be {} bytes",
+        step.as_usize()
+    );
+    // convert to simd
+    let (prefix, sub_chunks, suffix) = chunk.as_bytes().as_simd::<LANES>();
+
+    debug_assert!(
+        prefix.is_empty() && suffix.is_empty(),
+        "Expected empty prefix due to alignment"
+    );
+    let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
+    let lanes_per_chunk = step.saturating_div(lanes);
+    debug_assert!(step.divides_usize(chunk.len()));
+
+    // ✅ Process chunks using `zip()`, no `push()`
+    if lanes_per_chunk == PowerOfTwo::ONE {
+        debug_assert!(sub_chunks.len() == 1, "Expected one chunk");
+        let sum = sub_chunks[0].reduce_sum() as u32;
+        (step.divide_into(sum * 255) as u8).into()
+    } else {
+        let sum: u32 = sub_chunks
+            .iter()
+            .map(|sub_chunk| sub_chunk.reduce_sum() as u32)
+            .sum();
+        (step.divide_into(sum * 255) as u8).into()
+    }
 }
 
 #[allow(clippy::missing_panics_doc)]

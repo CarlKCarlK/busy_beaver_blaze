@@ -1,4 +1,4 @@
-use crate::{LANES_CMK, PixelPolicy};
+use crate::{LANES_CMK, PixelPolicy, bool_u8::BoolU8};
 use core::simd::prelude::*;
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -17,7 +17,7 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
     Eq,
     KnownLayout,
 )]
-pub struct Pixel(pub(crate) u8);
+pub struct Pixel(u8);
 
 impl Pixel {
     pub(crate) const WHITE: Self = Self(0);
@@ -121,6 +121,13 @@ impl From<u8> for Pixel {
     }
 }
 
+impl From<Pixel> for u8 {
+    #[inline]
+    fn from(value: Pixel) -> Self {
+        value.0
+    }
+}
+
 impl From<&u8> for Pixel {
     #[inline]
     fn from(value: &u8) -> Self {
@@ -141,5 +148,11 @@ impl From<&u32> for Pixel {
     fn from(value: &u32) -> Self {
         debug_assert!(*value <= 255, "Value must be less than or equal to 255");
         Self(*value as u8)
+    }
+}
+
+impl From<BoolU8> for Pixel {
+    fn from(bool_u8: BoolU8) -> Self {
+        Self(u8::from(bool_u8) * 255) // Maps 0 → 0, 1 → 255
     }
 }

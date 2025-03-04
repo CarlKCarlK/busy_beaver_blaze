@@ -157,12 +157,11 @@ impl SpaceByTime {
                             break;
                         }
                     }
-                    let pixel = spaceline
-                        .pixel_index_unbounded(local_spaceline_start as usize)
-                        .0;
-                    if pixel != 0 {
+                    let pixel_u8 =
+                        u8::from(spaceline.pixel_index_unbounded(local_spaceline_start as usize));
+                    if pixel_u8 != 0 {
                         let byte_index: u32 = x + row_start_byte_index;
-                        packed_data[byte_index as usize] = pixel;
+                        packed_data[byte_index as usize] = pixel_u8;
                     }
                     continue;
                 }
@@ -177,10 +176,10 @@ impl SpaceByTime {
                 // }
 
                 // Sample & Averaging 5 --
-                let pixel = Pixel::merge_slice_all(&slice, 0).0;
-                if pixel != 0 {
+                let pixel_u8 = u8::from(Pixel::merge_slice_all(&slice, 0));
+                if pixel_u8 != 0 {
                     let byte_index: u32 = x + row_start_byte_index;
-                    packed_data[byte_index as usize] = pixel;
+                    packed_data[byte_index as usize] = pixel_u8;
                 }
             }
         }

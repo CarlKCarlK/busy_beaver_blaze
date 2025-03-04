@@ -1,8 +1,6 @@
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::pixel::Pixel;
-
 #[repr(transparent)]
 #[derive(Debug, Default, Copy, Clone, IntoBytes, FromBytes, Immutable, Display, KnownLayout)]
 pub struct BoolU8(u8);
@@ -28,12 +26,6 @@ impl From<BoolU8> for usize {
 impl From<BoolU8> for u32 {
     fn from(bool_u8: BoolU8) -> Self {
         bool_u8.0 as Self
-    }
-}
-
-impl From<BoolU8> for Pixel {
-    fn from(bool_u8: BoolU8) -> Self {
-        Self(bool_u8.0 * 255) // Maps 0 → 0, 1 → 255
     }
 }
 
