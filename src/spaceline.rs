@@ -5,7 +5,7 @@ use aligned_vec::AVec;
 
 #[derive(Clone, Debug)]
 pub struct Spaceline {
-    pub sample: PowerOfTwo,
+    pub stride: PowerOfTwo,
     pub negative: AVec<Pixel>,
     pub nonnegative: AVec<Pixel>,
     pub time: u64,
@@ -17,7 +17,7 @@ impl Spaceline {
         let mut vector = AVec::new(1);
         vector.push(Pixel::WHITE);
         Self {
-            sample: PowerOfTwo::ONE,
+            stride: PowerOfTwo::ONE,
             negative: AVec::new(64),
             nonnegative: vector,
             time: 0,
@@ -53,14 +53,14 @@ impl Spaceline {
 
     #[inline]
     pub fn new2(
-        sample: PowerOfTwo,
+        stride: PowerOfTwo,
         start: i64,
         pixels: AVec<Pixel>,
         time: u64,
         pixel_policy: PixelPolicy,
     ) -> Self {
         let mut result = Self {
-            sample,
+            stride,
             negative: AVec::new(64),
             nonnegative: pixels,
             time,
@@ -84,7 +84,7 @@ impl Spaceline {
 
     #[inline]
     pub fn tape_start(&self) -> i64 {
-        -((self.sample * self.negative.len()) as i64)
+        -((self.stride * self.negative.len()) as i64)
     }
 
     #[inline]
@@ -93,26 +93,26 @@ impl Spaceline {
     }
 
     #[inline]
-    pub fn resample_if_needed(&mut self, sample: PowerOfTwo) {
+    pub fn resample_if_needed(&mut self, stride: PowerOfTwo) {
         // cmk0000 seems overly messy
         assert!(!self.nonnegative.is_empty(), "real assert a");
         assert!(
-            self.sample.divides_i64(self.tape_start()),
+            self.stride.divides_i64(self.tape_start()),
             "Start must be a multiple of the sample rate"
         );
-        if sample == self.sample {
+        if stride == self.stride {
             return;
         }
-        let cells_to_add = sample.rem_euclid_into(self.tape_start());
+        let cells_to_add = stride.rem_euclid_into(self.tape_start());
         let new_tape_start = self.tape_start() - cells_to_add;
-        let old_items_to_add = self.sample.divide_into(cells_to_add);
-        let old_items_per_new = sample / self.sample;
+        let old_items_to_add = self.stride.divide_into(cells_to_add);
+        let old_items_per_new = stride / self.stride;
         let old_items_per_new_u64 = old_items_per_new.as_u64();
         let old_items_per_new_usize = old_items_per_new_u64 as usize;
-        assert!(sample >= self.sample, "real assert 12");
+        assert!(stride >= self.stride, "real assert 12");
         let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
         assert!(old_items_to_use <= self.len() as u64, "real assert d10");
-        // let down_step = sample.saturating_div(self.pixel_policy);
+        // let down_step = stride.saturating_div(self.pixel_policy);
         let pixel0 = Pixel::merge_slice_down_sample(
             &self.pixel_range(0, old_items_to_use as usize),
             old_items_to_add as usize,
@@ -122,7 +122,6 @@ impl Spaceline {
         *self.pixel_index_mut(new_index) = pixel0;
         new_index += 1;
         let value_len = self.len() as u64;
-        // let down_size_usize = down_step.as_usize();
         for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
             let old_end = (old_index + old_items_to_use).min(value_len);
             let slice = &self.pixel_range(old_index as usize, old_end as usize);
@@ -134,7 +133,7 @@ impl Spaceline {
             );
             new_index += 1;
         }
-        self.pixel_restart(new_tape_start, new_index, sample);
+        self.pixel_restart(new_tape_start, new_index, stride);
     }
 
     pub fn pixel_range(&self, start: usize, end: usize) -> Vec<Pixel> {
@@ -150,8 +149,8 @@ impl Spaceline {
     }
 
     #[inline]
-    pub fn pixel_restart(&mut self, tape_start: i64, len: usize, sample: PowerOfTwo) {
-        self.sample = sample;
+    pub fn pixel_restart(&mut self, tape_start: i64, len: usize, stride: PowerOfTwo) {
+        self.stride = stride;
         assert!(self.tape_start() <= tape_start, "real assert 11");
         while self.tape_start() < tape_start {
             self.nonnegative.insert(0, self.negative.remove(0));
@@ -166,10 +165,10 @@ impl Spaceline {
     #[inline]
     pub fn merge(&mut self, other: &Self) {
         assert!(self.time < other.time, "real assert 2");
-        assert!(self.sample <= other.sample, "real assert 3");
+        assert!(self.stride <= other.stride, "real assert 3");
         assert!(self.tape_start() >= other.tape_start(), "real assert 4");
-        self.resample_if_needed(other.sample);
-        assert!(self.sample == other.sample, "real assert 5b");
+        self.resample_if_needed(other.stride);
+        assert!(self.stride == other.stride, "real assert 5b");
         assert!(self.tape_start() >= other.tape_start(), "real assert 6c");
         while self.tape_start() > other.tape_start() {
             self.negative.push(Pixel::WHITE);
@@ -187,44 +186,44 @@ impl Spaceline {
         let tape_min_index = tape.min_index();
         let tape_max_index = tape.max_index();
         let tape_width = (tape_max_index - tape_min_index + 1) as u64;
-        let x_sample = crate::sample_rate(tape_width, x_goal);
+        let x_stride = crate::sample_rate(tape_width, x_goal);
         if step_index % 10_000_000 == 0 {
             println!(
-                "cmk Spaceline::new step_index {}, tape width {:?} ({}..={}), x_sample {:?}, x_goal {:?}",
+                "cmk Spaceline::new step_index {}, tape width {:?} ({}..={}), x_stride {:?}, x_goal {:?}",
                 step_index,
                 tape_width,
                 tape_min_index,
                 tape_max_index,
-                x_sample.as_usize(),
+                x_stride.as_usize(),
                 x_goal
             );
         }
         match pixel_policy {
             PixelPolicy::Binning => {
-                let (negative, nonnegative) = match x_sample {
+                let (negative, nonnegative) = match x_stride {
                     PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => (
-                        crate::average_with_iterators(&tape.negative, x_sample),
-                        crate::average_with_iterators(&tape.nonnegative, x_sample),
+                        crate::average_with_iterators(&tape.negative, x_stride),
+                        crate::average_with_iterators(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::EIGHT => (
-                        crate::average_with_simd::<8>(&tape.negative, x_sample),
-                        crate::average_with_simd::<8>(&tape.nonnegative, x_sample),
+                        crate::average_with_simd::<8>(&tape.negative, x_stride),
+                        crate::average_with_simd::<8>(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::SIXTEEN => (
-                        crate::average_with_simd::<16>(&tape.negative, x_sample),
-                        crate::average_with_simd::<16>(&tape.nonnegative, x_sample),
+                        crate::average_with_simd::<16>(&tape.negative, x_stride),
+                        crate::average_with_simd::<16>(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::THIRTY_TWO => (
-                        crate::average_with_simd::<32>(&tape.negative, x_sample),
-                        crate::average_with_simd::<32>(&tape.nonnegative, x_sample),
+                        crate::average_with_simd::<32>(&tape.negative, x_stride),
+                        crate::average_with_simd::<32>(&tape.nonnegative, x_stride),
                     ),
                     _ => (
-                        crate::average_with_simd::<64>(&tape.negative, x_sample),
-                        crate::average_with_simd::<64>(&tape.nonnegative, x_sample),
+                        crate::average_with_simd::<64>(&tape.negative, x_stride),
+                        crate::average_with_simd::<64>(&tape.nonnegative, x_stride),
                     ),
                 };
                 Self {
-                    sample: x_sample,
+                    stride: x_stride,
                     negative,
                     nonnegative,
                     time: step_index,
@@ -232,26 +231,26 @@ impl Spaceline {
                 }
             }
             PixelPolicy::Sampling => {
-                let sample_start: i64 = tape_min_index - x_sample.rem_euclid_into(tape_min_index);
+                let sample_start: i64 = tape_min_index - x_stride.rem_euclid_into(tape_min_index);
                 assert!(
                     sample_start <= tape_min_index
-                        && x_sample.divides_i64(sample_start)
-                        && tape_min_index - sample_start < x_sample.as_u64() as i64,
+                        && x_stride.divides_i64(sample_start)
+                        && tape_min_index - sample_start < x_stride.as_u64() as i64,
                     "real assert b1"
                 );
                 let mut pixels = AVec::with_capacity(64, x_goal as usize * 2);
                 // cmk00 does this need to be a special case?
-                if x_sample == PowerOfTwo::ONE {
+                if x_stride == PowerOfTwo::ONE {
                     for sample_index in sample_start..=tape_max_index {
                         pixels.push(tape.read(sample_index).into());
                     }
                 } else {
-                    for sample_index in (sample_start..=tape_max_index).step_by(x_sample.as_usize())
+                    for sample_index in (sample_start..=tape_max_index).step_by(x_stride.as_usize())
                     {
                         pixels.push(tape.read(sample_index).into());
                     }
                 }
-                Self::new2(x_sample, sample_start, pixels, step_index, pixel_policy)
+                Self::new2(x_stride, sample_start, pixels, step_index, pixel_policy)
             }
         }
     }
@@ -265,16 +264,16 @@ impl Spaceline {
         step_index: u64,
         pixel_policy: PixelPolicy,
     ) -> bool {
-        self.time = step_index;
-        let tape_min_index = tape.min_index();
-        let tape_max_index = tape.max_index();
-        assert!(tape_min_index <= previous_tape_index && previous_tape_index <= tape_max_index);
-        let tape_width = (tape_max_index - tape_min_index + 1) as u64;
-        let x_sample = crate::sample_rate(tape_width, x_goal);
-        let x_sample_usize = x_sample.as_usize();
-        if self.sample != x_sample {
+        let x_stride = crate::sample_rate(tape.width(), x_goal);
+
+        // When the sample
+        if self.stride != x_stride {
             return false;
         }
+        self.time = step_index;
+        debug_assert!(
+            tape.min_index() <= previous_tape_index && previous_tape_index <= tape.max_index()
+        );
         let (part, pixels, part_index) = if previous_tape_index < 0 {
             let part_index = (-previous_tape_index - 1) as u64;
             (&tape.negative, &mut self.negative, part_index)
@@ -282,20 +281,20 @@ impl Spaceline {
             let part_index = previous_tape_index as u64;
             (&tape.nonnegative, &mut self.nonnegative, part_index)
         };
-        let pixel_index = x_sample.divide_into(part_index) as usize;
+        let pixel_index = x_stride.divide_into(part_index) as usize;
         assert!(pixel_index <= pixels.len());
         if pixel_index == pixels.len() {
             pixels.push(Pixel::WHITE);
         }
         let pixel = &mut pixels[pixel_index];
-        let tape_slice_start = x_sample * pixel_index;
+        let tape_slice_start = x_stride * pixel_index;
         match pixel_policy {
             PixelPolicy::Binning => {
                 // cmk000000 could be faster??
-                let sum: u32 = (tape_slice_start..tape_slice_start + x_sample_usize)
+                let sum: u32 = (tape_slice_start..tape_slice_start + x_stride.as_usize())
                     .filter_map(|i| part.get(i).map(u32::from))
                     .sum();
-                let mean = x_sample.divide_into(sum * 255) as u8;
+                let mean = x_stride.divide_into(sum * 255) as u8;
                 *pixel = Pixel(mean);
             }
             PixelPolicy::Sampling => {

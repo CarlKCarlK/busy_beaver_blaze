@@ -7,7 +7,7 @@ pub struct SpaceByTime {
     pub(crate) step_index: u64,
     x_goal: u32,
     y_goal: u32,
-    sample: PowerOfTwo,
+    stride: PowerOfTwo,
     spacelines: Spacelines,
     pixel_policy: PixelPolicy,
     previous_space_line: Option<Spaceline>,
@@ -24,7 +24,7 @@ impl SpaceByTime {
             step_index: 0,
             x_goal,
             y_goal,
-            sample: PowerOfTwo::ONE,
+            stride: PowerOfTwo::ONE,
             spacelines: Spacelines::new(pixel_policy),
             pixel_policy,
             previous_space_line: None,
@@ -37,12 +37,12 @@ impl SpaceByTime {
         // The alternative is just to keep the 1st row and discard the 2nd row.
 
         let new_sample = sample_rate(self.step_index, self.y_goal);
-        if new_sample != self.sample {
+        if new_sample != self.stride {
             assert!(
-                new_sample / self.sample == PowerOfTwo::TWO,
+                new_sample / self.stride == PowerOfTwo::TWO,
                 "real assert 10"
             );
-            self.sample = new_sample;
+            self.stride = new_sample;
             match self.pixel_policy {
                 PixelPolicy::Binning => self.spacelines.compress_average(),
                 PixelPolicy::Sampling => self.spacelines.compress_take_first(new_sample),
@@ -52,16 +52,16 @@ impl SpaceByTime {
 
     // ideas
     // use
-    //       assert!(self.sample.is_power_of_two(), "Sample must be a power of two");
+    //       assert!(self.stride.is_power_of_two(), "Sample must be a power of two");
     //       // Use bitwise AND for fast divisibility check
-    //       if self.step_index & (self.sample - 1) != 0 {
+    //       if self.step_index & (self.stride - 1) != 0 {
     //  Also: Inline the top part of the function.
     //  Maybe pre-subtract 1 from sample
 
     #[inline]
     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
         self.step_index += 1;
-        let inside_index = self.sample.rem_into_u64(self.step_index);
+        let inside_index = self.stride.rem_into_u64(self.step_index);
 
         match self.pixel_policy {
             PixelPolicy::Binning => {
@@ -120,11 +120,11 @@ impl SpaceByTime {
     pub fn to_png(&mut self) -> Result<Vec<u8>, Error> {
         let last = self
             .spacelines
-            .last(self.step_index, self.sample, self.pixel_policy);
-        let x_sample: PowerOfTwo = last.sample;
-        let tape_width: u64 = (x_sample * last.len()) as u64;
+            .last(self.step_index, self.stride, self.pixel_policy);
+        let x_stride: PowerOfTwo = last.stride;
+        let tape_width: u64 = (x_stride * last.len()) as u64;
         let tape_min_index = last.tape_start();
-        let x_actual: u32 = x_sample.divide_into(tape_width) as u32;
+        let x_actual: u32 = x_stride.divide_into(tape_width) as u32;
         let y_actual: u32 = self.spacelines.len() as u32;
 
         let row_bytes = x_actual;
@@ -133,12 +133,12 @@ impl SpaceByTime {
         for y in 0..y_actual {
             let spaceline = self.spacelines.get(y as usize, &last);
             let local_start = &spaceline.tape_start();
-            let local_x_sample = spaceline.sample;
-            let local_per_x_sample = x_sample / local_x_sample;
+            let local_x_sample = spaceline.stride;
+            let local_per_x_sample = x_stride / local_x_sample;
             let row_start_byte_index: u32 = y * row_bytes;
-            let x_start = x_sample.div_ceil_into(local_start - tape_min_index);
+            let x_start = x_stride.div_ceil_into(local_start - tape_min_index);
             for x in x_start as u32..x_actual {
-                let tape_index: i64 = (x_sample * x as usize) as i64 + tape_min_index;
+                let tape_index: i64 = (x_stride * x as usize) as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
                 debug_assert!(
                     tape_index >= *local_start,

@@ -57,18 +57,18 @@ impl Spacelines {
     }
 
     #[inline]
-    pub(crate) fn compress_take_first(&mut self, new_sample: PowerOfTwo) {
+    pub(crate) fn compress_take_first(&mut self, new_stride: PowerOfTwo) {
         assert!(self.buffer0.is_empty(), "real assert e2");
         assert!(fast_is_even(self.main.len()), "real assert e11");
         // println!("cmk compress_take_first");
         self.main
-            .retain(|spaceline| new_sample.divides_u64(spaceline.time));
+            .retain(|spaceline| new_stride.divides_u64(spaceline.time));
     }
 
     pub(crate) fn last(
         &self,
         step_index: u64,
-        y_sample: PowerOfTwo,
+        y_stride: PowerOfTwo,
         pixel_policy: PixelPolicy,
     ) -> Spaceline {
         if self.buffer0.is_empty() {
@@ -81,22 +81,22 @@ impl Spacelines {
         let spaceline_last = &buffer_last.0;
         let time = spaceline_last.time;
         let start = spaceline_last.tape_start();
-        let x_sample = spaceline_last.sample;
-        let last_inside_index = y_sample.rem_into_u64(step_index);
+        let x_stride = spaceline_last.stride;
+        let last_inside_index = y_stride.rem_into_u64(step_index);
 
         // cmk we have to clone because we compress in place (clone only half???)
         let mut buffer0 = self.buffer0.clone();
         match pixel_policy {
             PixelPolicy::Sampling => {
-                // what's the small number I need to add to last_inside_index to create a multiple of y_sample?
-                let smallest = y_sample.offset_to_align(last_inside_index as usize);
+                // what's the small number I need to add to last_inside_index to create a multiple of y_stride?
+                let smallest = y_stride.offset_to_align(last_inside_index as usize);
                 if smallest != 0 {
                     let mut empty_pixels =
                         AVec::<Pixel>::with_capacity(ALIGN, spaceline_last.len());
                     empty_pixels.resize(spaceline_last.len(), Pixel::WHITE);
 
                     let empty = Spaceline::new2(
-                        x_sample,
+                        x_stride,
                         start,
                         empty_pixels,
                         time + smallest as u64,
@@ -106,12 +106,12 @@ impl Spacelines {
                 }
             }
             PixelPolicy::Binning => {
-                for inside_index in last_inside_index + 1..y_sample.as_u64() {
+                for inside_index in last_inside_index + 1..y_stride.as_u64() {
                     let mut empty_pixels =
                         AVec::<Pixel>::with_capacity(ALIGN, spaceline_last.len());
                     empty_pixels.resize(spaceline_last.len(), Pixel::WHITE);
                     let empty = Spaceline::new2(
-                        x_sample,
+                        x_stride,
                         start,
                         empty_pixels,
                         time + inside_index - last_inside_index,
