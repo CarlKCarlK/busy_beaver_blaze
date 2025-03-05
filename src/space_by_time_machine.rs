@@ -6,7 +6,7 @@ use crate::{Machine, PixelPolicy, space_by_time::SpaceByTime};
 #[wasm_bindgen]
 pub struct SpaceByTimeMachine {
     machine: Machine,
-    space_by_time: SpaceByTime,
+    pub(crate) space_by_time: SpaceByTime,
 }
 
 // impl iterator for spacetime machine

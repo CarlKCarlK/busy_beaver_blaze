@@ -153,7 +153,9 @@ impl From<core::num::ParseIntError> for Error {
     }
 }
 
-fn sample_rate(row: u64, goal: u32) -> PowerOfTwo {
+#[inline]
+#[must_use]
+pub fn sample_rate(row: u64, goal: u32) -> PowerOfTwo {
     let threshold = 2 * goal;
     let ratio = (row + 1) as f64 / threshold as f64;
 

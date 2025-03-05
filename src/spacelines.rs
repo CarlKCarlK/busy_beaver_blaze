@@ -7,8 +7,8 @@ use crate::{
 };
 
 pub(crate) struct Spacelines {
-    main: Vec<Spaceline>,
-    buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names
+    pub(crate) main: Vec<Spaceline>,                  // cmk make private
+    pub(crate) buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names
 }
 
 impl Spacelines {
@@ -141,8 +141,9 @@ impl Spacelines {
         buffer0.pop().unwrap().0
     }
 
+    // cmk000 make private
     #[inline]
-    fn push_internal(
+    pub(crate) fn push_internal(
         buffer0: &mut Vec<(Spaceline, PowerOfTwo)>,
         mut spaceline: Spaceline,
         mut weight: PowerOfTwo,
@@ -154,7 +155,8 @@ impl Spacelines {
                 return;
             }
 
-            debug_assert!(
+            // cmk change back to debug_assert
+            assert!(
                 weight == *last_mut_weight,
                 "Weight equality invariant violation"
             );

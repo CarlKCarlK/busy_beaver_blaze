@@ -1,6 +1,6 @@
 use crate::pixel::Pixel;
 use crate::tape::Tape;
-use crate::{ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd};
+use crate::{ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, sample_rate};
 use aligned_vec::AVec;
 
 #[derive(Clone, Debug)]
@@ -163,7 +163,12 @@ impl Spaceline {
 
     #[inline]
     pub fn merge(&mut self, other: &Self) {
-        assert!(self.time < other.time, "real assert 2");
+        assert!(
+            self.time < other.time,
+            "self.time {} should be < other.time {}",
+            self.time,
+            other.time
+        );
         assert!(self.stride <= other.stride, "real assert 3");
         assert!(self.tape_start() >= other.tape_start(), "real assert 4");
         self.resample_if_needed(other.stride);
@@ -185,7 +190,7 @@ impl Spaceline {
         let tape_min_index = tape.min_index();
         let tape_max_index = tape.max_index();
         let tape_width = (tape_max_index - tape_min_index + 1) as u64;
-        let x_stride = crate::sample_rate(tape_width, x_goal);
+        let x_stride = sample_rate(tape_width, x_goal);
         if step_index % 10_000_000 == 0 {
             println!(
                 "cmk Spaceline::new step_index {}, tape width {:?} ({}..={}), x_stride {:?}, x_goal {:?}",

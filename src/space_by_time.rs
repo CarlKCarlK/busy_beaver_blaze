@@ -9,7 +9,7 @@ pub struct SpaceByTime {
     x_goal: u32,
     y_goal: u32,
     stride: PowerOfTwo,
-    spacelines: Spacelines,
+    pub(crate) spacelines: Spacelines, // cmk0 consider making this private
     pixel_policy: PixelPolicy,
     previous_space_line: Option<Spaceline>,
 }
@@ -146,6 +146,50 @@ impl SpaceByTime {
         }
     }
 
+    #[inline]
+    pub(crate) fn push_can_weigh_more(&mut self, mut spaceline: Spaceline, weight: PowerOfTwo) {
+        let inside_index = self.stride.rem_into_u64(self.step_index + 1);
+
+        if inside_index == 0 {
+            // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
+            self.spacelines.flush_buffer0();
+            self.compress_if_needed();
+        }
+
+        let mut weight_usize = weight.as_usize();
+        let buffer0 = &mut self.spacelines.buffer0;
+        while weight_usize >= 1 {
+            if weight_usize == 1 {
+                Spacelines::push_internal(buffer0, spaceline, PowerOfTwo::ONE);
+                return;
+            }
+            if buffer0.is_empty() {
+                let next_weight = PowerOfTwo::from_exp(63u8 - weight_usize.leading_zeros() as u8);
+                weight_usize -= next_weight.as_usize();
+                if weight_usize == 0 {
+                    Spacelines::push_internal(buffer0, spaceline, next_weight);
+                    return;
+                }
+                let mut clone = spaceline.clone();
+                clone.time -= next_weight.as_u64();
+                Spacelines::push_internal(buffer0, clone, next_weight);
+            } else {
+                let (_last_spaceline, last_weight) = buffer0.last().unwrap(); // cmk could move into the if
+                let next_weight = PowerOfTwo::from_exp(63u8 - weight_usize.leading_zeros() as u8)
+                    .min(*last_weight);
+                weight_usize -= next_weight.as_usize();
+                // cmk similar code above
+                if weight_usize == 0 {
+                    Spacelines::push_internal(buffer0, spaceline, next_weight);
+                    return;
+                }
+                let mut clone = spaceline.clone();
+                clone.time -= next_weight.as_u64();
+                Spacelines::push_internal(buffer0, clone, next_weight);
+            }
+        }
+    }
+
     #[allow(clippy::wrong_self_convention)] // cmk00 consider better name to this function
     pub fn to_png(&mut self) -> Result<Vec<u8>, Error> {
         let last = self
@@ -167,6 +211,7 @@ impl SpaceByTime {
             let local_per_x_sample = x_stride / local_x_sample;
             let row_start_byte_index: u32 = y * row_bytes;
             let x_start = x_stride.div_ceil_into(local_start - tape_min_index);
+            // cmk does the wrong thing with 1 row
             for x in x_start as u32..x_actual {
                 let tape_index: i64 = (x_stride * x as usize) as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
