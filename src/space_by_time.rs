@@ -8,7 +8,7 @@ pub struct SpaceByTime {
     step_index: u64,
     x_goal: u32,
     y_goal: u32,
-    stride: PowerOfTwo,
+    pub(crate) stride: PowerOfTwo,     // cmk make private
     pub(crate) spacelines: Spacelines, // cmk0 consider making this private
     pixel_policy: PixelPolicy,
     previous_space_line: Option<Spaceline>,
@@ -61,7 +61,8 @@ impl SpaceByTime {
         self.step_index
     }
 
-    fn compress_if_needed(&mut self) {
+    pub(crate) fn compress_if_needed(&mut self) {
+        // cmk make private
         // Sampling & Averaging 1--
         // We sometimes need to squeeze rows by averaging adjacent pairs of rows.
         // The alternative is just to keep the 1st row and discard the 2nd row.
@@ -139,7 +140,7 @@ impl SpaceByTime {
                 self.spacelines.push(Spaceline::new(
                     machine.tape(),
                     self.x_goal,
-                    self.step_index,
+                    self.step_index + self.skip,
                     self.pixel_policy,
                 ));
             }
@@ -147,7 +148,7 @@ impl SpaceByTime {
     }
 
     #[inline]
-    pub(crate) fn push_can_weigh_more(&mut self, mut spaceline: Spaceline, weight: PowerOfTwo) {
+    pub(crate) fn push_spaceline(&mut self, spaceline: Spaceline, weight: PowerOfTwo) {
         let inside_index = self.stride.rem_into_u64(self.step_index + 1);
 
         if inside_index == 0 {
@@ -156,37 +157,57 @@ impl SpaceByTime {
             self.compress_if_needed();
         }
 
-        let mut weight_usize = weight.as_usize();
+        if self.pixel_policy == PixelPolicy::Sampling && inside_index != 0 {
+            return;
+        }
+
         let buffer0 = &mut self.spacelines.buffer0;
-        while weight_usize >= 1 {
-            if weight_usize == 1 {
-                Spacelines::push_internal(buffer0, spaceline, PowerOfTwo::ONE);
-                return;
+
+        if buffer0.is_empty() {
+            Spacelines::push_internal(buffer0, spaceline, weight);
+            self.step_index += weight.as_u64();
+            return;
+        }
+        let (last_spaceline, last_weight) = buffer0.last().unwrap();
+        assert!(last_spaceline.time < spaceline.time, "real assert 11");
+        if weight <= *last_weight {
+            Spacelines::push_internal(buffer0, spaceline, weight);
+            self.step_index += weight.as_u64();
+            return;
+        }
+
+        println!(
+            "last_spaceline's x stride {}, -len {}, +len {}",
+            last_spaceline.stride.as_usize(),
+            last_spaceline.negative.len(),
+            last_spaceline.nonnegative.len()
+        );
+        println!(
+            "spaceline's x stride {} -len {}, +len {}",
+            spaceline.stride.as_usize(),
+            spaceline.negative.len(),
+            spaceline.nonnegative.len()
+        );
+
+        // cmk0000 should divide to bigger pieces
+        println!(
+            "last_weight {}, adding weight {} one by one",
+            last_weight.as_u64(),
+            weight.as_u64()
+        );
+        for i in 0..weight.as_u64() {
+            let mut clone = spaceline.clone(); // cmk don't need to clone the last time
+            clone.time = spaceline.time + i;
+            if i % 100 == 0 {
+                println!(
+                    "clone's x stride {} -len {}, +len {}",
+                    clone.stride.as_usize(),
+                    clone.negative.len(),
+                    clone.nonnegative.len()
+                );
             }
-            if buffer0.is_empty() {
-                let next_weight = PowerOfTwo::from_exp(63u8 - weight_usize.leading_zeros() as u8);
-                weight_usize -= next_weight.as_usize();
-                if weight_usize == 0 {
-                    Spacelines::push_internal(buffer0, spaceline, next_weight);
-                    return;
-                }
-                let mut clone = spaceline.clone();
-                clone.time -= next_weight.as_u64();
-                Spacelines::push_internal(buffer0, clone, next_weight);
-            } else {
-                let (_last_spaceline, last_weight) = buffer0.last().unwrap(); // cmk could move into the if
-                let next_weight = PowerOfTwo::from_exp(63u8 - weight_usize.leading_zeros() as u8)
-                    .min(*last_weight);
-                weight_usize -= next_weight.as_usize();
-                // cmk similar code above
-                if weight_usize == 0 {
-                    Spacelines::push_internal(buffer0, spaceline, next_weight);
-                    return;
-                }
-                let mut clone = spaceline.clone();
-                clone.time -= next_weight.as_u64();
-                Spacelines::push_internal(buffer0, clone, next_weight);
-            }
+            Spacelines::push_internal(buffer0, clone, PowerOfTwo::ONE);
+            self.step_index += 1;
         }
     }
 
@@ -215,7 +236,7 @@ impl SpaceByTime {
             for x in x_start as u32..x_actual {
                 let tape_index: i64 = (x_stride * x as usize) as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
-                debug_assert!(
+                assert!(
                     tape_index >= *local_start,
                     "real assert if x_start is correct"
                 );

@@ -2,8 +2,7 @@ use aligned_vec::AVec;
 use itertools::Itertools;
 
 use crate::{
-    ALIGN, PixelPolicy, Tape, fast_is_even, pixel::Pixel, power_of_two::PowerOfTwo,
-    spaceline::Spaceline,
+    ALIGN, PixelPolicy, Tape, is_even, pixel::Pixel, power_of_two::PowerOfTwo, spaceline::Spaceline,
 };
 
 pub(crate) struct Spacelines {
@@ -56,7 +55,7 @@ impl Spacelines {
     #[inline]
     pub(crate) fn compress_average(&mut self) {
         assert!(self.buffer0.is_empty(), "real assert b2");
-        assert!(fast_is_even(self.main.len()), "real assert 11");
+        assert!(is_even(self.main.len()), "real assert 11");
         // println!("cmk compress_average");
 
         self.main = self
@@ -74,7 +73,7 @@ impl Spacelines {
     #[inline]
     pub(crate) fn compress_take_first(&mut self, new_stride: PowerOfTwo) {
         assert!(self.buffer0.is_empty(), "real assert e2");
-        assert!(fast_is_even(self.main.len()), "real assert e11");
+        assert!(is_even(self.main.len()), "real assert e11");
         // println!("cmk compress_take_first");
         self.main
             .retain(|spaceline| new_stride.divides_u64(spaceline.time));
@@ -97,6 +96,7 @@ impl Spacelines {
         let time = spaceline_last.time;
         let start = spaceline_last.tape_start();
         let x_stride = spaceline_last.stride;
+        println!("cmk last x_stride: {x_stride:?}");
         let last_inside_index = y_stride.rem_into_u64(step_index);
 
         // cmk we have to clone because we compress in place (clone only half???)
@@ -155,7 +155,7 @@ impl Spacelines {
                 return;
             }
 
-            // cmk change back to debug_assert
+            // cmk change back to debug_assert (or not)
             assert!(
                 weight == *last_mut_weight,
                 "Weight equality invariant violation"

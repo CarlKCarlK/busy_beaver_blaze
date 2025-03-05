@@ -444,7 +444,7 @@ pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -
 }
 
 #[inline]
-fn fast_is_even<T>(x: T) -> bool
+fn is_even<T>(x: T) -> bool
 where
     T: Copy + core::ops::BitAnd<Output = T> + core::ops::Sub<Output = T> + From<u8> + PartialEq,
 {
