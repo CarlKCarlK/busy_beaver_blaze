@@ -149,7 +149,7 @@ impl SpaceByTime {
 
     #[inline]
     pub(crate) fn push_spaceline(&mut self, spaceline: Spaceline, weight: PowerOfTwo) {
-        let inside_index = self.stride.rem_into_u64(self.step_index + 1);
+        let inside_index = self.stride.rem_into_u64(self.step_index);
 
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)

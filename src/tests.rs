@@ -210,7 +210,7 @@ fn parts() {
     let part_count = 3;
     let goal_x: u32 = 360;
     let goal_y: u32 = 30;
-    let binning = false;
+    let binning = true;
 
     // // let max_rows = 10_000_000u64;
     // // let part_count = 16;
@@ -286,9 +286,9 @@ fn parts() {
     for (_continues, space_by_time_machine) in results_iter {
         index += 1;
 
-        if index > 1 {
-            break; // cmk00000000000
-        }
+        // if index > 1 {
+        //     break; // cmk00000000000
+        // }
 
         // cmk do something with continues
         println!(
@@ -316,9 +316,9 @@ fn parts() {
         let main = spacelines.main;
         let buffer0 = spacelines.buffer0;
         println!("working on main");
+        let weight_main = space_by_time.stride;
         for spaceline in main {
-            let weight = spaceline.stride;
-            space_by_time_first.push_spaceline(spaceline, weight);
+            space_by_time_first.push_spaceline(spaceline, weight_main);
         }
         println!(
             "1len main_first: {}, len buffer0_first {}, y_stride_first {:?}, step_index_first {}",
@@ -352,6 +352,8 @@ fn parts() {
     //     space_by_time_machine_last.machine(),
     //     space_by_time_machine_last.count_ones(),
     // );
+    let len = space_by_time_first.spacelines.len();
     let png_data = space_by_time_machine_first.png_data();
-    fs::write(format!("tests/expected/part.png"), &png_data).unwrap(); // cmk handle error
+    fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
+    assert!(len < goal_y as usize * 2, "real assert 2");
 }
