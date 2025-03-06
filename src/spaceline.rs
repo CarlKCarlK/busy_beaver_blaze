@@ -5,7 +5,7 @@ use aligned_vec::AVec;
 
 #[derive(Clone, Debug)]
 pub struct Spaceline {
-    pub stride: PowerOfTwo,
+    pub x_stride: PowerOfTwo,
     pub negative: AVec<Pixel>,
     pub nonnegative: AVec<Pixel>,
     pub time: u64,
@@ -17,7 +17,7 @@ impl Spaceline {
         let mut nonnegative = AVec::new(ALIGN);
         nonnegative.push(Pixel::WHITE);
         Self {
-            stride: PowerOfTwo::ONE,
+            x_stride: PowerOfTwo::ONE,
             negative: AVec::new(ALIGN),
             nonnegative,
             time: 0,
@@ -60,7 +60,7 @@ impl Spaceline {
         pixel_policy: PixelPolicy,
     ) -> Self {
         let mut result = Self {
-            stride,
+            x_stride: stride,
             negative: AVec::new(ALIGN),
             nonnegative: pixels,
             time,
@@ -84,7 +84,7 @@ impl Spaceline {
 
     #[inline]
     pub fn tape_start(&self) -> i64 {
-        -((self.stride * self.negative.len()) as i64)
+        -((self.x_stride * self.negative.len()) as i64)
     }
 
     #[inline]
@@ -97,19 +97,19 @@ impl Spaceline {
         // cmk0000 seems overly messy
         // assert!(!self.nonnegative.is_empty(), "real assert a");
         assert!(
-            self.stride.divides_i64(self.tape_start()),
+            self.x_stride.divides_i64(self.tape_start()),
             "Start must be a multiple of the sample rate"
         );
-        if stride == self.stride {
+        if stride == self.x_stride {
             return;
         }
         let cells_to_add = stride.rem_euclid_into(self.tape_start());
         let new_tape_start = self.tape_start() - cells_to_add;
-        let old_items_to_add = self.stride.divide_into(cells_to_add);
-        let old_items_per_new = stride / self.stride;
+        let old_items_to_add = self.x_stride.divide_into(cells_to_add);
+        let old_items_per_new = stride / self.x_stride;
         let old_items_per_new_u64 = old_items_per_new.as_u64();
         let old_items_per_new_usize = old_items_per_new_u64 as usize;
-        assert!(stride >= self.stride, "real assert 12");
+        assert!(stride >= self.x_stride, "real assert 12");
         let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
         assert!(old_items_to_use <= self.len() as u64, "real assert d10");
         let pixel0 = Pixel::merge_slice_down_sample(
@@ -149,7 +149,7 @@ impl Spaceline {
 
     #[inline]
     pub fn pixel_restart(&mut self, tape_start: i64, len: usize, stride: PowerOfTwo) {
-        self.stride = stride;
+        self.x_stride = stride;
         assert!(self.tape_start() <= tape_start, "real assert 11");
         while self.tape_start() < tape_start {
             self.nonnegative.insert(0, self.negative.remove(0));
@@ -169,10 +169,10 @@ impl Spaceline {
             self.time,
             other.time
         );
-        assert!(self.stride <= other.stride, "real assert 3");
+        assert!(self.x_stride <= other.x_stride, "real assert 3");
         assert!(self.tape_start() >= other.tape_start(), "real assert 4");
-        self.resample_if_needed(other.stride);
-        assert!(self.stride == other.stride, "real assert 5b");
+        self.resample_if_needed(other.x_stride);
+        assert!(self.x_stride == other.x_stride, "real assert 5b");
         assert!(self.tape_start() >= other.tape_start(), "real assert 6c");
         while self.tape_start() > other.tape_start() {
             self.negative.push(Pixel::WHITE);
@@ -227,7 +227,7 @@ impl Spaceline {
                     ),
                 };
                 Self {
-                    stride: x_stride,
+                    x_stride,
                     negative,
                     nonnegative,
                     time: step_index,
@@ -271,7 +271,7 @@ impl Spaceline {
         let x_stride = crate::sample_rate(tape.width(), x_goal);
 
         // When the sample
-        if self.stride != x_stride {
+        if self.x_stride != x_stride {
             return false;
         }
         self.time = step_index;

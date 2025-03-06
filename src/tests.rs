@@ -1,9 +1,15 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, Machine, PixelPolicy, PowerOfTwo, SpaceByTime,
     SpaceByTimeMachine, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
-    average_with_simd_push, bool_u8::BoolU8, pixel::Pixel, sample_rate, space_by_time,
+    average_with_simd_push,
+    bool_u8::BoolU8,
+    is_even,
+    pixel::{self, Pixel},
+    pixel_policy, sample_rate, space_by_time,
+    spacelines::Spacelines,
 };
 use aligned_vec::AVec;
+use itertools::Itertools;
 use rayon::prelude::*;
 use std::fs;
 use thousands::Separable;
@@ -200,17 +206,17 @@ fn test_average() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn parts() {
-    // let max_rows = 250_000_000u64;
-    // let part_count = 16;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
-    // let binning = false;
-
-    let max_rows = 2413u64;
-    let part_count = 3;
+    let max_rows = 250_000_000u64;
+    let part_count = 16;
     let goal_x: u32 = 360;
-    let goal_y: u32 = 30;
+    let goal_y: u32 = 432;
     let binning = true;
+
+    // let max_rows = 2413u64;
+    // let part_count = 3;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 30;
+    // let binning = true;
 
     // // let max_rows = 10_000_000u64;
     // // let part_count = 16;
@@ -262,7 +268,7 @@ fn parts() {
 
             let space_by_time = &mut space_by_time_machine.space_by_time;
             let inside_index = space_by_time
-                .stride
+                .y_stride
                 .rem_into_u64(space_by_time.step_index() + 1);
             // This should be 0 on all but the last part
             if (part_index as u64) < part_count - 1 {
@@ -281,79 +287,86 @@ fn parts() {
     let mut results_iter = results.into_iter();
     let (_continues0, mut space_by_time_machine_first) = results_iter.next().unwrap();
     let space_by_time_first = &mut space_by_time_machine_first.space_by_time;
+    assert!(
+        space_by_time_first.spacelines.buffer0.is_empty(),
+        "real assert 3"
+    );
 
     let mut index: usize = 0;
     for (_continues, space_by_time_machine) in results_iter {
         index += 1;
-
-        // if index > 1 {
-        //     break; // cmk00000000000
-        // }
-
-        // cmk do something with continues
-        println!(
-            "len main_first: {}, len buffer0_first {}, y_stride_first {:?}, step_index_first {}, first last time {}",
-            space_by_time_first.spacelines.main.len(),
-            space_by_time_first.spacelines.buffer0.len(),
-            space_by_time_first.stride,
-            space_by_time_first.step_index(),
-            space_by_time_first.spacelines.main.last().unwrap().time,
-        );
-
         let space_by_time = space_by_time_machine.space_by_time;
-
-        println!(
-            "len main: {}, len buffer0 {}, y_stride {:?}, step_index {}, first time {}, last time {}",
-            space_by_time.spacelines.main.len(),
-            space_by_time.spacelines.buffer0.len(),
-            space_by_time.stride,
-            space_by_time.step_index(),
-            space_by_time.spacelines.main.first().unwrap().time,
-            space_by_time.spacelines.main.last().unwrap().time,
-        );
-
         let spacelines = space_by_time.spacelines;
         let main = spacelines.main;
         let buffer0 = spacelines.buffer0;
-        println!("working on main");
-        let weight_main = space_by_time.stride;
+        if index < part_count as usize - 1 {
+            assert!(buffer0.is_empty(), "real assert 2");
+        }
         for spaceline in main {
-            space_by_time_first.push_spaceline(spaceline, weight_main);
+            space_by_time_first.spacelines.main.push(spaceline);
         }
-        println!(
-            "1len main_first: {}, len buffer0_first {}, y_stride_first {:?}, step_index_first {}",
-            space_by_time_first.spacelines.main.len(),
-            space_by_time_first.spacelines.buffer0.len(),
-            space_by_time_first.stride,
-            space_by_time_first.step_index()
-        );
-
-        println!("working on buffer0");
         for (spaceline, weight) in buffer0 {
-            space_by_time_first.push_spaceline(spaceline, weight);
+            space_by_time_first
+                .spacelines
+                .buffer0
+                .push((spaceline, weight));
         }
-
-        // cmk do something with continues
-        // space_by_time_first.spacelines.buffer0.clear();
-        println!(
-            "2len main_first: {}, len buffer0_first {}, y_stride_first {:?}, step_index_first {}",
-            space_by_time_first.spacelines.main.len(),
-            space_by_time_first.spacelines.buffer0.len(),
-            space_by_time_first.stride,
-            space_by_time_first.step_index()
-        );
     }
-    // println!(
-    //     "Final: {:?} Steps {}: {:?}, #1's {}",
-    //     0, // start.elapsed(),
-    //     space_by_time_machine_last
-    //         .step_index()
-    //         .separate_with_commas(),
-    //     space_by_time_machine_last.machine(),
-    //     space_by_time_machine_last.count_ones(),
-    // );
-    let len = space_by_time_first.spacelines.len();
+
+    loop {
+        let len = space_by_time_first.spacelines.len();
+        assert!(len > 0, "real assert 5");
+        if len < goal_y as usize * 2 {
+            break;
+        }
+        println!("len: {len} is too long, compressing...");
+        if !is_even(len) {
+            let last = space_by_time_first.spacelines.main.pop().unwrap();
+            space_by_time_first
+                .spacelines
+                .buffer0
+                .insert(0, (last, space_by_time_first.y_stride));
+        }
+        let len2 = space_by_time_first.spacelines.len();
+        assert!(len2 <= len);
+        assert!(is_even(len2), "real assert 6");
+        if binning {
+            space_by_time_first.spacelines.main = space_by_time_first
+                .spacelines
+                .main
+                .drain(..)
+                .tuples()
+                .map(|(mut a, b)| {
+                    assert!(a.tape_start() >= b.tape_start(), "real assert 4a");
+                    a.merge(&b);
+                    a
+                })
+                .collect();
+        } else {
+            // cmk000000 buggy
+            let new_stride = space_by_time_first.y_stride.double();
+            println!("new_stride: {new_stride:?}");
+            space_by_time_first
+                .spacelines
+                .main
+                .retain(|spaceline| new_stride.divides_u64(spaceline.time));
+        }
+        println!("new len: {}", space_by_time_first.spacelines.len());
+        assert!(space_by_time_first.spacelines.len() * 2 <= len);
+    }
+
+    for (spaceline, weight) in &space_by_time_first.spacelines.buffer0 {
+        println!("time: {}, weight: {weight:?}", spaceline.time);
+    }
+
+    // take the buffer0 leaving it empty
+    let buffer_old = core::mem::take(&mut space_by_time_first.spacelines.buffer0);
+    let buffer0 = &mut space_by_time_first.spacelines.buffer0;
+    for (spaceline, weight) in buffer_old {
+        Spacelines::push_internal(buffer0, spaceline, weight);
+        space_by_time_first.step_index += weight.as_u64();
+    }
     let png_data = space_by_time_machine_first.png_data();
     fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
-    assert!(len < goal_y as usize * 2, "real assert 2");
+    // assert!(len < goal_y as usize * 2, "real assert 2");
 }

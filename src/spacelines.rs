@@ -95,7 +95,7 @@ impl Spacelines {
         let spaceline_last = &buffer_last.0;
         let time = spaceline_last.time;
         let start = spaceline_last.tape_start();
-        let x_stride = spaceline_last.stride;
+        let x_stride = spaceline_last.x_stride;
         println!("cmk last x_stride: {x_stride:?}");
         let last_inside_index = y_stride.rem_into_u64(step_index);
 

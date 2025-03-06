@@ -5,10 +5,10 @@ use crate::{
 
 pub struct SpaceByTime {
     skip: u64,
-    step_index: u64,
+    pub(crate) step_index: u64, // cmk make private
     x_goal: u32,
     y_goal: u32,
-    pub(crate) stride: PowerOfTwo,     // cmk make private
+    pub(crate) y_stride: PowerOfTwo,   // cmk make private
     pub(crate) spacelines: Spacelines, // cmk0 consider making this private
     pixel_policy: PixelPolicy,
     previous_space_line: Option<Spaceline>,
@@ -26,7 +26,7 @@ impl SpaceByTime {
             step_index: 0,
             x_goal,
             y_goal,
-            stride: PowerOfTwo::ONE,
+            y_stride: PowerOfTwo::ONE,
             spacelines: Spacelines::new0(pixel_policy),
             pixel_policy,
             previous_space_line: None,
@@ -48,7 +48,7 @@ impl SpaceByTime {
             step_index: 0,
             x_goal,
             y_goal,
-            stride: PowerOfTwo::ONE,
+            y_stride: PowerOfTwo::ONE,
             spacelines: Spacelines::new_skipped(tape, x_goal, skip, pixel_policy),
             pixel_policy,
             previous_space_line: None,
@@ -68,12 +68,12 @@ impl SpaceByTime {
         // The alternative is just to keep the 1st row and discard the 2nd row.
 
         let new_sample = sample_rate(self.step_index, self.y_goal);
-        if new_sample != self.stride {
+        if new_sample != self.y_stride {
             assert!(
-                new_sample / self.stride == PowerOfTwo::TWO,
+                new_sample / self.y_stride == PowerOfTwo::TWO,
                 "real assert 10"
             );
-            self.stride = new_sample;
+            self.y_stride = new_sample;
             match self.pixel_policy {
                 PixelPolicy::Binning => self.spacelines.compress_average(),
                 PixelPolicy::Sampling => self.spacelines.compress_take_first(new_sample),
@@ -92,7 +92,7 @@ impl SpaceByTime {
     #[inline]
     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
         self.step_index += 1;
-        let inside_index = self.stride.rem_into_u64(self.step_index);
+        let inside_index = self.y_stride.rem_into_u64(self.step_index);
 
         match self.pixel_policy {
             PixelPolicy::Binning => {
@@ -149,7 +149,7 @@ impl SpaceByTime {
 
     #[inline]
     pub(crate) fn push_spaceline(&mut self, spaceline: Spaceline, weight: PowerOfTwo) {
-        let inside_index = self.stride.rem_into_u64(self.step_index);
+        let inside_index = self.y_stride.rem_into_u64(self.step_index);
 
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
@@ -178,13 +178,13 @@ impl SpaceByTime {
 
         println!(
             "last_spaceline's x stride {}, -len {}, +len {}",
-            last_spaceline.stride.as_usize(),
+            last_spaceline.x_stride.as_usize(),
             last_spaceline.negative.len(),
             last_spaceline.nonnegative.len()
         );
         println!(
             "spaceline's x stride {} -len {}, +len {}",
-            spaceline.stride.as_usize(),
+            spaceline.x_stride.as_usize(),
             spaceline.negative.len(),
             spaceline.nonnegative.len()
         );
@@ -201,7 +201,7 @@ impl SpaceByTime {
             if i % 100 == 0 {
                 println!(
                     "clone's x stride {} -len {}, +len {}",
-                    clone.stride.as_usize(),
+                    clone.x_stride.as_usize(),
                     clone.negative.len(),
                     clone.nonnegative.len()
                 );
@@ -215,8 +215,8 @@ impl SpaceByTime {
     pub fn to_png(&mut self) -> Result<Vec<u8>, Error> {
         let last = self
             .spacelines
-            .last(self.step_index, self.stride, self.pixel_policy);
-        let x_stride: PowerOfTwo = last.stride;
+            .last(self.step_index, self.y_stride, self.pixel_policy);
+        let x_stride: PowerOfTwo = last.x_stride;
         let tape_width: u64 = (x_stride * last.len()) as u64;
         let tape_min_index = last.tape_start();
         let x_actual: u32 = x_stride.divide_into(tape_width) as u32;
@@ -228,7 +228,7 @@ impl SpaceByTime {
         for y in 0..y_actual {
             let spaceline = self.spacelines.get(y as usize, &last);
             let local_start = &spaceline.tape_start();
-            let local_x_sample = spaceline.stride;
+            let local_x_sample = spaceline.x_stride;
             let local_per_x_sample = x_stride / local_x_sample;
             let row_start_byte_index: u32 = y * row_bytes;
             let x_start = x_stride.div_ceil_into(local_start - tape_min_index);
