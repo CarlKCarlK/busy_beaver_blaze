@@ -220,7 +220,7 @@ impl SpaceByTime {
         let tape_width: u64 = (x_stride * last.len()) as u64;
         let tape_min_index = last.tape_start();
         let x_actual: u32 = x_stride.divide_into(tape_width) as u32;
-        let y_actual: u32 = self.spacelines.len() as u32;
+        let y_actual: u32 = self.spacelines.len_with_01_buffer() as u32;
 
         let row_bytes = x_actual;
         let mut packed_data = vec![0u8; row_bytes as usize * y_actual as usize];

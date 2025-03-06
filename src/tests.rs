@@ -200,23 +200,23 @@ fn test_average() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn parts() {
-    let max_rows = 250_000_000u64;
-    let part_count = 16;
-    let goal_x: u32 = 360;
-    let goal_y: u32 = 432;
-    let binning = true;
-
     // let max_rows = 2413u64;
     // let part_count = 3;
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 30;
     // let binning = true;
 
-    // let max_rows = 10_000_000u64;
+    // let max_rows = 250_000_000u64;
     // let part_count = 16;
     // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
+    // let goal_y: u32 = 432;
     // let binning = true;
+
+    let max_rows = 10_000_000u64;
+    let part_count = 16;
+    let goal_x: u32 = 360;
+    let goal_y: u32 = 30;
+    let binning = true;
 
     // let max_rows = 1_000_000u64;
     // let part_count = 1;

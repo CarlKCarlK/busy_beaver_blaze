@@ -177,12 +177,19 @@ impl Spaceline {
         while self.tape_start() > other.tape_start() {
             self.negative.push(Pixel::WHITE);
         }
+        Pixel::slice_merge(&mut self.negative, &other.negative);
         assert!(self.tape_start() == other.tape_start(), "real assert 6c");
         while self.len() < other.len() {
             self.nonnegative.push(Pixel::WHITE);
         }
         assert!(self.len() == other.len(), "real assert 6d");
         Pixel::slice_merge(&mut self.nonnegative, &other.nonnegative);
+    }
+
+    #[inline]
+    pub fn merge_with_white(&mut self) {
+        Pixel::slice_merge_with_white(&mut self.nonnegative);
+        Pixel::slice_merge_with_white(&mut self.negative);
     }
 
     #[inline]

@@ -31,12 +31,12 @@ impl Spacelines {
         }
     }
 
-    pub(crate) fn len(&self) -> usize {
+    pub(crate) fn len_with_01_buffer(&self) -> usize {
         self.main.len() + usize::from(!self.buffer0.is_empty())
     }
 
     pub(crate) fn get<'a>(&'a self, index: usize, last: &'a Spaceline) -> &'a Spaceline {
-        if index == self.len() - 1 {
+        if index == self.len_with_01_buffer() - 1 {
             last
         } else {
             &self.main[index]
@@ -90,19 +90,18 @@ impl Spacelines {
             return self.main.last().unwrap().clone();
         }
         // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
-
-        let buffer_last = self.buffer0.last().unwrap();
-        let spaceline_last = &buffer_last.0;
-        let time = spaceline_last.time;
-        let start = spaceline_last.tape_start();
-        let x_stride = spaceline_last.x_stride;
-        println!("cmk last x_stride: {x_stride:?}");
-        let last_inside_index = y_stride.rem_into_u64(step_index);
+        let mut buffer0 = self.buffer0.clone();
 
         // cmk we have to clone because we compress in place (clone only half???)
-        let mut buffer0 = self.buffer0.clone();
         match pixel_policy {
             PixelPolicy::Sampling => {
+                let buffer_last = buffer0.last().unwrap();
+                let spaceline_last = &buffer_last.0;
+                let time = spaceline_last.time;
+                let start = spaceline_last.tape_start();
+                let x_stride = spaceline_last.x_stride;
+                let last_inside_index = y_stride.rem_into_u64(step_index);
+
                 // what's the small number I need to add to last_inside_index to create a multiple of y_stride?
                 let smallest = y_stride.offset_to_align(last_inside_index as usize);
                 if smallest != 0 {
@@ -119,26 +118,27 @@ impl Spacelines {
                     );
                     Self::push_internal(&mut buffer0, empty, PowerOfTwo::ONE);
                 }
-            }
-            PixelPolicy::Binning => {
-                for inside_index in last_inside_index + 1..y_stride.as_u64() {
-                    let mut empty_pixels =
-                        AVec::<Pixel>::with_capacity(ALIGN, spaceline_last.len());
-                    empty_pixels.resize(spaceline_last.len(), Pixel::WHITE);
-                    let empty = Spaceline::new2(
-                        x_stride,
-                        start,
-                        empty_pixels,
-                        time + inside_index - last_inside_index,
-                        spaceline_last.pixel_policy,
-                    );
-                    Self::push_internal(&mut buffer0, empty, PowerOfTwo::ONE);
-                }
-            }
-        }
 
-        assert!(buffer0.len() == 1, "real assert b3");
-        buffer0.pop().unwrap().0
+                assert!(buffer0.len() == 1, "real assert b3");
+                let (spaceline, weight) = buffer0.pop().unwrap();
+                assert!(
+                    weight == y_stride,
+                    "Last item in buffer should have the same weight as main"
+                );
+                spaceline
+            }
+            PixelPolicy::Binning => loop {
+                let (mut spaceline_last, weight_last) = buffer0.pop().unwrap(); // can't fail
+                // If we have just one item and it has the same weight as main, we're done.
+                if buffer0.is_empty() && weight_last == y_stride {
+                    return spaceline_last;
+                }
+                assert!(weight_last < y_stride, "real assert");
+                // Otherwise, we half it's color and double the weight
+                spaceline_last.merge_with_white();
+                Self::push_internal(&mut buffer0, spaceline_last, weight_last.double());
+            },
+        }
     }
 
     // cmk000 make private

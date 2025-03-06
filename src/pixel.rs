@@ -55,6 +55,27 @@ impl Pixel {
     }
 
     #[inline]
+    pub(crate) fn slice_merge_with_white(left: &mut [Self]) {
+        let left_bytes: &mut [u8] = left.as_mut_bytes();
+
+        // Process chunks with SIMD where possible
+        let (left_prefix, left_chunks, left_suffix) = left_bytes.as_simd_mut::<LANES_CMK>();
+
+        for left_chunk in left_chunks.iter_mut() {
+            // divide by 2
+            *left_chunk >>= Self::SPLAT_1;
+        }
+
+        assert!(left_prefix.is_empty());
+
+        // Process remaining elements in suffix
+        for left_byte in left_suffix.iter_mut() {
+            // divide by 2
+            *left_byte >>= 1;
+        }
+    }
+
+    #[inline]
     pub(crate) fn merge_slice_down_sample(
         slice: &[Self],
         empty_count: usize,
