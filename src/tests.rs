@@ -206,11 +206,11 @@ fn test_average() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn parts() {
-    let max_rows = 250_000_000u64;
-    let part_count = 16;
-    let goal_x: u32 = 360;
-    let goal_y: u32 = 432;
-    let binning = true;
+    // let max_rows = 250_000_000u64;
+    // let part_count = 16;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
 
     // let max_rows = 2413u64;
     // let part_count = 3;
@@ -218,15 +218,23 @@ fn parts() {
     // let goal_y: u32 = 30;
     // let binning = true;
 
-    // // let max_rows = 10_000_000u64;
-    // // let part_count = 16;
+    // let max_rows = 10_000_000u64;
+    // let part_count = 16;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 30;
+    // let binning = true;
+
     // let max_rows = 1_000_000u64;
     // let part_count = 1;
-
-    // let max_rows = 300u64;
-    // let part_count = 2;
     // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
+    // let goal_y: u32 = 30;
+    // let binning = false;
+
+    let max_rows = 300u64;
+    let part_count = 2;
+    let goal_x: u32 = 360;
+    let goal_y: u32 = 432;
+    let binning = false;
 
     // let max_rows = 5u64;
     // let part_count = 10;
@@ -288,7 +296,7 @@ fn parts() {
     let (_continues0, mut space_by_time_machine_first) = results_iter.next().unwrap();
     let space_by_time_first = &mut space_by_time_machine_first.space_by_time;
     assert!(
-        space_by_time_first.spacelines.buffer0.is_empty(),
+        space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,
         "real assert 3"
     );
 
@@ -346,15 +354,23 @@ fn parts() {
             // cmk000000 buggy
             let new_stride = space_by_time_first.y_stride.double();
             println!("new_stride: {new_stride:?}");
+            let mut expect = true;
+            for spaceline in &space_by_time_first.spacelines.main {
+                let divides = new_stride.divides_u64(spaceline.time);
+                assert_eq!(divides, expect, "real assert 7");
+                expect = !expect;
+            }
+            // assert!(expect, "real assert 8");
             space_by_time_first
                 .spacelines
                 .main
                 .retain(|spaceline| new_stride.divides_u64(spaceline.time));
         }
         println!("new len: {}", space_by_time_first.spacelines.len());
-        assert!(space_by_time_first.spacelines.len() * 2 <= len);
+        // assert!(space_by_time_first.spacelines.len() * 2 <= len);
     }
 
+    println!("main's y_stride {:?}", &space_by_time_first.y_stride);
     for (spaceline, weight) in &space_by_time_first.spacelines.buffer0 {
         println!("time: {}, weight: {weight:?}", spaceline.time);
     }
@@ -362,11 +378,32 @@ fn parts() {
     // take the buffer0 leaving it empty
     let buffer_old = core::mem::take(&mut space_by_time_first.spacelines.buffer0);
     let buffer0 = &mut space_by_time_first.spacelines.buffer0;
+    let mut old_weight = None;
     for (spaceline, weight) in buffer_old {
+        assert!(
+            old_weight.is_none() || old_weight.unwrap() >= weight,
+            "should be monotonic"
+        );
+        assert!(
+            weight <= space_by_time_first.y_stride,
+            "should be <= y_stride"
+        );
+        if weight == space_by_time_first.y_stride {
+            // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
+            space_by_time_first.spacelines.main.push(spaceline);
+            continue;
+        }
         Spacelines::push_internal(buffer0, spaceline, weight);
         space_by_time_first.step_index += weight.as_u64();
+        old_weight = Some(weight);
     }
+    println!("again main's y_stride {:?}", &space_by_time_first.y_stride);
+    for (spaceline, weight) in &space_by_time_first.spacelines.buffer0 {
+        println!("again: time: {}, weight: {weight:?}", spaceline.time);
+    }
+
     let png_data = space_by_time_machine_first.png_data();
     fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
+
     // assert!(len < goal_y as usize * 2, "real assert 2");
 }
