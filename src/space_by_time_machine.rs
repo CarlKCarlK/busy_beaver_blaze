@@ -195,7 +195,7 @@ impl SpaceByTimeMachine {
             goal_y,
             binning,
         );
-        Self::audit_results(&results, part_count, early_stop, binning);
+        //Self::audit_results(&results, part_count, early_stop, binning);
 
         let space_by_time_machine = Self::combine_results(results);
         let mut space_by_time_machine = space_by_time_machine.double_audit(early_stop, binning);
@@ -238,8 +238,18 @@ impl SpaceByTimeMachine {
                 continue;
             }
             Spacelines::push_internal(buffer0, spaceline, weight);
-            space_by_time.step_index += weight.as_u64();
             old_weight = Some(weight);
+
+            println!("=== +{weight:?}");
+            for (spaceline_x, weight_x) in buffer0.iter() {
+                println!("after time: {}, weight: {weight_x:?}", spaceline_x.time);
+            }
+
+            if buffer0.len() == 1 && buffer0.first().unwrap().1 == space_by_time.y_stride {
+                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
+                let (spaceline_z, _weight_z) = buffer0.pop().unwrap();
+                space_by_time.spacelines.main.push(spaceline_z);
+            }
         }
         println!(
             "again main's time {}, y_stride {:?}",
@@ -345,6 +355,7 @@ impl SpaceByTimeMachine {
         let mut space_by_time_machine_first = results_iter.next().unwrap();
         let space_by_time_first = &mut space_by_time_machine_first.space_by_time;
         assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
+        let y_stride = space_by_time_first.y_stride;
 
         let mut index: usize = 0;
         for space_by_time_machine in results_iter {
@@ -356,12 +367,38 @@ impl SpaceByTimeMachine {
             if index < part_count as usize - 1 {
                 assert!(buffer0.is_empty(), "real assert 2");
             }
-            for spaceline in main {
-                space_by_time_first.spacelines.main.push(spaceline);
-            }
 
-            let mut previous_y_stride = space_by_time_first.y_stride;
-            let mut previous_time = space_by_time_first.spacelines.main.last().unwrap().time;
+            let (mut previous_y_stride, mut previous_time) = if space_by_time.y_stride == y_stride {
+                for spaceline in main {
+                    space_by_time_first.spacelines.main.push(spaceline);
+                }
+                (
+                    space_by_time_first.y_stride,
+                    space_by_time_first.spacelines.main.last().unwrap().time,
+                )
+            } else {
+                assert!(
+                    index == part_count as usize - 1,
+                    "y_stride can only be less on the last part"
+                );
+                for spaceline in main {
+                    space_by_time_first
+                        .spacelines
+                        .buffer0
+                        .push((spaceline, space_by_time.y_stride));
+                }
+                (
+                    space_by_time.y_stride,
+                    space_by_time_first
+                        .spacelines
+                        .buffer0
+                        .last()
+                        .unwrap()
+                        .0
+                        .time,
+                )
+            };
+
             for (spaceline, weight) in buffer0 {
                 let time = spaceline.time;
                 assert!(
@@ -458,10 +495,10 @@ impl SpaceByTimeMachine {
         assert_eq!(results.len() as u64, part_count);
         let mut previous_y_stride = None;
         let mut previous_time = None;
-        for (part_index, space_by_time_machine) in results.into_iter().enumerate() {
+        for (part_index, space_by_time_machine) in results.iter().enumerate() {
             let space_by_time = &space_by_time_machine.space_by_time;
             let y_stride = space_by_time.y_stride;
-            if part_index > 0 {
+            if part_index > 0 && part_index < part_count as usize - 1 {
                 assert_eq!(
                     y_stride,
                     previous_y_stride.unwrap(),

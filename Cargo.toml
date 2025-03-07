@@ -47,9 +47,6 @@ criterion = "0.5.1"
 name = "benchmark"
 harness = false
 
-[build]
-rustflags = ["-C", "target-cpu=native"]
-
 [profile.release]
 debug = true
 
