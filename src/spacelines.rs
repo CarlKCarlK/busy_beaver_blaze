@@ -10,6 +10,24 @@ pub(crate) struct Spacelines {
     pub(crate) buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names
 }
 
+// define a debug that lists the lines of main (one spaceline per line) and then for buffer0, lists the weight and the line, one pair per line
+impl core::fmt::Debug for Spacelines {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        writeln!(f, "Spacelines {{")?;
+        writeln!(f, "  main: [")?;
+        for line in &self.main {
+            writeln!(f, "    {line:?},")?;
+        }
+        writeln!(f, "  ],")?;
+        writeln!(f, "  buffer0: [")?;
+        for (line, weight) in &self.buffer0 {
+            writeln!(f, "    weight {weight:?}:  {line:?},")?;
+        }
+        writeln!(f, "  ]")?;
+        write!(f, "}}")
+    }
+}
+
 impl Spacelines {
     pub(crate) fn new0(pixel_policy: PixelPolicy) -> Self {
         Self {
@@ -31,12 +49,12 @@ impl Spacelines {
         }
     }
 
-    pub(crate) fn len_with_01_buffer(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.main.len() + usize::from(!self.buffer0.is_empty())
     }
 
     pub(crate) fn get<'a>(&'a self, index: usize, last: &'a Spaceline) -> &'a Spaceline {
-        if index == self.len_with_01_buffer() - 1 {
+        if index == self.len() - 1 {
             last
         } else {
             &self.main[index]

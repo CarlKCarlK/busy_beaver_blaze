@@ -1,27 +1,63 @@
 use crate::{LANES_CMK, PixelPolicy, bool_u8::BoolU8};
-use core::simd::prelude::*;
+use core::ops::{Add, AddAssign};
+use core::simd::{self, prelude::*};
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
+/// We define +, += to be the average of two pixels.
 #[repr(transparent)]
 #[derive(
-    Debug,
-    Default,
-    Copy,
-    Clone,
-    IntoBytes,
-    FromBytes,
-    Immutable,
-    Display,
-    PartialEq,
-    Eq,
-    KnownLayout,
+    Default, Copy, Clone, IntoBytes, FromBytes, Immutable, Display, PartialEq, Eq, KnownLayout,
 )]
 pub struct Pixel(u8);
 
+impl Add for Pixel {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, other: Self) -> Self {
+        Self(Self::mean_bytes(self.0, other.0))
+    }
+}
+
+impl AddAssign for Pixel {
+    #[inline]
+    fn add_assign(&mut self, other: Self) {
+        Self::mean_assign_bytes(&mut self.0, other.0);
+    }
+}
+
+// define a debug trait for Pixel that looks like "P127"
+impl core::fmt::Debug for Pixel {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(formatter, "P{}", self.0)
+    }
+}
+
 impl Pixel {
-    pub(crate) const WHITE: Self = Self(0);
+    pub const WHITE: Self = Self(0);
     const SPLAT_1: Simd<u8, LANES_CMK> = Simd::<u8, LANES_CMK>::splat(1);
+
+    // cmk00000000 could make this unbiased by adding 1 before shift
+    #[must_use]
+    #[inline]
+    pub const fn mean_bytes(a: u8, b: u8) -> u8 {
+        (a & b) + ((a ^ b) >> 1)
+    }
+
+    // cmk00 inconsistent with the terms 'mean', 'average', 'merge', 'binning'
+    #[inline]
+    const fn mean_assign_bytes(a: &mut u8, b: u8) {
+        let a_and_b = *a & b;
+        *a ^= b;
+        *a >>= 1;
+        *a += a_and_b;
+    }
+
+    #[inline]
+    pub(crate) const fn as_u8(self) -> u8 {
+        self.0
+    }
 
     #[inline]
     pub(crate) fn slice_merge(left: &mut [Self], right: &[Self]) {
@@ -34,10 +70,43 @@ impl Pixel {
         let left_bytes: &mut [u8] = left.as_mut_bytes();
         let right_bytes: &[u8] = right.as_bytes();
 
+        Self::slice_merge_bytes(left_bytes, right_bytes);
+    }
+
+    #[inline]
+    fn simd_precondition<T, const LANES: usize>(left: &[T], right: &[T]) -> bool
+    where
+        T: simd::SimdElement,
+        simd::LaneCount<LANES>: simd::SupportedLaneCount,
+    {
+        if left.len() != right.len() {
+            return false;
+        }
+
+        let align = core::mem::align_of::<Simd<T, LANES>>();
+        let left_align = left.as_ptr().align_offset(align);
+        let right_align = right.as_ptr().align_offset(align);
+
+        left_align == right_align
+    }
+
+    #[inline]
+    pub(crate) fn slice_merge_bytes(left_bytes: &mut [u8], right_bytes: &[u8]) {
+        // cmk debug_assert
+        assert!(
+            Self::simd_precondition::<u8, LANES_CMK>(left_bytes, right_bytes),
+            "SIMD precondition failed"
+        );
         // Process chunks with SIMD where possible
         let (left_prefix, left_chunks, left_suffix) = left_bytes.as_simd_mut::<LANES_CMK>();
         let (right_prefix, right_chunks, right_suffix) = right_bytes.as_simd::<LANES_CMK>();
 
+        // Process prefix elements
+        for (left_byte, right_byte) in left_prefix.iter_mut().zip(right_prefix.iter()) {
+            Self::mean_assign_bytes(left_byte, *right_byte);
+        }
+
+        // cmk00000000 could make this unbiased by adding 1 before shift
         // Process SIMD chunks using (a & b) + ((a ^ b) >> 1) formula
         for (left_chunk, right_chunk) in left_chunks.iter_mut().zip(right_chunks.iter()) {
             let a_and_b = *left_chunk & *right_chunk;
@@ -46,11 +115,17 @@ impl Pixel {
             *left_chunk += a_and_b;
         }
 
-        assert!(left_prefix.is_empty() && right_prefix.is_empty());
-
         // Process remaining elements in suffix
         for (left_byte, right_byte) in left_suffix.iter_mut().zip(right_suffix.iter()) {
-            *left_byte = (*left_byte & *right_byte) + ((*left_byte ^ *right_byte) >> 1);
+            Self::mean_assign_bytes(left_byte, *right_byte);
+        }
+    }
+
+    // cmk000 see if this can be removed
+    #[inline]
+    pub(crate) fn slice_merge_bytes_no_simd(left_bytes: &mut [u8], right_bytes: &[u8]) {
+        for (left_byte, right_byte) in left_bytes.iter_mut().zip(right_bytes.iter()) {
+            Self::mean_assign_bytes(left_byte, *right_byte);
         }
     }
 
@@ -93,6 +168,8 @@ impl Pixel {
         }
     }
 
+    // cmk0000 This is only called from one place and empty_count is always 0. Is there already
+    // cmk0000 a SIMD version of this?
     #[inline]
     pub(crate) fn merge_slice_all(slice: &[Self], empty_count: i64) -> Self {
         let sum: u32 = slice.iter().map(|pixel: &Self| pixel.0 as u32).sum();

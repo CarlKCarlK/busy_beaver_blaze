@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         let out_info = Path::new(f.as_str());
         fs::create_dir_all(out_info.parent().unwrap())?;
 
-        let png_data = space_by_time_machine.png_data();
+        let png_data = space_by_time_machine.png_data(up_y);
         let base = image::load_from_memory(&png_data)?;
         base.save(out_info)?;
     }

@@ -21,20 +21,21 @@ use aligned_vec::AVec;
 use bool_u8::BoolU8;
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
 use derive_more::{Error as DeriveError, derive::Display};
-use pixel::Pixel;
 use png::{BitDepth, ColorType, Encoder};
 use thousands::Separable;
 use zerocopy::IntoBytes;
 // Export types from modules
 pub use log_step_iterator::LogStepIterator;
 pub use machine::Machine;
+pub use pixel::Pixel;
 pub use pixel_policy::PixelPolicy;
 pub use power_of_two::PowerOfTwo;
 pub use space_by_time::SpaceByTime;
 pub use space_by_time_machine::SpaceByTimeMachine;
+pub use spaceline::Spaceline;
 pub use tape::Tape;
 
-const LANES_CMK: usize = 32;
+const LANES_CMK: usize = 64;
 pub const ALIGN: usize = 64;
 
 // use web_sys::console;
@@ -444,7 +445,7 @@ pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -
 }
 
 #[inline]
-fn is_even<T>(x: T) -> bool
+pub fn is_even<T>(x: T) -> bool
 where
     T: Copy + core::ops::BitAnd<Output = T> + core::ops::Sub<Output = T> + From<u8> + PartialEq,
 {

@@ -1,9 +1,10 @@
 #![cfg(not(target_arch = "wasm32"))]
 #![feature(portable_simd)]
+
 use aligned_vec::AVec;
 use busy_beaver_blaze::{
-    ALIGN, PowerOfTwo, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
-    average_with_simd_push,
+    ALIGN, Pixel, PowerOfTwo, Spaceline, average_with_iterators, average_with_simd,
+    average_with_simd_count_ones64, average_with_simd_push, is_even,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -134,5 +135,31 @@ fn len_100m(criterion: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, small, large, len_100m);
+fn resample(criterion: &mut Criterion) {
+    let len = 4_000;
+    let seed = 1;
+    let mut rng = StdRng::seed_from_u64(seed);
+    let pixels: AVec<Pixel, _> =
+        AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
+
+    let mut group = criterion.benchmark_group("resample");
+
+    group.bench_function("iterators", |bencher| {
+        bencher.iter_with_setup(
+            || pixels.clone(),
+            |mut pixels_clone| Spaceline::resample_one(black_box(&mut pixels_clone)),
+        );
+    });
+
+    group.bench_function("simd", |bencher| {
+        bencher.iter_with_setup(
+            || pixels.clone(),
+            |mut pixels_clone| Spaceline::resample_simd(black_box(&mut pixels_clone)),
+        );
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, small, large, len_100m, resample);
 criterion_main!(benches);

@@ -7,7 +7,7 @@ pub struct SpaceByTime {
     skip: u64,
     pub(crate) step_index: u64, // cmk make private
     x_goal: u32,
-    y_goal: u32,
+    pub(crate) y_goal: u32,            // cmk make private
     pub(crate) y_stride: PowerOfTwo,   // cmk make private
     pub(crate) spacelines: Spacelines, // cmk0 consider making this private
     pixel_policy: PixelPolicy,
@@ -211,8 +211,13 @@ impl SpaceByTime {
         }
     }
 
-    #[allow(clippy::wrong_self_convention)] // cmk00 consider better name to this function
-    pub fn to_png(&mut self) -> Result<Vec<u8>, Error> {
+    pub fn to_png(&mut self, y_goal: u32) -> Result<Vec<u8>, Error> {
+        let (png, _packed_data) = self.to_png_and_packed_data(y_goal)?;
+        Ok(png)
+    }
+
+    #[allow(clippy::wrong_self_convention, clippy::missing_panics_doc)]
+    pub fn to_png_and_packed_data(&mut self, y_goal: u32) -> Result<(Vec<u8>, Vec<u8>), Error> {
         let last = self
             .spacelines
             .last(self.step_index, self.y_stride, self.pixel_policy);
@@ -220,7 +225,7 @@ impl SpaceByTime {
         let tape_width: u64 = (x_stride * last.len()) as u64;
         let tape_min_index = last.tape_start();
         let x_actual: u32 = x_stride.divide_into(tape_width) as u32;
-        let y_actual: u32 = self.spacelines.len_with_01_buffer() as u32;
+        let y_actual: u32 = self.spacelines.len() as u32;
 
         let row_bytes = x_actual;
         let mut packed_data = vec![0u8; row_bytes as usize * y_actual as usize];
@@ -280,6 +285,27 @@ impl SpaceByTime {
             }
         }
 
-        encode_png(x_actual, y_actual, &packed_data)
+        // println!("packed_data {packed_data:?}");
+        assert!(y_actual <= 2 * y_goal);
+        if y_actual == 2 * y_goal {
+            // reduce the # of rows in half my averaging
+            let mut new_packed_data = vec![0u8; row_bytes as usize * y_goal as usize];
+            packed_data
+                .chunks_exact_mut(row_bytes as usize * 2)
+                .zip(new_packed_data.chunks_exact_mut(row_bytes as usize))
+                .for_each(|(chunk, new_chunk)| {
+                    let (left, right) = chunk.split_at_mut(row_bytes as usize);
+                    Pixel::slice_merge_bytes_no_simd(left, right);
+                    // by design new_chunk is the same size as left, so copy the bytes from left to new_chunk
+                    new_chunk.copy_from_slice(left);
+                });
+            // println!("new_packed_data {new_packed_data:?}");
+            Ok((
+                encode_png(x_actual, y_goal, &new_packed_data)?,
+                new_packed_data,
+            ))
+        } else {
+            Ok((encode_png(x_actual, y_actual, &packed_data)?, packed_data))
+        }
     }
 }

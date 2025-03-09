@@ -1,9 +1,12 @@
+use core::simd::{Simd, simd_swizzle};
+
 use crate::pixel::Pixel;
 use crate::tape::Tape;
-use crate::{ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, sample_rate};
+use crate::{ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, is_even, sample_rate};
 use aligned_vec::AVec;
+use zerocopy::IntoBytes;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Spaceline {
     pub x_stride: PowerOfTwo,
     pub negative: AVec<Pixel>,
@@ -12,7 +15,35 @@ pub struct Spaceline {
     pub pixel_policy: PixelPolicy,
 }
 
+// define a Debug trait for Spaceline that lists x_stride, time, pixel_policy
+// and for shows the negatives in reverse order with just the u8 values then "|" and the nonnegatives
+// in order with just the u8 values
+impl core::fmt::Debug for Spaceline {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let negative_str = self
+            .negative
+            .iter()
+            .rev()
+            .map(|pixel: &Pixel| pixel.as_u8().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let nonnegative_str = self
+            .nonnegative
+            .iter()
+            .map(|pixel: &Pixel| pixel.as_u8().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(
+            formatter,
+            "Spaceline {{ Pixels: {} | {}, x_stride: {:?}, time: {}, pixel_policy: {:?}}}",
+            negative_str, nonnegative_str, self.x_stride, self.time, self.pixel_policy
+        )
+    }
+}
+
 impl Spaceline {
+    #[must_use]
+    #[inline]
     pub fn new0(pixel_policy: PixelPolicy) -> Self {
         let mut nonnegative = AVec::new(ALIGN);
         nonnegative.push(Pixel::WHITE);
@@ -26,6 +57,7 @@ impl Spaceline {
     }
 
     #[inline]
+    #[must_use]
     pub fn pixel_index(&self, index: usize) -> Pixel {
         let negative_len = self.negative.len();
         if index < negative_len {
@@ -36,6 +68,7 @@ impl Spaceline {
     }
 
     #[inline]
+    #[must_use]
     pub fn pixel_index_unbounded(&self, index: usize) -> Pixel {
         let negative_len = self.negative.len();
         if index < negative_len {
@@ -52,6 +85,7 @@ impl Spaceline {
     }
 
     #[inline]
+    #[must_use]
     pub fn new2(
         stride: PowerOfTwo,
         start: i64,
@@ -83,57 +117,124 @@ impl Spaceline {
     }
 
     #[inline]
+    #[must_use]
     pub fn tape_start(&self) -> i64 {
         -((self.x_stride * self.negative.len()) as i64)
     }
 
     #[inline]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.nonnegative.len() + self.negative.len()
     }
 
-    #[inline]
-    pub fn resample_if_needed(&mut self, stride: PowerOfTwo) {
-        // cmk0000 seems overly messy
-        // assert!(!self.nonnegative.is_empty(), "real assert a");
-        assert!(
-            self.x_stride.divides_i64(self.tape_start()),
-            "Start must be a multiple of the sample rate"
-        );
-        if stride == self.x_stride {
-            return;
+    pub fn resample_one(pixels: &mut AVec<Pixel>) {
+        let len = pixels.len();
+        let mut write_index = 0;
+
+        let mut i = 0;
+        while i + 1 < len {
+            pixels[write_index] = pixels[i] + pixels[i + 1]; // Overlapping write
+            write_index += 1;
+            i += 2;
         }
-        let cells_to_add = stride.rem_euclid_into(self.tape_start());
-        let new_tape_start = self.tape_start() - cells_to_add;
-        let old_items_to_add = self.x_stride.divide_into(cells_to_add);
-        let old_items_per_new = stride / self.x_stride;
-        let old_items_per_new_u64 = old_items_per_new.as_u64();
-        let old_items_per_new_usize = old_items_per_new_u64 as usize;
-        assert!(stride >= self.x_stride, "real assert 12");
-        let old_items_to_use = old_items_per_new.as_u64() - old_items_to_add as u64;
-        assert!(old_items_to_use <= self.len() as u64, "real assert d10");
-        let pixel0 = Pixel::merge_slice_down_sample(
-            &self.pixel_range(0, old_items_to_use as usize),
-            old_items_to_add as usize,
-            self.pixel_policy,
-        );
-        let mut new_index = 0usize;
-        *self.pixel_index_mut(new_index) = pixel0;
-        new_index += 1;
-        let value_len = self.len() as u64;
-        for old_index in (old_items_to_use..value_len).step_by(old_items_per_new_usize) {
-            let old_end = (old_index + old_items_to_use).min(value_len);
-            let slice = &self.pixel_range(old_index as usize, old_end as usize);
-            let old_items_to_add_inner = old_items_per_new_u64 - (old_end - old_index);
-            *self.pixel_index_mut(new_index) = Pixel::merge_slice_down_sample(
-                slice,
-                old_items_to_add_inner as usize,
-                self.pixel_policy,
-            );
-            new_index += 1;
+        if !is_even(len) {
+            pixels[write_index] = pixels[len - 1] + Pixel::WHITE; // Handle last odd element
+            write_index += 1;
         }
-        self.pixel_restart(new_tape_start, new_index, stride);
+
+        pixels.truncate(write_index);
     }
+
+    #[allow(clippy::cast_ptr_alignment, clippy::integer_division_remainder_used)]
+    pub fn resample_simd(pixels: &mut AVec<Pixel>) {
+        // Local constant for the static swizzle indices.
+        const SWIZZLE_INDICES: [usize; 64] = [
+            0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44,
+            46, 48, 50, 52, 54, 56, 58, 60, 62, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27,
+            29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63,
+        ];
+        // Constant used for the right shift in our average formula.
+        const SPLAT_1_32: Simd<u8, 32> = Simd::splat(1);
+
+        // Access the pixel data as a mutable byte slice.
+        let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
+        let len = pixels_bytes.len();
+        // We'll process the input in 64-byte blocks.
+        let num_chunks = len / 64;
+
+        // Destination pointer: we'll pack results to the start of this buffer.
+        let dst_ptr = pixels_bytes.as_mut_ptr();
+        let mut write_index = 0;
+
+        // Process each 64-byte block.
+        for i in 0..num_chunks {
+            let chunk_start = i * 64;
+            // Load the 64-byte chunk from the source.
+            let src_chunk_ptr = unsafe {
+                pixels_bytes
+                    .as_ptr()
+                    .add(chunk_start)
+                    .cast::<Simd<u8, 64>>()
+            };
+            let chunk = unsafe { *src_chunk_ptr };
+
+            // Static swizzle to rearrange:
+            //  - first 32 lanes: even-indexed bytes,
+            //  - last 32 lanes: odd-indexed bytes.
+            let swizzled: Simd<u8, 64> = simd_swizzle!(chunk, SWIZZLE_INDICES);
+
+            // Split the swizzled vector into two halves (each 32 lanes).
+            let (left, right) = unsafe {
+                // Cast the 64-lane vector to a pointer to two consecutive 32-lane vectors.
+                let ptr = (&raw const swizzled).cast::<Simd<u8, 32>>();
+                (*ptr, *ptr.add(1))
+            };
+
+            // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
+            // cmk00000000 could make this unbiased by adding 1 before shift
+
+            let result: &mut Simd<u8, 32> =
+                unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
+            *result = left & right;
+            let mut avg = left;
+            avg ^= right;
+            avg >>= SPLAT_1_32;
+            *result += avg;
+
+            write_index += 32;
+        }
+
+        // Process the remaining bytes (suffix) with scalar code.
+        let mut i = num_chunks * 64;
+        while i + 1 < len {
+            // Compute the average for a pair of pixels.
+            pixels_bytes[write_index] = Pixel::mean_bytes(pixels_bytes[i], pixels_bytes[i + 1]);
+            write_index += 1;
+            i += 2;
+        }
+        if i < len {
+            // For a leftover pixel, average it with white (i.e. divide by 2).
+            pixels_bytes[write_index] = pixels_bytes[i] / 2;
+            write_index += 1;
+        }
+
+        // Finally, truncate the vector to the new length (in bytes).
+        pixels.truncate(write_index);
+    }
+
+    #[inline]
+    pub fn resample_if_needed(&mut self, new_x_stride: PowerOfTwo) {
+        assert!(self.x_stride <= new_x_stride);
+        while self.x_stride < new_x_stride {
+            for pixels in [&mut self.nonnegative, &mut self.negative] {
+                Self::resample_simd(pixels);
+            }
+            self.x_stride = self.x_stride.double();
+        }
+    }
+
+    #[must_use]
 
     pub fn pixel_range(&self, start: usize, end: usize) -> Vec<Pixel> {
         assert!(
@@ -147,19 +248,20 @@ impl Spaceline {
         result
     }
 
-    #[inline]
-    pub fn pixel_restart(&mut self, tape_start: i64, len: usize, stride: PowerOfTwo) {
-        self.x_stride = stride;
-        assert!(self.tape_start() <= tape_start, "real assert 11");
-        while self.tape_start() < tape_start {
-            self.nonnegative.insert(0, self.negative.remove(0));
-        }
-        assert!(self.len() >= len, "real assert 12");
-        while self.len() > len {
-            self.nonnegative.pop();
-        }
-        assert!(self.len() == len, "real assert 13");
-    }
+    // cmk0000 this is not used
+    // #[inline]
+    // pub fn pixel_restart(&mut self, tape_start: i64, len: usize, stride: PowerOfTwo) {
+    //     self.x_stride = stride;
+    //     assert!(self.tape_start() <= tape_start, "real assert 11");
+    //     while self.tape_start() < tape_start {
+    //         self.nonnegative.insert(0, self.negative.remove(0));
+    //     }
+    //     assert!(self.len() >= len, "real assert 12");
+    //     while self.len() > len {
+    //         self.nonnegative.pop();
+    //     }
+    //     assert!(self.len() == len, "real assert 13");
+    // }
 
     #[inline]
     pub fn merge(&mut self, other: &Self) {
@@ -193,22 +295,23 @@ impl Spaceline {
     }
 
     #[inline]
+    #[must_use]
     pub fn new(tape: &Tape, x_goal: u32, step_index: u64, pixel_policy: PixelPolicy) -> Self {
         let tape_min_index = tape.min_index();
         let tape_max_index = tape.max_index();
         let tape_width = (tape_max_index - tape_min_index + 1) as u64;
         let x_stride = sample_rate(tape_width, x_goal);
-        if step_index % 10_000_000 == 0 {
-            println!(
-                "cmk Spaceline::new step_index {}, tape width {:?} ({}..={}), x_stride {:?}, x_goal {:?}",
-                step_index,
-                tape_width,
-                tape_min_index,
-                tape_max_index,
-                x_stride.as_usize(),
-                x_goal
-            );
-        }
+        // if step_index % 10_000_000 == 0 {
+        //     println!(
+        //         "cmk Spaceline::new step_index {}, tape width {:?} ({}..={}), x_stride {:?}, x_goal {:?}",
+        //         step_index,
+        //         tape_width,
+        //         tape_min_index,
+        //         tape_max_index,
+        //         x_stride.as_usize(),
+        //         x_goal
+        //     );
+        // }
         match pixel_policy {
             PixelPolicy::Binning => {
                 let (negative, nonnegative) = match x_stride {

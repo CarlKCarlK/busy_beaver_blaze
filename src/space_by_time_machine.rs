@@ -144,7 +144,7 @@ impl SpaceByTimeMachine {
     #[must_use]
     pub fn png_data(&mut self) -> Vec<u8> {
         self.space_by_time
-            .to_png()
+            .to_png(self.space_by_time.y_goal)
             .unwrap_or_else(|e| format!("{e:?}").into_bytes())
     }
 
@@ -177,6 +177,14 @@ impl SpaceByTimeMachine {
     clippy::shadow_reuse
 )]
 impl SpaceByTimeMachine {
+    #[inline]
+    #[must_use]
+    pub fn png_data_and_packed_data(&mut self) -> (Vec<u8>, Vec<u8>) {
+        self.space_by_time
+            .to_png_and_packed_data(self.space_by_time.y_goal)
+            .unwrap()
+    }
+
     #[must_use]
     pub fn from_str_in_parts(
         // cmk change the order of the inputs
@@ -187,7 +195,7 @@ impl SpaceByTimeMachine {
         goal_y: u32,
         binning: bool,
     ) -> Self {
-        let results = Self::run_parts(
+        let space_by_time_machines = Self::run_parts(
             early_stop,
             part_count,
             program_string,
@@ -195,71 +203,59 @@ impl SpaceByTimeMachine {
             goal_y,
             binning,
         );
-        //Self::audit_results(&results, part_count, early_stop, binning);
 
-        let space_by_time_machine = Self::combine_results(results);
+        let space_by_time_machine = Self::combine_results(space_by_time_machines);
         let mut space_by_time_machine = space_by_time_machine.double_audit(early_stop, binning);
 
-        space_by_time_machine.compress_if_needed(goal_y, early_stop, binning);
-        let mut space_by_time_machine = space_by_time_machine.double_audit(early_stop, binning);
-        assert!(
-            space_by_time_machine
-                .space_by_time
-                .spacelines
-                .len_with_01_buffer()
-                <= goal_y as usize * 2,
-            "too long",
-        );
+        // println!(
+        //     "aa. spacelines.len {} ??<= goal_y * 2 {}",
+        //     space_by_time_machine.space_by_time.spacelines.len(),
+        //     goal_y * 2
+        // );
+        // println!(
+        //     "before compress_if_needed: {:?}",
+        //     space_by_time_machine.space_by_time.spacelines
+        // );
 
-        let space_by_time = &mut space_by_time_machine.space_by_time;
+        loop {
+            space_by_time_machine.compress_if_needed(goal_y, early_stop, binning);
+            // let mut space_by_time_machine = space_by_time_machine.double_audit(early_stop, binning);
+            // println!(
+            //     "a. spacelines.len {} <= goal_y * 2 {}",
+            //     space_by_time_machine.space_by_time.spacelines.len(),
+            //     goal_y * 2
+            // );
+            // assert!(
+            //     space_by_time_machine.space_by_time.spacelines.len() <= goal_y as usize * 2,
+            //     "too long",
+            // );
 
-        println!(
-            "main's time: {} y_stride {:?}",
-            &space_by_time.spacelines.main.last().unwrap().time,
-            &space_by_time.y_stride
-        );
-        for (spaceline, weight) in &space_by_time.spacelines.buffer0 {
-            println!("time: {}, weight: {weight:?}", spaceline.time);
-        }
+            // println!(
+            //     "before reduce_buffers0: {:?}",
+            //     space_by_time_machine.space_by_time.spacelines
+            // );
 
-        // take the buffer0 leaving it empty
-        let buffer_old = core::mem::take(&mut space_by_time.spacelines.buffer0);
-        let buffer0 = &mut space_by_time.spacelines.buffer0;
-        let mut old_weight = None;
-        for (spaceline, weight) in buffer_old {
-            assert!(
-                old_weight.is_none() || old_weight.unwrap() >= weight,
-                "should be monotonic"
-            );
-            assert!(weight <= space_by_time.y_stride, "should be <= y_stride");
-            if weight == space_by_time.y_stride {
-                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
-                space_by_time.spacelines.main.push(spaceline);
-                continue;
-            }
-            Spacelines::push_internal(buffer0, spaceline, weight);
-            old_weight = Some(weight);
+            space_by_time_machine.reduce_buffer0();
 
-            println!("=== +{weight:?}");
-            for (spaceline_x, weight_x) in buffer0.iter() {
-                println!("after time: {}, weight: {weight_x:?}", spaceline_x.time);
-            }
-
-            if buffer0.len() == 1 && buffer0.first().unwrap().1 == space_by_time.y_stride {
-                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
-                let (spaceline_z, _weight_z) = buffer0.pop().unwrap();
-                space_by_time.spacelines.main.push(spaceline_z);
+            if space_by_time_machine.space_by_time.spacelines.len() <= goal_y as usize * 2 {
+                break;
             }
         }
-        println!(
-            "again main's time {}, y_stride {:?}",
-            &space_by_time.spacelines.main.last().unwrap().time,
-            &space_by_time.y_stride
-        );
-        for (spaceline, weight) in &space_by_time.spacelines.buffer0 {
-            println!("again: time: {}, weight: {weight:?}", spaceline.time);
-        }
 
+        // println!(
+        //     "b. spacelines.len {} <= goal_y * 2 {}",
+        //     space_by_time_machine.space_by_time.spacelines.len(),
+        //     goal_y * 2
+        // );
+        // println!(
+        //     "after reduce_buffers0: {:?}",
+        //     space_by_time_machine.space_by_time.spacelines
+        // );
+
+        // assert!(
+        //     space_by_time_machine.space_by_time.spacelines.len() <= goal_y as usize * 2,
+        //     "too long",
+        // );
         space_by_time_machine
     }
 
@@ -290,35 +286,36 @@ impl SpaceByTimeMachine {
     // cmk000 need to handle the case of early halting.
     fn run_parts(
         early_stop: u64,
-        part_count: u64,
+        part_count_goal: u64,
         program_string: &str,
         goal_x: u32,
         goal_y: u32,
         binning: bool,
     ) -> Vec<Self> {
         assert!(early_stop > 0); // panic if early_stop is 0
-        assert!(part_count > 0); // panic if part_count is 0
+        assert!(part_count_goal > 0); // panic if part_count_goal is 0
 
-        let mut rows_per_part = early_stop.div_ceil(part_count);
+        let mut rows_per_part = early_stop.div_ceil(part_count_goal);
 
         let y_stride = sample_rate(rows_per_part, goal_y);
         rows_per_part += y_stride.offset_to_align(rows_per_part as usize) as u64;
         // assert_eq!(y_stride.double(), sample_rate(rows_per_part, goal_y), "+1?");
         assert!(y_stride.divides_u64(rows_per_part), "even?");
 
-        println!("Part max_rows_per_part: {rows_per_part}");
+        // println!("Part max_rows_per_part: {rows_per_part}");
         let range_list: Vec<_> = (0..early_stop)
             .step_by(rows_per_part as usize)
             .map(|start| start..(start + rows_per_part).min(early_stop))
             .collect();
+        let part_count = range_list.len() as u64;
 
         let results: Vec<Self> = range_list
-            .par_iter()
-            // .iter() // cmk000000000000
+            // .par_iter()
+            .iter() // cmk000000000000
             .enumerate()
             .map(|(part_index, range)| {
                 let (start, end) = (range.start, range.end);
-                println!("{part_index}: Start: {start}, End: {end}");
+                // println!("{part_index}: Start: {start}, End: {end}");
                 let mut space_by_time_machine =
                     Self::from_str(program_string, goal_x, goal_y, binning, start)
                         .expect("Failed to create machine");
@@ -352,8 +349,8 @@ impl SpaceByTimeMachine {
         let part_count = results.len() as u64;
         // Extract FIRST result
         let mut results_iter = results.into_iter();
-        let mut space_by_time_machine_first = results_iter.next().unwrap();
-        let space_by_time_first = &mut space_by_time_machine_first.space_by_time;
+        let mut space_by_time_machine = results_iter.next().unwrap();
+        let space_by_time_first = &mut space_by_time_machine.space_by_time;
         assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
         let y_stride = space_by_time_first.y_stride;
 
@@ -413,7 +410,8 @@ impl SpaceByTimeMachine {
                     .push((spaceline, weight));
             }
         }
-        space_by_time_machine_first
+
+        space_by_time_machine
     }
 
     fn compress_if_needed(&mut self, goal_y: u32, early_stop: u64, binning: bool) {
@@ -422,14 +420,19 @@ impl SpaceByTimeMachine {
 
         loop {
             Self::audit_one(space_by_time, None, None, early_stop, binning);
-            let len_with_01_buffer = space_by_time.spacelines.len_with_01_buffer();
-            assert!(len_with_01_buffer > 0, "real assert 5");
-            if len_with_01_buffer < goal_y as usize * 2 {
+            let len = space_by_time.spacelines.len();
+            assert!(len > 0, "real assert 5");
+            // cmk000 sometimes should be <= to match reference
+            if len < goal_y as usize * 2 {
                 break;
             }
-            println!("len: {len_with_01_buffer} is too long, compressing...");
+            // println!(
+            //     "len: {len} is too long, y-stride is {:?} compressing...",
+            //     space_by_time.y_stride
+            // );
             if !is_even(space_by_time.spacelines.main.len()) {
                 Self::audit_one(space_by_time, None, None, early_stop, binning);
+                // println!("is odd: Spacelines {:?}", space_by_time.spacelines);
                 let last = space_by_time.spacelines.main.pop().unwrap();
                 space_by_time
                     .spacelines
@@ -437,6 +440,7 @@ impl SpaceByTimeMachine {
                     .insert(0, (last, space_by_time.y_stride));
                 Self::audit_one(space_by_time, None, None, early_stop, binning);
             }
+            // println!("Spacelines: {:?}", space_by_time.spacelines);
 
             assert!(
                 is_even(space_by_time.spacelines.main.len()),
@@ -458,6 +462,7 @@ impl SpaceByTimeMachine {
                     })
                     .collect();
                 space_by_time.y_stride = space_by_time.y_stride.double();
+                // println!("After binning: {:?}", space_by_time.spacelines);
                 Self::audit_one(space_by_time, None, None, early_stop, binning);
             } else {
                 // cmk000000 buggy
@@ -477,7 +482,7 @@ impl SpaceByTimeMachine {
                 space_by_time.y_stride = new_stride;
             }
             Self::audit_one(space_by_time, None, None, early_stop, binning);
-            println!("new len: {}", space_by_time.spacelines.len_with_01_buffer());
+            // println!("new len: {}", space_by_time.spacelines.len());
             // assert!(space_by_time_first.spacelines.len() * 2 <= len);
         }
     }
@@ -588,5 +593,57 @@ impl SpaceByTimeMachine {
             previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == stop,
             "mind the gap with early_stop"
         );
+    }
+
+    fn reduce_buffer0(&mut self) {
+        let space_by_time = &mut self.space_by_time;
+
+        // println!(
+        //     "main's time: {} y_stride {:?}",
+        //     &space_by_time.spacelines.main.last().unwrap().time,
+        //     &space_by_time.y_stride
+        // );
+        // for (spaceline, weight) in &space_by_time.spacelines.buffer0 {
+        //     println!("time: {}, weight: {weight:?}", spaceline.time);
+        // }
+
+        // take the buffer0 leaving it empty
+        let buffer_old = core::mem::take(&mut space_by_time.spacelines.buffer0);
+        let buffer0 = &mut space_by_time.spacelines.buffer0;
+        let mut old_weight = None;
+        for (spaceline, weight) in buffer_old {
+            assert!(
+                old_weight.is_none() || old_weight.unwrap() >= weight,
+                "should be monotonic"
+            );
+            assert!(weight <= space_by_time.y_stride, "should be <= y_stride");
+            if weight == space_by_time.y_stride {
+                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
+                space_by_time.spacelines.main.push(spaceline);
+                continue;
+            }
+            Spacelines::push_internal(buffer0, spaceline, weight);
+            old_weight = Some(weight);
+
+            // println!("=== +{weight:?}");
+            // for (spaceline_x, weight_x) in buffer0.iter() {
+            //     println!("after time: {}, weight: {weight_x:?}", spaceline_x.time);
+            // }
+
+            if buffer0.len() == 1 && buffer0.first().unwrap().1 == space_by_time.y_stride {
+                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
+                let (spaceline_z, _weight_z) = buffer0.pop().unwrap();
+                space_by_time.spacelines.main.push(spaceline_z);
+            }
+        }
+        // println!(
+        //     "again main's time {}, y_stride {:?}",
+        //     &space_by_time.spacelines.main.last().unwrap().time,
+        //     &space_by_time.y_stride
+        // );
+        // for (spaceline, weight) in &space_by_time.spacelines.buffer0 {
+        //     println!("again: time: {}, weight: {weight:?}", spaceline.time);
+        // }
+        // println!("{:?}", space_by_time.spacelines);
     }
 }
