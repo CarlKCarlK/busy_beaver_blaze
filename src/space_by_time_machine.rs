@@ -426,13 +426,13 @@ impl SpaceByTimeMachine {
             if len < goal_y as usize * 2 {
                 break;
             }
-            // println!(
-            //     "len: {len} is too long, y-stride is {:?} compressing...",
-            //     space_by_time.y_stride
-            // );
+            println!(
+                "len: {len} is too long, y-stride is {:?} compressing...",
+                space_by_time.y_stride
+            );
             if !is_even(space_by_time.spacelines.main.len()) {
                 Self::audit_one(space_by_time, None, None, early_stop, binning);
-                // println!("is odd: Spacelines {:?}", space_by_time.spacelines);
+                println!("is odd: Spacelines {:?}", space_by_time.spacelines);
                 let last = space_by_time.spacelines.main.pop().unwrap();
                 space_by_time
                     .spacelines
@@ -440,7 +440,7 @@ impl SpaceByTimeMachine {
                     .insert(0, (last, space_by_time.y_stride));
                 Self::audit_one(space_by_time, None, None, early_stop, binning);
             }
-            // println!("Spacelines: {:?}", space_by_time.spacelines);
+            println!("Spacelines: {:?}", space_by_time.spacelines);
 
             assert!(
                 is_even(space_by_time.spacelines.main.len()),
@@ -448,42 +448,27 @@ impl SpaceByTimeMachine {
             );
 
             Self::audit_one(space_by_time, None, None, early_stop, binning);
-            if binning {
-                space_by_time.spacelines.main = space_by_time
-                    .spacelines
-                    .main
-                    .drain(..)
-                    .tuples()
-                    .map(|(mut a, b)| {
-                        // println!("tuple a: {:?} b: {:?}", a.time, b.time);
-                        assert!(a.tape_start() >= b.tape_start(), "real assert 4a");
-                        a.merge(&b);
-                        a
-                    })
-                    .collect();
-                space_by_time.y_stride = space_by_time.y_stride.double();
-                // println!("After binning: {:?}", space_by_time.spacelines);
-                Self::audit_one(space_by_time, None, None, early_stop, binning);
-            } else {
-                // cmk000000 buggy
-                let new_stride = space_by_time.y_stride.double();
-                println!("new_stride: {new_stride:?}");
-                let mut expect = 0;
-                for spaceline in &space_by_time.spacelines.main {
-                    assert_eq!(spaceline.time, expect, "real assert 7");
-                    // let divides = new_stride.divides_u64(spaceline.time);
-                    expect += space_by_time.y_stride.as_u64(); // cmk0000
-                }
-                // assert!(expect, "real assert 8");
-                space_by_time
-                    .spacelines
-                    .main
-                    .retain(|spaceline| new_stride.divides_u64(spaceline.time));
-                space_by_time.y_stride = new_stride;
-            }
+            space_by_time.spacelines.main = space_by_time
+                .spacelines
+                .main
+                .drain(..)
+                .tuples()
+                .map(|(mut first, second)| {
+                    println!("tuple a: {:?} b: {:?}", first.time, second.time);
+                    assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
+
+                    if binning {
+                        // cmk0000 remove from loop?
+                        first.merge(&second);
+                    } else {
+                        /* do nothing */
+                    }
+                    first
+                })
+                .collect();
+            space_by_time.y_stride = space_by_time.y_stride.double();
+            println!("After binning: {:?}", space_by_time.spacelines);
             Self::audit_one(space_by_time, None, None, early_stop, binning);
-            // println!("new len: {}", space_by_time.spacelines.len());
-            // assert!(space_by_time_first.spacelines.len() * 2 <= len);
         }
     }
 
@@ -622,7 +607,7 @@ impl SpaceByTimeMachine {
                 space_by_time.spacelines.main.push(spaceline);
                 continue;
             }
-            Spacelines::push_internal(buffer0, spaceline, weight);
+            Spacelines::push_internal(buffer0, spaceline, weight, space_by_time.pixel_policy);
             old_weight = Some(weight);
 
             // println!("=== +{weight:?}");

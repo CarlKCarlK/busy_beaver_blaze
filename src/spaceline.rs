@@ -147,7 +147,7 @@ impl Spaceline {
     }
 
     #[allow(clippy::cast_ptr_alignment, clippy::integer_division_remainder_used)]
-    pub fn resample_simd(pixels: &mut AVec<Pixel>) {
+    pub fn resample_simd_binning(pixels: &mut AVec<Pixel>) {
         // Local constant for the static swizzle indices.
         const SWIZZLE_INDICES: [usize; 64] = [
             0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44,
@@ -192,8 +192,9 @@ impl Spaceline {
             };
 
             // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
-            // cmk00000000 could make this unbiased by adding 1 before shift
+            // cmk00 could make this unbiased
 
+            panic!("cmk shouldn't use yet");
             let result: &mut Simd<u8, 32> =
                 unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
             *result = left & right;
@@ -223,19 +224,87 @@ impl Spaceline {
         pixels.truncate(write_index);
     }
 
+    #[allow(clippy::cast_ptr_alignment, clippy::integer_division_remainder_used)]
+    pub fn resample_simd_sampling(pixels: &mut AVec<Pixel>) {
+        // Local constant for the static swizzle indices.
+        const SWIZZLE_INDICES: [usize; 64] = [
+            0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44,
+            46, 48, 50, 52, 54, 56, 58, 60, 62, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27,
+            29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63,
+        ];
+        // Constant used for the right shift in our average formula.
+        const SPLAT_1_32: Simd<u8, 32> = Simd::splat(1);
+
+        // Access the pixel data as a mutable byte slice.
+        let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
+        let len = pixels_bytes.len();
+        // We'll process the input in 64-byte blocks.
+        let num_chunks = len / 64;
+
+        // Destination pointer: we'll pack results to the start of this buffer.
+        let dst_ptr = pixels_bytes.as_mut_ptr();
+        let mut write_index = 0;
+
+        // Process each 64-byte block.
+        for i in 0..num_chunks {
+            let chunk_start = i * 64;
+            // Load the 64-byte chunk from the source.
+            let src_chunk_ptr = unsafe {
+                pixels_bytes
+                    .as_ptr()
+                    .add(chunk_start)
+                    .cast::<Simd<u8, 64>>()
+            };
+            let chunk = unsafe { *src_chunk_ptr };
+
+            // Static swizzle to rearrange:
+            //  - first 32 lanes: even-indexed bytes,
+            //  - last 32 lanes: odd-indexed bytes.
+            let swizzled: Simd<u8, 64> = simd_swizzle!(chunk, SWIZZLE_INDICES);
+
+            // Split the swizzled vector into two halves (each 32 lanes).
+            let left = unsafe { *(&raw const swizzled).cast::<Simd<u8, 32>>() };
+
+            let result: &mut Simd<u8, 32> =
+                unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
+            *result = left;
+            write_index += 32;
+        }
+
+        // Process the remaining bytes (suffix) with scalar code.
+        let mut i = num_chunks * 64;
+        while i + 1 < len {
+            pixels_bytes[write_index] = pixels_bytes[i];
+            write_index += 1;
+            i += 2;
+        }
+        if i < len {
+            pixels_bytes[write_index] = pixels_bytes[i];
+            write_index += 1;
+        }
+
+        // Finally, truncate the vector to the new length (in bytes).
+        pixels.truncate(write_index);
+    }
+
+    #[allow(clippy::missing_panics_doc)]
     #[inline]
     pub fn resample_if_needed(&mut self, new_x_stride: PowerOfTwo) {
+        // Sampling & Averaging 2 --
         assert!(self.x_stride <= new_x_stride);
         while self.x_stride < new_x_stride {
             for pixels in [&mut self.nonnegative, &mut self.negative] {
-                Self::resample_simd(pixels);
+                match self.pixel_policy {
+                    PixelPolicy::Binning => Self::resample_simd_binning(pixels),
+                    PixelPolicy::Sampling => Self::resample_simd_sampling(pixels),
+                }
             }
             self.x_stride = self.x_stride.double();
         }
     }
 
+    #[allow(clippy::missing_panics_doc)]
     #[must_use]
-
     pub fn pixel_range(&self, start: usize, end: usize) -> Vec<Pixel> {
         assert!(
             start <= end,
@@ -263,6 +332,7 @@ impl Spaceline {
     //     assert!(self.len() == len, "real assert 13");
     // }
 
+    #[allow(clippy::missing_panics_doc)]
     #[inline]
     pub fn merge(&mut self, other: &Self) {
         assert!(
@@ -294,6 +364,7 @@ impl Spaceline {
         Pixel::slice_merge_with_white(&mut self.negative);
     }
 
+    #[allow(clippy::missing_panics_doc)]
     #[inline]
     #[must_use]
     pub fn new(tape: &Tape, x_goal: u32, step_index: u64, pixel_policy: PixelPolicy) -> Self {
@@ -345,6 +416,7 @@ impl Spaceline {
                 }
             }
             PixelPolicy::Sampling => {
+                // cmk0000000 this is wrong, now. It should treat negative and nonnegative in a loop
                 let sample_start: i64 = tape_min_index - x_stride.rem_euclid_into(tape_min_index);
                 assert!(
                     sample_start <= tape_min_index

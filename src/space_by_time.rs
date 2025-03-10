@@ -7,10 +7,10 @@ pub struct SpaceByTime {
     skip: u64,
     pub(crate) step_index: u64, // cmk make private
     x_goal: u32,
-    pub(crate) y_goal: u32,            // cmk make private
-    pub(crate) y_stride: PowerOfTwo,   // cmk make private
-    pub(crate) spacelines: Spacelines, // cmk0 consider making this private
-    pixel_policy: PixelPolicy,
+    pub(crate) y_goal: u32,               // cmk make private
+    pub(crate) y_stride: PowerOfTwo,      // cmk make private
+    pub(crate) spacelines: Spacelines,    // cmk0 consider making this private
+    pub(crate) pixel_policy: PixelPolicy, // cmk0 consider making this private
     previous_space_line: Option<Spaceline>,
 }
 
@@ -128,7 +128,7 @@ impl SpaceByTime {
                     )
                 };
                 self.previous_space_line = Some(spaceline.clone());
-                self.spacelines.push(spaceline);
+                self.spacelines.push(spaceline, self.pixel_policy);
             }
             PixelPolicy::Sampling => {
                 if inside_index != 0 {
@@ -137,12 +137,15 @@ impl SpaceByTime {
                 // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                 self.spacelines.flush_buffer0();
                 self.compress_if_needed();
-                self.spacelines.push(Spaceline::new(
-                    machine.tape(),
-                    self.x_goal,
-                    self.step_index + self.skip,
+                self.spacelines.push(
+                    Spaceline::new(
+                        machine.tape(),
+                        self.x_goal,
+                        self.step_index + self.skip,
+                        self.pixel_policy,
+                    ),
                     self.pixel_policy,
-                ));
+                );
             }
         }
     }
@@ -164,14 +167,14 @@ impl SpaceByTime {
         let buffer0 = &mut self.spacelines.buffer0;
 
         if buffer0.is_empty() {
-            Spacelines::push_internal(buffer0, spaceline, weight);
+            Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
             self.step_index += weight.as_u64();
             return;
         }
         let (last_spaceline, last_weight) = buffer0.last().unwrap();
         assert!(last_spaceline.time < spaceline.time, "real assert 11");
         if weight <= *last_weight {
-            Spacelines::push_internal(buffer0, spaceline, weight);
+            Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
             self.step_index += weight.as_u64();
             return;
         }
@@ -206,7 +209,7 @@ impl SpaceByTime {
                     clone.nonnegative.len()
                 );
             }
-            Spacelines::push_internal(buffer0, clone, PowerOfTwo::ONE);
+            Spacelines::push_internal(buffer0, clone, PowerOfTwo::ONE, self.pixel_policy);
             self.step_index += 1;
         }
     }
@@ -221,6 +224,7 @@ impl SpaceByTime {
         let last = self
             .spacelines
             .last(self.step_index, self.y_stride, self.pixel_policy);
+        println!("last spaceline {last:?}");
         let x_stride: PowerOfTwo = last.x_stride;
         let tape_width: u64 = (x_stride * last.len()) as u64;
         let tape_min_index = last.tape_start();
@@ -239,6 +243,7 @@ impl SpaceByTime {
             let x_start = x_stride.div_ceil_into(local_start - tape_min_index);
             // cmk does the wrong thing with 1 row
             for x in x_start as u32..x_actual {
+                // cmk000000 should fix this up
                 let tape_index: i64 = (x_stride * x as usize) as i64 + tape_min_index;
                 // cmk consider changing asserts to debug_asserts
                 assert!(
@@ -285,9 +290,10 @@ impl SpaceByTime {
             }
         }
 
-        // println!("packed_data {packed_data:?}");
+        println!("packed_data {packed_data:?}");
         assert!(y_actual <= 2 * y_goal);
         if y_actual == 2 * y_goal {
+            // cmk0000000 revmoe the constant
             // reduce the # of rows in half my averaging
             let mut new_packed_data = vec![0u8; row_bytes as usize * y_goal as usize];
             packed_data
@@ -295,11 +301,16 @@ impl SpaceByTime {
                 .zip(new_packed_data.chunks_exact_mut(row_bytes as usize))
                 .for_each(|(chunk, new_chunk)| {
                     let (left, right) = chunk.split_at_mut(row_bytes as usize);
-                    Pixel::slice_merge_bytes_no_simd(left, right);
+                    // cmk0000 so many issues: why no_simd? why binning in the inner loop?
+                    match self.pixel_policy {
+                        PixelPolicy::Binning => Pixel::slice_merge_bytes_no_simd(left, right),
+                        PixelPolicy::Sampling => { /* do nothing */ }
+                    }
+
                     // by design new_chunk is the same size as left, so copy the bytes from left to new_chunk
                     new_chunk.copy_from_slice(left);
                 });
-            // println!("new_packed_data {new_packed_data:?}");
+            println!("new_packed_data {new_packed_data:?}");
             Ok((
                 encode_png(x_actual, y_goal, &new_packed_data)?,
                 new_packed_data,

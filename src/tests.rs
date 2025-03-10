@@ -308,14 +308,19 @@ fn combo_parts() {
         for goal_x in [2, 30, 360] {
             for goal_y in [2, 3, 4, 30, 432] {
                 for program_name in ["BB5_CHAMP", "BB6_CONTENDER"] {
-                    let binning = true;
-                    // for binning in [true, false] {
+                    let binning = false;
+                    // cmk0000000 for binning in [true, false] {
                     let program_string = program_name_to_string[program_name];
                     // println!("program_string: {program_string}");
                     let mut reference_machine =
                         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)
                             .unwrap();
                     reference_machine.nth_js(early_stop - 2);
+                    println!(
+                        "reference_machine: {:?} {:?}",
+                        reference_machine.space_by_time.y_stride,
+                        reference_machine.space_by_time.spacelines
+                    );
                     let (reference_png_data, reference_packed_data) =
                         reference_machine.png_data_and_packed_data();
                     for part_count in [1, 2, 5, 16] {
@@ -375,11 +380,11 @@ fn one_parts() {
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
 
-    let early_stop = 1_000_000u64;
-    let goal_x = 30;
+    let early_stop = 7;
+    let goal_x = 20;
     let goal_y = 2;
     let program_name = "BB6_CONTENDER";
-    let binning = true;
+    let binning = false;
     let part_count = 1;
 
     let program_string = program_name_to_string[program_name];
@@ -387,6 +392,10 @@ fn one_parts() {
     let mut reference_machine =
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0).unwrap();
     reference_machine.nth_js(early_stop - 2);
+    println!(
+        "reference_machine: {:?}",
+        reference_machine.space_by_time.spacelines
+    );
     let reference_png_data = reference_machine.png_data();
 
     let key = format!(

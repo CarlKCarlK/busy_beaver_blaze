@@ -38,20 +38,21 @@ impl Pixel {
     pub const WHITE: Self = Self(0);
     const SPLAT_1: Simd<u8, LANES_CMK> = Simd::<u8, LANES_CMK>::splat(1);
 
-    // cmk00000000 could make this unbiased by adding 1 before shift
+    // cmk00 could make this unbiased
     #[must_use]
     #[inline]
-    pub const fn mean_bytes(a: u8, b: u8) -> u8 {
-        (a & b) + ((a ^ b) >> 1)
+    pub const fn mean_bytes(first: u8, second: u8) -> u8 {
+        panic!("cmk shouldn't use yet");
+        (first & second) + ((first ^ second) >> 1)
     }
 
     // cmk00 inconsistent with the terms 'mean', 'average', 'merge', 'binning'
     #[inline]
-    const fn mean_assign_bytes(a: &mut u8, b: u8) {
-        let a_and_b = *a & b;
-        *a ^= b;
-        *a >>= 1;
-        *a += a_and_b;
+    const fn mean_assign_bytes(first: &mut u8, second: u8) {
+        let first_and_second = *first & second;
+        *first ^= second;
+        *first >>= 1;
+        *first += first_and_second;
     }
 
     #[inline]
@@ -106,8 +107,9 @@ impl Pixel {
             Self::mean_assign_bytes(left_byte, *right_byte);
         }
 
-        // cmk00000000 could make this unbiased by adding 1 before shift
+        // cmk00 could make this unbiased
         // Process SIMD chunks using (a & b) + ((a ^ b) >> 1) formula
+        panic!("cmk shouldn't use yet");
         for (left_chunk, right_chunk) in left_chunks.iter_mut().zip(right_chunks.iter()) {
             let a_and_b = *left_chunk & *right_chunk;
             *left_chunk ^= *right_chunk;
@@ -144,6 +146,7 @@ impl Pixel {
         assert!(left_prefix.is_empty());
 
         // Process remaining elements in suffix
+        panic!("cmk shouldn't use yet");
         for left_byte in left_suffix.iter_mut() {
             // divide by 2
             *left_byte >>= 1;
@@ -189,6 +192,7 @@ impl From<bool> for Pixel {
 impl From<u8> for Pixel {
     #[inline]
     fn from(value: u8) -> Self {
+        assert!(value == 0 || value == 255, "cmk0000 Value must be 0 or 255");
         Self(value)
     }
 }
@@ -203,6 +207,10 @@ impl From<Pixel> for u8 {
 impl From<&u8> for Pixel {
     #[inline]
     fn from(value: &u8) -> Self {
+        assert!(
+            *value == 0 || *value == 255,
+            "cmk0000 Value must be 0 or 255"
+        );
         Self(*value)
     }
 }
@@ -210,6 +218,7 @@ impl From<&u8> for Pixel {
 impl From<u32> for Pixel {
     #[inline]
     fn from(value: u32) -> Self {
+        assert!(value == 0 || value == 255, "cmk0000 Value must be 0 or 255");
         debug_assert!(value <= 255, "Value must be less than or equal to 255");
         Self(value as u8)
     }
@@ -218,6 +227,10 @@ impl From<u32> for Pixel {
 impl From<&u32> for Pixel {
     #[inline]
     fn from(value: &u32) -> Self {
+        assert!(
+            *value == 0 || *value == 255,
+            "cmk0000 Value must be 0 or 255"
+        );
         debug_assert!(*value <= 255, "Value must be less than or equal to 255");
         Self(*value as u8)
     }

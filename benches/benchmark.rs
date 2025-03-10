@@ -4,7 +4,7 @@
 use aligned_vec::AVec;
 use busy_beaver_blaze::{
     ALIGN, Pixel, PowerOfTwo, Spaceline, average_with_iterators, average_with_simd,
-    average_with_simd_count_ones64, average_with_simd_push, is_even,
+    average_with_simd_count_ones64, average_with_simd_push,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -154,7 +154,7 @@ fn resample(criterion: &mut Criterion) {
     group.bench_function("simd", |bencher| {
         bencher.iter_with_setup(
             || pixels.clone(),
-            |mut pixels_clone| Spaceline::resample_simd(black_box(&mut pixels_clone)),
+            |mut pixels_clone| Spaceline::resample_simd_binning(black_box(&mut pixels_clone)),
         );
     });
 

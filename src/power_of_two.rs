@@ -2,8 +2,8 @@
 pub struct PowerOfTwo(u8);
 
 impl core::fmt::Debug for PowerOfTwo {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "(2^{}={})", self.0, self.as_u64())
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(formatter, "(2^{}={})", self.0, self.as_u64())
     }
 }
 
