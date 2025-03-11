@@ -133,7 +133,7 @@ impl Spacelines {
             // Otherwise, we half it's color and double the weight
             match pixel_policy {
                 PixelPolicy::Sampling => {
-                    todo!()
+                    todo!("cmk00000000")
                 } // cmk000000 this is wrong. Should use empty line unless the sampling line divides evenginly
                 PixelPolicy::Binning => spaceline_last.merge_with_white(),
             }

@@ -91,7 +91,7 @@ impl Spaceline {
     #[must_use]
     pub fn new2(
         stride: PowerOfTwo,
-        start: i64,
+        start: i64, // cmk0000000000 rename negative_tape_len
         pixels: AVec<Pixel>,
         time: u64,
         pixel_policy: PixelPolicy,
@@ -125,11 +125,11 @@ impl Spaceline {
         -((self.x_stride * self.negative.len()) as i64)
     }
 
-    #[inline]
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.nonnegative.len() + self.negative.len()
-    }
+    // #[inline]
+    // #[must_use]
+    // pub fn len(&self) -> usize {
+    //     self.nonnegative.len() + self.negative.len()
+    // }
 
     pub fn resample_one(pixels: &mut AVec<Pixel>) {
         let len = pixels.len();
@@ -352,10 +352,13 @@ impl Spaceline {
         }
         Pixel::slice_merge(&mut self.negative, &other.negative);
         assert!(self.tape_start() == other.tape_start(), "real assert 6c");
-        while self.len() < other.len() {
+        while self.nonnegative.len() < other.nonnegative.len() {
             self.nonnegative.push(Pixel::WHITE);
         }
-        assert!(self.len() == other.len(), "real assert 6d");
+        assert!(
+            self.nonnegative.len() == other.nonnegative.len(),
+            "real assert 6d"
+        );
         Pixel::slice_merge(&mut self.nonnegative, &other.nonnegative);
     }
 

@@ -146,40 +146,40 @@ impl Pixel {
         assert!(left_prefix.is_empty());
 
         // Process remaining elements in suffix
-        panic!("cmk shouldn't use yet");
+        panic!("cmk000000 shouldn't use yet");
         for left_byte in left_suffix.iter_mut() {
             // divide by 2
             *left_byte >>= 1;
         }
     }
 
-    #[inline]
-    pub(crate) fn merge_slice_down_sample(
-        slice: &[Self],
-        empty_count: usize,
-        pixel_policy: PixelPolicy,
-    ) -> Self {
-        match pixel_policy {
-            PixelPolicy::Sampling => slice[0],
-            PixelPolicy::Binning => {
-                // cmk000000 make this faster with SIMD or at least more functional
-                let sum: u32 = slice.iter().map(|pixel| pixel.0 as u32).sum();
-                let total_len = crate::PowerOfTwo::from_usize_unchecked(slice.len() + empty_count);
-                let mean = total_len.divide_into(sum) as u8;
-                Self(mean)
-            }
-        }
-    }
+    // #[inline]
+    // pub(crate) fn merge_slice_down_sample(
+    //     slice: &[Self],
+    //     empty_count: usize,
+    //     pixel_policy: PixelPolicy,
+    // ) -> Self {
+    //     match pixel_policy {
+    //         PixelPolicy::Sampling => slice[0],
+    //         PixelPolicy::Binning => {
+    //             // cmk000000 make this faster with SIMD or at least more functional
+    //             let sum: u32 = slice.iter().map(|pixel| pixel.0 as u32).sum();
+    //             let total_len = crate::PowerOfTwo::from_usize_unchecked(slice.len() + empty_count);
+    //             let mean = total_len.divide_into(sum) as u8;
+    //             Self(mean)
+    //         }
+    //     }
+    // }
 
-    // cmk0000 This is only called from one place and empty_count is always 0. Is there already
-    // cmk0000 a SIMD version of this?
-    #[inline]
-    pub(crate) fn merge_slice_all(slice: &[Self], empty_count: i64) -> Self {
-        let sum: u32 = slice.iter().map(|pixel: &Self| pixel.0 as u32).sum();
-        let count = slice.len() + empty_count as usize;
-        debug_assert!(count.is_power_of_two(), "Count must be a power of two");
-        Self(crate::PowerOfTwo::from_u64_unchecked(count as u64).divide_into(sum) as u8)
-    }
+    // // cmk0000 This is only called from one place and empty_count is always 0. Is there already
+    // // cmk0000 a SIMD version of this?
+    // #[inline]
+    // pub(crate) fn merge_slice_all(slice: &[Self], empty_count: i64) -> Self {
+    //     let sum: u32 = slice.iter().map(|pixel: &Self| pixel.0 as u32).sum();
+    //     let count = slice.len() + empty_count as usize;
+    //     debug_assert!(count.is_power_of_two(), "Count must be a power of two");
+    //     Self(crate::PowerOfTwo::from_u64_unchecked(count as u64).divide_into(sum) as u8)
+    // }
 }
 
 impl From<bool> for Pixel {
