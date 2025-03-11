@@ -392,12 +392,12 @@ fn one_parts() {
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
 
-    let early_stop = 7;
-    let goal_x = 7;
+    let early_stop = 1_000_000;
+    let goal_x = 30;
     let goal_y = 2;
-    let program_name = "BB6_CONTENDER";
+    let program_name = "BB5_CHAMP";
     let binning = false;
-    let part_count = 1;
+    let part_count = 16;
 
     let program_string = program_name_to_string[program_name];
 

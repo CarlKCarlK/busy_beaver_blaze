@@ -227,7 +227,8 @@ impl SpaceByTime {
     #[allow(
         clippy::wrong_self_convention,
         clippy::missing_panics_doc,
-        clippy::too_many_lines
+        clippy::too_many_lines,
+        clippy::shadow_reuse // cmk turn this off globally
     )]
     pub fn to_png_and_packed_data(
         &mut self,
@@ -290,6 +291,78 @@ impl SpaceByTime {
 
         println!("packed_data ({x_actual},{y_actual}) {packed_data:?}");
         assert!(y_actual <= 2 * y_goal);
+        let (mut packed_data, y_actual) =
+            self.compress_y_if_needed(packed_data, y_goal, x_actual, y_actual);
+        let (x_actual, y_actual) =
+            Self::trim_columns(&mut packed_data, x_actual as usize, y_actual as usize);
+
+        let png = encode_png(x_actual as u32, y_actual as u32, &packed_data)?;
+
+        Ok((png, x_actual as u32, y_actual as u32, packed_data))
+    }
+
+    fn trim_columns(matrix: &mut Vec<u8>, xs: usize, ys: usize) -> (usize, usize) {
+        assert!(!matrix.is_empty());
+        assert_eq!(xs * ys, matrix.len());
+
+        let mut first_nonzero_col = None;
+        let mut last_nonzero_col = None;
+
+        // Find the first non-zero column.
+        'outer_first: for x in 0..xs {
+            for y in 0..ys {
+                if matrix[y * xs + x] != 0 {
+                    first_nonzero_col = Some(x);
+                    break 'outer_first;
+                }
+            }
+        }
+
+        // Find the last non-zero column.
+        'outer_last: for x in (0..xs).rev() {
+            for y in 0..ys {
+                if matrix[y * xs + x] != 0 {
+                    last_nonzero_col = Some(x);
+                    break 'outer_last;
+                }
+            }
+        }
+
+        // Use `let else` to handle the case where no nonzero column was found (all zeros).
+        let (Some(first_col), Some(last_col)) = (first_nonzero_col, last_nonzero_col) else {
+            // Entire matrix is zeros: return a single-column matrix of zeros.
+            matrix.truncate(ys); // Keep the first element of each row.
+            return (1, ys);
+        };
+
+        // If no trimming is needed (i.e. every column has a nonzero), return unchanged.
+        if first_col == 0 && last_col == xs - 1 {
+            return (xs, ys);
+        }
+
+        let new_cols = last_col - first_col + 1;
+
+        // Move data in-place row by row.
+        for y in 0..ys {
+            let src_start = y * xs + first_col;
+            let dst_start = y * new_cols;
+            for i in 0..new_cols {
+                matrix[dst_start + i] = matrix[src_start + i];
+            }
+        }
+
+        // Truncate any excess elements.
+        matrix.truncate(ys * new_cols);
+        (new_cols, ys)
+    }
+
+    fn compress_y_if_needed(
+        &mut self,
+        mut packed_data: Vec<u8>,
+        y_goal: u32,
+        x_actual: u32,
+        y_actual: u32,
+    ) -> (Vec<u8>, u32) {
         if y_actual == 2 * y_goal {
             // cmk0000000 remove the constant
             // reduce the # of rows in half my averaging
@@ -312,19 +385,9 @@ impl SpaceByTime {
                 "new_packed_data ({x_actual},{}) {new_packed_data:?}",
                 y_actual >> 1
             );
-            Ok((
-                encode_png(x_actual, y_goal, &new_packed_data)?,
-                x_actual,
-                y_actual >> 1, // half
-                new_packed_data,
-            ))
+            (new_packed_data, y_goal)
         } else {
-            Ok((
-                encode_png(x_actual, y_actual, &packed_data)?,
-                x_actual,
-                y_actual,
-                packed_data,
-            ))
+            (packed_data, y_actual)
         }
     }
 }
