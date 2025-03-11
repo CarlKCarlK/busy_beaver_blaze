@@ -4,8 +4,8 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIter
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    Machine, PixelPolicy, PowerOfTwo, is_even, sample_rate, space_by_time::SpaceByTime,
-    spacelines::Spacelines,
+    Machine, PixelPolicy, PowerOfTwo, is_even, pixel_policy, sample_rate,
+    space_by_time::SpaceByTime, spacelines::Spacelines,
 };
 
 #[wasm_bindgen]
@@ -179,7 +179,7 @@ impl SpaceByTimeMachine {
 impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
-    pub fn png_data_and_packed_data(&mut self) -> (Vec<u8>, Vec<u8>) {
+    pub fn png_data_and_packed_data(&mut self) -> (Vec<u8>, u32, u32, Vec<u8>) {
         self.space_by_time
             .to_png_and_packed_data(self.space_by_time.y_goal)
             .unwrap()
@@ -467,7 +467,7 @@ impl SpaceByTimeMachine {
                 })
                 .collect();
             space_by_time.y_stride = space_by_time.y_stride.double();
-            println!("After binning: {:?}", space_by_time.spacelines);
+            println!("After binning or sampling: {:?}", space_by_time.spacelines);
             Self::audit_one(space_by_time, None, None, early_stop, binning);
         }
     }
@@ -528,10 +528,18 @@ impl SpaceByTimeMachine {
                 }
             }
         }
-        assert!(
-            previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == early_stop,
-            "mind the gap with early_stop"
-        );
+        if binning {
+            assert!(
+                previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == early_stop,
+                "mind the gap with early_stop"
+            );
+        } else {
+            assert!(
+                previous_time.unwrap() < early_stop
+                    && early_stop <= previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
+                "mind the gap with early_stop"
+            );
+        }
     }
     // cmk000 move this to the SpaceByTime struct
     fn audit_one(
@@ -574,10 +582,19 @@ impl SpaceByTimeMachine {
             previous_time = Some(spaceline.time);
             previous_y_stride = Some(*weight);
         }
-        assert!(
-            previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == stop,
-            "mind the gap with early_stop"
-        );
+        if binning {
+            // cmk why called stop here, but early_stop elsewhere
+            assert!(
+                previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == stop,
+                "mind the gap with early_stop"
+            );
+        } else {
+            assert!(
+                previous_time.unwrap() < stop
+                    && stop <= previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
+                "mind the gap with early_stop"
+            );
+        }
     }
 
     fn reduce_buffer0(&mut self) {

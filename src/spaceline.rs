@@ -2,7 +2,10 @@ use core::simd::{Simd, simd_swizzle};
 
 use crate::pixel::Pixel;
 use crate::tape::Tape;
-use crate::{ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, is_even, sample_rate};
+use crate::{
+    ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, average_with_iterators,
+    average_with_simd, is_even, sample_rate, sample_with_iterators,
+};
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;
 
@@ -232,9 +235,6 @@ impl Spaceline {
             46, 48, 50, 52, 54, 56, 58, 60, 62, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27,
             29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63,
         ];
-        // Constant used for the right shift in our average formula.
-        const SPLAT_1_32: Simd<u8, 32> = Simd::splat(1);
-
         // Access the pixel data as a mutable byte slice.
         let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
         let len = pixels_bytes.len();
@@ -294,6 +294,7 @@ impl Spaceline {
         assert!(self.x_stride <= new_x_stride);
         while self.x_stride < new_x_stride {
             for pixels in [&mut self.nonnegative, &mut self.negative] {
+                // cmk000 pull this out of the inner loop
                 match self.pixel_policy {
                     PixelPolicy::Binning => Self::resample_simd_binning(pixels),
                     PixelPolicy::Sampling => Self::resample_simd_sampling(pixels),
@@ -368,10 +369,8 @@ impl Spaceline {
     #[inline]
     #[must_use]
     pub fn new(tape: &Tape, x_goal: u32, step_index: u64, pixel_policy: PixelPolicy) -> Self {
-        let tape_min_index = tape.min_index();
-        let tape_max_index = tape.max_index();
-        let tape_width = (tape_max_index - tape_min_index + 1) as u64;
-        let x_stride = sample_rate(tape_width, x_goal);
+        let x_stride = sample_rate(tape.negative.len() as u64, x_goal)
+            .max(sample_rate(tape.nonnegative.len() as u64, x_goal));
         // if step_index % 10_000_000 == 0 {
         //     println!(
         //         "cmk Spaceline::new step_index {}, tape width {:?} ({}..={}), x_stride {:?}, x_goal {:?}",
@@ -387,24 +386,24 @@ impl Spaceline {
             PixelPolicy::Binning => {
                 let (negative, nonnegative) = match x_stride {
                     PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => (
-                        crate::average_with_iterators(&tape.negative, x_stride),
-                        crate::average_with_iterators(&tape.nonnegative, x_stride),
+                        average_with_iterators(&tape.negative, x_stride),
+                        average_with_iterators(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::EIGHT => (
-                        crate::average_with_simd::<8>(&tape.negative, x_stride),
-                        crate::average_with_simd::<8>(&tape.nonnegative, x_stride),
+                        average_with_simd::<8>(&tape.negative, x_stride),
+                        average_with_simd::<8>(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::SIXTEEN => (
-                        crate::average_with_simd::<16>(&tape.negative, x_stride),
-                        crate::average_with_simd::<16>(&tape.nonnegative, x_stride),
+                        average_with_simd::<16>(&tape.negative, x_stride),
+                        average_with_simd::<16>(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::THIRTY_TWO => (
-                        crate::average_with_simd::<32>(&tape.negative, x_stride),
-                        crate::average_with_simd::<32>(&tape.nonnegative, x_stride),
+                        average_with_simd::<32>(&tape.negative, x_stride),
+                        average_with_simd::<32>(&tape.nonnegative, x_stride),
                     ),
                     _ => (
-                        crate::average_with_simd::<64>(&tape.negative, x_stride),
-                        crate::average_with_simd::<64>(&tape.nonnegative, x_stride),
+                        average_with_simd::<64>(&tape.negative, x_stride),
+                        average_with_simd::<64>(&tape.nonnegative, x_stride),
                     ),
                 };
                 Self {
@@ -416,27 +415,15 @@ impl Spaceline {
                 }
             }
             PixelPolicy::Sampling => {
-                // cmk0000000 this is wrong, now. It should treat negative and nonnegative in a loop
-                let sample_start: i64 = tape_min_index - x_stride.rem_euclid_into(tape_min_index);
-                assert!(
-                    sample_start <= tape_min_index
-                        && x_stride.divides_i64(sample_start)
-                        && tape_min_index - sample_start < x_stride.as_u64() as i64,
-                    "real assert b1"
-                );
-                let mut pixels = AVec::with_capacity(64, x_goal as usize * 2);
-                // cmk00 does this need to be a special case?
-                if x_stride == PowerOfTwo::ONE {
-                    for sample_index in sample_start..=tape_max_index {
-                        pixels.push(tape.read(sample_index).into());
-                    }
-                } else {
-                    for sample_index in (sample_start..=tape_max_index).step_by(x_stride.as_usize())
-                    {
-                        pixels.push(tape.read(sample_index).into());
-                    }
+                let negative = sample_with_iterators(&tape.negative, x_stride);
+                let nonnegative = sample_with_iterators(&tape.nonnegative, x_stride);
+                Self {
+                    x_stride,
+                    negative,
+                    nonnegative,
+                    time: step_index,
+                    pixel_policy,
                 }
-                Self::new2(x_stride, sample_start, pixels, step_index, pixel_policy)
             }
         }
     }
@@ -450,16 +437,14 @@ impl Spaceline {
         step_index: u64,
         pixel_policy: PixelPolicy,
     ) -> bool {
-        let x_stride = crate::sample_rate(tape.width(), x_goal);
+        let x_stride = sample_rate(tape.nonnegative.len() as u64, x_goal)
+            .min(sample_rate(tape.negative.len() as u64, x_goal));
 
         // When the sample
         if self.x_stride != x_stride {
             return false;
         }
         self.time = step_index;
-        debug_assert!(
-            tape.min_index() <= previous_tape_index && previous_tape_index <= tape.max_index()
-        );
         let (part, pixels, part_index) = if previous_tape_index < 0 {
             let part_index = (-previous_tape_index - 1) as u64;
             (&tape.negative, &mut self.negative, part_index)

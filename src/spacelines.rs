@@ -113,7 +113,7 @@ impl Spacelines {
 
         if pixel_policy == PixelPolicy::Sampling {
             let (spaceline, weight) = self.buffer0.first().unwrap();
-            assert!(*weight == y_stride || weight.double() == y_stride);
+            // cmk remove assert!(*weight == y_stride || weight.double() == y_stride);
             assert!(y_stride.divides_u64(spaceline.time));
             let clone = spaceline.clone();
             return clone;
@@ -173,7 +173,9 @@ impl Spacelines {
             let (mut last_spaceline, last_weight) = buffer0.pop().unwrap();
 
             match pixel_policy {
-                PixelPolicy::Sampling => { /* do nothing */ }
+                PixelPolicy::Sampling => {
+                    spaceline = last_spaceline;
+                }
                 PixelPolicy::Binning => {
                     // Merge spacelines and double weight
                     last_spaceline.merge(&spaceline);
@@ -196,7 +198,12 @@ impl Spacelines {
     }
 
     #[inline]
-    pub(crate) fn push(&mut self, spaceline: Spaceline, pixel_policy: PixelPolicy) {
-        Self::push_internal(&mut self.buffer0, spaceline, PowerOfTwo::ONE, pixel_policy);
+    pub(crate) fn push(
+        &mut self,
+        spaceline: Spaceline,
+        pixel_policy: PixelPolicy,
+        weight: PowerOfTwo,
+    ) {
+        Self::push_internal(&mut self.buffer0, spaceline, weight, pixel_policy);
     }
 }

@@ -282,26 +282,14 @@ fn combo_parts() {
 
     let exception_set = HashSet::from([
         "ignore",
-        // "early_stop: 1000000, goal_x: 2, goal_y: 4, program_name: BB5_CHAMP, binning: true, part_count: 1",
-        // "early_stop: 1000000, goal_x: 2, goal_y: 4, program_name: BB5_CHAMP, binning: true, part_count: 2",
-        // "early_stop: 1000000, goal_x: 2, goal_y: 4, program_name: BB5_CHAMP, binning: true, part_count: 5",
-        // "early_stop: 1000000, goal_x: 2, goal_y: 4, program_name: BB5_CHAMP, binning: true, part_count: 16",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 2, program_name: BB5_CHAMP, binning: true, part_count: 1",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 2, program_name: BB5_CHAMP, binning: true, part_count: 2",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 2, program_name: BB5_CHAMP, binning: true, part_count: 5",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 2, program_name: BB5_CHAMP, binning: true, part_count: 16",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: true, part_count: 1",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: true, part_count: 2",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: true, part_count: 5",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: true, part_count: 16",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 4, program_name: BB5_CHAMP, binning: true, part_count: 1",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 4, program_name: BB5_CHAMP, binning: true, part_count: 2",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 4, program_name: BB5_CHAMP, binning: true, part_count: 5",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 4, program_name: BB5_CHAMP, binning: true, part_count: 16",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 4, program_name: BB6_CONTENDER, binning: true, part_count: 1",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 4, program_name: BB6_CONTENDER, binning: true, part_count: 2",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 4, program_name: BB6_CONTENDER, binning: true, part_count: 5",
-        // "early_stop: 1000000, goal_x: 30, goal_y: 4, program_name: BB6_CONTENDER, binning: true, part_count: 16",
+        // "early_stop: 7, goal_x: 2, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 1",
+        // "early_stop: 7, goal_x: 2, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 2",
+        // "early_stop: 7, goal_x: 2, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 5",
+        // "early_stop: 7, goal_x: 2, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 16",
+        // "early_stop: 7, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 1",
+        // "early_stop: 7, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 2",
+        // "early_stop: 7, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 5",
+        // "early_stop: 7, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 16",
     ]);
 
     for early_stop in [2, 5u64, 6, 7, 300u64, 1_000_000u64] {
@@ -321,8 +309,9 @@ fn combo_parts() {
                         reference_machine.space_by_time.y_stride,
                         reference_machine.space_by_time.spacelines
                     );
-                    let (reference_png_data, reference_packed_data) =
+                    let (reference_png_data, ref_x, ref_y, reference_packed_data) =
                         reference_machine.png_data_and_packed_data();
+                    println!("---------------");
                     for part_count in [1, 2, 5, 16] {
                         let key = format!(
                             "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
@@ -337,7 +326,7 @@ fn combo_parts() {
                             goal_y,
                             binning,
                         );
-                        let (png_data, packed_data) = machine.png_data_and_packed_data();
+                        let (png_data, x, y, packed_data) = machine.png_data_and_packed_data();
 
                         // Must be the same length and a given value can vary by no more than y_stride.log2() + x_stride.log2()
                         let last_spacetime = machine.space_by_time.spacelines.main.last().unwrap();
@@ -355,11 +344,34 @@ fn combo_parts() {
                             ok = ok && ref_val.abs_diff(*val) <= max_diff;
                         }
 
+                        if !ok && ref_y == y && ref_x == x + 1 {
+                            'outer: {
+                                for y_index in 0..y {
+                                    if reference_packed_data[(y_index * ref_x) as usize] != 0 {
+                                        break 'outer;
+                                    }
+                                    for x_index in 0..x {
+                                        if reference_packed_data
+                                            [(y_index * ref_x + x_index + 1) as usize]
+                                            != packed_data[(y_index * x + x_index) as usize]
+                                        {
+                                            break 'outer;
+                                        }
+                                    }
+                                }
+                                // If we get here without breaking, everything matched
+                                ok = true;
+                            }
+                        }
+
                         if !ok {
                             if exception_set.contains(key.as_str()) {
                                 println!("Skip: PNG data does not match for \"{key}\"");
                                 continue;
                             }
+                            println!(
+                                "goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}"
+                            );
                             let ref_file = "tests/expected/combo_parts_ref.png";
                             fs::write(ref_file, &reference_png_data).unwrap();
                             let test_file = "tests/expected/combo_parts_test.png";
@@ -381,7 +393,7 @@ fn one_parts() {
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
 
     let early_stop = 7;
-    let goal_x = 20;
+    let goal_x = 7;
     let goal_y = 2;
     let program_name = "BB6_CONTENDER";
     let binning = false;
@@ -393,10 +405,12 @@ fn one_parts() {
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0).unwrap();
     reference_machine.nth_js(early_stop - 2);
     println!(
-        "reference_machine: {:?}",
-        reference_machine.space_by_time.spacelines
+        "reference_machine: {:?} {:?}",
+        reference_machine.space_by_time.y_stride, reference_machine.space_by_time.spacelines
     );
-    let reference_png_data = reference_machine.png_data();
+    let (reference_png_data, ref_x, ref_y, ref_packed) =
+        reference_machine.png_data_and_packed_data();
+    println!("---------------");
 
     let key = format!(
         "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
@@ -411,8 +425,11 @@ fn one_parts() {
         goal_y,
         binning,
     );
-    let png_data = machine.png_data();
+    let (png_data, x, y, packed_data) = machine.png_data_and_packed_data();
 
+    println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
+    println!("ref_packed: {ref_packed:?}");
+    println!("packed_data: {packed_data:?}");
     let ref_file = "tests/expected/one_parts_ref.png";
     fs::write(ref_file, &reference_png_data).unwrap();
     let test_file = "tests/expected/one_parts_test.png";

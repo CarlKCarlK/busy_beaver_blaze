@@ -1,6 +1,9 @@
 use crate::{
-    Error, Machine, Pixel, PixelPolicy, Tape, encode_png, power_of_two::PowerOfTwo, sample_rate,
-    spaceline::Spaceline, spacelines::Spacelines,
+    Error, Machine, Pixel, PixelPolicy, Tape, encode_png,
+    power_of_two::PowerOfTwo,
+    sample_rate,
+    spaceline::{self, Spaceline},
+    spacelines::Spacelines,
 };
 
 pub struct SpaceByTime {
@@ -128,7 +131,8 @@ impl SpaceByTime {
                     )
                 };
                 self.previous_space_line = Some(spaceline.clone());
-                self.spacelines.push(spaceline, self.pixel_policy);
+                self.spacelines
+                    .push(spaceline, self.pixel_policy, PowerOfTwo::ONE);
             }
             PixelPolicy::Sampling => {
                 if inside_index != 0 {
@@ -145,6 +149,7 @@ impl SpaceByTime {
                         self.pixel_policy,
                     ),
                     self.pixel_policy,
+                    self.y_stride,
                 );
             }
         }
@@ -215,92 +220,85 @@ impl SpaceByTime {
     }
 
     pub fn to_png(&mut self, y_goal: u32) -> Result<Vec<u8>, Error> {
-        let (png, _packed_data) = self.to_png_and_packed_data(y_goal)?;
+        let (png, _x, _y, _packed_data) = self.to_png_and_packed_data(y_goal)?;
         Ok(png)
     }
 
-    #[allow(clippy::wrong_self_convention, clippy::missing_panics_doc)]
-    pub fn to_png_and_packed_data(&mut self, y_goal: u32) -> Result<(Vec<u8>, Vec<u8>), Error> {
+    #[allow(
+        clippy::wrong_self_convention,
+        clippy::missing_panics_doc,
+        clippy::too_many_lines
+    )]
+    pub fn to_png_and_packed_data(
+        &mut self,
+        y_goal: u32,
+    ) -> Result<(Vec<u8>, u32, u32, Vec<u8>), Error> {
+        println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
+
+        // cmk000 move this into a function
+        // Change all rows to have the same x_stride as the last row
+        let x_stride = if self.spacelines.buffer0.is_empty() {
+            self.spacelines.main.last().unwrap().x_stride
+        } else {
+            let x_stride = self.spacelines.buffer0.last().unwrap().0.x_stride;
+            for (spaceline, _weight) in &mut self.spacelines.buffer0 {
+                if spaceline.x_stride == x_stride {
+                    break;
+                }
+                spaceline.resample_if_needed(x_stride);
+            }
+            x_stride
+        };
+        for spaceline in &mut self.spacelines.main {
+            if spaceline.x_stride == x_stride {
+                break;
+            }
+            spaceline.resample_if_needed(x_stride);
+        }
+
         let last = self
             .spacelines
             .last(self.step_index, self.y_stride, self.pixel_policy);
         println!("last spaceline {last:?}");
-        let x_stride: PowerOfTwo = last.x_stride;
-        let tape_width: u64 = (x_stride * last.len()) as u64;
-        let tape_min_index = last.tape_start();
-        let x_actual: u32 = x_stride.divide_into(tape_width) as u32;
-        let y_actual: u32 = self.spacelines.len() as u32;
 
-        let row_bytes = x_actual;
-        let mut packed_data = vec![0u8; row_bytes as usize * y_actual as usize];
+        let x_actual: u32 = (last.nonnegative.len() + last.negative.len()) as u32;
+        let y_actual: u32 = self.spacelines.len() as u32;
+        let x_zero = last.negative.len();
+
+        let mut packed_data = vec![0u8; x_actual as usize * y_actual as usize];
 
         for y in 0..y_actual {
             let spaceline = self.spacelines.get(y as usize, &last);
-            let local_start = &spaceline.tape_start();
-            let local_x_sample = spaceline.x_stride;
-            let local_per_x_sample = x_stride / local_x_sample;
-            let row_start_byte_index: u32 = y * row_bytes;
-            let x_start = x_stride.div_ceil_into(local_start - tape_min_index);
-            // cmk does the wrong thing with 1 row
-            for x in x_start as u32..x_actual {
-                // cmk000000 should fix this up
-                let tape_index: i64 = (x_stride * x as usize) as i64 + tape_min_index;
-                // cmk consider changing asserts to debug_asserts
-                assert!(
-                    tape_index >= *local_start,
-                    "real assert if x_start is correct"
-                );
+            assert!(x_stride == spaceline.x_stride);
 
-                let local_spaceline_start: i64 =
-                    local_x_sample.divide_into(tape_index - local_start);
-
-                // this helps medium bb6 go from 5 seconds to 3.5
-                if local_per_x_sample == PowerOfTwo::ONE
-                    || self.pixel_policy == PixelPolicy::Sampling
-                {
-                    {
-                        if local_spaceline_start >= spaceline.len() as i64 {
-                            break;
-                        }
-                    }
-                    let pixel_u8 =
-                        u8::from(spaceline.pixel_index_unbounded(local_spaceline_start as usize));
-                    if pixel_u8 != 0 {
-                        let byte_index: u32 = x + row_start_byte_index;
-                        packed_data[byte_index as usize] = pixel_u8;
-                    }
-                    continue;
-                }
-                // cmk LATER can we make this after by precomputing the collect outside the loop?
-                let slice = (local_spaceline_start
-                    ..local_spaceline_start + local_per_x_sample.as_u64() as i64)
-                    .map(|i| spaceline.pixel_index_unbounded(i as usize))
-                    .collect::<Vec<_>>();
-                // cmk LATER look at putting this back in
-                // if local_spaceline_index >= spaceline.pixels.len() as i64 {
-                //     break;
-                // }
-
-                // Sample & Averaging 5 --
-                let pixel_u8 = u8::from(Pixel::merge_slice_all(&slice, 0));
+            let row_start_byte_index_plus_zero: usize = (y * x_actual) as usize + x_zero;
+            for (index, pixel) in spaceline.negative.iter().enumerate() {
+                let pixel_u8 = u8::from(pixel);
                 if pixel_u8 != 0 {
-                    let byte_index: u32 = x + row_start_byte_index;
-                    packed_data[byte_index as usize] = pixel_u8;
+                    let byte_index = row_start_byte_index_plus_zero - index - 1;
+                    packed_data[byte_index] = pixel_u8;
+                }
+            }
+            for (index, pixel) in spaceline.nonnegative.iter().enumerate() {
+                let pixel_u8 = u8::from(pixel);
+                if pixel_u8 != 0 {
+                    let byte_index = row_start_byte_index_plus_zero + index;
+                    packed_data[byte_index] = pixel_u8;
                 }
             }
         }
 
-        println!("packed_data {packed_data:?}");
+        println!("packed_data ({x_actual},{y_actual}) {packed_data:?}");
         assert!(y_actual <= 2 * y_goal);
         if y_actual == 2 * y_goal {
-            // cmk0000000 revmoe the constant
+            // cmk0000000 remove the constant
             // reduce the # of rows in half my averaging
-            let mut new_packed_data = vec![0u8; row_bytes as usize * y_goal as usize];
+            let mut new_packed_data = vec![0u8; x_actual as usize * y_goal as usize];
             packed_data
-                .chunks_exact_mut(row_bytes as usize * 2)
-                .zip(new_packed_data.chunks_exact_mut(row_bytes as usize))
+                .chunks_exact_mut(x_actual as usize * 2)
+                .zip(new_packed_data.chunks_exact_mut(x_actual as usize))
                 .for_each(|(chunk, new_chunk)| {
-                    let (left, right) = chunk.split_at_mut(row_bytes as usize);
+                    let (left, right) = chunk.split_at_mut(x_actual as usize);
                     // cmk0000 so many issues: why no_simd? why binning in the inner loop?
                     match self.pixel_policy {
                         PixelPolicy::Binning => Pixel::slice_merge_bytes_no_simd(left, right),
@@ -310,13 +308,23 @@ impl SpaceByTime {
                     // by design new_chunk is the same size as left, so copy the bytes from left to new_chunk
                     new_chunk.copy_from_slice(left);
                 });
-            println!("new_packed_data {new_packed_data:?}");
+            println!(
+                "new_packed_data ({x_actual},{}) {new_packed_data:?}",
+                y_actual >> 1
+            );
             Ok((
                 encode_png(x_actual, y_goal, &new_packed_data)?,
+                x_actual,
+                y_actual >> 1, // half
                 new_packed_data,
             ))
         } else {
-            Ok((encode_png(x_actual, y_actual, &packed_data)?, packed_data))
+            Ok((
+                encode_png(x_actual, y_actual, &packed_data)?,
+                x_actual,
+                y_actual,
+                packed_data,
+            ))
         }
     }
 }

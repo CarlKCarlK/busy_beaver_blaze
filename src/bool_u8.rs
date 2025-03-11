@@ -2,7 +2,19 @@ use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 #[repr(transparent)]
-#[derive(Debug, Default, Copy, Clone, IntoBytes, FromBytes, Immutable, Display, KnownLayout)]
+#[derive(
+    Debug,
+    Default,
+    Copy,
+    Clone,
+    IntoBytes,
+    FromBytes,
+    Immutable,
+    Display,
+    KnownLayout,
+    PartialEq,
+    Eq,
+)]
 pub struct BoolU8(u8);
 
 impl BoolU8 {

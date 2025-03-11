@@ -194,6 +194,8 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
     };
     Ok(buf)
 }
+
+// cmk000 could this be faster without chunks?
 #[must_use]
 pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
@@ -213,7 +215,29 @@ pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<P
         let sum: u32 = remainder.iter().map(u32::from).sum();
         // We need to divide by step size, not remainder.len()
         let average = step.divide_into(sum * 255).into();
+        // if average != Pixel::WHITE { // cmk0000000
         result.push(average);
+        //}
+    }
+
+    result
+}
+
+#[must_use]
+pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
+    let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
+
+    // Process complete chunks
+    let chunk_iter = values.chunks_exact(step.as_usize());
+    let remainder = chunk_iter.remainder();
+
+    for chunk in chunk_iter {
+        result.push(chunk[0].into());
+    }
+
+    if !remainder.is_empty() {
+        // cmk0000 && remainder[0] != BoolU8::FALSE {
+        result.push(remainder[0].into());
     }
 
     result

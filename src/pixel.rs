@@ -204,6 +204,13 @@ impl From<Pixel> for u8 {
     }
 }
 
+impl From<&Pixel> for u8 {
+    #[inline]
+    fn from(value: &Pixel) -> Self {
+        value.0
+    }
+}
+
 impl From<&u8> for Pixel {
     #[inline]
     fn from(value: &u8) -> Self {
