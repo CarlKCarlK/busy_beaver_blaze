@@ -1,7 +1,6 @@
 use crate::ALIGN;
 use crate::BoolU8;
 use aligned_vec::AVec;
-use core::ops::RangeInclusive;
 
 #[derive(Debug)]
 pub struct Tape {
@@ -69,7 +68,7 @@ impl Tape {
 
     #[cfg(test)]
     #[must_use]
-    pub fn index_range_to_string(&self, range: RangeInclusive<i64>) -> String {
+    pub fn index_range_to_string(&self, range: core::ops::RangeInclusive<i64>) -> String {
         let mut result_string = String::new();
         for i in range {
             result_string.push_str(&self.read(i).to_string());

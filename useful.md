@@ -22,8 +22,8 @@ wasm-pack build --out-dir docs/v0.2.4/pkg --target web && del docs\v0.2.4\pkg\.g
 ## Make movie frames
 
 ```bash
-cargo run --example movie --release bb5_champ 2K 63 63
-cargo run --example movie --release bb6_contender 2K 63 63
+cargo run --example movie --release bb5_champ 2K true
+cargo run --example movie --release bb6_contender 2K true
 ```
 
 ## Tetration

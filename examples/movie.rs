@@ -99,8 +99,9 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     };
 
     println!(
-        "Using machine: {} with output in {:?}",
-        machine_name, &output_dir
+        "Using machine: {} with output in {}",
+        machine_name,
+        &output_dir.display()
     );
     println!("Using resolution: {resolution:?} ({goal_x}x{goal_y})");
 
@@ -132,7 +133,11 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         )?;
     }
 
-    println!("Elapsed: {:?}, output_dir: {output_dir:?}", start.elapsed());
+    println!(
+        "Elapsed: {:?}, output_dir: {}",
+        start.elapsed(),
+        output_dir.display()
+    );
     Ok(())
 }
 

@@ -1,4 +1,4 @@
-use crate::{LANES_CMK, PixelPolicy, bool_u8::BoolU8};
+use crate::{LANES_CMK, bool_u8::BoolU8};
 use core::ops::{Add, AddAssign};
 use core::simd::{self, prelude::*};
 use derive_more::Display;

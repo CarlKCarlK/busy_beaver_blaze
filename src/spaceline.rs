@@ -4,7 +4,7 @@ use crate::pixel::Pixel;
 use crate::tape::Tape;
 use crate::{
     ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, average_with_iterators,
-    average_with_simd, find_stride, is_even, sample_rate, sample_with_iterators,
+    average_with_simd, find_stride, is_even, sample_with_iterators,
 };
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;

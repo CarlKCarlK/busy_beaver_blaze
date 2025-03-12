@@ -1,33 +1,27 @@
-use aligned_vec::AVec;
 use itertools::Itertools;
 
-use crate::{
-    ALIGN, PixelPolicy, Tape, is_even,
-    pixel::{self, Pixel},
-    power_of_two::PowerOfTwo,
-    spaceline::Spaceline,
-};
+use crate::{PixelPolicy, Tape, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline};
 
-pub(crate) struct Spacelines {
+pub struct Spacelines {
     pub(crate) main: Vec<Spaceline>,                  // cmk make private
     pub(crate) buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names
 }
 
 // define a debug that lists the lines of main (one spaceline per line) and then for buffer0, lists the weight and the line, one pair per line
 impl core::fmt::Debug for Spacelines {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        writeln!(f, "Spacelines {{")?;
-        writeln!(f, "  main: [")?;
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        writeln!(formatter, "Spacelines {{")?;
+        writeln!(formatter, "  main: [")?;
         for line in &self.main {
-            writeln!(f, "    {line:?},")?;
+            writeln!(formatter, "    {line:?},")?;
         }
-        writeln!(f, "  ],")?;
-        writeln!(f, "  buffer0: [")?;
+        writeln!(formatter, "  ],")?;
+        writeln!(formatter, "  buffer0: [")?;
         for (line, weight) in &self.buffer0 {
-            writeln!(f, "    weight {weight:?}:  {line:?},")?;
+            writeln!(formatter, "    weight {weight:?}:  {line:?},")?;
         }
-        writeln!(f, "  ]")?;
-        write!(f, "}}")
+        writeln!(formatter, "  ]")?;
+        write!(formatter, "}}")
     }
 }
 

@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             )
         };
         resized.save(&output_path)?;
-        println!("Resized and saved {output_path:?}");
+        println!("Resized and saved {}", output_path.display());
     }
 
     Ok(())

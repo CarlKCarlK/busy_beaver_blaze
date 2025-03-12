@@ -2,7 +2,6 @@ use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, Machine, PixelPolicy, PowerOfTwo, SpaceByTime,
     SpaceByTimeMachine, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
     average_with_simd_push, bool_u8::BoolU8, find_stride, pixel::Pixel, spaceline::Spaceline,
-    spacelines::Spacelines,
 };
 use aligned_vec::AVec;
 use rand::{Rng, SeedableRng};
@@ -358,10 +357,6 @@ fn combo() {
                             for (ref_val, val) in
                                 reference_packed_data.iter().zip(packed_data.iter())
                             {
-                                let abs_diff = ref_val.abs_diff(*val);
-                                // if abs_diff > 0 {
-                                //     println!("|{ref_val}-{val}|= {abs_diff} ?<= {max_diff}");
-                                // }
                                 ok = ok && ref_val.abs_diff(*val) <= max_diff;
                             }
 
@@ -406,13 +401,7 @@ fn one() {
     let mut reference_machine =
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0).unwrap();
     reference_machine.nth_js(early_stop - 2);
-    // println!(
-    //     "reference_machine: {:?} {:?}",
-    //     reference_machine.space_by_time.y_stride, reference_machine.space_by_time.spacelines
-    // );
-    let (reference_png_data, ref_x, ref_y, ref_packed) =
-        reference_machine.png_data_and_packed_data();
-    // println!("---------------");
+    let reference_png_data = reference_machine.png_data_and_packed_data().0;
 
     let key = format!(
         "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
@@ -427,7 +416,7 @@ fn one() {
         goal_y,
         binning,
     );
-    let (png_data, x, y, packed_data) = machine.png_data_and_packed_data();
+    let png_data = machine.png_data_and_packed_data().0;
 
     // println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
     // println!("ref_packed: {ref_packed:?}");

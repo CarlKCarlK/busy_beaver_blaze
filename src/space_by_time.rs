@@ -1,9 +1,6 @@
 use crate::{
-    Error, Machine, Pixel, PixelPolicy, Tape, encode_png, find_stride,
-    power_of_two::PowerOfTwo,
-    sample_rate,
-    spaceline::{self, Spaceline},
-    spacelines::Spacelines,
+    Error, Machine, Pixel, PixelPolicy, Tape, encode_png, find_stride, power_of_two::PowerOfTwo,
+    sample_rate, spaceline::Spaceline, spacelines::Spacelines,
 };
 
 pub struct SpaceByTime {
@@ -155,50 +152,50 @@ impl SpaceByTime {
         }
     }
 
-    #[inline]
-    pub(crate) fn push_spaceline(&mut self, spaceline: Spaceline, weight: PowerOfTwo) {
-        let inside_index = self.y_stride.rem_into_u64(self.step_index);
+    // #[inline]
+    // pub(crate) fn push_spaceline(&mut self, spaceline: Spaceline, weight: PowerOfTwo) {
+    //     let inside_index = self.y_stride.rem_into_u64(self.step_index);
 
-        if inside_index == 0 {
-            // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-            self.spacelines.flush_buffer0();
-            self.compress_cmk1_y_if_needed();
-        }
+    //     if inside_index == 0 {
+    //         // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
+    //         self.spacelines.flush_buffer0();
+    //         self.compress_cmk1_y_if_needed();
+    //     }
 
-        if self.pixel_policy == PixelPolicy::Sampling && inside_index != 0 {
-            return;
-        }
+    //     if self.pixel_policy == PixelPolicy::Sampling && inside_index != 0 {
+    //         return;
+    //     }
 
-        let buffer0 = &mut self.spacelines.buffer0;
+    //     let buffer0 = &mut self.spacelines.buffer0;
 
-        if buffer0.is_empty() {
-            Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
-            self.step_index += weight.as_u64();
-            return;
-        }
-        let (last_spaceline, last_weight) = buffer0.last().unwrap();
-        assert!(last_spaceline.time < spaceline.time, "real assert 11");
-        if weight <= *last_weight {
-            Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
-            self.step_index += weight.as_u64();
-            return;
-        }
+    //     if buffer0.is_empty() {
+    //         Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
+    //         self.step_index += weight.as_u64();
+    //         return;
+    //     }
+    //     let (last_spaceline, last_weight) = buffer0.last().unwrap();
+    //     assert!(last_spaceline.time < spaceline.time, "real assert 11");
+    //     if weight <= *last_weight {
+    //         Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
+    //         self.step_index += weight.as_u64();
+    //         return;
+    //     }
 
-        for i in 0..weight.as_u64() {
-            let mut clone = spaceline.clone(); // cmk don't need to clone the last time
-            clone.time = spaceline.time + i;
-            // if i % 100 == 0 {
-            //     println!(
-            //         "clone's x stride {} -len {}, +len {}",
-            //         clone.x_stride.as_usize(),
-            //         clone.negative.len(),
-            //         clone.nonnegative.len()
-            //     );
-            // }
-            Spacelines::push_internal(buffer0, clone, PowerOfTwo::ONE, self.pixel_policy);
-            self.step_index += 1;
-        }
-    }
+    //     for i in 0..weight.as_u64() {
+    //         let mut clone = spaceline.clone(); // cmk don't need to clone the last time
+    //         clone.time = spaceline.time + i;
+    //         // if i % 100 == 0 {
+    //         //     println!(
+    //         //         "clone's x stride {} -len {}, +len {}",
+    //         //         clone.x_stride.as_usize(),
+    //         //         clone.negative.len(),
+    //         //         clone.nonnegative.len()
+    //         //     );
+    //         // }
+    //         Spacelines::push_internal(buffer0, clone, PowerOfTwo::ONE, self.pixel_policy);
+    //         self.step_index += 1;
+    //     }
+    // }
 
     pub fn to_png(
         &mut self,
@@ -351,7 +348,7 @@ impl SpaceByTime {
     // }
 
     fn compress_cmk4_y_if_needed(
-        &mut self,
+        &self,
         mut packed_data: Vec<u8>,
         y_goal: u32,
         x_actual: u32,

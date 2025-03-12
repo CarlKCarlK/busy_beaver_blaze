@@ -4,8 +4,8 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIter
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    Machine, PixelPolicy, PowerOfTwo, is_even, pixel_policy, sample_rate,
-    space_by_time::SpaceByTime, spacelines::Spacelines,
+    Machine, PixelPolicy, PowerOfTwo, is_even, sample_rate, space_by_time::SpaceByTime,
+    spacelines::Spacelines,
 };
 
 #[wasm_bindgen]
@@ -215,58 +215,15 @@ impl SpaceByTimeMachine {
         );
 
         let mut space_by_time_machine = Self::combine_results(space_by_time_machines);
-        // cmk00
-        // let mut space_by_time_machine = space_by_time_machine.double_audit(early_stop, binning);
-
-        // println!(
-        //     "aa. spacelines.len {} ??<= goal_y * 2 {}",
-        //     space_by_time_machine.space_by_time.spacelines.len(),
-        //     goal_y * 2
-        // );
-        // println!(
-        //     "before compress_if_needed: {:?}",
-        //     space_by_time_machine.space_by_time.spacelines
-        // );
 
         loop {
             space_by_time_machine.compress_cmk3_y_if_needed(goal_y, early_stop, binning);
-            // let mut space_by_time_machine = space_by_time_machine.double_audit(early_stop, binning);
-            // println!(
-            //     "a. spacelines.len {} <= goal_y * 2 {}",
-            //     space_by_time_machine.space_by_time.spacelines.len(),
-            //     goal_y * 2
-            // );
-            // assert!(
-            //     space_by_time_machine.space_by_time.spacelines.len() <= goal_y as usize * 2,
-            //     "too long",
-            // );
-
-            // println!(
-            //     "before reduce_buffers0: {:?}",
-            //     space_by_time_machine.space_by_time.spacelines
-            // );
-
             space_by_time_machine.reduce_buffer0();
 
             if space_by_time_machine.space_by_time.spacelines.len() <= goal_y as usize * 2 {
                 break;
             }
         }
-
-        // println!(
-        //     "b. spacelines.len {} <= goal_y * 2 {}",
-        //     space_by_time_machine.space_by_time.spacelines.len(),
-        //     goal_y * 2
-        // );
-        // println!(
-        //     "after reduce_buffers0: {:?}",
-        //     space_by_time_machine.space_by_time.spacelines
-        // );
-
-        // assert!(
-        //     space_by_time_machine.space_by_time.spacelines.len() <= goal_y as usize * 2,
-        //     "too long",
-        // );
         space_by_time_machine
     }
 
@@ -481,77 +438,79 @@ impl SpaceByTimeMachine {
         }
     }
 
-    fn double_audit(self, early_stop: u64, binning: bool) -> Self {
-        let single_results = [self];
-        Self::audit_results(&single_results, 1, early_stop, binning);
-        let result = single_results.into_iter().next().unwrap();
-        let space_by_time = &result.space_by_time;
-        Self::audit_one(space_by_time, None, None, early_stop, binning);
-        result
-    }
+    // fn double_audit(self, early_stop: u64, binning: bool) -> Self {
+    //     let single_results = [self];
+    //     Self::audit_results(&single_results, 1, early_stop, binning);
+    //     let result = single_results.into_iter().next().unwrap();
+    //     let space_by_time = &result.space_by_time;
+    //     Self::audit_one(space_by_time, None, None, early_stop, binning);
+    //     result
+    // }
 
-    fn audit_results(results: &[Self], part_count: u64, early_stop: u64, binning: bool) {
-        assert_eq!(results.len() as u64, part_count);
-        let mut previous_y_stride = None;
-        let mut previous_time = None;
-        for (part_index, space_by_time_machine) in results.iter().enumerate() {
-            let space_by_time = &space_by_time_machine.space_by_time;
-            let y_stride = space_by_time.y_stride;
-            if part_index > 0 && part_index < part_count as usize - 1 {
-                assert_eq!(
-                    y_stride,
-                    previous_y_stride.unwrap(),
-                    "from part to part, the stride should be the same"
-                );
-            }
-            previous_y_stride = Some(y_stride);
-            let spacelines = &space_by_time.spacelines;
-            let main = &spacelines.main;
-            for spaceline in main {
-                if let Some(previous_time) = previous_time {
-                    assert!(
-                        spaceline.time == previous_time + y_stride.as_u64(),
-                        "mind the gap"
-                    );
-                }
-                previous_time = Some(spaceline.time);
-            }
-            if part_index < part_count as usize - 1 {
-                assert!(
-                    spacelines.buffer0.is_empty(),
-                    "only the last part can have a buffer"
-                );
-            } else {
-                for (spaceline, weight) in &spacelines.buffer0 {
-                    assert!(
-                        spaceline.time
-                            == previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
-                        "mind the gap"
-                    );
-                    assert!(
-                        *weight <= previous_y_stride.unwrap(),
-                        "should be <= previous_y_stride"
-                    );
-                    previous_time = Some(spaceline.time);
-                    previous_y_stride = Some(*weight);
-                }
-            }
-        }
-        if binning {
-            assert!(
-                previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == early_stop,
-                "mind the gap with early_stop"
-            );
-        } else {
-            assert!(
-                previous_time.unwrap() < early_stop
-                    && early_stop <= previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
-                "mind the gap with early_stop"
-            );
-        }
-    }
+    // fn audit_results(results: &[Self], part_count: u64, early_stop: u64, binning: bool) {
+    //     assert_eq!(results.len() as u64, part_count);
+    //     let mut previous_y_stride = None;
+    //     let mut previous_time = None;
+    //     for (part_index, space_by_time_machine) in results.iter().enumerate() {
+    //         let space_by_time = &space_by_time_machine.space_by_time;
+    //         let y_stride = space_by_time.y_stride;
+    //         if part_index > 0 && part_index < part_count as usize - 1 {
+    //             assert_eq!(
+    //                 y_stride,
+    //                 previous_y_stride.unwrap(),
+    //                 "from part to part, the stride should be the same"
+    //             );
+    //         }
+    //         previous_y_stride = Some(y_stride);
+    //         let spacelines = &space_by_time.spacelines;
+    //         let main = &spacelines.main;
+    //         for spaceline in main {
+    //             if let Some(previous_time) = previous_time {
+    //                 assert!(
+    //                     spaceline.time == previous_time + y_stride.as_u64(),
+    //                     "mind the gap"
+    //                 );
+    //             }
+    //             previous_time = Some(spaceline.time);
+    //         }
+    //         if part_index < part_count as usize - 1 {
+    //             assert!(
+    //                 spacelines.buffer0.is_empty(),
+    //                 "only the last part can have a buffer"
+    //             );
+    //         } else {
+    //             for (spaceline, weight) in &spacelines.buffer0 {
+    //                 assert!(
+    //                     spaceline.time
+    //                         == previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
+    //                     "mind the gap"
+    //                 );
+    //                 assert!(
+    //                     *weight <= previous_y_stride.unwrap(),
+    //                     "should be <= previous_y_stride"
+    //                 );
+    //                 previous_time = Some(spaceline.time);
+    //                 previous_y_stride = Some(*weight);
+    //             }
+    //         }
+    //     }
+    //     if binning {
+    //         assert!(
+    //             previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == early_stop,
+    //             "mind the gap with early_stop"
+    //         );
+    //     } else {
+    //         assert!(
+    //             previous_time.unwrap() < early_stop
+    //                 && early_stop <= previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
+    //             "mind the gap with early_stop"
+    //         );
+    //     }
+    // }
     // cmk move this to the SpaceByTime struct
+
     #[inline]
+    #[allow(unused_variables)]
     fn audit_one(
         space_by_time: &SpaceByTime,
         previous_y_stride: Option<PowerOfTwo>,
@@ -561,16 +520,16 @@ impl SpaceByTimeMachine {
     ) {
         // on debug compiles call audit_one_internal otherwise do nothing
         #[cfg(debug_assertions)]
-        {
-            Self::audit_one_internal(
-                space_by_time,
-                previous_y_stride,
-                previous_time,
-                stop,
-                binning,
-            );
-        }
+        Self::audit_one_internal(
+            space_by_time,
+            previous_y_stride,
+            previous_time,
+            stop,
+            binning,
+        );
     }
+
+    #[cfg(debug_assertions)]
     fn audit_one_internal(
         space_by_time: &SpaceByTime,
         mut previous_y_stride: Option<PowerOfTwo>,
