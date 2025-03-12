@@ -121,7 +121,7 @@ impl Pixel {
         }
     }
 
-    // cmk000 see if this can be removed
+    // cmk0 see if this can be removed
     #[inline]
     pub(crate) fn slice_merge_bytes_no_simd(left_bytes: &mut [u8], right_bytes: &[u8]) {
         for (left_byte, right_byte) in left_bytes.iter_mut().zip(right_bytes.iter()) {
@@ -149,34 +149,6 @@ impl Pixel {
             *left_byte >>= 1;
         }
     }
-
-    // #[inline]
-    // pub(crate) fn merge_slice_down_sample(
-    //     slice: &[Self],
-    //     empty_count: usize,
-    //     pixel_policy: PixelPolicy,
-    // ) -> Self {
-    //     match pixel_policy {
-    //         PixelPolicy::Sampling => slice[0],
-    //         PixelPolicy::Binning => {
-    //             // cmk000000 make this faster with SIMD or at least more functional
-    //             let sum: u32 = slice.iter().map(|pixel| pixel.0 as u32).sum();
-    //             let total_len = crate::PowerOfTwo::from_usize_unchecked(slice.len() + empty_count);
-    //             let mean = total_len.divide_into(sum) as u8;
-    //             Self(mean)
-    //         }
-    //     }
-    // }
-
-    // // cmk0000 This is only called from one place and empty_count is always 0. Is there already
-    // // cmk0000 a SIMD version of this?
-    // #[inline]
-    // pub(crate) fn merge_slice_all(slice: &[Self], empty_count: i64) -> Self {
-    //     let sum: u32 = slice.iter().map(|pixel: &Self| pixel.0 as u32).sum();
-    //     let count = slice.len() + empty_count as usize;
-    //     debug_assert!(count.is_power_of_two(), "Count must be a power of two");
-    //     Self(crate::PowerOfTwo::from_u64_unchecked(count as u64).divide_into(sum) as u8)
-    // }
 }
 
 impl From<bool> for Pixel {
@@ -210,7 +182,6 @@ impl From<&Pixel> for u8 {
 impl From<&u8> for Pixel {
     #[inline]
     fn from(value: &u8) -> Self {
-        assert!(*value == 0 || *value == 255,);
         Self(*value)
     }
 }

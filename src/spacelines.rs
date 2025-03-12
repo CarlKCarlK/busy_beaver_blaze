@@ -140,7 +140,7 @@ impl Spacelines {
         }
     }
 
-    // cmk000 make private
+    // cmk make private
     #[inline]
     pub(crate) fn push_internal(
         buffer0: &mut Vec<(Spaceline, PowerOfTwo)>,

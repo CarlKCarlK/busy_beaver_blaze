@@ -271,7 +271,7 @@ impl Spaceline {
         assert!(self.x_stride <= new_x_stride);
         while self.x_stride < new_x_stride {
             for pixels in [&mut self.nonnegative, &mut self.negative] {
-                // cmk000 pull this out of the inner loop
+                // cmk00 pull this out of the inner loop
                 match self.pixel_policy {
                     PixelPolicy::Binning => Self::compress_x_simd_binning(pixels),
                     PixelPolicy::Sampling => Self::compress_x_simd_sampling(pixels),
@@ -294,21 +294,6 @@ impl Spaceline {
         }
         result
     }
-
-    // cmk0000 this is not used
-    // #[inline]
-    // pub fn pixel_restart(&mut self, tape_start: i64, len: usize, stride: PowerOfTwo) {
-    //     self.x_stride = stride;
-    //     assert!(self.tape_start() <= tape_start, "real assert 11");
-    //     while self.tape_start() < tape_start {
-    //         self.nonnegative.insert(0, self.negative.remove(0));
-    //     }
-    //     assert!(self.len() >= len, "real assert 12");
-    //     while self.len() > len {
-    //         self.nonnegative.pop();
-    //     }
-    //     assert!(self.len() == len, "real assert 13");
-    // }
 
     #[allow(clippy::missing_panics_doc)]
     #[inline]
@@ -451,7 +436,6 @@ impl Spaceline {
                 } else {
                     let slice = &part[tape_slice_start..tape_slice_end];
 
-                    // cmk00000 benchmark this
                     *pixel = match x_stride {
                         PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => {
                             let sum: u32 = slice.iter().map(u32::from).sum();

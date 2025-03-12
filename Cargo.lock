@@ -178,7 +178,6 @@ dependencies = [
  "instant",
  "itertools 0.14.0",
  "num-bigint",
- "num-integer",
  "num-traits",
  "png",
  "rand 0.9.0",

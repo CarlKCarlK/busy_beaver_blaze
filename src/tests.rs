@@ -206,7 +206,6 @@ fn test_average() {
     assert_eq!(result, expected);
 }
 
-// cmk00000 test on binning true vs false with different numbers of part_counts and check that get the same png bytes.
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn parts() {

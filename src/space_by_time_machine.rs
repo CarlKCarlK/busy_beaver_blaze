@@ -426,6 +426,7 @@ impl SpaceByTimeMachine {
         space_by_time_machine
     }
 
+    // cmk0 understand the `compress_cmk*` functions
     fn compress_cmk3_y_if_needed(&mut self, goal_y: u32, early_stop: u64, binning: bool) {
         let space_by_time = &mut self.space_by_time;
         Self::audit_one(space_by_time, None, None, early_stop, binning);
@@ -434,14 +435,9 @@ impl SpaceByTimeMachine {
             Self::audit_one(space_by_time, None, None, early_stop, binning);
             let len = space_by_time.spacelines.len();
             assert!(len > 0, "real assert 5");
-            // cmk000 sometimes should be <= to match reference
             if len < goal_y as usize * 2 {
                 break;
             }
-            // println!(
-            //     "len: {len} is too long, y-stride is {:?} compressing...",
-            //     space_by_time.y_stride
-            // );
             if !is_even(space_by_time.spacelines.main.len()) {
                 Self::audit_one(space_by_time, None, None, early_stop, binning);
                 // println!("is odd: Spacelines {:?}", space_by_time.spacelines);
@@ -470,7 +466,7 @@ impl SpaceByTimeMachine {
                     assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
 
                     if binning {
-                        // cmk0000 remove from loop?
+                        // cmk00 remove from loop?
                         first.merge(&second);
                     } else {
                         /* do nothing */
@@ -553,8 +549,8 @@ impl SpaceByTimeMachine {
             );
         }
     }
-    // cmk000000 move this to the SpaceByTime struct
-    // cmk00000 make this debug only
+    // cmk move this to the SpaceByTime struct
+    // cmk00 make this debug only
     fn audit_one(
         space_by_time: &SpaceByTime,
         mut previous_y_stride: Option<PowerOfTwo>,

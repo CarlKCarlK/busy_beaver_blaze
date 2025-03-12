@@ -195,7 +195,7 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
     Ok(buf)
 }
 
-// cmk000 could this be faster without chunks?
+// cmk0 could this be faster without chunks?
 #[must_use]
 pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
@@ -234,7 +234,6 @@ pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pi
     }
 
     if !remainder.is_empty() {
-        // cmk0000 && remainder[0] != BoolU8::FALSE {
         result.push(remainder[0].into());
     }
 

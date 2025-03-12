@@ -45,7 +45,7 @@ impl SpaceByTime {
         y_goal: u32,
         pixel_policy: PixelPolicy,
     ) -> Self {
-        // cmk000 confusing to refer to both machine time and space time as "step_count"
+        // cmk0 confusing to refer to both machine time and space time as "step_count"
         Self {
             skip,
             step_index: 0,
@@ -184,36 +184,17 @@ impl SpaceByTime {
             return;
         }
 
-        // println!(
-        //     "last_spaceline's x stride {}, -len {}, +len {}",
-        //     last_spaceline.x_stride.as_usize(),
-        //     last_spaceline.negative.len(),
-        //     last_spaceline.nonnegative.len()
-        // );
-        // println!(
-        //     "spaceline's x stride {} -len {}, +len {}",
-        //     spaceline.x_stride.as_usize(),
-        //     spaceline.negative.len(),
-        //     spaceline.nonnegative.len()
-        // );
-
-        // cmk0000 should divide to bigger pieces
-        // println!(
-        //     "last_weight {}, adding weight {} one by one",
-        //     last_weight.as_u64(),
-        //     weight.as_u64()
-        // );
         for i in 0..weight.as_u64() {
             let mut clone = spaceline.clone(); // cmk don't need to clone the last time
             clone.time = spaceline.time + i;
-            if i % 100 == 0 {
-                println!(
-                    "clone's x stride {} -len {}, +len {}",
-                    clone.x_stride.as_usize(),
-                    clone.negative.len(),
-                    clone.nonnegative.len()
-                );
-            }
+            // if i % 100 == 0 {
+            //     println!(
+            //         "clone's x stride {} -len {}, +len {}",
+            //         clone.x_stride.as_usize(),
+            //         clone.negative.len(),
+            //         clone.nonnegative.len()
+            //     );
+            // }
             Spacelines::push_internal(buffer0, clone, PowerOfTwo::ONE, self.pixel_policy);
             self.step_index += 1;
         }
@@ -259,7 +240,7 @@ impl SpaceByTime {
         //     "tape_nonnegative_len {tape_nonnegative_len}, packed_data ({x_actual},{y_actual}) {packed_data:?} x_zero {x_zero} x_stride {x_stride:?}"
         // );
 
-        // cmk000 move this into a function
+        // cmk0 move this into a function
         for (spaceline, _weight) in &mut self.spacelines.buffer0 {
             if spaceline.x_stride == x_stride {
                 break;
@@ -385,7 +366,8 @@ impl SpaceByTime {
                 .zip(new_packed_data.chunks_exact_mut(x_actual as usize))
                 .for_each(|(chunk, new_chunk)| {
                     let (left, right) = chunk.split_at_mut(x_actual as usize);
-                    // cmk0000 so many issues: why no_simd? why binning in the inner loop?
+                    // cmk00 so many issues: why no_simd?
+                    // cmk00 why binning in the inner loop?
                     match self.pixel_policy {
                         PixelPolicy::Binning => Pixel::slice_merge_bytes_no_simd(left, right),
                         PixelPolicy::Sampling => { /* do nothing */ }

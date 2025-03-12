@@ -24,8 +24,6 @@ smallvec = "1.14.0"
 thousands = "0.2.0"
 wasm-bindgen = "0.2.100"
 zerocopy = { version = "0.8.21", features = ["std", "derive"] }
-num-traits = { version = "0.2.14", default-features = false } # cmk000 needed?
-num-integer = { version = "0.1.46", default-features = false } # cmk000 needed?
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rand = "0.9.0"
