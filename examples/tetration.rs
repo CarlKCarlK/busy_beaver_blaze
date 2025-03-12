@@ -211,7 +211,7 @@ fn multiply(a: u32, acc0: &mut BigUint) {
 #[allow(clippy::min_ident_chars)]
 #[inline]
 fn raise(a: u32, acc0: &mut BigUint) {
-    /*cmk*/debug_assert!(a > 0, "a must be greater than 0");
+    assert!(a > 0, "a must be greater than 0");
 
     let mut acc1 = BigUint::ZERO;
     increment(&mut acc1);
@@ -225,7 +225,7 @@ fn raise(a: u32, acc0: &mut BigUint) {
 #[allow(clippy::min_ident_chars)]
 #[inline]
 fn tetrate(a: u32, acc0: &mut BigUint) {
-    /*cmk*/debug_assert!(a > 0, "a must be greater than 0");
+    assert!(a > 0, "a must be greater than 0");
 
     let mut acc1 = BigUint::ZERO;
     increment(&mut acc1);
@@ -238,7 +238,7 @@ fn tetrate(a: u32, acc0: &mut BigUint) {
 
 #[inline]
 fn tetrate_simple(a: u32, tetration: &mut BigUint) {
-    /*cmk*/debug_assert!(a > 0, "a must be greater than 0");
+    assert!(a > 0, "a must be greater than 0");
 
     let mut power = BigUint::ZERO;
     power += 1u32;
@@ -415,29 +415,29 @@ fn slow_enough() {
 fn main() {
     let mut b = BigUint::ZERO;
     add(2, &mut b);
-    /*cmk*/debug_assert_eq!(b, BigUint::from(2u32));
+    assert_eq!(b, BigUint::from(2u32));
 
     let mut b = BigUint::from(3u32);
     multiply(2, &mut b);
-    /*cmk*/debug_assert_eq!(b, BigUint::from(6u32));
+    assert_eq!(b, BigUint::from(6u32));
 
     let mut b = BigUint::from(3u32);
     raise(2, &mut b);
-    /*cmk*/debug_assert_eq!(b, BigUint::from(8u32));
+    assert_eq!(b, BigUint::from(8u32));
 
     let mut b = BigUint::from(4u32);
     tetrate(2, &mut b);
-    /*cmk*/debug_assert_eq!(b, BigUint::from(65536u32));
+    assert_eq!(b, BigUint::from(65536u32));
 
     let mut b = BigUint::from(4u32);
     tetrate_simple(2, &mut b);
-    /*cmk*/debug_assert_eq!(b, BigUint::from(65536u32));
+    assert_eq!(b, BigUint::from(65536u32));
 
     let c = add_ownership(2, BigUint::ZERO);
-    /*cmk*/debug_assert_eq!(c, BigUint::from(2u32));
+    assert_eq!(c, BigUint::from(2u32));
 
     let c = add_functional(2, BigUint::ZERO);
-    /*cmk*/debug_assert_eq!(c, BigUint::from(2u32));
+    assert_eq!(c, BigUint::from(2u32));
 
     slow_enough();
     // // add
@@ -523,7 +523,7 @@ mod tests {
     fn test_increment() {
         RESULT.store(0, Ordering::Relaxed);
         work_item_a();
-        /*cmk*/debug_assert_eq!(RESULT.load(Ordering::Relaxed), 1);
+        assert_eq!(RESULT.load(Ordering::Relaxed), 1);
     }
 
     #[test]
@@ -534,8 +534,8 @@ mod tests {
         let result = product(base, BigUint::from(x), ProductSkips::None, work_item_a)
             .to_u64()
             .unwrap();
-        /*cmk*/debug_assert_eq!(result, (base * x).into());
-        /*cmk*/debug_assert_eq!(RESULT.load(Ordering::Relaxed), result);
+        assert_eq!(result, (base * x).into());
+        assert_eq!(RESULT.load(Ordering::Relaxed), result);
     }
 
     #[test]
@@ -546,8 +546,8 @@ mod tests {
             let result: u64 = power(base, BigUint::from(x), PowerSkips::None, work_item_a)
                 .to_u64()
                 .unwrap();
-            /*cmk*/debug_assert_eq!(result, base.pow(x).into());
-            /*cmk*/debug_assert_eq!(RESULT.load(Ordering::Relaxed), result);
+            assert_eq!(result, base.pow(x).into());
+            assert_eq!(RESULT.load(Ordering::Relaxed), result);
         }
     }
 
@@ -558,8 +558,8 @@ mod tests {
         for (x, expected) in (0u32..=4).zip(expecteds.iter()) {
             RESULT.store(0, Ordering::Relaxed);
             let result = tetration(base, x, work_item_a).to_u64().unwrap();
-            /*cmk*/debug_assert_eq!(result, *expected);
-            /*cmk*/debug_assert_eq!(RESULT.load(Ordering::Relaxed), result);
+            assert_eq!(result, *expected);
+            assert_eq!(RESULT.load(Ordering::Relaxed), result);
         }
     }
 }

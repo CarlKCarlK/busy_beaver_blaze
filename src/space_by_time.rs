@@ -72,10 +72,9 @@ impl SpaceByTime {
 
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.y_stride {
-            /*cmk*/
-            debug_assert!(
+            assert!(
                 new_sample / self.y_stride == PowerOfTwo::TWO,
-                "real /*cmk*/debug_assert 10"
+                "real assert 10"
             );
             self.y_stride = new_sample;
             match self.pixel_policy {
@@ -87,7 +86,7 @@ impl SpaceByTime {
 
     // ideas
     // use
-    //       /*cmk*/debug_assert!(self.stride.is_power_of_two(), "Sample must be a power of two");
+    //       assert!(self.stride.is_power_of_two(), "Sample must be a power of two");
     //       // Use bitwise AND for fast divisibility check
     //       if self.step_index & (self.stride - 1) != 0 {
     //  Also: Inline the top part of the function.
@@ -178,11 +177,7 @@ impl SpaceByTime {
             return;
         }
         let (last_spaceline, last_weight) = buffer0.last().unwrap();
-        /*cmk*/
-        debug_assert!(
-            last_spaceline.time < spaceline.time,
-            "real /*cmk*/debug_assert 11"
-        );
+        assert!(last_spaceline.time < spaceline.time, "real assert 11");
         if weight <= *last_weight {
             Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
             self.step_index += weight.as_u64();
@@ -230,10 +225,8 @@ impl SpaceByTime {
         x_goal: usize,
         y_goal: usize,
     ) -> Result<(Vec<u8>, u32, u32, Vec<u8>), Error> {
-        /*cmk*/
-        debug_assert!(tape_nonnegative_len > 0);
-        /*cmk*/
-        debug_assert!(x_goal >= 2);
+        assert!(tape_nonnegative_len > 0);
+        assert!(x_goal >= 2);
         // println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
 
         let x_stride = find_stride(tape_negative_len, tape_nonnegative_len, x_goal);
@@ -267,8 +260,7 @@ impl SpaceByTime {
 
         for y in 0..y_actual {
             let spaceline = self.spacelines.get(y, &last);
-            /*cmk*/
-            debug_assert!(x_stride == spaceline.x_stride);
+            assert!(x_stride == spaceline.x_stride);
 
             let row_start_byte_index_plus_zero = y * x_actual + x_zero;
             for (index, pixel) in spaceline.negative.iter().enumerate() {
@@ -288,8 +280,7 @@ impl SpaceByTime {
         }
 
         // println!("packed_data ({x_actual},{y_actual}) {packed_data:?}");
-        /*cmk*/
-        debug_assert!(y_actual <= 2 * y_goal);
+        assert!(y_actual <= 2 * y_goal);
         let (packed_data, y_actual) = self.compress_cmk4_y_if_needed(
             packed_data,
             y_goal as u32,
@@ -305,8 +296,8 @@ impl SpaceByTime {
     }
 
     // fn trim_columns(matrix: &mut Vec<u8>, xs: usize, ys: usize) -> (usize, usize) {
-    //     /*cmk*/debug_assert!(!matrix.is_empty());
-    //     /*cmk*/debug_assert_eq!(xs * ys, matrix.len());
+    //     assert!(!matrix.is_empty());
+    //     assert_eq!(xs * ys, matrix.len());
 
     //     let mut first_nonzero_col = None;
     //     let mut last_nonzero_col = None;

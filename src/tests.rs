@@ -62,14 +62,10 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     );
 
     if early_stop.is_none() {
-        /*cmk*/
-        debug_assert_eq!(sample_space_by_time.step_index(), 47_176_870);
-        /*cmk*/
-        debug_assert_eq!(machine.count_ones(), 4098);
-        /*cmk*/
-        debug_assert_eq!(machine.state(), 7);
-        /*cmk*/
-        debug_assert_eq!(machine.tape_index(), -12242);
+        assert_eq!(sample_space_by_time.step_index(), 47_176_870);
+        assert_eq!(machine.count_ones(), 4098);
+        assert_eq!(machine.state(), 7);
+        assert_eq!(machine.tape_index(), -12242);
     }
 
     Ok(())
@@ -104,147 +100,110 @@ fn test_average() {
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
 
     let result = average_with_iterators(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
 
     let step = PowerOfTwo::TWO;
     let bytes = &[0u8, 127, 127, 255, 127];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
 
     let result = average_with_iterators(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     // Expected to panic
     // let result = average_with_simd::<4>(&values, step);
-    // /*cmk*/debug_assert_eq!(result, expected);
+    // assert_eq!(result, expected);
 
     let step = PowerOfTwo::FOUR;
     let bytes = &[63u8, 191, 63];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
 
     let step = PowerOfTwo::EIGHT;
     let bytes = &[127u8, 31];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<8>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
 
     let step = PowerOfTwo::SIXTEEN;
     let bytes = &[79u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<8>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<16>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
 
     let step = PowerOfTwo::THIRTY_TWO;
     let bytes = &[39u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<8>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<16>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<32>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
 
     let step = PowerOfTwo::SIXTY_FOUR;
     let bytes = &[19u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<8>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<16>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<32>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
     let result = average_with_simd::<64>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
 
     // Is count_ones correct?
     let result = average_with_simd_count_ones64(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
 
     let result = average_with_simd_push::<64>(&values, step);
-    /*cmk*/
-    debug_assert_eq!(result, expected);
+    assert_eq!(result, expected);
 }
 
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
@@ -297,7 +256,7 @@ fn parts() {
     let png_data = space_by_time_machine_first.png_data();
     fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
 
-    // /*cmk*/debug_assert!(len < goal_y as usize * 2, "real /*cmk*/debug_assert 2");
+    // assert!(len < goal_y as usize * 2, "real assert 2");
 }
 
 #[test]
@@ -314,8 +273,7 @@ fn resample_simd() {
         // println!("reference: {reference:?}");
         Spaceline::resample_one(&mut pixels);
         // println!("after: {pixels:?}");
-        /*cmk*/
-        debug_assert_eq!(pixels, reference);
+        assert_eq!(pixels, reference);
     }
 }
 
@@ -330,11 +288,9 @@ fn test_find_stride() {
                 let non_neg_len = x_stride.div_ceil_into(tape_non_neg_len);
                 let len = neg_len + non_neg_len;
                 if tape_len < goal_x {
-                    /*cmk*/
-                    debug_assert!(x_stride == PowerOfTwo::ONE);
+                    assert!(x_stride == PowerOfTwo::ONE);
                 } else {
-                    /*cmk*/
-                    debug_assert!(goal_x <= len && len < goal_x * 2);
+                    assert!(goal_x <= len && len < goal_x * 2);
                 }
             }
         }
@@ -480,8 +436,7 @@ fn one() {
     fs::write(ref_file, &reference_png_data).unwrap();
     let test_file = "tests/expected/one_parts_test.png";
     fs::write(test_file, &png_data).unwrap();
-    /*cmk*/
-    debug_assert!(
+    assert!(
         (png_data == reference_png_data),
         "PNG data does not match for {key}"
     );

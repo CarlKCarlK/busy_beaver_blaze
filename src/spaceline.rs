@@ -268,8 +268,7 @@ impl Spaceline {
     #[inline]
     pub fn compress_x_if_needed(&mut self, new_x_stride: PowerOfTwo) {
         // Sampling & Averaging 2 --
-        /*cmk*/
-        debug_assert!(self.x_stride <= new_x_stride);
+        assert!(self.x_stride <= new_x_stride);
         while self.x_stride < new_x_stride {
             for pixels in [&mut self.nonnegative, &mut self.negative] {
                 // cmk00 pull this out of the inner loop
@@ -285,8 +284,7 @@ impl Spaceline {
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn pixel_range(&self, start: usize, end: usize) -> Vec<Pixel> {
-        /*cmk*/
-        debug_assert!(
+        assert!(
             start <= end,
             "start index {start} must be <= end index {end}"
         );
@@ -300,50 +298,28 @@ impl Spaceline {
     #[allow(clippy::missing_panics_doc)]
     #[inline]
     pub fn merge(&mut self, other: &Self) {
-        /*cmk*/
-        debug_assert!(
+        assert!(
             self.time < other.time,
             "self.time {} should be < other.time {}",
             self.time,
             other.time
         );
-        /*cmk*/
-        debug_assert!(
-            self.x_stride <= other.x_stride,
-            "real /*cmk*/debug_assert 3"
-        );
-        /*cmk*/
-        debug_assert!(
-            self.tape_start() >= other.tape_start(),
-            "real /*cmk*/debug_assert 4"
-        );
+        assert!(self.x_stride <= other.x_stride, "real assert 3");
+        assert!(self.tape_start() >= other.tape_start(), "real assert 4");
         self.compress_x_if_needed(other.x_stride);
-        /*cmk*/
-        debug_assert!(
-            self.x_stride == other.x_stride,
-            "real /*cmk*/debug_assert 5b"
-        );
-        /*cmk*/
-        debug_assert!(
-            self.tape_start() >= other.tape_start(),
-            "real /*cmk*/debug_assert 6c"
-        );
+        assert!(self.x_stride == other.x_stride, "real assert 5b");
+        assert!(self.tape_start() >= other.tape_start(), "real assert 6c");
         while self.tape_start() > other.tape_start() {
             self.negative.push(Pixel::WHITE);
         }
         Pixel::slice_merge(&mut self.negative, &other.negative);
-        /*cmk*/
-        debug_assert!(
-            self.tape_start() == other.tape_start(),
-            "real /*cmk*/debug_assert 6c"
-        );
+        assert!(self.tape_start() == other.tape_start(), "real assert 6c");
         while self.nonnegative.len() < other.nonnegative.len() {
             self.nonnegative.push(Pixel::WHITE);
         }
-        /*cmk*/
-        debug_assert!(
+        assert!(
             self.nonnegative.len() == other.nonnegative.len(),
-            "real /*cmk*/debug_assert 6d"
+            "real assert 6d"
         );
         Pixel::slice_merge(&mut self.nonnegative, &other.nonnegative);
     }

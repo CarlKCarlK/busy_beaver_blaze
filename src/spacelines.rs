@@ -67,8 +67,7 @@ impl Spacelines {
     pub(crate) fn flush_buffer0(&mut self) {
         // We now have a buffer that needs to be flushed at the end
         if !self.buffer0.is_empty() {
-            /*cmk*/
-            debug_assert!(self.buffer0.len() == 1, "real /*cmk*/debug_assert 13");
+            assert!(self.buffer0.len() == 1, "real assert 13");
             self.main.push(self.buffer0.pop().unwrap().0);
         }
     }
@@ -76,10 +75,8 @@ impl Spacelines {
     #[allow(clippy::min_ident_chars)]
     #[inline]
     pub(crate) fn compress_y_average(&mut self) {
-        /*cmk*/
-        debug_assert!(self.buffer0.is_empty(), "real /*cmk*/debug_assert b2");
-        /*cmk*/
-        debug_assert!(is_even(self.main.len()), "real /*cmk*/debug_assert 11");
+        assert!(self.buffer0.is_empty(), "real assert b2");
+        assert!(is_even(self.main.len()), "real assert 11");
         // println!("cmk compress_average");
 
         self.main = self
@@ -87,11 +84,7 @@ impl Spacelines {
             .drain(..)
             .tuples()
             .map(|(mut a, b)| {
-                /*cmk*/
-                debug_assert!(
-                    a.tape_start() >= b.tape_start(),
-                    "real /*cmk*/debug_assert 4a"
-                );
+                assert!(a.tape_start() >= b.tape_start(), "real assert 4a");
                 a.merge(&b);
                 a
             })
@@ -100,10 +93,8 @@ impl Spacelines {
 
     #[inline]
     pub(crate) fn compress_y_take_first(&mut self, new_stride: PowerOfTwo) {
-        /*cmk*/
-        debug_assert!(self.buffer0.is_empty(), "real /*cmk*/debug_assert e2");
-        /*cmk*/
-        debug_assert!(is_even(self.main.len()), "real /*cmk*/debug_assert e11");
+        assert!(self.buffer0.is_empty(), "real assert e2");
+        assert!(is_even(self.main.len()), "real assert e11");
         // println!("cmk compress_take_first");
         self.main
             .retain(|spaceline| new_stride.divides_u64(spaceline.time));
@@ -118,9 +109,8 @@ impl Spacelines {
         match pixel_policy {
             PixelPolicy::Sampling => {
                 let (spaceline, _weight) = self.buffer0.first().unwrap();
-                // cmk remove /*cmk*/debug_assert!(*weight == y_stride || weight.double() == y_stride);
-                /*cmk*/
-                debug_assert!(y_stride.divides_u64(spaceline.time));
+                // cmk remove assert!(*weight == y_stride || weight.double() == y_stride);
+                assert!(y_stride.divides_u64(spaceline.time));
                 spaceline.clone()
             }
             PixelPolicy::Binning => {
@@ -134,8 +124,7 @@ impl Spacelines {
                     if buffer0.is_empty() && weight_last == y_stride {
                         return spaceline_last;
                     }
-                    /*cmk*/
-                    debug_assert!(weight_last < y_stride, "real /*cmk*/debug_assert");
+                    assert!(weight_last < y_stride, "real assert");
                     // Otherwise, we half it's color and double the weight
 
                     spaceline_last.merge_with_white();
@@ -168,8 +157,7 @@ impl Spacelines {
             }
 
             // cmk change back to debug_assert (or not)
-            /*cmk*/
-            debug_assert!(
+            assert!(
                 weight == *last_mut_weight,
                 "Weight equality invariant violation"
             );

@@ -236,7 +236,7 @@ impl SpaceByTimeMachine {
             //     space_by_time_machine.space_by_time.spacelines.len(),
             //     goal_y * 2
             // );
-            // /*cmk*/debug_assert!(
+            // assert!(
             //     space_by_time_machine.space_by_time.spacelines.len() <= goal_y as usize * 2,
             //     "too long",
             // );
@@ -263,7 +263,7 @@ impl SpaceByTimeMachine {
         //     space_by_time_machine.space_by_time.spacelines
         // );
 
-        // /*cmk*/debug_assert!(
+        // assert!(
         //     space_by_time_machine.space_by_time.spacelines.len() <= goal_y as usize * 2,
         //     "too long",
         // );
@@ -303,15 +303,15 @@ impl SpaceByTimeMachine {
         goal_y: u32,
         binning: bool,
     ) -> Vec<Self> {
-        /*cmk*/debug_assert!(early_stop > 0); // panic if early_stop is 0
-        /*cmk*/debug_assert!(part_count_goal > 0); // panic if part_count_goal is 0
+        assert!(early_stop > 0); // panic if early_stop is 0
+        assert!(part_count_goal > 0); // panic if part_count_goal is 0
 
         let mut rows_per_part = early_stop.div_ceil(part_count_goal);
 
         let y_stride = sample_rate(rows_per_part, goal_y);
         rows_per_part += y_stride.offset_to_align(rows_per_part as usize) as u64;
-        // /*cmk*/debug_assert_eq!(y_stride.double(), sample_rate(rows_per_part, goal_y), "+1?");
-        /*cmk*/debug_assert!(y_stride.divides_u64(rows_per_part), "even?");
+        // assert_eq!(y_stride.double(), sample_rate(rows_per_part, goal_y), "+1?");
+        assert!(y_stride.divides_u64(rows_per_part), "even?");
 
         // println!("Part max_rows_per_part: {rows_per_part}");
         let range_list: Vec<_> = (0..early_stop)
@@ -342,7 +342,7 @@ impl SpaceByTimeMachine {
                     .rem_into_u64(space_by_time.step_index() + 1);
                 // This should be 0 on all but the last part
                 if (part_index as u64) < part_count - 1 {
-                    /*cmk*/debug_assert_eq!(inside_index, 0, "real /*cmk*/debug_assert 1");
+                    assert_eq!(inside_index, 0, "real assert 1");
                 }
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
@@ -362,7 +362,7 @@ impl SpaceByTimeMachine {
         let mut results_iter = results.into_iter();
         let mut space_by_time_machine = results_iter.next().unwrap();
         let space_by_time_first = &mut space_by_time_machine.space_by_time;
-        /*cmk*/debug_assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
+        assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
         let y_stride = space_by_time_first.y_stride;
 
         let mut index: usize = 0;
@@ -373,7 +373,7 @@ impl SpaceByTimeMachine {
             let main = spacelines.main;
             let buffer0 = spacelines.buffer0;
             if index < part_count as usize - 1 {
-                /*cmk*/debug_assert!(buffer0.is_empty(), "real /*cmk*/debug_assert 2");
+                assert!(buffer0.is_empty(), "real assert 2");
             }
 
             let (mut previous_y_stride, mut previous_time) = if space_by_time.y_stride == y_stride {
@@ -385,7 +385,7 @@ impl SpaceByTimeMachine {
                     space_by_time_first.spacelines.main.last().unwrap().time,
                 )
             } else {
-                /*cmk*/debug_assert!(
+                assert!(
                     index == part_count as usize - 1,
                     "y_stride can only be less on the last part"
                 );
@@ -409,7 +409,7 @@ impl SpaceByTimeMachine {
 
             for (spaceline, weight) in buffer0 {
                 let time = spaceline.time;
-                /*cmk*/debug_assert!(
+                assert!(
                     time == previous_time + previous_y_stride.as_u64(),
                     "mind the gap"
                 );
@@ -435,7 +435,7 @@ impl SpaceByTimeMachine {
         loop {
             Self::audit_one(space_by_time, None, None, early_stop, binning);
             let len = space_by_time.spacelines.len();
-            /*cmk*/debug_assert!(len > 0, "real /*cmk*/debug_assert 5");
+            assert!(len > 0, "real assert 5");
             if len < goal_y as usize * 2 {
                 break;
             }
@@ -451,9 +451,9 @@ impl SpaceByTimeMachine {
             }
             // println!("Spacelines: {:?}", space_by_time.spacelines);
 
-            /*cmk*/debug_assert!(
+            assert!(
                 is_even(space_by_time.spacelines.main.len()),
-                "real /*cmk*/debug_assert 6"
+                "real assert 6"
             );
 
             Self::audit_one(space_by_time, None, None, early_stop, binning);
@@ -464,14 +464,14 @@ impl SpaceByTimeMachine {
                 .tuples()
                 .map(|(mut first, second)| {
                     // println!("tuple a: {:?} b: {:?}", first.time, second.time);
-                    /*cmk*/debug_assert!(first.tape_start() >= second.tape_start(), "real /*cmk*/debug_assert 4a");
+                    assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
 
                     if binning {
                         // cmk00 remove from loop?
                         first.merge(&second);
-                     } else {
-                         /* do nothing */
-                     }
+                    } else {
+                        /* do nothing */
+                    }
                     first
                 })
                 .collect();
@@ -491,14 +491,14 @@ impl SpaceByTimeMachine {
     }
 
     fn audit_results(results: &[Self], part_count: u64, early_stop: u64, binning: bool) {
-        /*cmk*/debug_assert_eq!(results.len() as u64, part_count);
+        assert_eq!(results.len() as u64, part_count);
         let mut previous_y_stride = None;
         let mut previous_time = None;
         for (part_index, space_by_time_machine) in results.iter().enumerate() {
             let space_by_time = &space_by_time_machine.space_by_time;
             let y_stride = space_by_time.y_stride;
             if part_index > 0 && part_index < part_count as usize - 1 {
-                /*cmk*/debug_assert_eq!(
+                assert_eq!(
                     y_stride,
                     previous_y_stride.unwrap(),
                     "from part to part, the stride should be the same"
@@ -509,7 +509,7 @@ impl SpaceByTimeMachine {
             let main = &spacelines.main;
             for spaceline in main {
                 if let Some(previous_time) = previous_time {
-                    /*cmk*/debug_assert!(
+                    assert!(
                         spaceline.time == previous_time + y_stride.as_u64(),
                         "mind the gap"
                     );
@@ -517,18 +517,18 @@ impl SpaceByTimeMachine {
                 previous_time = Some(spaceline.time);
             }
             if part_index < part_count as usize - 1 {
-                /*cmk*/debug_assert!(
+                assert!(
                     spacelines.buffer0.is_empty(),
                     "only the last part can have a buffer"
                 );
             } else {
                 for (spaceline, weight) in &spacelines.buffer0 {
-                    /*cmk*/debug_assert!(
+                    assert!(
                         spaceline.time
                             == previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
                         "mind the gap"
                     );
-                    /*cmk*/debug_assert!(
+                    assert!(
                         *weight <= previous_y_stride.unwrap(),
                         "should be <= previous_y_stride"
                     );
@@ -538,12 +538,12 @@ impl SpaceByTimeMachine {
             }
         }
         if binning {
-            /*cmk*/debug_assert!(
+            assert!(
                 previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == early_stop,
                 "mind the gap with early_stop"
             );
         } else {
-            /*cmk*/debug_assert!(
+            assert!(
                 previous_time.unwrap() < early_stop
                     && early_stop <= previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
                 "mind the gap with early_stop"
@@ -580,7 +580,7 @@ impl SpaceByTimeMachine {
     ) {
         let y_stride = space_by_time.y_stride;
         if let Some(previous_y_stride) = previous_y_stride {
-            /*cmk*/debug_assert_eq!(
+            assert_eq!(
                 y_stride, previous_y_stride,
                 "from part to part, the stride should be the same"
             );
@@ -589,22 +589,22 @@ impl SpaceByTimeMachine {
         let main = &spacelines.main;
         for spaceline in main {
             if let Some(previous_time) = previous_time {
-                /*cmk*/debug_assert!(
+                assert!(
                     spaceline.time == previous_time + y_stride.as_u64(),
                     "mind the gap"
                 );
             } else {
-                /*cmk*/debug_assert_eq!(spaceline.time, 0, "first spaceline should be 0");
+                assert_eq!(spaceline.time, 0, "first spaceline should be 0");
             }
             previous_time = Some(spaceline.time);
             previous_y_stride = Some(y_stride);
         }
         for (spaceline, weight) in &spacelines.buffer0 {
-            /*cmk*/debug_assert!(
+            assert!(
                 spaceline.time == previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
                 "mind the gap"
             );
-            /*cmk*/debug_assert!(
+            assert!(
                 *weight <= previous_y_stride.unwrap(),
                 "should be <= previous_y_stride"
             );
@@ -613,12 +613,12 @@ impl SpaceByTimeMachine {
         }
         if binning {
             // cmk why called stop here, but early_stop elsewhere
-            /*cmk*/debug_assert!(
+            assert!(
                 previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == stop,
                 "mind the gap with early_stop"
             );
         } else {
-            /*cmk*/debug_assert!(
+            assert!(
                 previous_time.unwrap() < stop
                     && stop <= previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
                 "mind the gap with early_stop"
@@ -643,11 +643,11 @@ impl SpaceByTimeMachine {
         let buffer0 = &mut space_by_time.spacelines.buffer0;
         let mut old_weight = None;
         for (spaceline, weight) in buffer_old {
-            /*cmk*/debug_assert!(
+            assert!(
                 old_weight.is_none() || old_weight.unwrap() >= weight,
                 "should be monotonic"
             );
-            /*cmk*/debug_assert!(weight <= space_by_time.y_stride, "should be <= y_stride");
+            assert!(weight <= space_by_time.y_stride, "should be <= y_stride");
             if weight == space_by_time.y_stride {
                 // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
                 space_by_time.spacelines.main.push(spaceline);

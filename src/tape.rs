@@ -50,7 +50,7 @@ impl Tape {
             // We are exactly one index beyond the current length
             vec.push(value);
         } else {
-            // /*cmk*/debug_assert that we're never more than one index beyond
+            // assert that we're never more than one index beyond
             debug_assert!(
                 index < vec.len(),
                 "Index is more than one beyond current length!"

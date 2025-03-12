@@ -93,8 +93,7 @@ impl Pixel {
     #[inline]
     pub(crate) fn slice_merge_bytes(left_bytes: &mut [u8], right_bytes: &[u8]) {
         // cmk debug_assert
-        /*cmk*/
-        debug_assert!(
+        assert!(
             Self::simd_precondition::<u8, LANES_CMK>(left_bytes, right_bytes),
             "SIMD precondition failed"
         );
@@ -142,8 +141,7 @@ impl Pixel {
             *left_chunk >>= Self::SPLAT_1;
         }
 
-        /*cmk*/
-        debug_assert!(left_prefix.is_empty());
+        assert!(left_prefix.is_empty());
 
         // Process remaining elements in suffix
         for left_byte in left_suffix.iter_mut() {

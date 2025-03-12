@@ -23,14 +23,10 @@ fn bb5_champ() -> Result<(), Error> {
         machine.count_ones()
     );
 
-    /*cmk*/
-    debug_assert_eq!(step_count, 47_176_870);
-    /*cmk*/
-    debug_assert_eq!(machine.count_ones(), 4098);
-    /*cmk*/
-    debug_assert_eq!(machine.state(), 7);
-    /*cmk*/
-    debug_assert_eq!(machine.tape_index(), -12242);
+    assert_eq!(step_count, 47_176_870);
+    assert_eq!(machine.count_ones(), 4098);
+    assert_eq!(machine.state(), 7);
+    assert_eq!(machine.tape_index(), -12242);
 
     Ok(())
 }
@@ -51,14 +47,10 @@ fn bb5_champ_js() -> Result<(), String> {
         machine.count_ones()
     );
 
-    /*cmk*/
-    debug_assert_eq!(step_count, 47_176_870);
-    /*cmk*/
-    debug_assert_eq!(machine.count_ones(), 4098);
-    /*cmk*/
-    debug_assert_eq!(machine.state(), 7);
-    /*cmk*/
-    debug_assert_eq!(machine.tape_index(), -12242);
+    assert_eq!(step_count, 47_176_870);
+    assert_eq!(machine.count_ones(), 4098);
+    assert_eq!(machine.state(), 7);
+    assert_eq!(machine.tape_index(), -12242);
 
     Ok(())
 }
@@ -93,14 +85,10 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
     let png_data = space_by_time_machine.png_data();
     fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
 
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.count_ones(), 4098);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.state(), 7);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.tape_index(), -12242);
+    assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
+    assert_eq!(space_by_time_machine.count_ones(), 4098);
+    assert_eq!(space_by_time_machine.state(), 7);
+    assert_eq!(space_by_time_machine.tape_index(), -12242);
 
     Ok(())
 }
@@ -136,14 +124,10 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
     fs::write("tests/expected/test2_js.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.count_ones(), 4098);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.state(), 7);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.tape_index(), -12242);
+    assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
+    assert_eq!(space_by_time_machine.count_ones(), 4098);
+    assert_eq!(space_by_time_machine.state(), 7);
+    assert_eq!(space_by_time_machine.tape_index(), -12242);
 
     Ok(())
 }
@@ -170,8 +154,7 @@ fn bb5_champ_time() {
         step_count.separate_with_commas(),
         duration
     );
-    /*cmk*/
-    debug_assert_eq!(step_count, 47_176_870);
+    assert_eq!(step_count, 47_176_870);
 }
 
 #[test]
@@ -196,14 +179,10 @@ fn benchmark1() -> Result<(), String> {
         space_by_time_machine.count_ones()
     );
 
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.step_index(), n);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.count_ones(), 10669);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.state(), 1);
-    /*cmk*/
-    debug_assert_eq!(space_by_time_machine.tape_index(), 34054);
+    assert_eq!(space_by_time_machine.step_index(), n);
+    assert_eq!(space_by_time_machine.count_ones(), 10669);
+    assert_eq!(space_by_time_machine.state(), 1);
+    assert_eq!(space_by_time_machine.tape_index(), 34054);
 
     // cmk LATER what is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
