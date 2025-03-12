@@ -273,9 +273,7 @@ impl SpaceByTime {
             spaceline.compress_x_if_needed(x_stride);
         }
 
-        let last = self
-            .spacelines
-            .last(self.step_index, self.y_stride, self.pixel_policy);
+        let last = self.spacelines.last(self.y_stride, self.pixel_policy);
 
         // println!("last spaceline {last:?}");
 

@@ -100,50 +100,47 @@ impl Spacelines {
             .retain(|spaceline| new_stride.divides_u64(spaceline.time));
     }
 
-    pub(crate) fn last(
-        &self,
-        step_index: u64,
-        y_stride: PowerOfTwo,
-        pixel_policy: PixelPolicy,
-    ) -> Spaceline {
+    pub(crate) fn last(&self, y_stride: PowerOfTwo, pixel_policy: PixelPolicy) -> Spaceline {
         if self.buffer0.is_empty() {
             // cmk would be nice to remove this clone
             return self.main.last().unwrap().clone();
         }
 
-        if pixel_policy == PixelPolicy::Sampling {
-            let (spaceline, weight) = self.buffer0.first().unwrap();
-            // cmk remove assert!(*weight == y_stride || weight.double() == y_stride);
-            assert!(y_stride.divides_u64(spaceline.time));
-            let clone = spaceline.clone();
-            return clone;
-        }
-
-        // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
-        let mut buffer0 = self.buffer0.clone();
-
-        // cmk we have to clone because we compress in place (clone only half???)
-        loop {
-            let (mut spaceline_last, weight_last) = buffer0.pop().unwrap(); // can't fail
-            // If we have just one item and it has the same weight as main, we're done.
-            if buffer0.is_empty() && weight_last == y_stride {
-                return spaceline_last;
+        match pixel_policy {
+            PixelPolicy::Sampling => {
+                let (spaceline, _weight) = self.buffer0.first().unwrap();
+                // cmk remove assert!(*weight == y_stride || weight.double() == y_stride);
+                assert!(y_stride.divides_u64(spaceline.time));
+                spaceline.clone()
             }
-            assert!(weight_last < y_stride, "real assert");
-            // Otherwise, we half it's color and double the weight
-            match pixel_policy {
-                PixelPolicy::Sampling => {
-                    todo!("cmk00000000")
-                } // cmk000000 this is wrong. Should use empty line unless the sampling line divides evenginly
-                PixelPolicy::Binning => spaceline_last.merge_with_white(),
-            }
+            PixelPolicy::Binning => {
+                // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
+                let mut buffer0 = self.buffer0.clone();
 
-            Self::push_internal(
-                &mut buffer0,
-                spaceline_last,
-                weight_last.double(),
-                pixel_policy,
-            );
+                // cmk we have to clone because we compress in place (clone only half???)
+                loop {
+                    let (mut spaceline_last, weight_last) = buffer0.pop().unwrap(); // can't fail
+                    // If we have just one item and it has the same weight as main, we're done.
+                    if buffer0.is_empty() && weight_last == y_stride {
+                        return spaceline_last;
+                    }
+                    assert!(weight_last < y_stride, "real assert");
+                    // Otherwise, we half it's color and double the weight
+                    match pixel_policy {
+                        PixelPolicy::Sampling => {
+                            todo!("cmk00000000")
+                        } // cmk000000 this is wrong. Should use empty line unless the sampling line divides evenginly
+                        PixelPolicy::Binning => spaceline_last.merge_with_white(),
+                    }
+
+                    Self::push_internal(
+                        &mut buffer0,
+                        spaceline_last,
+                        weight_last.double(),
+                        pixel_policy,
+                    );
+                }
+            }
         }
     }
 
