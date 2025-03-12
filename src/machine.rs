@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 pub struct Machine {
     state: u8,
     tape_index: i64,
-    tape: Tape,
+    pub(crate) tape: Tape, // cmk make private
     program: Program,
 }
 

@@ -154,7 +154,7 @@ fn resample(criterion: &mut Criterion) {
     group.bench_function("simd", |bencher| {
         bencher.iter_with_setup(
             || pixels.clone(),
-            |mut pixels_clone| Spaceline::resample_simd_binning(black_box(&mut pixels_clone)),
+            |mut pixels_clone| Spaceline::compress_x_simd_binning(black_box(&mut pixels_clone)),
         );
     });
 

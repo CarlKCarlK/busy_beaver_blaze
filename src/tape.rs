@@ -5,15 +5,17 @@ use core::ops::RangeInclusive;
 
 #[derive(Debug)]
 pub struct Tape {
-    pub(crate) nonnegative: AVec<BoolU8>,
     pub(crate) negative: AVec<BoolU8>,
+    pub(crate) nonnegative: AVec<BoolU8>,
 }
 
 impl Default for Tape {
     fn default() -> Self {
+        let mut nonnegative = AVec::new(ALIGN);
+        nonnegative.push(BoolU8::FALSE);
         Self {
-            nonnegative: AVec::new(ALIGN),
             negative: AVec::new(ALIGN),
+            nonnegative,
         }
     }
 }

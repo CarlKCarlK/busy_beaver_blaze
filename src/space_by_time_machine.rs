@@ -144,7 +144,12 @@ impl SpaceByTimeMachine {
     #[must_use]
     pub fn png_data(&mut self) -> Vec<u8> {
         self.space_by_time
-            .to_png(self.space_by_time.y_goal)
+            .to_png(
+                self.machine.tape.negative.len(),
+                self.machine.tape.nonnegative.len(),
+                self.space_by_time.x_goal as usize,
+                self.space_by_time.y_goal as usize,
+            )
             .unwrap_or_else(|e| format!("{e:?}").into_bytes())
     }
 
@@ -181,7 +186,12 @@ impl SpaceByTimeMachine {
     #[must_use]
     pub fn png_data_and_packed_data(&mut self) -> (Vec<u8>, u32, u32, Vec<u8>) {
         self.space_by_time
-            .to_png_and_packed_data(self.space_by_time.y_goal)
+            .to_png_and_packed_data(
+                self.machine.tape.negative.len(),
+                self.machine.tape.nonnegative.len(),
+                self.space_by_time.x_goal as usize,
+                self.space_by_time.y_goal as usize,
+            )
             .unwrap()
     }
 
@@ -218,7 +228,7 @@ impl SpaceByTimeMachine {
         // );
 
         loop {
-            space_by_time_machine.compress_if_needed(goal_y, early_stop, binning);
+            space_by_time_machine.compress_cmk3_y_if_needed(goal_y, early_stop, binning);
             // let mut space_by_time_machine = space_by_time_machine.double_audit(early_stop, binning);
             // println!(
             //     "a. spacelines.len {} <= goal_y * 2 {}",
@@ -336,7 +346,7 @@ impl SpaceByTimeMachine {
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                     space_by_time.spacelines.flush_buffer0();
-                    space_by_time.compress_if_needed();
+                    space_by_time.compress_cmk1_y_if_needed();
                 }
 
                 space_by_time_machine
@@ -355,9 +365,9 @@ impl SpaceByTimeMachine {
         let y_stride = space_by_time_first.y_stride;
 
         let mut index: usize = 0;
-        for space_by_time_machine in results_iter {
+        for space_by_time_machine_other in results_iter {
             index += 1;
-            let space_by_time = space_by_time_machine.space_by_time;
+            let space_by_time = space_by_time_machine_other.space_by_time;
             let spacelines = space_by_time.spacelines;
             let main = spacelines.main;
             let buffer0 = spacelines.buffer0;
@@ -409,12 +419,14 @@ impl SpaceByTimeMachine {
                     .buffer0
                     .push((spaceline, weight));
             }
+
+            space_by_time_machine.machine = space_by_time_machine_other.machine;
         }
 
         space_by_time_machine
     }
 
-    fn compress_if_needed(&mut self, goal_y: u32, early_stop: u64, binning: bool) {
+    fn compress_cmk3_y_if_needed(&mut self, goal_y: u32, early_stop: u64, binning: bool) {
         let space_by_time = &mut self.space_by_time;
         Self::audit_one(space_by_time, None, None, early_stop, binning);
 

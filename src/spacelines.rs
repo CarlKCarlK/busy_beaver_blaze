@@ -74,7 +74,7 @@ impl Spacelines {
 
     #[allow(clippy::min_ident_chars)]
     #[inline]
-    pub(crate) fn compress_average(&mut self) {
+    pub(crate) fn compress_y_average(&mut self) {
         assert!(self.buffer0.is_empty(), "real assert b2");
         assert!(is_even(self.main.len()), "real assert 11");
         // println!("cmk compress_average");
@@ -92,7 +92,7 @@ impl Spacelines {
     }
 
     #[inline]
-    pub(crate) fn compress_take_first(&mut self, new_stride: PowerOfTwo) {
+    pub(crate) fn compress_y_take_first(&mut self, new_stride: PowerOfTwo) {
         assert!(self.buffer0.is_empty(), "real assert e2");
         assert!(is_even(self.main.len()), "real assert e11");
         // println!("cmk compress_take_first");

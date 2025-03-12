@@ -484,3 +484,27 @@ pub const fn prev_power_of_two(x: usize) -> usize {
     debug_assert!(x > 0, "x must be greater than 0");
     1usize << (usize::BITS as usize - x.leading_zeros() as usize - 1)
 }
+
+fn find_stride(tape_neg_len: usize, tape_non_neg_len: usize, goal: usize) -> PowerOfTwo {
+    assert!(goal >= 2, "Goal must be at least 2");
+    let tape_len = tape_neg_len + tape_non_neg_len;
+    // If the total length is less than the goal, use no downsampling.
+    if tape_len < goal {
+        return PowerOfTwo::ONE;
+    }
+    for exp in 0u8..63 {
+        let stride = PowerOfTwo::from_exp(exp);
+        // Compute ceiling division for each tape.
+        let neg_len = stride.div_ceil_into(tape_neg_len);
+        let non_neg_len = stride.div_ceil_into(tape_non_neg_len);
+        let len = neg_len + non_neg_len;
+        // We want combined to be in [goal_x, 2*goal_x).
+        if goal <= len && len < 2 * goal {
+            return stride;
+        }
+    }
+    panic!(
+        "Stride not found. This should never happen. \
+        Please report this as a bug.",
+    )
+}

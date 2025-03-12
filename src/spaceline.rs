@@ -4,7 +4,7 @@ use crate::pixel::Pixel;
 use crate::tape::Tape;
 use crate::{
     ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, average_with_iterators,
-    average_with_simd, is_even, sample_rate, sample_with_iterators,
+    average_with_simd, find_stride, is_even, sample_rate, sample_with_iterators,
 };
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;
@@ -87,27 +87,27 @@ impl Spaceline {
         }
     }
 
-    #[inline]
-    #[must_use]
-    pub fn new2(
-        stride: PowerOfTwo,
-        start: i64, // cmk0000000000 rename negative_tape_len
-        pixels: AVec<Pixel>,
-        time: u64,
-        pixel_policy: PixelPolicy,
-    ) -> Self {
-        let mut result = Self {
-            x_stride: stride,
-            negative: AVec::new(ALIGN),
-            nonnegative: pixels,
-            time,
-            pixel_policy,
-        };
-        while result.tape_start() > start {
-            result.negative.insert(0, result.nonnegative.remove(0));
-        }
-        result
-    }
+    // #[inline]
+    // #[must_use]
+    // pub fn new2(
+    //     stride: PowerOfTwo,
+    //     start: i64, // cmk0000000000 rename negative_tape_len
+    //     pixels: AVec<Pixel>,
+    //     time: u64,
+    //     pixel_policy: PixelPolicy,
+    // ) -> Self {
+    //     let mut result = Self {
+    //         x_stride: stride,
+    //         negative: AVec::new(ALIGN),
+    //         nonnegative: pixels,
+    //         time,
+    //         pixel_policy,
+    //     };
+    //     while result.tape_start() > start {
+    //         result.negative.insert(0, result.nonnegative.remove(0));
+    //     }
+    //     result
+    // }
 
     #[inline]
     pub fn pixel_index_mut(&mut self, index: usize) -> &mut Pixel {
@@ -150,7 +150,7 @@ impl Spaceline {
     }
 
     #[allow(clippy::cast_ptr_alignment, clippy::integer_division_remainder_used)]
-    pub fn resample_simd_binning(pixels: &mut AVec<Pixel>) {
+    pub fn compress_x_simd_binning(pixels: &mut AVec<Pixel>) {
         // Local constant for the static swizzle indices.
         const SWIZZLE_INDICES: [usize; 64] = [
             0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44,
@@ -228,7 +228,7 @@ impl Spaceline {
     }
 
     #[allow(clippy::cast_ptr_alignment, clippy::integer_division_remainder_used)]
-    pub fn resample_simd_sampling(pixels: &mut AVec<Pixel>) {
+    pub fn compress_x_simd_sampling(pixels: &mut AVec<Pixel>) {
         // Local constant for the static swizzle indices.
         const SWIZZLE_INDICES: [usize; 64] = [
             0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44,
@@ -289,15 +289,15 @@ impl Spaceline {
 
     #[allow(clippy::missing_panics_doc)]
     #[inline]
-    pub fn resample_if_needed(&mut self, new_x_stride: PowerOfTwo) {
+    pub fn compress_x_if_needed(&mut self, new_x_stride: PowerOfTwo) {
         // Sampling & Averaging 2 --
         assert!(self.x_stride <= new_x_stride);
         while self.x_stride < new_x_stride {
             for pixels in [&mut self.nonnegative, &mut self.negative] {
                 // cmk000 pull this out of the inner loop
                 match self.pixel_policy {
-                    PixelPolicy::Binning => Self::resample_simd_binning(pixels),
-                    PixelPolicy::Sampling => Self::resample_simd_sampling(pixels),
+                    PixelPolicy::Binning => Self::compress_x_simd_binning(pixels),
+                    PixelPolicy::Sampling => Self::compress_x_simd_sampling(pixels),
                 }
             }
             self.x_stride = self.x_stride.double();
@@ -344,7 +344,7 @@ impl Spaceline {
         );
         assert!(self.x_stride <= other.x_stride, "real assert 3");
         assert!(self.tape_start() >= other.tape_start(), "real assert 4");
-        self.resample_if_needed(other.x_stride);
+        self.compress_x_if_needed(other.x_stride);
         assert!(self.x_stride == other.x_stride, "real assert 5b");
         assert!(self.tape_start() >= other.tape_start(), "real assert 6c");
         while self.tape_start() > other.tape_start() {
@@ -372,8 +372,7 @@ impl Spaceline {
     #[inline]
     #[must_use]
     pub fn new(tape: &Tape, x_goal: u32, step_index: u64, pixel_policy: PixelPolicy) -> Self {
-        let x_stride = sample_rate(tape.negative.len() as u64, x_goal)
-            .max(sample_rate(tape.nonnegative.len() as u64, x_goal));
+        let x_stride = find_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
         // if step_index % 10_000_000 == 0 {
         //     println!(
         //         "cmk Spaceline::new step_index {}, tape width {:?} ({}..={}), x_stride {:?}, x_goal {:?}",

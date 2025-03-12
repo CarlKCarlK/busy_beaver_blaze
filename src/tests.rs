@@ -1,7 +1,7 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, Machine, PixelPolicy, PowerOfTwo, SpaceByTime,
     SpaceByTimeMachine, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
-    average_with_simd_push, bool_u8::BoolU8, pixel::Pixel, spaceline::Spaceline,
+    average_with_simd_push, bool_u8::BoolU8, find_stride, pixel::Pixel, spaceline::Spaceline,
     spacelines::Spacelines,
 };
 use aligned_vec::AVec;
@@ -46,7 +46,12 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
         // let _ = sample_space_by_time.to_png();
     }
 
-    let png_data = sample_space_by_time.to_png(goal_y)?;
+    let png_data = sample_space_by_time.to_png(
+        machine.tape.negative.len(),
+        machine.tape.nonnegative.len(),
+        goal_x as usize,
+        goal_y as usize,
+    )?;
     fs::write("tests/expected/test.png", &png_data).unwrap(); // cmk handle error
 
     println!(
@@ -273,6 +278,26 @@ fn resample_simd() {
     }
 }
 
+#[test]
+fn test_find_stride() {
+    for tape_neg_len in [0usize, 1, 2, 3, 4, 5, 10, 101, 9999, 1_000_007] {
+        for tape_non_neg_len in [1usize, 2, 3, 4, 5, 10, 101, 9999, 1_000_007] {
+            let tape_len = tape_neg_len + tape_non_neg_len;
+            for goal_x in [2, 3, 4, 5, 6, 7, 10, 100, 1000, 33_333] {
+                let x_stride = find_stride(tape_neg_len, tape_non_neg_len, goal_x);
+                let neg_len = x_stride.div_ceil_into(tape_neg_len);
+                let non_neg_len = x_stride.div_ceil_into(tape_non_neg_len);
+                let len = neg_len + non_neg_len;
+                if tape_len < goal_x {
+                    assert!(x_stride == PowerOfTwo::ONE);
+                } else {
+                    assert!(goal_x <= len && len < goal_x * 2);
+                }
+            }
+        }
+    }
+}
+
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn combo_parts() {
@@ -280,17 +305,7 @@ fn combo_parts() {
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
 
-    let exception_set = HashSet::from([
-        "ignore",
-        // "early_stop: 7, goal_x: 2, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 1",
-        // "early_stop: 7, goal_x: 2, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 2",
-        // "early_stop: 7, goal_x: 2, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 5",
-        // "early_stop: 7, goal_x: 2, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 16",
-        // "early_stop: 7, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 1",
-        // "early_stop: 7, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 2",
-        // "early_stop: 7, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 5",
-        // "early_stop: 7, goal_x: 30, goal_y: 2, program_name: BB6_CONTENDER, binning: false, part_count: 16",
-    ]);
+    let exception_set = HashSet::from(["ignore"]);
 
     for early_stop in [2, 5u64, 6, 7, 300u64, 1_000_000u64] {
         for goal_x in [2, 30, 360] {
@@ -344,26 +359,6 @@ fn combo_parts() {
                             ok = ok && ref_val.abs_diff(*val) <= max_diff;
                         }
 
-                        if !ok && ref_y == y && ref_x == x + 1 {
-                            'outer: {
-                                for y_index in 0..y {
-                                    if reference_packed_data[(y_index * ref_x) as usize] != 0 {
-                                        break 'outer;
-                                    }
-                                    for x_index in 0..x {
-                                        if reference_packed_data
-                                            [(y_index * ref_x + x_index + 1) as usize]
-                                            != packed_data[(y_index * x + x_index) as usize]
-                                        {
-                                            break 'outer;
-                                        }
-                                    }
-                                }
-                                // If we get here without breaking, everything matched
-                                ok = true;
-                            }
-                        }
-
                         if !ok {
                             if exception_set.contains(key.as_str()) {
                                 println!("Skip: PNG data does not match for \"{key}\"");
@@ -392,12 +387,12 @@ fn one_parts() {
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
 
-    let early_stop = 1_000_000;
-    let goal_x = 30;
+    let early_stop = 5;
+    let goal_x = 2;
     let goal_y = 2;
     let program_name = "BB5_CHAMP";
     let binning = false;
-    let part_count = 16;
+    let part_count = 2;
 
     let program_string = program_name_to_string[program_name];
 

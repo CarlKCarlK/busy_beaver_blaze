@@ -1,5 +1,5 @@
 use crate::{
-    Error, Machine, Pixel, PixelPolicy, Tape, encode_png,
+    Error, Machine, Pixel, PixelPolicy, Tape, encode_png, find_stride,
     power_of_two::PowerOfTwo,
     sample_rate,
     spaceline::{self, Spaceline},
@@ -8,8 +8,8 @@ use crate::{
 
 pub struct SpaceByTime {
     skip: u64,
-    pub(crate) step_index: u64, // cmk make private
-    x_goal: u32,
+    pub(crate) step_index: u64,           // cmk make private
+    pub(crate) x_goal: u32,               // cmk make private
     pub(crate) y_goal: u32,               // cmk make private
     pub(crate) y_stride: PowerOfTwo,      // cmk make private
     pub(crate) spacelines: Spacelines,    // cmk0 consider making this private
@@ -64,7 +64,7 @@ impl SpaceByTime {
         self.step_index
     }
 
-    pub(crate) fn compress_if_needed(&mut self) {
+    pub(crate) fn compress_cmk1_y_if_needed(&mut self) {
         // cmk make private
         // Sampling & Averaging 1--
         // We sometimes need to squeeze rows by averaging adjacent pairs of rows.
@@ -78,8 +78,8 @@ impl SpaceByTime {
             );
             self.y_stride = new_sample;
             match self.pixel_policy {
-                PixelPolicy::Binning => self.spacelines.compress_average(),
-                PixelPolicy::Sampling => self.spacelines.compress_take_first(new_sample),
+                PixelPolicy::Binning => self.spacelines.compress_y_average(),
+                PixelPolicy::Sampling => self.spacelines.compress_y_take_first(new_sample),
             }
         }
     }
@@ -102,7 +102,7 @@ impl SpaceByTime {
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                     self.spacelines.flush_buffer0();
-                    self.compress_if_needed();
+                    self.compress_cmk1_y_if_needed();
                 }
                 let spaceline = if let Some(mut previous) = self.previous_space_line.take() {
                     // cmk messy code
@@ -140,7 +140,7 @@ impl SpaceByTime {
                 }
                 // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                 self.spacelines.flush_buffer0();
-                self.compress_if_needed();
+                self.compress_cmk1_y_if_needed();
                 self.spacelines.push(
                     Spaceline::new(
                         machine.tape(),
@@ -162,7 +162,7 @@ impl SpaceByTime {
         if inside_index == 0 {
             // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
             self.spacelines.flush_buffer0();
-            self.compress_if_needed();
+            self.compress_cmk1_y_if_needed();
         }
 
         if self.pixel_policy == PixelPolicy::Sampling && inside_index != 0 {
@@ -219,8 +219,15 @@ impl SpaceByTime {
         }
     }
 
-    pub fn to_png(&mut self, y_goal: u32) -> Result<Vec<u8>, Error> {
-        let (png, _x, _y, _packed_data) = self.to_png_and_packed_data(y_goal)?;
+    pub fn to_png(
+        &mut self,
+        tape_negative_len: usize,
+        tape_nonnegative_len: usize,
+        x_goal: usize,
+        y_goal: usize,
+    ) -> Result<Vec<u8>, Error> {
+        let (png, _x, _y, _packed_data) =
+            self.to_png_and_packed_data(tape_negative_len, tape_nonnegative_len, x_goal, y_goal)?;
         Ok(png)
     }
 
@@ -232,47 +239,52 @@ impl SpaceByTime {
     )]
     pub fn to_png_and_packed_data(
         &mut self,
-        y_goal: u32,
+        tape_negative_len: usize,
+        tape_nonnegative_len: usize,
+        x_goal: usize,
+        y_goal: usize,
     ) -> Result<(Vec<u8>, u32, u32, Vec<u8>), Error> {
+        assert!(tape_nonnegative_len > 0);
+        assert!(x_goal >= 2);
         println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
 
+        let x_stride = find_stride(tape_negative_len, tape_nonnegative_len, x_goal);
+        let x_zero = x_stride.div_ceil_into(tape_negative_len);
+        let x_actual = x_zero + x_stride.div_ceil_into(tape_nonnegative_len);
+
+        let y_actual = self.spacelines.len();
+
+        let mut packed_data = vec![0u8; x_actual * y_actual];
+        println!(
+            "tape_nonnegative_len {tape_nonnegative_len}, packed_data ({x_actual},{y_actual}) {packed_data:?} x_zero {x_zero} x_stride {x_stride:?}"
+        );
+
         // cmk000 move this into a function
-        // Change all rows to have the same x_stride as the last row
-        let x_stride = if self.spacelines.buffer0.is_empty() {
-            self.spacelines.main.last().unwrap().x_stride
-        } else {
-            let x_stride = self.spacelines.buffer0.last().unwrap().0.x_stride;
-            for (spaceline, _weight) in &mut self.spacelines.buffer0 {
-                if spaceline.x_stride == x_stride {
-                    break;
-                }
-                spaceline.resample_if_needed(x_stride);
+        for (spaceline, _weight) in &mut self.spacelines.buffer0 {
+            if spaceline.x_stride == x_stride {
+                break;
             }
-            x_stride
-        };
+            spaceline.compress_x_if_needed(x_stride);
+        }
         for spaceline in &mut self.spacelines.main {
             if spaceline.x_stride == x_stride {
                 break;
             }
-            spaceline.resample_if_needed(x_stride);
+            spaceline.compress_x_if_needed(x_stride);
         }
 
+        // cmk000000000
         let last = self
             .spacelines
             .last(self.step_index, self.y_stride, self.pixel_policy);
+
         println!("last spaceline {last:?}");
 
-        let x_actual: u32 = (last.nonnegative.len() + last.negative.len()) as u32;
-        let y_actual: u32 = self.spacelines.len() as u32;
-        let x_zero = last.negative.len();
-
-        let mut packed_data = vec![0u8; x_actual as usize * y_actual as usize];
-
         for y in 0..y_actual {
-            let spaceline = self.spacelines.get(y as usize, &last);
+            let spaceline = self.spacelines.get(y, &last);
             assert!(x_stride == spaceline.x_stride);
 
-            let row_start_byte_index_plus_zero: usize = (y * x_actual) as usize + x_zero;
+            let row_start_byte_index_plus_zero = y * x_actual + x_zero;
             for (index, pixel) in spaceline.negative.iter().enumerate() {
                 let pixel_u8 = u8::from(pixel);
                 if pixel_u8 != 0 {
@@ -291,72 +303,76 @@ impl SpaceByTime {
 
         println!("packed_data ({x_actual},{y_actual}) {packed_data:?}");
         assert!(y_actual <= 2 * y_goal);
-        let (mut packed_data, y_actual) =
-            self.compress_y_if_needed(packed_data, y_goal, x_actual, y_actual);
-        let (x_actual, y_actual) =
-            Self::trim_columns(&mut packed_data, x_actual as usize, y_actual as usize);
+        let (packed_data, y_actual) = self.compress_cmk4_y_if_needed(
+            packed_data,
+            y_goal as u32,
+            x_actual as u32,
+            y_actual as u32,
+        );
+        // let (x_actual, y_actual) =
+        //     Self::trim_columns(&mut packed_data, x_actual as usize, y_actual as usize);
 
-        let png = encode_png(x_actual as u32, y_actual as u32, &packed_data)?;
+        let png = encode_png(x_actual as u32, y_actual, &packed_data)?;
 
-        Ok((png, x_actual as u32, y_actual as u32, packed_data))
+        Ok((png, x_actual as u32, y_actual, packed_data))
     }
 
-    fn trim_columns(matrix: &mut Vec<u8>, xs: usize, ys: usize) -> (usize, usize) {
-        assert!(!matrix.is_empty());
-        assert_eq!(xs * ys, matrix.len());
+    // fn trim_columns(matrix: &mut Vec<u8>, xs: usize, ys: usize) -> (usize, usize) {
+    //     assert!(!matrix.is_empty());
+    //     assert_eq!(xs * ys, matrix.len());
 
-        let mut first_nonzero_col = None;
-        let mut last_nonzero_col = None;
+    //     let mut first_nonzero_col = None;
+    //     let mut last_nonzero_col = None;
 
-        // Find the first non-zero column.
-        'outer_first: for x in 0..xs {
-            for y in 0..ys {
-                if matrix[y * xs + x] != 0 {
-                    first_nonzero_col = Some(x);
-                    break 'outer_first;
-                }
-            }
-        }
+    //     // Find the first non-zero column.
+    //     'outer_first: for x in 0..xs {
+    //         for y in 0..ys {
+    //             if matrix[y * xs + x] != 0 {
+    //                 first_nonzero_col = Some(x);
+    //                 break 'outer_first;
+    //             }
+    //         }
+    //     }
 
-        // Find the last non-zero column.
-        'outer_last: for x in (0..xs).rev() {
-            for y in 0..ys {
-                if matrix[y * xs + x] != 0 {
-                    last_nonzero_col = Some(x);
-                    break 'outer_last;
-                }
-            }
-        }
+    //     // Find the last non-zero column.
+    //     'outer_last: for x in (0..xs).rev() {
+    //         for y in 0..ys {
+    //             if matrix[y * xs + x] != 0 {
+    //                 last_nonzero_col = Some(x);
+    //                 break 'outer_last;
+    //             }
+    //         }
+    //     }
 
-        // Use `let else` to handle the case where no nonzero column was found (all zeros).
-        let (Some(first_col), Some(last_col)) = (first_nonzero_col, last_nonzero_col) else {
-            // Entire matrix is zeros: return a single-column matrix of zeros.
-            matrix.truncate(ys); // Keep the first element of each row.
-            return (1, ys);
-        };
+    //     // Use `let else` to handle the case where no nonzero column was found (all zeros).
+    //     let (Some(first_col), Some(last_col)) = (first_nonzero_col, last_nonzero_col) else {
+    //         // Entire matrix is zeros: return a single-column matrix of zeros.
+    //         matrix.truncate(ys); // Keep the first element of each row.
+    //         return (1, ys);
+    //     };
 
-        // If no trimming is needed (i.e. every column has a nonzero), return unchanged.
-        if first_col == 0 && last_col == xs - 1 {
-            return (xs, ys);
-        }
+    //     // If no trimming is needed (i.e. every column has a nonzero), return unchanged.
+    //     if first_col == 0 && last_col == xs - 1 {
+    //         return (xs, ys);
+    //     }
 
-        let new_cols = last_col - first_col + 1;
+    //     let new_cols = last_col - first_col + 1;
 
-        // Move data in-place row by row.
-        for y in 0..ys {
-            let src_start = y * xs + first_col;
-            let dst_start = y * new_cols;
-            for i in 0..new_cols {
-                matrix[dst_start + i] = matrix[src_start + i];
-            }
-        }
+    //     // Move data in-place row by row.
+    //     for y in 0..ys {
+    //         let src_start = y * xs + first_col;
+    //         let dst_start = y * new_cols;
+    //         for i in 0..new_cols {
+    //             matrix[dst_start + i] = matrix[src_start + i];
+    //         }
+    //     }
 
-        // Truncate any excess elements.
-        matrix.truncate(ys * new_cols);
-        (new_cols, ys)
-    }
+    //     // Truncate any excess elements.
+    //     matrix.truncate(ys * new_cols);
+    //     (new_cols, ys)
+    // }
 
-    fn compress_y_if_needed(
+    fn compress_cmk4_y_if_needed(
         &mut self,
         mut packed_data: Vec<u8>,
         y_goal: u32,

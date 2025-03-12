@@ -6,7 +6,7 @@ Places where binning vs sampling shows up.
 
 * // Sampling & Averaging 2 --
 
-**Seems to be missing sampling path**
+### Seems to be missing sampling path
 
 ## `Spacelines::last`
 
