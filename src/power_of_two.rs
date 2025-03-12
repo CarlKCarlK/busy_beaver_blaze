@@ -124,14 +124,14 @@ impl PowerOfTwo {
     #[inline]
     #[must_use]
     pub fn from_u64(value: u64) -> Self {
-        assert!(value.is_power_of_two(), "Value must be a power of two");
+        /*cmk*/debug_assert!(value.is_power_of_two(), "Value must be a power of two");
         Self::from_exp(value.trailing_zeros() as u8)
     }
 
     #[inline]
     #[must_use]
     pub const fn from_usize(value: usize) -> Self {
-        assert!(value.is_power_of_two(), "Value must be a power of two");
+        /*cmk*/debug_assert!(value.is_power_of_two(), "Value must be a power of two");
         Self::from_exp(value.trailing_zeros() as u8)
     }
 

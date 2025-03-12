@@ -62,10 +62,14 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     );
 
     if early_stop.is_none() {
-        assert_eq!(sample_space_by_time.step_index(), 47_176_870);
-        assert_eq!(machine.count_ones(), 4098);
-        assert_eq!(machine.state(), 7);
-        assert_eq!(machine.tape_index(), -12242);
+        /*cmk*/
+        debug_assert_eq!(sample_space_by_time.step_index(), 47_176_870);
+        /*cmk*/
+        debug_assert_eq!(machine.count_ones(), 4098);
+        /*cmk*/
+        debug_assert_eq!(machine.state(), 7);
+        /*cmk*/
+        debug_assert_eq!(machine.tape_index(), -12242);
     }
 
     Ok(())
@@ -100,126 +104,163 @@ fn test_average() {
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
 
     let result = average_with_iterators(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
 
     let step = PowerOfTwo::TWO;
     let bytes = &[0u8, 127, 127, 255, 127];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
 
     let result = average_with_iterators(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     // Expected to panic
     // let result = average_with_simd::<4>(&values, step);
-    // assert_eq!(result, expected);
+    // /*cmk*/debug_assert_eq!(result, expected);
 
     let step = PowerOfTwo::FOUR;
     let bytes = &[63u8, 191, 63];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
 
     let step = PowerOfTwo::EIGHT;
     let bytes = &[127u8, 31];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<8>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
 
     let step = PowerOfTwo::SIXTEEN;
     let bytes = &[79u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<8>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<16>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
 
     let step = PowerOfTwo::THIRTY_TWO;
     let bytes = &[39u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<8>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<16>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<32>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
 
     let step = PowerOfTwo::SIXTY_FOUR;
     let bytes = &[19u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
     let result = average_with_iterators(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<1>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<2>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<4>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<8>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<16>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<32>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
     let result = average_with_simd::<64>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
 
     // Is count_ones correct?
     let result = average_with_simd_count_ones64(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
 
     let result = average_with_simd_push::<64>(&values, step);
-    assert_eq!(result, expected);
+    /*cmk*/
+    debug_assert_eq!(result, expected);
 }
 
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn parts() {
-    let max_rows = 2413u64;
-    let part_count = 3;
-    let goal_x: u32 = 360;
-    let goal_y: u32 = 30;
-    let binning = true;
-
-    // let max_rows = 250_000_000u64;
-    // let part_count = 16;
+    // let max_rows = 2413u64;
+    // let part_count = 3;
     // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
+    // let goal_y: u32 = 30;
     // let binning = true;
+
+    let max_rows = 250_000_000u64;
+    let part_count = 16;
+    let goal_x: u32 = 360;
+    let goal_y: u32 = 432;
+    let binning = true;
 
     // let max_rows = 10_000_000u64;
     // let part_count = 16;
@@ -256,7 +297,7 @@ fn parts() {
     let png_data = space_by_time_machine_first.png_data();
     fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
 
-    // assert!(len < goal_y as usize * 2, "real assert 2");
+    // /*cmk*/debug_assert!(len < goal_y as usize * 2, "real /*cmk*/debug_assert 2");
 }
 
 #[test]
@@ -273,7 +314,8 @@ fn resample_simd() {
         // println!("reference: {reference:?}");
         Spaceline::resample_one(&mut pixels);
         // println!("after: {pixels:?}");
-        assert_eq!(pixels, reference);
+        /*cmk*/
+        debug_assert_eq!(pixels, reference);
     }
 }
 
@@ -288,9 +330,11 @@ fn test_find_stride() {
                 let non_neg_len = x_stride.div_ceil_into(tape_non_neg_len);
                 let len = neg_len + non_neg_len;
                 if tape_len < goal_x {
-                    assert!(x_stride == PowerOfTwo::ONE);
+                    /*cmk*/
+                    debug_assert!(x_stride == PowerOfTwo::ONE);
                 } else {
-                    assert!(goal_x <= len && len < goal_x * 2);
+                    /*cmk*/
+                    debug_assert!(goal_x <= len && len < goal_x * 2);
                 }
             }
         }
@@ -299,7 +343,7 @@ fn test_find_stride() {
 
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
-fn combo_parts() {
+fn combo() {
     // make a HashMap from the strings "BB5_CHAMP", "BB6_CONTENDER" to the string constants
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
@@ -389,7 +433,7 @@ fn combo_parts() {
 
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
-fn one_parts() {
+fn one() {
     // make a HashMap from the strings "BB5_CHAMP", "BB6_CONTENDER" to the string constants
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
@@ -436,7 +480,8 @@ fn one_parts() {
     fs::write(ref_file, &reference_png_data).unwrap();
     let test_file = "tests/expected/one_parts_test.png";
     fs::write(test_file, &png_data).unwrap();
-    assert!(
+    /*cmk*/
+    debug_assert!(
         (png_data == reference_png_data),
         "PNG data does not match for {key}"
     );

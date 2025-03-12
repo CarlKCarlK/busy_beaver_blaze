@@ -77,7 +77,7 @@ impl Machine {
 impl FromStr for Machine {
     type Err = Error;
 
-    #[allow(clippy::assertions_on_constants)]
+    #[allow(clippy::/*cmk*/debug_assertions_on_constants)]
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let program: Program = input.parse()?;
 
@@ -138,7 +138,7 @@ pub struct Program {
 impl FromStr for Program {
     type Err = Error;
 
-    #[allow(clippy::assertions_on_constants, clippy::min_ident_chars)]
+    #[allow(clippy::/*cmk*/debug_assertions_on_constants, clippy::min_ident_chars)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let count_lines = s.lines().count();
         let is_first_non_space_a_numeral =
@@ -208,7 +208,7 @@ impl Program {
         })
     }
 
-    #[allow(clippy::assertions_on_constants, clippy::min_ident_chars)]
+    #[allow(clippy::/*cmk*/debug_assertions_on_constants, clippy::min_ident_chars)]
     fn parse_state_to_symbol(s: &str) -> Result<Self, Error> {
         let mut lines = s.lines();
 
@@ -276,7 +276,7 @@ impl Program {
     }
 
     #[allow(
-        clippy::assertions_on_constants,
+        clippy::/*cmk*/debug_assertions_on_constants,
         clippy::min_ident_chars,
         clippy::needless_collect
     )]
@@ -340,7 +340,7 @@ impl Program {
         })
     }
 
-    #[allow(clippy::assertions_on_constants, clippy::min_ident_chars)]
+    #[allow(clippy::/*cmk*/debug_assertions_on_constants, clippy::min_ident_chars)]
     fn parse_symbol_to_state(s: &str) -> Result<Self, Error> {
         let mut lines = s.lines();
 

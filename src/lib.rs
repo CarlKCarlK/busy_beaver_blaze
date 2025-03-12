@@ -347,7 +347,8 @@ pub fn average_with_simd_push<const LANES: usize>(
 where
     LaneCount<LANES>: SupportedLaneCount,
 {
-    assert!(
+    /*cmk*/
+    debug_assert!(
         { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
         "LANES must be less than or equal to step and alignment"
     );
@@ -405,7 +406,8 @@ where
 #[must_use]
 pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
     const LANES: usize = 64;
-    assert!(
+    /*cmk*/
+    debug_assert!(
         { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
         "LANES must be less than or equal to step and alignment"
     );
@@ -483,7 +485,8 @@ pub const fn prev_power_of_two(x: usize) -> usize {
 }
 
 fn find_stride(tape_neg_len: usize, tape_non_neg_len: usize, goal: usize) -> PowerOfTwo {
-    assert!(goal >= 2, "Goal must be at least 2");
+    /*cmk*/
+    debug_assert!(goal >= 2, "Goal must be at least 2");
     let tape_len = tape_neg_len + tape_non_neg_len;
     // If the total length is less than the goal, use no downsampling.
     if tape_len < goal {
