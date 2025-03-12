@@ -197,7 +197,6 @@ impl Spaceline {
             // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
             // cmk00 could make this unbiased
 
-            panic!("cmk shouldn't use yet");
             let result: &mut Simd<u8, 32> =
                 unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
             *result = left & right;

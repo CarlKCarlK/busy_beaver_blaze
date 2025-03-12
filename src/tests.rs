@@ -311,67 +311,76 @@ fn combo_parts() {
         for goal_x in [2, 30, 360] {
             for goal_y in [2, 3, 4, 30, 432] {
                 for program_name in ["BB5_CHAMP", "BB6_CONTENDER"] {
-                    let binning = false;
-                    // cmk0000000 for binning in [true, false] {
-                    let program_string = program_name_to_string[program_name];
-                    // println!("program_string: {program_string}");
-                    let mut reference_machine =
-                        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)
-                            .unwrap();
-                    reference_machine.nth_js(early_stop - 2);
-                    println!(
-                        "reference_machine: {:?} {:?}",
-                        reference_machine.space_by_time.y_stride,
-                        reference_machine.space_by_time.spacelines
-                    );
-                    let (reference_png_data, ref_x, ref_y, reference_packed_data) =
-                        reference_machine.png_data_and_packed_data();
-                    println!("---------------");
-                    for part_count in [1, 2, 5, 16] {
-                        let key = format!(
-                            "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
-                        );
-                        println!("{key}");
-
-                        let mut machine = SpaceByTimeMachine::from_str_in_parts(
-                            early_stop,
-                            part_count,
+                    for binning in [false, true] {
+                        // cmk0000000 for binning in [true, false] {
+                        let program_string = program_name_to_string[program_name];
+                        // println!("program_string: {program_string}");
+                        let mut reference_machine = SpaceByTimeMachine::from_str(
                             program_string,
                             goal_x,
                             goal_y,
                             binning,
+                            0,
+                        )
+                        .unwrap();
+                        reference_machine.nth_js(early_stop - 2);
+                        println!(
+                            "reference_machine: {:?} {:?}",
+                            reference_machine.space_by_time.y_stride,
+                            reference_machine.space_by_time.spacelines
                         );
-                        let (png_data, x, y, packed_data) = machine.png_data_and_packed_data();
-
-                        // Must be the same length and a given value can vary by no more than y_stride.log2() + x_stride.log2()
-                        let last_spacetime = machine.space_by_time.spacelines.main.last().unwrap();
-                        let max_diff =
-                            machine.space_by_time.y_stride.log2() + last_spacetime.x_stride.log2();
-                        // println!("max_diff: {max_diff}");
-
-                        let mut ok = true;
-                        ok = ok && packed_data.len() == reference_packed_data.len();
-                        for (ref_val, val) in reference_packed_data.iter().zip(packed_data.iter()) {
-                            let abs_diff = ref_val.abs_diff(*val);
-                            if abs_diff > 0 {
-                                println!("|{ref_val}-{val}|= {abs_diff} ?<= {max_diff}");
-                            }
-                            ok = ok && ref_val.abs_diff(*val) <= max_diff;
-                        }
-
-                        if !ok {
-                            if exception_set.contains(key.as_str()) {
-                                println!("Skip: PNG data does not match for \"{key}\"");
-                                continue;
-                            }
-                            println!(
-                                "goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}"
+                        let (reference_png_data, ref_x, ref_y, reference_packed_data) =
+                            reference_machine.png_data_and_packed_data();
+                        println!("---------------");
+                        for part_count in [1, 2, 5, 16] {
+                            let key = format!(
+                                "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
                             );
-                            let ref_file = "tests/expected/combo_parts_ref.png";
-                            fs::write(ref_file, &reference_png_data).unwrap();
-                            let test_file = "tests/expected/combo_parts_test.png";
-                            fs::write(test_file, &png_data).unwrap();
-                            panic!("PNG data does not match for \"{key}\"");
+                            println!("{key}");
+
+                            let mut machine = SpaceByTimeMachine::from_str_in_parts(
+                                early_stop,
+                                part_count,
+                                program_string,
+                                goal_x,
+                                goal_y,
+                                binning,
+                            );
+                            let (png_data, x, y, packed_data) = machine.png_data_and_packed_data();
+
+                            // Must be the same length and a given value can vary by no more than y_stride.log2() + x_stride.log2()
+                            let last_spacetime =
+                                machine.space_by_time.spacelines.main.last().unwrap();
+                            let max_diff = machine.space_by_time.y_stride.log2()
+                                + last_spacetime.x_stride.log2();
+                            // println!("max_diff: {max_diff}");
+
+                            let mut ok = true;
+                            ok = ok && packed_data.len() == reference_packed_data.len();
+                            for (ref_val, val) in
+                                reference_packed_data.iter().zip(packed_data.iter())
+                            {
+                                let abs_diff = ref_val.abs_diff(*val);
+                                if abs_diff > 0 {
+                                    println!("|{ref_val}-{val}|= {abs_diff} ?<= {max_diff}");
+                                }
+                                ok = ok && ref_val.abs_diff(*val) <= max_diff;
+                            }
+
+                            if !ok {
+                                if exception_set.contains(key.as_str()) {
+                                    println!("Skip: PNG data does not match for \"{key}\"");
+                                    continue;
+                                }
+                                println!(
+                                    "goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}"
+                                );
+                                let ref_file = "tests/expected/combo_parts_ref.png";
+                                fs::write(ref_file, &reference_png_data).unwrap();
+                                let test_file = "tests/expected/combo_parts_test.png";
+                                fs::write(test_file, &png_data).unwrap();
+                                panic!("PNG data does not match for \"{key}\"");
+                            }
                         }
                     }
                 }
