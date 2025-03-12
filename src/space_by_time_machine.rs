@@ -320,8 +320,8 @@ impl SpaceByTimeMachine {
         let part_count = range_list.len() as u64;
 
         let results: Vec<Self> = range_list
-            // .par_iter()
-            .iter() // cmk000000000000
+            .par_iter()
+            // .iter()
             .enumerate()
             .map(|(part_index, range)| {
                 let (start, end) = (range.start, range.end);
@@ -438,13 +438,13 @@ impl SpaceByTimeMachine {
             if len < goal_y as usize * 2 {
                 break;
             }
-            println!(
-                "len: {len} is too long, y-stride is {:?} compressing...",
-                space_by_time.y_stride
-            );
+            // println!(
+            //     "len: {len} is too long, y-stride is {:?} compressing...",
+            //     space_by_time.y_stride
+            // );
             if !is_even(space_by_time.spacelines.main.len()) {
                 Self::audit_one(space_by_time, None, None, early_stop, binning);
-                println!("is odd: Spacelines {:?}", space_by_time.spacelines);
+                // println!("is odd: Spacelines {:?}", space_by_time.spacelines);
                 let last = space_by_time.spacelines.main.pop().unwrap();
                 space_by_time
                     .spacelines
@@ -452,7 +452,7 @@ impl SpaceByTimeMachine {
                     .insert(0, (last, space_by_time.y_stride));
                 Self::audit_one(space_by_time, None, None, early_stop, binning);
             }
-            println!("Spacelines: {:?}", space_by_time.spacelines);
+            // println!("Spacelines: {:?}", space_by_time.spacelines);
 
             assert!(
                 is_even(space_by_time.spacelines.main.len()),
@@ -466,7 +466,7 @@ impl SpaceByTimeMachine {
                 .drain(..)
                 .tuples()
                 .map(|(mut first, second)| {
-                    println!("tuple a: {:?} b: {:?}", first.time, second.time);
+                    // println!("tuple a: {:?} b: {:?}", first.time, second.time);
                     assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
 
                     if binning {
@@ -479,7 +479,7 @@ impl SpaceByTimeMachine {
                 })
                 .collect();
             space_by_time.y_stride = space_by_time.y_stride.double();
-            println!("After binning or sampling: {:?}", space_by_time.spacelines);
+            // println!("After binning or sampling: {:?}", space_by_time.spacelines);
             Self::audit_one(space_by_time, None, None, early_stop, binning);
         }
     }
@@ -553,7 +553,8 @@ impl SpaceByTimeMachine {
             );
         }
     }
-    // cmk000 move this to the SpaceByTime struct
+    // cmk000000 move this to the SpaceByTime struct
+    // cmk00000 make this debug only
     fn audit_one(
         space_by_time: &SpaceByTime,
         mut previous_y_stride: Option<PowerOfTwo>,

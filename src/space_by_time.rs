@@ -184,25 +184,25 @@ impl SpaceByTime {
             return;
         }
 
-        println!(
-            "last_spaceline's x stride {}, -len {}, +len {}",
-            last_spaceline.x_stride.as_usize(),
-            last_spaceline.negative.len(),
-            last_spaceline.nonnegative.len()
-        );
-        println!(
-            "spaceline's x stride {} -len {}, +len {}",
-            spaceline.x_stride.as_usize(),
-            spaceline.negative.len(),
-            spaceline.nonnegative.len()
-        );
+        // println!(
+        //     "last_spaceline's x stride {}, -len {}, +len {}",
+        //     last_spaceline.x_stride.as_usize(),
+        //     last_spaceline.negative.len(),
+        //     last_spaceline.nonnegative.len()
+        // );
+        // println!(
+        //     "spaceline's x stride {} -len {}, +len {}",
+        //     spaceline.x_stride.as_usize(),
+        //     spaceline.negative.len(),
+        //     spaceline.nonnegative.len()
+        // );
 
         // cmk0000 should divide to bigger pieces
-        println!(
-            "last_weight {}, adding weight {} one by one",
-            last_weight.as_u64(),
-            weight.as_u64()
-        );
+        // println!(
+        //     "last_weight {}, adding weight {} one by one",
+        //     last_weight.as_u64(),
+        //     weight.as_u64()
+        // );
         for i in 0..weight.as_u64() {
             let mut clone = spaceline.clone(); // cmk don't need to clone the last time
             clone.time = spaceline.time + i;
@@ -246,7 +246,7 @@ impl SpaceByTime {
     ) -> Result<(Vec<u8>, u32, u32, Vec<u8>), Error> {
         assert!(tape_nonnegative_len > 0);
         assert!(x_goal >= 2);
-        println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
+        // println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
 
         let x_stride = find_stride(tape_negative_len, tape_nonnegative_len, x_goal);
         let x_zero = x_stride.div_ceil_into(tape_negative_len);
@@ -255,9 +255,9 @@ impl SpaceByTime {
         let y_actual = self.spacelines.len();
 
         let mut packed_data = vec![0u8; x_actual * y_actual];
-        println!(
-            "tape_nonnegative_len {tape_nonnegative_len}, packed_data ({x_actual},{y_actual}) {packed_data:?} x_zero {x_zero} x_stride {x_stride:?}"
-        );
+        // println!(
+        //     "tape_nonnegative_len {tape_nonnegative_len}, packed_data ({x_actual},{y_actual}) {packed_data:?} x_zero {x_zero} x_stride {x_stride:?}"
+        // );
 
         // cmk000 move this into a function
         for (spaceline, _weight) in &mut self.spacelines.buffer0 {
@@ -278,7 +278,7 @@ impl SpaceByTime {
             .spacelines
             .last(self.step_index, self.y_stride, self.pixel_policy);
 
-        println!("last spaceline {last:?}");
+        // println!("last spaceline {last:?}");
 
         for y in 0..y_actual {
             let spaceline = self.spacelines.get(y, &last);
@@ -301,7 +301,7 @@ impl SpaceByTime {
             }
         }
 
-        println!("packed_data ({x_actual},{y_actual}) {packed_data:?}");
+        // println!("packed_data ({x_actual},{y_actual}) {packed_data:?}");
         assert!(y_actual <= 2 * y_goal);
         let (packed_data, y_actual) = self.compress_cmk4_y_if_needed(
             packed_data,
@@ -397,10 +397,10 @@ impl SpaceByTime {
                     // by design new_chunk is the same size as left, so copy the bytes from left to new_chunk
                     new_chunk.copy_from_slice(left);
                 });
-            println!(
-                "new_packed_data ({x_actual},{}) {new_packed_data:?}",
-                y_actual >> 1
-            );
+            // println!(
+            //     "new_packed_data ({x_actual},{}) {new_packed_data:?}",
+            //     y_actual >> 1
+            // );
             (new_packed_data, y_goal)
         } else {
             (packed_data, y_actual)

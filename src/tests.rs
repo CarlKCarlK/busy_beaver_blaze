@@ -324,14 +324,14 @@ fn combo_parts() {
                         )
                         .unwrap();
                         reference_machine.nth_js(early_stop - 2);
-                        println!(
-                            "reference_machine: {:?} {:?}",
-                            reference_machine.space_by_time.y_stride,
-                            reference_machine.space_by_time.spacelines
-                        );
+                        // println!(
+                        //     "reference_machine: {:?} {:?}",
+                        //     reference_machine.space_by_time.y_stride,
+                        //     reference_machine.space_by_time.spacelines
+                        // );
                         let (reference_png_data, ref_x, ref_y, reference_packed_data) =
                             reference_machine.png_data_and_packed_data();
-                        println!("---------------");
+                        // println!("---------------");
                         for part_count in [1, 2, 5, 16] {
                             let key = format!(
                                 "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
@@ -361,9 +361,9 @@ fn combo_parts() {
                                 reference_packed_data.iter().zip(packed_data.iter())
                             {
                                 let abs_diff = ref_val.abs_diff(*val);
-                                if abs_diff > 0 {
-                                    println!("|{ref_val}-{val}|= {abs_diff} ?<= {max_diff}");
-                                }
+                                // if abs_diff > 0 {
+                                //     println!("|{ref_val}-{val}|= {abs_diff} ?<= {max_diff}");
+                                // }
                                 ok = ok && ref_val.abs_diff(*val) <= max_diff;
                             }
 
@@ -408,13 +408,13 @@ fn one_parts() {
     let mut reference_machine =
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0).unwrap();
     reference_machine.nth_js(early_stop - 2);
-    println!(
-        "reference_machine: {:?} {:?}",
-        reference_machine.space_by_time.y_stride, reference_machine.space_by_time.spacelines
-    );
+    // println!(
+    //     "reference_machine: {:?} {:?}",
+    //     reference_machine.space_by_time.y_stride, reference_machine.space_by_time.spacelines
+    // );
     let (reference_png_data, ref_x, ref_y, ref_packed) =
         reference_machine.png_data_and_packed_data();
-    println!("---------------");
+    // println!("---------------");
 
     let key = format!(
         "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
@@ -431,9 +431,9 @@ fn one_parts() {
     );
     let (png_data, x, y, packed_data) = machine.png_data_and_packed_data();
 
-    println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
-    println!("ref_packed: {ref_packed:?}");
-    println!("packed_data: {packed_data:?}");
+    // println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
+    // println!("ref_packed: {ref_packed:?}");
+    // println!("packed_data: {packed_data:?}");
     let ref_file = "tests/expected/one_parts_ref.png";
     fs::write(ref_file, &reference_png_data).unwrap();
     let test_file = "tests/expected/one_parts_test.png";
