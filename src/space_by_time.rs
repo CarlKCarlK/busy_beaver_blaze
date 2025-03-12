@@ -377,7 +377,7 @@ impl SpaceByTime {
         y_actual: u32,
     ) -> (Vec<u8>, u32) {
         if y_actual == 2 * y_goal {
-            // cmk0000000 remove the constant
+            // cmk remove the constant
             // reduce the # of rows in half my averaging
             let mut new_packed_data = vec![0u8; x_actual as usize * y_goal as usize];
             packed_data

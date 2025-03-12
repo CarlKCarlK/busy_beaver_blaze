@@ -126,12 +126,8 @@ impl Spacelines {
                     }
                     assert!(weight_last < y_stride, "real assert");
                     // Otherwise, we half it's color and double the weight
-                    match pixel_policy {
-                        PixelPolicy::Sampling => {
-                            todo!("cmk00000000")
-                        } // cmk000000 this is wrong. Should use empty line unless the sampling line divides evenginly
-                        PixelPolicy::Binning => spaceline_last.merge_with_white(),
-                    }
+
+                    spaceline_last.merge_with_white();
 
                     Self::push_internal(
                         &mut buffer0,

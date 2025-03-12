@@ -215,9 +215,7 @@ pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<P
         let sum: u32 = remainder.iter().map(u32::from).sum();
         // We need to divide by step size, not remainder.len()
         let average = step.divide_into(sum * 255).into();
-        // if average != Pixel::WHITE { // cmk0000000
         result.push(average);
-        //}
     }
 
     result

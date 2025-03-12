@@ -312,7 +312,6 @@ fn combo_parts() {
             for goal_y in [2, 3, 4, 30, 432] {
                 for program_name in ["BB5_CHAMP", "BB6_CONTENDER"] {
                     for binning in [false, true] {
-                        // cmk0000000 for binning in [true, false] {
                         let program_string = program_name_to_string[program_name];
                         // println!("program_string: {program_string}");
                         let mut reference_machine = SpaceByTimeMachine::from_str(
