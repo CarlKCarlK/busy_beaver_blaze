@@ -76,26 +76,4 @@ impl Tape {
         }
         result_string
     }
-
-    // #[inline]
-    // #[must_use]
-    // pub fn min_index(&self) -> i64 {
-    //     -(self.negative.len() as i64)
-    // }
-
-    // #[inline]
-    // #[must_use]
-    // pub fn max_index(&self) -> i64 {
-    //     self.nonnegative.len() as i64 - 1
-    // }
-
-    // #[inline]
-    // #[allow(dead_code)]
-    // #[must_use]
-    // pub fn width(&self) -> u64 {
-    //     (self.max_index() - self.min_index() + 1) as u64
-    // }
 }
-
-// cmk000000000 1. understand the white on the left of ref, but not on in parts
-// cmk000000000 2. If x > 2*x_goal, reduce at the end (one time should be enough)

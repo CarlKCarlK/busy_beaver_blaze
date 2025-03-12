@@ -87,28 +87,6 @@ impl Spaceline {
         }
     }
 
-    // #[inline]
-    // #[must_use]
-    // pub fn new2(
-    //     stride: PowerOfTwo,
-    //     start: i64, // cmk0000000000 rename negative_tape_len
-    //     pixels: AVec<Pixel>,
-    //     time: u64,
-    //     pixel_policy: PixelPolicy,
-    // ) -> Self {
-    //     let mut result = Self {
-    //         x_stride: stride,
-    //         negative: AVec::new(ALIGN),
-    //         nonnegative: pixels,
-    //         time,
-    //         pixel_policy,
-    //     };
-    //     while result.tape_start() > start {
-    //         result.negative.insert(0, result.nonnegative.remove(0));
-    //     }
-    //     result
-    // }
-
     #[inline]
     pub fn pixel_index_mut(&mut self, index: usize) -> &mut Pixel {
         let negative_len = self.negative.len();
