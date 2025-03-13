@@ -87,7 +87,8 @@ impl SpaceByTime {
 
     // cmk0 understand the `compress_cmk*` functions
     // cmk000 early_stop is just for auditing. Move it to be the last argument and rename it to early_stop_audit
-    pub(crate) fn compress_cmk3_y_if_needed(&mut self, goal_y: u32, early_stop: Option<u64>) {
+    pub(crate) fn compress_cmk3_y_if_needed(&mut self, early_stop: Option<u64>) {
+        let goal_y = self.y_goal;
         // cmk remove this variable
         let space_by_time = self;
         let binning = match space_by_time.pixel_policy {
@@ -431,6 +432,51 @@ impl SpaceByTime {
                 // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
                 let (spaceline_z, _weight_z) = buffer0.pop().unwrap();
                 space_by_time.spacelines.main.push(spaceline_z);
+            }
+        }
+    }
+
+    pub(crate) fn extend(&mut self, other: Self) {
+        // cmk00 remove this variable
+        let y_stride = self.y_stride;
+        let spacelines_other = other.spacelines;
+        let main_other = spacelines_other.main;
+        let buffer0_other = spacelines_other.buffer0;
+
+        // If y_strides match, add other's main spacelines to the main buffer else add to the buffer0
+        let (mut previous_y_stride, mut previous_time) = if other.y_stride == y_stride {
+            for spaceline in main_other {
+                self.spacelines.main.push(spaceline);
+            }
+            (self.y_stride, self.spacelines.main.last().unwrap().time)
+        } else {
+            for spaceline in main_other {
+                self.spacelines.buffer0.push((spaceline, other.y_stride));
+            }
+            (
+                other.y_stride,
+                self.spacelines.buffer0.last().unwrap().0.time,
+            )
+        };
+
+        // Add other's buffer0 spacelines to buffer0
+        for (spaceline, weight) in buffer0_other {
+            let time = spaceline.time;
+            assert!(
+                time == previous_time + previous_y_stride.as_u64(),
+                "mind the gap"
+            );
+            previous_y_stride = weight;
+            previous_time = time;
+            self.spacelines.buffer0.push((spaceline, weight));
+        }
+
+        loop {
+            self.compress_cmk3_y_if_needed(None);
+            self.reduce_buffer0();
+
+            if self.spacelines.len() <= self.y_goal as usize * 2 {
+                break;
             }
         }
     }

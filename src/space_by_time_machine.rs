@@ -358,17 +358,7 @@ impl SpaceByTimeMachine {
             for mut snapshot_other in snapshots_other {
                 // cmk this is convoluted way to combine these two
                 let mut space_by_time_combo = space_by_time_first.clone();
-                Self::combine2(&mut space_by_time_combo, snapshot_other.space_by_time);
-
-                // cmk000000000 make this a function
-                loop {
-                    space_by_time_combo.compress_cmk3_y_if_needed(y_goal, None);
-                    space_by_time_combo.reduce_buffer0();
-
-                    if space_by_time_combo.spacelines.len() <= y_goal as usize * 2 {
-                        break;
-                    }
-                }
+                space_by_time_combo.extend(snapshot_other.space_by_time);
 
                 snapshot_other.space_by_time = space_by_time_combo;
                 let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0000 need to handle
@@ -378,18 +368,8 @@ impl SpaceByTimeMachine {
                 }
             }
 
-            Self::combine2(space_by_time_first, space_by_time_other);
+            space_by_time_first.extend(space_by_time_other);
             space_by_time_machine_first.machine = space_by_time_machine_other.machine;
-        }
-
-        // cmk000000000 make this a function
-        loop {
-            space_by_time_first.compress_cmk3_y_if_needed(y_goal, None);
-            space_by_time_first.reduce_buffer0();
-
-            if space_by_time_first.spacelines.len() <= y_goal as usize * 2 {
-                break;
-            }
         }
 
         space_by_time_machine_first
@@ -406,58 +386,6 @@ impl SpaceByTimeMachine {
                 space_by_time_other.spacelines.buffer0.is_empty(),
                 "real assert 2"
             );
-        }
-    }
-
-    // cmk move to SpaceByTime
-    fn combine2(space_by_time_first: &mut SpaceByTime, space_by_time_other: SpaceByTime) {
-        let y_stride = space_by_time_first.y_stride;
-        let spacelines_other = space_by_time_other.spacelines;
-        let main_other = spacelines_other.main;
-        let buffer0_other = spacelines_other.buffer0;
-
-        // If y_strides match, add other's main spacelines to the main buffer else add to the buffer0
-        let (mut previous_y_stride, mut previous_time) = if space_by_time_other.y_stride == y_stride
-        {
-            for spaceline in main_other {
-                space_by_time_first.spacelines.main.push(spaceline);
-            }
-            (
-                space_by_time_first.y_stride,
-                space_by_time_first.spacelines.main.last().unwrap().time,
-            )
-        } else {
-            for spaceline in main_other {
-                space_by_time_first
-                    .spacelines
-                    .buffer0
-                    .push((spaceline, space_by_time_other.y_stride));
-            }
-            (
-                space_by_time_other.y_stride,
-                space_by_time_first
-                    .spacelines
-                    .buffer0
-                    .last()
-                    .unwrap()
-                    .0
-                    .time,
-            )
-        };
-
-        // Add other's buffer0 spacelines to buffer0
-        for (spaceline, weight) in buffer0_other {
-            let time = spaceline.time;
-            assert!(
-                time == previous_time + previous_y_stride.as_u64(),
-                "mind the gap"
-            );
-            previous_y_stride = weight;
-            previous_time = time;
-            space_by_time_first
-                .spacelines
-                .buffer0
-                .push((spaceline, weight));
         }
     }
 
