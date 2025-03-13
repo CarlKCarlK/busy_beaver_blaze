@@ -1,7 +1,8 @@
+use aligned_vec::AVec;
 use itertools::Itertools;
 
 use crate::{
-    Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
+    ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
     find_stride, is_even, power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline,
     spacelines::Spacelines,
 };
@@ -160,7 +161,7 @@ impl SpaceByTime {
         tape_nonnegative_len: usize,
         x_goal: usize,
         y_goal: usize,
-    ) -> Result<(Vec<u8>, u32, u32, Vec<u8>), Error> {
+    ) -> Result<(Vec<u8>, u32, u32, AVec<u8>), Error> {
         assert!(tape_nonnegative_len > 0);
         assert!(x_goal >= 2);
         // println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
@@ -171,10 +172,8 @@ impl SpaceByTime {
 
         let y_actual = self.spacelines.len();
 
-        let mut packed_data = vec![0u8; x_actual * y_actual];
-        // println!(
-        //     "tape_nonnegative_len {tape_nonnegative_len}, packed_data ({x_actual},{y_actual}) {packed_data:?} x_zero {x_zero} x_stride {x_stride:?}"
-        // );
+        let mut packed_data = AVec::with_capacity(ALIGN, x_actual * y_actual);
+        packed_data.resize(x_actual * y_actual, 0u8);
 
         // cmk0 move this into a function
         for (spaceline, _weight) in &mut self.spacelines.buffer0 {

@@ -512,19 +512,20 @@ fn find_stride(tape_neg_len: usize, tape_non_neg_len: usize, goal: usize) -> Pow
 // cmk000 works on packed_data that is one too big, currently can't use SIMD because packed data is not aligned
 // cmk0000move to lib, use aligned vec and slice
 fn compress_packed_data_if_one_too_big(
-    mut packed_data: Vec<u8>,
+    mut packed_data: AVec<u8>,
     pixel_policy: PixelPolicy,
     y_goal: u32,
     x_actual: u32,
     y_actual: u32,
-) -> (Vec<u8>, u32) {
+) -> (AVec<u8>, u32) {
     if y_actual < 2 * y_goal {
         (packed_data, y_actual)
     } else {
         assert!(y_actual == 2 * y_goal, "y_actual must be 2 * y_goal");
         // cmk remove the constant
         // reduce the # of rows in half my averaging
-        let mut new_packed_data = vec![0u8; x_actual as usize * y_goal as usize];
+        let mut new_packed_data = AVec::with_capacity(ALIGN, x_actual as usize * y_goal as usize);
+        new_packed_data.resize(x_actual as usize * y_goal as usize, 0u8);
         packed_data
             .chunks_exact_mut(x_actual as usize * 2)
             .zip(new_packed_data.chunks_exact_mut(x_actual as usize))

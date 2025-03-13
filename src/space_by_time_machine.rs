@@ -1,6 +1,7 @@
 use core::ops::Range;
 use std::{collections::HashMap, fs};
 
+use aligned_vec::AVec;
 use instant::Instant;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use wasm_bindgen::prelude::*;
@@ -183,7 +184,7 @@ impl SpaceByTimeMachine {
 impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
-    pub fn png_data_and_packed_data(&mut self) -> (Vec<u8>, u32, u32, Vec<u8>) {
+    pub fn png_data_and_packed_data(&mut self) -> (Vec<u8>, u32, u32, AVec<u8>) {
         self.space_by_time
             .to_png_and_packed_data(
                 self.machine.tape.negative.len(),
