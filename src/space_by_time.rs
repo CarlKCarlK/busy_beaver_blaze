@@ -300,7 +300,7 @@ impl SpaceByTime {
                 .drain(..)
                 .tuples()
                 .map(|(mut first, second)| {
-                    assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
+                    assert!(first.tape_start() >= second.tape_start());
 
                     // cmk00 remove from loop?
                     match self.pixel_policy {

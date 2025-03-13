@@ -97,18 +97,12 @@ impl Spaceline {
         }
     }
 
-    // cmk0000 remove this
+    // This lets us compare the start of spaceline's with different x_strides.
     #[inline]
     #[must_use]
     pub fn tape_start(&self) -> i64 {
         -((self.x_stride * self.negative.len()) as i64)
     }
-
-    // #[inline]
-    // #[must_use]
-    // pub fn len(&self) -> usize {
-    //     self.nonnegative.len() + self.negative.len()
-    // }
 
     pub fn resample_one(pixels: &mut AVec<Pixel>) {
         let len = pixels.len();
@@ -305,13 +299,15 @@ impl Spaceline {
         self.compress_x_if_needed(other.x_stride);
         assert!(self.x_stride == other.x_stride);
 
-        assert!(self.tape_start() >= other.tape_start());
-        while self.tape_start() > other.tape_start() {
+        // cmk00000 can't we use math and not a loop?
+        assert!(self.negative.len() <= other.negative.len());
+        while self.negative.len() < other.negative.len() {
             self.negative.push(Pixel::WHITE);
         }
-        assert!(self.tape_start() == other.tape_start(), "real assert 6c");
+        assert!(self.negative.len() == other.negative.len());
         Pixel::slice_merge_simd(&mut self.negative, &other.negative);
 
+        // cmk00000 can't we use math and not a loop?
         while self.nonnegative.len() < other.nonnegative.len() {
             self.nonnegative.push(Pixel::WHITE);
         }

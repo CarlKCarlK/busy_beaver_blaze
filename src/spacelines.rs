@@ -71,7 +71,7 @@ impl Spacelines {
             .drain(..)
             .tuples()
             .map(|(mut a, b)| {
-                assert!(a.tape_start() >= b.tape_start(), "real assert 4a");
+                assert!(a.tape_start() >= b.tape_start());
                 a.merge_simd(&b);
                 a
             })
