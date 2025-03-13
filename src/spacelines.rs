@@ -112,7 +112,7 @@ impl Spacelines {
                 // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
                 let mut buffer0 = self.buffer0.clone();
 
-                // cmk we have to clone because we compress in place (clone only half???)
+                //We clone because we compress in place.
                 loop {
                     let (mut spaceline_last, weight_last) = buffer0.pop().unwrap(); // can't fail
                     // If we have just one item and it has the same weight as main, we're done.
@@ -151,7 +151,6 @@ impl Spacelines {
                 return;
             }
 
-            // cmk change back to debug_assert (or not)
             assert!(
                 weight == *last_mut_weight,
                 "Weight equality invariant violation"

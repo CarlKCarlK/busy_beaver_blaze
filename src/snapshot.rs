@@ -4,7 +4,7 @@ pub(crate) struct Snapshot {
     pub(crate) frame_indexes: Vec<usize>, // cmk make private
     tape_negative_len: usize,
     tape_nonnegative_len: usize,
-    space_by_time: SpaceByTime,
+    pub(crate) space_by_time: SpaceByTime, // cmk make private
 }
 
 // given a frame_index and SpaceTimeMachine, create a snapshot

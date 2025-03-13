@@ -1,6 +1,8 @@
+use itertools::Itertools;
+
 use crate::{
-    Error, Machine, Pixel, PixelPolicy, Tape, encode_png, find_stride, power_of_two::PowerOfTwo,
-    sample_rate, spaceline::Spaceline, spacelines::Spacelines,
+    Error, Machine, Pixel, PixelPolicy, SpaceByTimeMachine, Tape, encode_png, find_stride, is_even,
+    power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline, spacelines::Spacelines,
 };
 
 #[derive(Clone)]
@@ -68,6 +70,7 @@ impl SpaceByTime {
         // We sometimes need to squeeze rows by averaging adjacent pairs of rows.
         // The alternative is just to keep the 1st row and discard the 2nd row.
 
+        // cmk000 instead of sample_rate, use find_stride???
         let new_sample = sample_rate(self.step_index, self.y_goal);
         if new_sample != self.y_stride {
             assert!(
@@ -82,7 +85,68 @@ impl SpaceByTime {
         }
     }
 
-    // ideas
+    // cmk0 understand the `compress_cmk*` functions
+    // cmk000 early_stop is just for auditing. Move it to be the last argument and rename it to early_stop_audit
+    pub(crate) fn compress_cmk3_y_if_needed(&mut self, goal_y: u32, early_stop: Option<u64>) {
+        // cmk remove this variable
+        let space_by_time = self;
+        let binning = match space_by_time.pixel_policy {
+            PixelPolicy::Binning => true,
+            PixelPolicy::Sampling => false,
+        };
+        // cmk move audit_one to SpaceByTime
+        SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+
+        loop {
+            SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+            let len = space_by_time.spacelines.len();
+            assert!(len > 0, "real assert 5");
+            if len < goal_y as usize * 2 {
+                break;
+            }
+            if !is_even(space_by_time.spacelines.main.len()) {
+                SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+                // println!("is odd: Spacelines {:?}", space_by_time.spacelines);
+                let last = space_by_time.spacelines.main.pop().unwrap();
+                space_by_time
+                    .spacelines
+                    .buffer0
+                    .insert(0, (last, space_by_time.y_stride));
+                SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+            }
+            // println!("Spacelines: {:?}", space_by_time.spacelines);
+
+            assert!(
+                is_even(space_by_time.spacelines.main.len()),
+                "real assert 6"
+            );
+
+            SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+            space_by_time.spacelines.main = space_by_time
+                .spacelines
+                .main
+                .drain(..)
+                .tuples()
+                .map(|(mut first, second)| {
+                    // println!("tuple a: {:?} b: {:?}", first.time, second.time);
+                    assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
+
+                    if binning {
+                        // cmk00 remove from loop?
+                        first.merge(&second);
+                    } else {
+                        /* do nothing */
+                    }
+                    first
+                })
+                .collect();
+            space_by_time.y_stride = space_by_time.y_stride.double();
+            // println!("After binning or sampling: {:?}", space_by_time.spacelines);
+            SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+        }
+    }
+
+    // cmk ideas
     // use
     //       assert!(self.stride.is_power_of_two(), "Sample must be a power of two");
     //       // Use bitwise AND for fast divisibility check
@@ -152,51 +216,6 @@ impl SpaceByTime {
             }
         }
     }
-
-    // #[inline]
-    // pub(crate) fn push_spaceline(&mut self, spaceline: Spaceline, weight: PowerOfTwo) {
-    //     let inside_index = self.y_stride.rem_into_u64(self.step_index);
-
-    //     if inside_index == 0 {
-    //         // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-    //         self.spacelines.flush_buffer0();
-    //         self.compress_cmk1_y_if_needed();
-    //     }
-
-    //     if self.pixel_policy == PixelPolicy::Sampling && inside_index != 0 {
-    //         return;
-    //     }
-
-    //     let buffer0 = &mut self.spacelines.buffer0;
-
-    //     if buffer0.is_empty() {
-    //         Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
-    //         self.step_index += weight.as_u64();
-    //         return;
-    //     }
-    //     let (last_spaceline, last_weight) = buffer0.last().unwrap();
-    //     assert!(last_spaceline.time < spaceline.time, "real assert 11");
-    //     if weight <= *last_weight {
-    //         Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
-    //         self.step_index += weight.as_u64();
-    //         return;
-    //     }
-
-    //     for i in 0..weight.as_u64() {
-    //         let mut clone = spaceline.clone(); // cmk don't need to clone the last time
-    //         clone.time = spaceline.time + i;
-    //         // if i % 100 == 0 {
-    //         //     println!(
-    //         //         "clone's x stride {} -len {}, +len {}",
-    //         //         clone.x_stride.as_usize(),
-    //         //         clone.negative.len(),
-    //         //         clone.nonnegative.len()
-    //         //     );
-    //         // }
-    //         Spacelines::push_internal(buffer0, clone, PowerOfTwo::ONE, self.pixel_policy);
-    //         self.step_index += 1;
-    //     }
-    // }
 
     pub fn to_png(
         &mut self,
@@ -348,6 +367,8 @@ impl SpaceByTime {
     //     (new_cols, ys)
     // }
 
+    // cmk000 works on packed_data that is one too big, currently can't use SIMD because packed data is not aligned
+    // cmk0000move to lib, use aligned vec and slice
     fn compress_cmk4_y_if_needed(
         &self,
         mut packed_data: Vec<u8>,
@@ -381,6 +402,36 @@ impl SpaceByTime {
             (new_packed_data, y_goal)
         } else {
             (packed_data, y_actual)
+        }
+    }
+
+    pub(crate) fn reduce_buffer0(&mut self) {
+        // cmk remove this variable
+        let space_by_time = self;
+
+        // take the buffer0 leaving it empty
+        let buffer_old = core::mem::take(&mut space_by_time.spacelines.buffer0);
+        let buffer0 = &mut space_by_time.spacelines.buffer0;
+        let mut old_weight = None;
+        for (spaceline, weight) in buffer_old {
+            assert!(
+                old_weight.is_none() || old_weight.unwrap() >= weight,
+                "should be monotonic"
+            );
+            assert!(weight <= space_by_time.y_stride, "should be <= y_stride");
+            if weight == space_by_time.y_stride {
+                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
+                space_by_time.spacelines.main.push(spaceline);
+                continue;
+            }
+            Spacelines::push_internal(buffer0, spaceline, weight, space_by_time.pixel_policy);
+            old_weight = Some(weight);
+
+            if buffer0.len() == 1 && buffer0.first().unwrap().1 == space_by_time.y_stride {
+                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
+                let (spaceline_z, _weight_z) = buffer0.pop().unwrap();
+                space_by_time.spacelines.main.push(spaceline_z);
+            }
         }
     }
 }
