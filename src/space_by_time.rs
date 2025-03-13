@@ -1,7 +1,7 @@
 use itertools::Itertools;
 
 use crate::{
-    Error, Machine, Pixel, PixelPolicy, SpaceByTimeMachine, Tape, encode_png, find_stride, is_even,
+    Error, Machine, Pixel, PixelPolicy, Tape, encode_png, find_stride, is_even,
     power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline, spacelines::Spacelines,
 };
 
@@ -64,86 +64,47 @@ impl SpaceByTime {
         self.step_index
     }
 
-    pub(crate) fn compress_cmk1_y_if_needed(&mut self) {
-        // cmk make private
-        // Sampling & Averaging 1--
-        // We sometimes need to squeeze rows by averaging adjacent pairs of rows.
-        // The alternative is just to keep the 1st row and discard the 2nd row.
-
-        // cmk000 instead of sample_rate, use find_stride???
-        let new_sample = sample_rate(self.step_index, self.y_goal);
-        if new_sample != self.y_stride {
-            assert!(
-                new_sample / self.y_stride == PowerOfTwo::TWO,
-                "real assert 10"
-            );
-            self.y_stride = new_sample;
-            match self.pixel_policy {
-                PixelPolicy::Binning => self.spacelines.compress_y_average(),
-                PixelPolicy::Sampling => self.spacelines.compress_y_take_first(new_sample),
-            }
-        }
-    }
-
     // cmk0 understand the `compress_cmk*` functions
-    // cmk000 early_stop is just for auditing. Move it to be the last argument and rename it to early_stop_audit
-    pub(crate) fn compress_cmk3_y_if_needed(&mut self, early_stop: Option<u64>) {
+    pub(crate) fn compress_cmk3_y_if_needed(&mut self) {
         let goal_y = self.y_goal;
-        // cmk remove this variable
-        let space_by_time = self;
-        let binning = match space_by_time.pixel_policy {
-            PixelPolicy::Binning => true,
-            PixelPolicy::Sampling => false,
-        };
-        // cmk move audit_one to SpaceByTime
-        SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+        self.audit();
 
         loop {
-            SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
-            let len = space_by_time.spacelines.len();
+            self.audit();
+            let len = self.spacelines.len();
             assert!(len > 0, "real assert 5");
             if len < goal_y as usize * 2 {
                 break;
             }
-            if !is_even(space_by_time.spacelines.main.len()) {
-                SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
-                // println!("is odd: Spacelines {:?}", space_by_time.spacelines);
-                let last = space_by_time.spacelines.main.pop().unwrap();
-                space_by_time
-                    .spacelines
-                    .buffer0
-                    .insert(0, (last, space_by_time.y_stride));
-                SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+            if !is_even(self.spacelines.main.len()) {
+                self.audit();
+                // println!("is odd: Spacelines {:?}", self.spacelines);
+                let last = self.spacelines.main.pop().unwrap();
+                self.spacelines.buffer0.insert(0, (last, self.y_stride));
+                self.audit();
             }
-            // println!("Spacelines: {:?}", space_by_time.spacelines);
 
-            assert!(
-                is_even(space_by_time.spacelines.main.len()),
-                "real assert 6"
-            );
+            assert!(is_even(self.spacelines.main.len()), "real assert 6");
 
-            SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
-            space_by_time.spacelines.main = space_by_time
+            self.audit();
+            self.spacelines.main = self
                 .spacelines
                 .main
                 .drain(..)
                 .tuples()
                 .map(|(mut first, second)| {
-                    // println!("tuple a: {:?} b: {:?}", first.time, second.time);
                     assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
 
-                    if binning {
-                        // cmk00 remove from loop?
-                        first.merge(&second);
-                    } else {
-                        /* do nothing */
+                    // cmk00 remove from loop?
+                    match self.pixel_policy {
+                        PixelPolicy::Binning => first.merge(&second),
+                        PixelPolicy::Sampling => (),
                     }
                     first
                 })
                 .collect();
-            space_by_time.y_stride = space_by_time.y_stride.double();
-            // println!("After binning or sampling: {:?}", space_by_time.spacelines);
-            SpaceByTimeMachine::audit_one(space_by_time, None, None, early_stop, binning);
+            self.y_stride = self.y_stride.double();
+            self.audit();
         }
     }
 
@@ -164,8 +125,7 @@ impl SpaceByTime {
             PixelPolicy::Binning => {
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-                    self.spacelines.flush_buffer0();
-                    self.compress_cmk1_y_if_needed();
+                    self.flush_buffer0_and_compress();
                 }
                 let spaceline = if let Some(mut previous) = self.previous_space_line.take() {
                     // cmk messy code
@@ -202,8 +162,7 @@ impl SpaceByTime {
                     return;
                 }
                 // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-                self.spacelines.flush_buffer0();
-                self.compress_cmk1_y_if_needed();
+                self.flush_buffer0_and_compress();
                 self.spacelines.push(
                     Spaceline::new(
                         machine.tape(),
@@ -390,7 +349,7 @@ impl SpaceByTime {
                     // cmk00 why binning in the inner loop?
                     match self.pixel_policy {
                         PixelPolicy::Binning => Pixel::slice_merge_bytes_no_simd(left, right),
-                        PixelPolicy::Sampling => { /* do nothing */ }
+                        PixelPolicy::Sampling => (),
                     }
 
                     // by design new_chunk is the same size as left, so copy the bytes from left to new_chunk
@@ -472,7 +431,7 @@ impl SpaceByTime {
         }
 
         loop {
-            self.compress_cmk3_y_if_needed(None);
+            self.compress_cmk3_y_if_needed();
             self.reduce_buffer0();
 
             if self.spacelines.len() <= self.y_goal as usize * 2 {
@@ -480,5 +439,70 @@ impl SpaceByTime {
             }
         }
         self
+    }
+
+    #[inline]
+    #[allow(unused_variables, clippy::shadow_reuse)]
+    pub(crate) fn audit(&self) {
+        // on debug compiles call audit_one_internal otherwise do nothing
+        #[cfg(debug_assertions)]
+        {
+            let mut previous_y_stride: Option<PowerOfTwo> = None;
+            let mut previous_time: Option<u64> = None;
+
+            // cmk remove this variable
+            let space_by_time = self;
+            let y_stride = space_by_time.y_stride;
+            if let Some(previous_y_stride) = previous_y_stride {
+                assert_eq!(
+                    y_stride, previous_y_stride,
+                    "from part to part, the stride should be the same"
+                );
+            }
+            let spacelines = &space_by_time.spacelines;
+            let main = &spacelines.main;
+            for spaceline in main {
+                if let Some(previous_time) = previous_time {
+                    assert!(
+                        spaceline.time == previous_time + y_stride.as_u64(),
+                        "mind the gap"
+                    );
+                } else {
+                    assert_eq!(spaceline.time, 0, "first spaceline should be 0");
+                }
+                previous_time = Some(spaceline.time);
+                previous_y_stride = Some(y_stride);
+            }
+            for (spaceline, weight) in &spacelines.buffer0 {
+                assert!(
+                    spaceline.time == previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
+                    "mind the gap"
+                );
+                assert!(
+                    *weight <= previous_y_stride.unwrap(),
+                    "should be <= previous_y_stride"
+                );
+                previous_time = Some(spaceline.time);
+                previous_y_stride = Some(*weight);
+            }
+        }
+    }
+
+    pub(crate) fn flush_buffer0_and_compress(&mut self) {
+        debug_assert!(self.spacelines.buffer0.len() <= 1);
+        let spacelines = &mut self.spacelines;
+        if !spacelines.buffer0.is_empty() {
+            assert!(spacelines.buffer0.len() == 1, "real assert 13");
+            spacelines.main.push(spacelines.buffer0.pop().unwrap().0);
+        }
+        let y_stride = sample_rate(self.step_index, self.y_goal);
+        if y_stride != self.y_stride {
+            assert_eq!(y_stride, self.y_stride.double());
+            self.y_stride = y_stride;
+            match self.pixel_policy {
+                PixelPolicy::Binning => self.spacelines.compress_y_average(),
+                PixelPolicy::Sampling => self.spacelines.compress_y_take_first(y_stride),
+            }
+        }
     }
 }

@@ -5,10 +5,7 @@ use instant::Instant;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use wasm_bindgen::prelude::*;
 
-use crate::{
-    Machine, PixelPolicy, PowerOfTwo, Snapshot, sample_rate, space_by_time::SpaceByTime,
-    spacelines::Spacelines,
-};
+use crate::{Machine, PixelPolicy, Snapshot, sample_rate, space_by_time::SpaceByTime};
 
 #[wasm_bindgen]
 pub struct SpaceByTimeMachine {
@@ -318,8 +315,7 @@ impl SpaceByTimeMachine {
                 }
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-                    space_by_time.spacelines.flush_buffer0();
-                    space_by_time.compress_cmk1_y_if_needed();
+                    space_by_time.flush_buffer0_and_compress();
                 }
 
                 (snapshots, space_by_time_machine)
@@ -337,7 +333,7 @@ impl SpaceByTimeMachine {
         // Extract FIRST result
         let mut results_iter = snapshots_and_space_by_time_machines.into_iter();
         let result = results_iter.next().unwrap();
-        let (snapshots_first, mut space_by_time_machine_first) = result;
+        let (snapshots_first, space_by_time_machine_first) = result;
         let mut space_by_time_first = space_by_time_machine_first.space_by_time;
         let mut machine_first = space_by_time_machine_first.machine;
         assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
@@ -387,86 +383,6 @@ impl SpaceByTimeMachine {
                 space_by_time_other.spacelines.buffer0.is_empty(),
                 "real assert 2"
             );
-        }
-    }
-
-    #[inline]
-    #[allow(unused_variables)]
-    pub(crate) fn audit_one(
-        space_by_time: &SpaceByTime,
-        previous_y_stride: Option<PowerOfTwo>,
-        previous_time: Option<u64>,
-        early_stop: Option<u64>,
-        binning: bool,
-    ) {
-        // on debug compiles call audit_one_internal otherwise do nothing
-        #[cfg(debug_assertions)]
-        Self::audit_one_internal(
-            space_by_time,
-            previous_y_stride,
-            previous_time,
-            early_stop,
-            binning,
-        );
-    }
-
-    #[cfg(debug_assertions)]
-    fn audit_one_internal(
-        space_by_time: &SpaceByTime,
-        mut previous_y_stride: Option<PowerOfTwo>,
-        mut previous_time: Option<u64>,
-        early_stop: Option<u64>,
-        binning: bool,
-    ) {
-        let y_stride = space_by_time.y_stride;
-        if let Some(previous_y_stride) = previous_y_stride {
-            assert_eq!(
-                y_stride, previous_y_stride,
-                "from part to part, the stride should be the same"
-            );
-        }
-        let spacelines = &space_by_time.spacelines;
-        let main = &spacelines.main;
-        for spaceline in main {
-            if let Some(previous_time) = previous_time {
-                assert!(
-                    spaceline.time == previous_time + y_stride.as_u64(),
-                    "mind the gap"
-                );
-            } else {
-                assert_eq!(spaceline.time, 0, "first spaceline should be 0");
-            }
-            previous_time = Some(spaceline.time);
-            previous_y_stride = Some(y_stride);
-        }
-        for (spaceline, weight) in &spacelines.buffer0 {
-            assert!(
-                spaceline.time == previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
-                "mind the gap"
-            );
-            assert!(
-                *weight <= previous_y_stride.unwrap(),
-                "should be <= previous_y_stride"
-            );
-            previous_time = Some(spaceline.time);
-            previous_y_stride = Some(*weight);
-        }
-
-        if let Some(early_stop) = early_stop {
-            // cmk when this is in SpaceByTime, can use self.pixel_policy
-            if binning {
-                assert!(
-                    previous_time.unwrap() + previous_y_stride.unwrap().as_u64() == early_stop,
-                    "mind the gap with early_stop"
-                );
-            } else {
-                assert!(
-                    previous_time.unwrap() < early_stop
-                        && early_stop
-                            <= previous_time.unwrap() + previous_y_stride.unwrap().as_u64(),
-                    "mind the gap with early_stop"
-                );
-            }
         }
     }
 }

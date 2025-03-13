@@ -59,14 +59,6 @@ impl Spacelines {
         }
     }
 
-    pub(crate) fn flush_buffer0(&mut self) {
-        // We now have a buffer that needs to be flushed at the end
-        if !self.buffer0.is_empty() {
-            assert!(self.buffer0.len() == 1, "real assert 13");
-            self.main.push(self.buffer0.pop().unwrap().0);
-        }
-    }
-
     #[allow(clippy::min_ident_chars)]
     #[inline]
     pub(crate) fn compress_y_average(&mut self) {
