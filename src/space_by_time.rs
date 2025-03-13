@@ -1,8 +1,9 @@
 use itertools::Itertools;
 
 use crate::{
-    Error, Machine, Pixel, PixelPolicy, Tape, encode_png, find_stride, is_even,
-    power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline, spacelines::Spacelines,
+    Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
+    find_stride, is_even, power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline,
+    spacelines::Spacelines,
 };
 
 #[derive(Clone)]
@@ -65,48 +66,6 @@ impl SpaceByTime {
     }
 
     // cmk0 understand the `compress_cmk*` functions
-    pub(crate) fn compress_cmk3_y_if_needed(&mut self) {
-        let goal_y = self.y_goal;
-        self.audit();
-
-        loop {
-            self.audit();
-            let len = self.spacelines.len();
-            assert!(len > 0, "real assert 5");
-            if len < goal_y as usize * 2 {
-                break;
-            }
-            if !is_even(self.spacelines.main.len()) {
-                self.audit();
-                // println!("is odd: Spacelines {:?}", self.spacelines);
-                let last = self.spacelines.main.pop().unwrap();
-                self.spacelines.buffer0.insert(0, (last, self.y_stride));
-                self.audit();
-            }
-
-            assert!(is_even(self.spacelines.main.len()), "real assert 6");
-
-            self.audit();
-            self.spacelines.main = self
-                .spacelines
-                .main
-                .drain(..)
-                .tuples()
-                .map(|(mut first, second)| {
-                    assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
-
-                    // cmk00 remove from loop?
-                    match self.pixel_policy {
-                        PixelPolicy::Binning => first.merge(&second),
-                        PixelPolicy::Sampling => (),
-                    }
-                    first
-                })
-                .collect();
-            self.y_stride = self.y_stride.double();
-            self.audit();
-        }
-    }
 
     // cmk ideas
     // use
@@ -256,151 +215,25 @@ impl SpaceByTime {
             }
         }
 
-        // println!("packed_data ({x_actual},{y_actual}) {packed_data:?}");
         assert!(y_actual <= 2 * y_goal);
-        let (packed_data, y_actual) = self.compress_cmk4_y_if_needed(
+        let (packed_data, y_actual) = compress_packed_data_if_one_too_big(
             packed_data,
+            self.pixel_policy,
             y_goal as u32,
             x_actual as u32,
             y_actual as u32,
         );
-        // let (x_actual, y_actual) =
-        //     Self::trim_columns(&mut packed_data, x_actual as usize, y_actual as usize);
 
         let png = encode_png(x_actual as u32, y_actual, &packed_data)?;
 
         Ok((png, x_actual as u32, y_actual, packed_data))
     }
 
-    // fn trim_columns(matrix: &mut Vec<u8>, xs: usize, ys: usize) -> (usize, usize) {
-    //     assert!(!matrix.is_empty());
-    //     assert_eq!(xs * ys, matrix.len());
-
-    //     let mut first_nonzero_col = None;
-    //     let mut last_nonzero_col = None;
-
-    //     // Find the first non-zero column.
-    //     'outer_first: for x in 0..xs {
-    //         for y in 0..ys {
-    //             if matrix[y * xs + x] != 0 {
-    //                 first_nonzero_col = Some(x);
-    //                 break 'outer_first;
-    //             }
-    //         }
-    //     }
-
-    //     // Find the last non-zero column.
-    //     'outer_last: for x in (0..xs).rev() {
-    //         for y in 0..ys {
-    //             if matrix[y * xs + x] != 0 {
-    //                 last_nonzero_col = Some(x);
-    //                 break 'outer_last;
-    //             }
-    //         }
-    //     }
-
-    //     // Use `let else` to handle the case where no nonzero column was found (all zeros).
-    //     let (Some(first_col), Some(last_col)) = (first_nonzero_col, last_nonzero_col) else {
-    //         // Entire matrix is zeros: return a single-column matrix of zeros.
-    //         matrix.truncate(ys); // Keep the first element of each row.
-    //         return (1, ys);
-    //     };
-
-    //     // If no trimming is needed (i.e. every column has a nonzero), return unchanged.
-    //     if first_col == 0 && last_col == xs - 1 {
-    //         return (xs, ys);
-    //     }
-
-    //     let new_cols = last_col - first_col + 1;
-
-    //     // Move data in-place row by row.
-    //     for y in 0..ys {
-    //         let src_start = y * xs + first_col;
-    //         let dst_start = y * new_cols;
-    //         for i in 0..new_cols {
-    //             matrix[dst_start + i] = matrix[src_start + i];
-    //         }
-    //     }
-
-    //     // Truncate any excess elements.
-    //     matrix.truncate(ys * new_cols);
-    //     (new_cols, ys)
-    // }
-
-    // cmk000 works on packed_data that is one too big, currently can't use SIMD because packed data is not aligned
-    // cmk0000move to lib, use aligned vec and slice
-    fn compress_cmk4_y_if_needed(
-        &self,
-        mut packed_data: Vec<u8>,
-        y_goal: u32,
-        x_actual: u32,
-        y_actual: u32,
-    ) -> (Vec<u8>, u32) {
-        if y_actual == 2 * y_goal {
-            // cmk remove the constant
-            // reduce the # of rows in half my averaging
-            let mut new_packed_data = vec![0u8; x_actual as usize * y_goal as usize];
-            packed_data
-                .chunks_exact_mut(x_actual as usize * 2)
-                .zip(new_packed_data.chunks_exact_mut(x_actual as usize))
-                .for_each(|(chunk, new_chunk)| {
-                    let (left, right) = chunk.split_at_mut(x_actual as usize);
-                    // cmk00 so many issues: why no_simd?
-                    // cmk00 why binning in the inner loop?
-                    match self.pixel_policy {
-                        PixelPolicy::Binning => Pixel::slice_merge_bytes_no_simd(left, right),
-                        PixelPolicy::Sampling => (),
-                    }
-
-                    // by design new_chunk is the same size as left, so copy the bytes from left to new_chunk
-                    new_chunk.copy_from_slice(left);
-                });
-            // println!(
-            //     "new_packed_data ({x_actual},{}) {new_packed_data:?}",
-            //     y_actual >> 1
-            // );
-            (new_packed_data, y_goal)
-        } else {
-            (packed_data, y_actual)
-        }
-    }
-
-    pub(crate) fn reduce_buffer0(&mut self) {
-        // cmk remove this variable
-        let space_by_time = self;
-
-        // take the buffer0 leaving it empty
-        let buffer_old = core::mem::take(&mut space_by_time.spacelines.buffer0);
-        let buffer0 = &mut space_by_time.spacelines.buffer0;
-        let mut old_weight = None;
-        for (spaceline, weight) in buffer_old {
-            assert!(
-                old_weight.is_none() || old_weight.unwrap() >= weight,
-                "should be monotonic"
-            );
-            assert!(weight <= space_by_time.y_stride, "should be <= y_stride");
-            if weight == space_by_time.y_stride {
-                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
-                space_by_time.spacelines.main.push(spaceline);
-                continue;
-            }
-            Spacelines::push_internal(buffer0, spaceline, weight, space_by_time.pixel_policy);
-            old_weight = Some(weight);
-
-            if buffer0.len() == 1 && buffer0.first().unwrap().1 == space_by_time.y_stride {
-                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
-                let (spaceline_z, _weight_z) = buffer0.pop().unwrap();
-                space_by_time.spacelines.main.push(spaceline_z);
-            }
-        }
-    }
-
     pub(crate) fn append(mut self, other: Self) -> Self {
-        // cmk00 remove this variable
         let y_stride = self.y_stride;
-        let spacelines_other = other.spacelines;
-        let main_other = spacelines_other.main;
-        let buffer0_other = spacelines_other.buffer0;
+
+        let main_other = other.spacelines.main;
+        let buffer0_other = other.spacelines.buffer0;
 
         // If y_strides match, add other's main spacelines to the main buffer else add to the buffer0
         let (mut previous_y_stride, mut previous_time) = if other.y_stride == y_stride {
@@ -431,14 +264,81 @@ impl SpaceByTime {
         }
 
         loop {
-            self.compress_cmk3_y_if_needed();
-            self.reduce_buffer0();
+            self.append_internal_compress();
 
             if self.spacelines.len() <= self.y_goal as usize * 2 {
                 break;
             }
         }
         self
+    }
+
+    pub(crate) fn append_internal_compress(&mut self) {
+        let goal_y = self.y_goal;
+        self.audit();
+
+        loop {
+            self.audit();
+            let len = self.spacelines.len();
+            assert!(len > 0, "real assert 5");
+            if len < goal_y as usize * 2 {
+                break;
+            }
+            if !is_even(self.spacelines.main.len()) {
+                self.audit();
+                // println!("is odd: Spacelines {:?}", self.spacelines);
+                let last = self.spacelines.main.pop().unwrap();
+                self.spacelines.buffer0.insert(0, (last, self.y_stride));
+                self.audit();
+            }
+
+            assert!(is_even(self.spacelines.main.len()), "real assert 6");
+
+            self.audit();
+            self.spacelines.main = self
+                .spacelines
+                .main
+                .drain(..)
+                .tuples()
+                .map(|(mut first, second)| {
+                    assert!(first.tape_start() >= second.tape_start(), "real assert 4a");
+
+                    // cmk00 remove from loop?
+                    match self.pixel_policy {
+                        PixelPolicy::Binning => first.merge(&second),
+                        PixelPolicy::Sampling => (),
+                    }
+                    first
+                })
+                .collect();
+            self.y_stride = self.y_stride.double();
+            self.audit();
+        }
+
+        // take the buffer0 leaving it empty
+        let buffer_old = core::mem::take(&mut self.spacelines.buffer0);
+        let buffer0 = &mut self.spacelines.buffer0;
+        let mut old_weight = None;
+        for (spaceline, weight) in buffer_old {
+            assert!(
+                old_weight.is_none() || old_weight.unwrap() >= weight,
+                "should be monotonic"
+            );
+            assert!(weight <= self.y_stride, "should be <= y_stride");
+            if weight == self.y_stride {
+                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
+                self.spacelines.main.push(spaceline);
+                continue;
+            }
+            Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
+            old_weight = Some(weight);
+
+            if buffer0.len() == 1 && buffer0.first().unwrap().1 == self.y_stride {
+                // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
+                let (spaceline_z, _weight_z) = buffer0.pop().unwrap();
+                self.spacelines.main.push(spaceline_z);
+            }
+        }
     }
 
     #[inline]

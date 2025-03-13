@@ -156,6 +156,7 @@ impl From<core::num::ParseIntError> for Error {
     }
 }
 
+// cmk000 I don't trust this because it differs from find_stride and it uses floating point math
 #[inline]
 #[must_use]
 pub fn sample_rate(row: u64, goal: u32) -> PowerOfTwo {
@@ -506,4 +507,39 @@ fn find_stride(tape_neg_len: usize, tape_non_neg_len: usize, goal: usize) -> Pow
         "Stride not found. This should never happen. \
         Please report this as a bug.",
     )
+}
+
+// cmk000 works on packed_data that is one too big, currently can't use SIMD because packed data is not aligned
+// cmk0000move to lib, use aligned vec and slice
+fn compress_packed_data_if_one_too_big(
+    mut packed_data: Vec<u8>,
+    pixel_policy: PixelPolicy,
+    y_goal: u32,
+    x_actual: u32,
+    y_actual: u32,
+) -> (Vec<u8>, u32) {
+    if y_actual < 2 * y_goal {
+        (packed_data, y_actual)
+    } else {
+        assert!(y_actual == 2 * y_goal, "y_actual must be 2 * y_goal");
+        // cmk remove the constant
+        // reduce the # of rows in half my averaging
+        let mut new_packed_data = vec![0u8; x_actual as usize * y_goal as usize];
+        packed_data
+            .chunks_exact_mut(x_actual as usize * 2)
+            .zip(new_packed_data.chunks_exact_mut(x_actual as usize))
+            .for_each(|(chunk, new_chunk)| {
+                let (left, right) = chunk.split_at_mut(x_actual as usize);
+                // cmk00 so many issues: why no_simd?
+                // cmk00 why binning in the inner loop?
+                match pixel_policy {
+                    PixelPolicy::Binning => Pixel::slice_merge_bytes_no_simd(left, right),
+                    PixelPolicy::Sampling => (),
+                }
+
+                // by design new_chunk is the same size as left, so copy the bytes from left to new_chunk
+                new_chunk.copy_from_slice(left);
+            });
+        (new_packed_data, y_goal)
+    }
 }
