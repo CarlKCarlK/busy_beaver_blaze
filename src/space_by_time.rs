@@ -3,6 +3,7 @@ use crate::{
     sample_rate, spaceline::Spaceline, spacelines::Spacelines,
 };
 
+#[derive(Clone)]
 pub struct SpaceByTime {
     skip: u64,
     pub(crate) step_index: u64,           // cmk make private

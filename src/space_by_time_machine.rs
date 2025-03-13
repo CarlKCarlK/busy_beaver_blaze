@@ -1,10 +1,13 @@
+use core::ops::Range;
+use std::{collections::HashMap, fs};
+
 use instant::Instant;
 use itertools::Itertools;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    Machine, PixelPolicy, PowerOfTwo, is_even, sample_rate, space_by_time::SpaceByTime,
+    Machine, PixelPolicy, PowerOfTwo, Snapshot, is_even, sample_rate, space_by_time::SpaceByTime,
     spacelines::Spacelines,
 };
 
@@ -199,22 +202,25 @@ impl SpaceByTimeMachine {
     pub fn from_str_in_parts(
         // cmk change the order of the inputs
         early_stop: u64,
-        part_count: u64,
+        part_count_goal: u64,
         program_string: &str,
         goal_x: u32,
         goal_y: u32,
         binning: bool,
+        frame_step_indexes: &[u64],
     ) -> Self {
-        let space_by_time_machines = Self::run_parts(
+        let snapshots_and_space_by_time_machines = Self::run_parts(
             early_stop,
-            part_count,
+            part_count_goal,
             program_string,
             goal_x,
             goal_y,
             binning,
+            frame_step_indexes,
         );
 
-        let mut space_by_time_machine = Self::combine_results(space_by_time_machines);
+        let mut space_by_time_machine =
+            Self::combine_results(goal_x, goal_y, snapshots_and_space_by_time_machines);
 
         loop {
             space_by_time_machine.compress_cmk3_y_if_needed(goal_y, early_stop, binning);
@@ -251,6 +257,19 @@ impl SpaceByTimeMachine {
         self.machine.tape_index()
     }
 
+    fn create_range_list(early_stop: u64, part_count_goal: u64, goal_y: u32) -> Vec<Range<u64>> {
+        let mut rows_per_part = early_stop.div_ceil(part_count_goal);
+
+        let y_stride = sample_rate(rows_per_part, goal_y);
+        rows_per_part += y_stride.offset_to_align(rows_per_part as usize) as u64;
+        assert!(y_stride.divides_u64(rows_per_part), "even?");
+
+        (0..early_stop)
+            .step_by(rows_per_part as usize)
+            .map(|start| start..(start + rows_per_part).min(early_stop))
+            .collect()
+    }
+
     // cmk000 need to handle the case of early halting.
     fn run_parts(
         early_stop: u64,
@@ -259,35 +278,43 @@ impl SpaceByTimeMachine {
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-    ) -> Vec<Self> {
+        frame_step_indexes: &[u64],
+    ) -> Vec<(Vec<Snapshot>, Self)> {
         assert!(early_stop > 0); // panic if early_stop is 0
         assert!(part_count_goal > 0); // panic if part_count_goal is 0
 
-        let mut rows_per_part = early_stop.div_ceil(part_count_goal);
-
-        let y_stride = sample_rate(rows_per_part, goal_y);
-        rows_per_part += y_stride.offset_to_align(rows_per_part as usize) as u64;
-        // assert_eq!(y_stride.double(), sample_rate(rows_per_part, goal_y), "+1?");
-        assert!(y_stride.divides_u64(rows_per_part), "even?");
-
-        // println!("Part max_rows_per_part: {rows_per_part}");
-        let range_list: Vec<_> = (0..early_stop)
-            .step_by(rows_per_part as usize)
-            .map(|start| start..(start + rows_per_part).min(early_stop))
-            .collect();
+        let range_list = Self::create_range_list(early_stop, part_count_goal, goal_y);
         let part_count = range_list.len() as u64;
 
-        let results: Vec<Self> = range_list
+        range_list
             .par_iter()
             // .iter()
             .enumerate()
             .map(|(part_index, range)| {
                 let (start, end) = (range.start, range.end);
-                // println!("{part_index}: Start: {start}, End: {end}");
+
+                // Create a hashmap where the key is any frame_step_indexes between start..end and
+                // the value is a list of all the enumeration index in the frame_step_indexes vector.
+                let mut step_index_to_frame_index: HashMap<u64, Vec<usize>> = HashMap::new();
+                for (index, &step_index) in frame_step_indexes.iter().enumerate() {
+                    if step_index >= start && step_index < end {
+                        step_index_to_frame_index
+                            .entry(step_index)
+                            .or_default()
+                            .push(index);
+                    }
+                }
+
                 let mut space_by_time_machine =
                     Self::from_str(program_string, goal_x, goal_y, binning, start)
                         .expect("Failed to create machine");
-                for _time in start + 1..end {
+
+                let mut snapshots: Vec<Snapshot> = vec![];
+                for step_index in start + 1..end {
+                    if let Some(frame_indexes) = step_index_to_frame_index.get(&step_index) {
+                        snapshots
+                            .push(Snapshot::new(frame_indexes.clone(), &space_by_time_machine));
+                    }
                     if space_by_time_machine.next().is_none() {
                         break;
                     }
@@ -307,23 +334,36 @@ impl SpaceByTimeMachine {
                     space_by_time.compress_cmk1_y_if_needed();
                 }
 
-                space_by_time_machine
+                (snapshots, space_by_time_machine)
             })
-            .collect();
-        results
+            .collect()
     }
 
-    fn combine_results(results: Vec<Self>) -> Self {
-        let part_count = results.len() as u64;
+    // cmk is it sometimes x_goal and sometimes goal_x????
+    fn combine_results(
+        x_goal: u32,
+        y_goal: u32,
+        snapshots_and_space_by_time_machines: Vec<(Vec<Snapshot>, Self)>,
+    ) -> Self {
+        let part_count = snapshots_and_space_by_time_machines.len() as u64;
         // Extract FIRST result
-        let mut results_iter = results.into_iter();
-        let mut space_by_time_machine = results_iter.next().unwrap();
-        let space_by_time_first = &mut space_by_time_machine.space_by_time;
+        let mut results_iter = snapshots_and_space_by_time_machines.into_iter();
+        let result = results_iter.next().unwrap();
+        let (snapshots_first, mut space_by_time_machine_first) = result;
+        let space_by_time_first = &mut space_by_time_machine_first.space_by_time;
         assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
         let y_stride = space_by_time_first.y_stride;
 
+        for mut snapshot_first in snapshots_first {
+            let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0000 need to handle
+            for frame_index in &snapshot_first.frame_indexes {
+                let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
+                fs::write(cmk_file, &png_data).unwrap();
+            }
+        }
+
         let mut index: usize = 0;
-        for space_by_time_machine_other in results_iter {
+        for (_snapshots_other, space_by_time_machine_other) in results_iter {
             index += 1;
             let space_by_time = space_by_time_machine_other.space_by_time;
             let spacelines = space_by_time.spacelines;
@@ -378,10 +418,10 @@ impl SpaceByTimeMachine {
                     .push((spaceline, weight));
             }
 
-            space_by_time_machine.machine = space_by_time_machine_other.machine;
+            space_by_time_machine_first.machine = space_by_time_machine_other.machine;
         }
 
-        space_by_time_machine
+        space_by_time_machine_first
     }
 
     // cmk0 understand the `compress_cmk*` functions

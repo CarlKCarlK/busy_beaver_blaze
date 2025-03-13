@@ -322,9 +322,9 @@ fn benchmark63() -> Result<(), String> {
     let goal_y: u32 = 432;
     // let goal_x: u32 = 1920;
     // let goal_y: u32 = 1080;
+    let binning = false;
 
     let program_string = BB6_CONTENDER;
-    let binning = true;
     let mut space_by_time_machine =
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
 

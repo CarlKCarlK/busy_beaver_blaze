@@ -2,6 +2,7 @@ use itertools::Itertools;
 
 use crate::{PixelPolicy, Tape, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline};
 
+#[derive(Clone)]
 pub struct Spacelines {
     pub(crate) main: Vec<Spaceline>,                  // cmk make private
     pub(crate) buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names

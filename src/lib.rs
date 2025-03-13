@@ -11,6 +11,7 @@ mod machine;
 mod pixel;
 mod pixel_policy;
 mod power_of_two;
+mod snapshot;
 mod space_by_time;
 mod space_by_time_machine;
 mod spaceline;
@@ -22,6 +23,7 @@ use bool_u8::BoolU8;
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
+use snapshot::Snapshot;
 use thousands::Separable;
 use zerocopy::IntoBytes;
 // Export types from modules

@@ -1,0 +1,32 @@
+use crate::{Error, SpaceByTime, SpaceByTimeMachine};
+
+pub(crate) struct Snapshot {
+    pub(crate) frame_indexes: Vec<usize>, // cmk make private
+    tape_negative_len: usize,
+    tape_nonnegative_len: usize,
+    space_by_time: SpaceByTime,
+}
+
+// given a frame_index and SpaceTimeMachine, create a snapshot
+impl Snapshot {
+    pub(crate) fn new(
+        frame_indexes: Vec<usize>,
+        space_by_time_machine: &SpaceByTimeMachine,
+    ) -> Self {
+        Self {
+            frame_indexes,
+            tape_negative_len: space_by_time_machine.machine().tape.negative.len(),
+            tape_nonnegative_len: space_by_time_machine.machine().tape.nonnegative.len(),
+            space_by_time: space_by_time_machine.space_by_time.clone(),
+        }
+    }
+
+    pub(crate) fn to_png(&mut self, x_goal: u32, y_goal: u32) -> Result<Vec<u8>, Error> {
+        self.space_by_time.to_png(
+            self.tape_negative_len,
+            self.tape_nonnegative_len,
+            x_goal as usize,
+            y_goal as usize,
+        )
+    }
+}

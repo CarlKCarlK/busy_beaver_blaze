@@ -1,7 +1,8 @@
 use crate::{
-    ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, Machine, PixelPolicy, PowerOfTwo, SpaceByTime,
-    SpaceByTimeMachine, average_with_iterators, average_with_simd, average_with_simd_count_ones64,
-    average_with_simd_push, bool_u8::BoolU8, find_stride, pixel::Pixel, spaceline::Spaceline,
+    ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PowerOfTwo,
+    SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
+    average_with_simd_count_ones64, average_with_simd_push, bool_u8::BoolU8, find_stride,
+    pixel::Pixel, spaceline::Spaceline,
 };
 use aligned_vec::AVec;
 use rand::{Rng, SeedableRng};
@@ -208,49 +209,50 @@ fn test_average() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn parts() {
-    // let max_rows = 2413u64;
+    // let early_stop = 2413u64;
     // let part_count = 3;
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 30;
     // let binning = true;
 
-    let max_rows = 250_000_000u64;
+    let early_stop = 250_000_000u64;
     let part_count = 16;
     let goal_x: u32 = 360;
     let goal_y: u32 = 432;
     let binning = true;
 
-    // let max_rows = 10_000_000u64;
+    // let early_stop = 10_000_000u64;
     // let part_count = 16;
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 30;
     // let binning = true;
 
-    // let max_rows = 1_000_000u64;
+    // let early_stop = 1_000_000u64;
     // let part_count = 1;
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 30;
     // let binning = true;
 
-    // let max_rows = 300u64;
+    // let early_stop = 300u64;
     // let part_count = 2;
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 432;
     // let binning = true;
 
-    // let max_rows = 5u64;
+    // let early_stop = 5u64;
     // let part_count = 10;
 
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 432;
     let program_string = BB6_CONTENDER;
     let mut space_by_time_machine_first = SpaceByTimeMachine::from_str_in_parts(
-        max_rows,
+        early_stop,
         part_count,
         program_string,
         goal_x,
         goal_y,
         binning,
+        &[0u64; 0],
     );
     let png_data = space_by_time_machine_first.png_data();
     fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
@@ -342,6 +344,7 @@ fn combo() {
                                 goal_x,
                                 goal_y,
                                 binning,
+                                &[0u64; 0],
                             );
                             let (png_data, x, y, packed_data) = machine.png_data_and_packed_data();
 
@@ -415,6 +418,7 @@ fn one() {
         goal_x,
         goal_y,
         binning,
+        &[0u64; 0],
     );
     let png_data = machine.png_data_and_packed_data().0;
 
@@ -429,4 +433,60 @@ fn one() {
         (png_data == reference_png_data),
         "PNG data does not match for {key}"
     );
+}
+
+#[test]
+fn frames() {
+    let frame_count = 100;
+    let early_stop = 2413u64;
+    let part_count = 3;
+    let goal_x: u32 = 360;
+    let goal_y: u32 = 30;
+    let binning = true;
+
+    // let early_stop = 250_000_000u64;
+    // let part_count = 16;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
+
+    // let early_stop = 10_000_000u64;
+    // let part_count = 16;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 30;
+    // let binning = true;
+
+    // let early_stop = 1_000_000u64;
+    // let part_count = 1;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 30;
+    // let binning = true;
+
+    // let early_stop = 300u64;
+    // let part_count = 2;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
+
+    // let early_stop = 5u64;
+    // let part_count = 10;
+
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+
+    let frame_step_indexes: Vec<_> = LogStepIterator::new(early_stop, frame_count).collect();
+    let program_string = BB6_CONTENDER;
+    let mut space_by_time_machine_first = SpaceByTimeMachine::from_str_in_parts(
+        early_stop,
+        part_count,
+        program_string,
+        goal_x,
+        goal_y,
+        binning,
+        frame_step_indexes.as_slice(),
+    );
+    let png_data = space_by_time_machine_first.png_data();
+    fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
+
+    // assert!(len < goal_y as usize * 2, "real assert 2");
 }
