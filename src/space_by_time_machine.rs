@@ -6,7 +6,7 @@ use instant::Instant;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use wasm_bindgen::prelude::*;
 
-use crate::{Machine, PixelPolicy, Snapshot, sample_rate, space_by_time::SpaceByTime};
+use crate::{Machine, PixelPolicy, Snapshot, find_y_stride, space_by_time::SpaceByTime};
 
 #[wasm_bindgen]
 pub struct SpaceByTimeMachine {
@@ -246,7 +246,7 @@ impl SpaceByTimeMachine {
     fn create_range_list(early_stop: u64, part_count_goal: u64, goal_y: u32) -> Vec<Range<u64>> {
         let mut rows_per_part = early_stop.div_ceil(part_count_goal);
 
-        let y_stride = sample_rate(rows_per_part, goal_y);
+        let y_stride = find_y_stride(rows_per_part, goal_y);
         rows_per_part += y_stride.offset_to_align(rows_per_part as usize) as u64;
         assert!(y_stride.divides_u64(rows_per_part), "even?");
 
@@ -340,7 +340,7 @@ impl SpaceByTimeMachine {
         assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
 
         for mut snapshot_first in snapshots_first {
-            let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0000 need to handle
+            let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
             for frame_index in &snapshot_first.frame_indexes {
                 let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
                 fs::write(cmk_file, &png_data).unwrap();
@@ -356,7 +356,7 @@ impl SpaceByTimeMachine {
             for mut snapshot_other in snapshots_other {
                 // cmk this is convoluted way to combine these two
                 snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
-                let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0000 need to handle
+                let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
                 for frame_index in &snapshot_other.frame_indexes {
                     let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
                     fs::write(cmk_file, &png_data).unwrap();

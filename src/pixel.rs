@@ -1,4 +1,5 @@
 use crate::{LANES_CMK, bool_u8::BoolU8};
+use aligned_vec::AVec;
 use core::ops::{Add, AddAssign};
 use core::simd::{self, prelude::*};
 use derive_more::Display;
@@ -60,12 +61,18 @@ impl Pixel {
     }
 
     #[inline]
-    pub(crate) fn slice_merge_simd(left: &mut [Self], right: &[Self]) {
-        debug_assert_eq!(
-            left.len(),
-            right.len(),
-            "Both slices must have the same length"
+    pub(crate) fn avec_merge_simd(left: &mut AVec<Self>, right: &AVec<Self>) {
+        assert!(
+            left.len() <= right.len(),
+            "Left slice must be smaller than or equal to right slice"
         );
+        left.resize(right.len(), Self::WHITE);
+        Self::slice_merge_simd(left, right);
+    }
+
+    #[inline]
+    pub(crate) fn slice_merge_simd(left: &mut [Self], right: &[Self]) {
+        assert!(left.len() == right.len());
 
         let left_bytes: &mut [u8] = left.as_mut_bytes();
         let right_bytes: &[u8] = right.as_bytes();

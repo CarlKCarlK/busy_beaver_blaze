@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 use crate::{
     ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
-    find_x_stride, is_even, power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline,
+    find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline,
     spacelines::Spacelines,
 };
 
@@ -180,13 +180,13 @@ impl SpaceByTime {
             if spaceline.x_stride == x_stride {
                 break;
             }
-            spaceline.compress_x_if_needed(x_stride);
+            spaceline.compress_x_if_needed_simd(x_stride);
         }
         for spaceline in &mut self.spacelines.main {
             if spaceline.x_stride == x_stride {
                 break;
             }
-            spaceline.compress_x_if_needed(x_stride);
+            spaceline.compress_x_if_needed_simd(x_stride);
         }
 
         let last = self.spacelines.last(self.y_stride, self.pixel_policy);
@@ -394,7 +394,7 @@ impl SpaceByTime {
             assert!(spacelines.buffer0.len() == 1, "real assert 13");
             spacelines.main.push(spacelines.buffer0.pop().unwrap().0);
         }
-        let y_stride = sample_rate(self.step_index, self.y_goal);
+        let y_stride = find_y_stride(self.step_index, self.y_goal);
         if y_stride != self.y_stride {
             assert_eq!(y_stride, self.y_stride.double());
             self.y_stride = y_stride;

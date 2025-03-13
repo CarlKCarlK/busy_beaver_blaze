@@ -243,7 +243,7 @@ impl Spaceline {
 
     #[allow(clippy::missing_panics_doc)]
     #[inline]
-    pub fn compress_x_if_needed(&mut self, new_x_stride: PowerOfTwo) {
+    pub fn compress_x_if_needed_simd(&mut self, new_x_stride: PowerOfTwo) {
         // Sampling & Averaging 2 --
         assert!(self.x_stride <= new_x_stride);
         while self.x_stride < new_x_stride {
@@ -278,23 +278,11 @@ impl Spaceline {
         assert!(self.time < other.time,);
         assert!(self.x_stride <= other.x_stride);
 
-        self.compress_x_if_needed(other.x_stride);
+        self.compress_x_if_needed_simd(other.x_stride);
         assert!(self.x_stride == other.x_stride);
 
-        // cmk00000 can't we use math and not a loop?
-        assert!(self.negative.len() <= other.negative.len());
-        while self.negative.len() < other.negative.len() {
-            self.negative.push(Pixel::WHITE);
-        }
-        assert!(self.negative.len() == other.negative.len());
-        Pixel::slice_merge_simd(&mut self.negative, &other.negative);
-
-        // cmk00000 can't we use math and not a loop?
-        while self.nonnegative.len() < other.nonnegative.len() {
-            self.nonnegative.push(Pixel::WHITE);
-        }
-        assert!(self.nonnegative.len() == other.nonnegative.len());
-        Pixel::slice_merge_simd(&mut self.nonnegative, &other.nonnegative);
+        Pixel::avec_merge_simd(&mut self.negative, &other.negative);
+        Pixel::avec_merge_simd(&mut self.nonnegative, &other.nonnegative);
     }
 
     #[inline]

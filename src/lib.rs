@@ -156,16 +156,40 @@ impl From<core::num::ParseIntError> for Error {
     }
 }
 
-// cmk000 I don't trust this because it differs from find_stride and it uses floating point math
+// This is complicated because the tape is in two parts and we always start at 0.
+fn find_x_stride(tape_neg_len: usize, tape_non_neg_len: usize, x_goal: usize) -> PowerOfTwo {
+    assert!(x_goal >= 2, "Goal must be at least 2");
+    let tape_len = tape_neg_len + tape_non_neg_len;
+    // If the total length is less than the goal, use no downsampling.
+    if tape_len < x_goal {
+        return PowerOfTwo::ONE;
+    }
+    for exp in 0u8..63 {
+        let stride = PowerOfTwo::from_exp(exp);
+        // Compute ceiling division for each tape.
+        let neg_len = stride.div_ceil_into(tape_neg_len);
+        let non_neg_len = stride.div_ceil_into(tape_non_neg_len);
+        let len = neg_len + non_neg_len;
+        // We want combined to be in [goal_x, 2*goal_x).
+        if x_goal <= len && len < 2 * x_goal {
+            return stride;
+        }
+    }
+    panic!("x_stride not found. This should never happen. Please report this as a bug.",)
+}
+
 #[inline]
 #[must_use]
-pub fn sample_rate(row: u64, goal: u32) -> PowerOfTwo {
-    let threshold = 2 * goal;
-    let ratio = (row + 1) as f64 / threshold as f64;
+#[allow(clippy::integer_division_remainder_used)]
+pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
+    let threshold = 2 * y_goal as u64;
+    // Compute the ceiling of (len + 1) / threshold.
+    // Note: (len + threshold) / threshold is equivalent to ceil((len + 1) / threshold)
+    let ceiling_ratio = (len + threshold) / threshold;
+    let floor_log2 = 63 - ceiling_ratio.leading_zeros();
+    let exponent = floor_log2 + ((!ceiling_ratio.is_power_of_two()) as u32);
 
-    // For rows < threshold, ratio < 1, log2(ratio) is negative, and the ceil clamps to 0.
-    let exponent = ratio.log2().ceil().max(0.0) as u8;
-    PowerOfTwo::from_exp(exponent)
+    PowerOfTwo::from_exp(exponent as u8)
 }
 
 #[allow(clippy::integer_division_remainder_used)]
@@ -486,29 +510,7 @@ pub const fn prev_power_of_two(x: usize) -> usize {
     1usize << (usize::BITS as usize - x.leading_zeros() as usize - 1)
 }
 
-fn find_x_stride(tape_neg_len: usize, tape_non_neg_len: usize, x_goal: usize) -> PowerOfTwo {
-    assert!(x_goal >= 2, "Goal must be at least 2");
-    let tape_len = tape_neg_len + tape_non_neg_len;
-    // If the total length is less than the goal, use no downsampling.
-    if tape_len < x_goal {
-        return PowerOfTwo::ONE;
-    }
-    for exp in 0u8..63 {
-        let stride = PowerOfTwo::from_exp(exp);
-        // Compute ceiling division for each tape.
-        let neg_len = stride.div_ceil_into(tape_neg_len);
-        let non_neg_len = stride.div_ceil_into(tape_non_neg_len);
-        let len = neg_len + non_neg_len;
-        // We want combined to be in [goal_x, 2*goal_x).
-        if x_goal <= len && len < 2 * x_goal {
-            return stride;
-        }
-    }
-    panic!("x_stride not found. This should never happen. Please report this as a bug.",)
-}
-
-// cmk000 works on packed_data that is one too big, currently can't use SIMD because packed data is not aligned
-// cmk0000move to lib, use aligned vec and slice
+// cmk Can't use simd because chunks left & right may not be aligned (?) -- also not on the critical path
 fn compress_packed_data_if_one_too_big(
     mut packed_data: AVec<u8>,
     pixel_policy: PixelPolicy,
