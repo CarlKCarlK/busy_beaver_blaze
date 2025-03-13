@@ -4,7 +4,7 @@ use crate::pixel::Pixel;
 use crate::tape::Tape;
 use crate::{
     ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, average_with_iterators,
-    average_with_simd, find_x_stride, is_even, sample_with_iterators,
+    average_with_simd, find_x_stride, sample_with_iterators,
 };
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;
@@ -102,24 +102,6 @@ impl Spaceline {
     #[must_use]
     pub fn tape_start(&self) -> i64 {
         -((self.x_stride * self.negative.len()) as i64)
-    }
-
-    pub fn resample_one(pixels: &mut AVec<Pixel>) {
-        let len = pixels.len();
-        let mut write_index = 0;
-
-        let mut i = 0;
-        while i + 1 < len {
-            pixels[write_index] = pixels[i] + pixels[i + 1]; // Overlapping write
-            write_index += 1;
-            i += 2;
-        }
-        if !is_even(len) {
-            pixels[write_index] = pixels[len - 1] + Pixel::WHITE; // Handle last odd element
-            write_index += 1;
-        }
-
-        pixels.truncate(write_index);
     }
 
     #[allow(clippy::cast_ptr_alignment, clippy::integer_division_remainder_used)]

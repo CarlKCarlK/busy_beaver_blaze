@@ -2,7 +2,7 @@ use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PowerOfTwo,
     SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
     average_with_simd_count_ones64, average_with_simd_push, bool_u8::BoolU8, find_x_stride,
-    pixel::Pixel, spaceline::Spaceline,
+    pixel::Pixel, spaceline::Spaceline, test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
 use rand::{Rng, SeedableRng};
@@ -268,12 +268,9 @@ fn resample_simd() {
         let mut pixels: AVec<Pixel, _> =
             AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
 
-        // println!("len {len} before: {pixels:?}");
         let mut reference = pixels.clone();
-        Spaceline::resample_one(&mut reference);
-        // println!("reference: {reference:?}");
-        Spaceline::resample_one(&mut pixels);
-        // println!("after: {pixels:?}");
+        compress_x_no_simd_binning(&mut reference);
+        Spaceline::compress_x_simd_binning(&mut pixels);
         assert_eq!(pixels, reference);
     }
 }

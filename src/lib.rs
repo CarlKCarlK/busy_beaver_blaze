@@ -543,3 +543,26 @@ fn compress_packed_data_if_one_too_big(
         (new_packed_data, y_goal)
     }
 }
+
+pub mod test_utils {
+    use crate::{Pixel, is_even};
+    use aligned_vec::AVec;
+
+    pub fn compress_x_no_simd_binning(pixels: &mut AVec<Pixel>) {
+        let len = pixels.len();
+        let mut write_index = 0;
+
+        let mut i = 0;
+        while i + 1 < len {
+            pixels[write_index] = pixels[i] + pixels[i + 1]; // Overlapping write
+            write_index += 1;
+            i += 2;
+        }
+        if !is_even(len) {
+            pixels[write_index] = pixels[len - 1] + Pixel::WHITE; // Handle last odd element
+            write_index += 1;
+        }
+
+        pixels.truncate(write_index);
+    }
+}
