@@ -436,7 +436,7 @@ impl SpaceByTime {
         }
     }
 
-    pub(crate) fn extend(&mut self, other: Self) {
+    pub(crate) fn append(mut self, other: Self) -> Self {
         // cmk00 remove this variable
         let y_stride = self.y_stride;
         let spacelines_other = other.spacelines;
@@ -479,5 +479,6 @@ impl SpaceByTime {
                 break;
             }
         }
+        self
     }
 }

@@ -338,7 +338,8 @@ impl SpaceByTimeMachine {
         let mut results_iter = snapshots_and_space_by_time_machines.into_iter();
         let result = results_iter.next().unwrap();
         let (snapshots_first, mut space_by_time_machine_first) = result;
-        let space_by_time_first = &mut space_by_time_machine_first.space_by_time;
+        let mut space_by_time_first = space_by_time_machine_first.space_by_time;
+        let mut machine_first = space_by_time_machine_first.machine;
         assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
 
         for mut snapshot_first in snapshots_first {
@@ -357,10 +358,7 @@ impl SpaceByTimeMachine {
 
             for mut snapshot_other in snapshots_other {
                 // cmk this is convoluted way to combine these two
-                let mut space_by_time_combo = space_by_time_first.clone();
-                space_by_time_combo.extend(snapshot_other.space_by_time);
-
-                snapshot_other.space_by_time = space_by_time_combo;
+                snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
                 let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0000 need to handle
                 for frame_index in &snapshot_other.frame_indexes {
                     let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
@@ -368,11 +366,14 @@ impl SpaceByTimeMachine {
                 }
             }
 
-            space_by_time_first.extend(space_by_time_other);
-            space_by_time_machine_first.machine = space_by_time_machine_other.machine;
+            space_by_time_first = space_by_time_first.append(space_by_time_other);
+            machine_first = space_by_time_machine_other.machine;
         }
 
-        space_by_time_machine_first
+        Self {
+            machine: machine_first,
+            space_by_time: space_by_time_first,
+        }
     }
 
     #[inline]
