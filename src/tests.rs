@@ -1,7 +1,7 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PowerOfTwo,
     SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
-    average_with_simd_count_ones64, average_with_simd_push, bool_u8::BoolU8, find_stride,
+    average_with_simd_count_ones64, average_with_simd_push, bool_u8::BoolU8, find_x_stride,
     pixel::Pixel, spaceline::Spaceline,
 };
 use aligned_vec::AVec;
@@ -284,7 +284,7 @@ fn test_find_stride() {
         for tape_non_neg_len in [1usize, 2, 3, 4, 5, 10, 101, 9999, 1_000_007] {
             let tape_len = tape_neg_len + tape_non_neg_len;
             for goal_x in [2, 3, 4, 5, 6, 7, 10, 100, 1000, 33_333] {
-                let x_stride = find_stride(tape_neg_len, tape_non_neg_len, goal_x);
+                let x_stride = find_x_stride(tape_neg_len, tape_non_neg_len, goal_x);
                 let neg_len = x_stride.div_ceil_into(tape_neg_len);
                 let non_neg_len = x_stride.div_ceil_into(tape_non_neg_len);
                 let len = neg_len + non_neg_len;

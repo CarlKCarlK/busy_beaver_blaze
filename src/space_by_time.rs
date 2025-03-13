@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 use crate::{
     ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
-    find_stride, is_even, power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline,
+    find_x_stride, is_even, power_of_two::PowerOfTwo, sample_rate, spaceline::Spaceline,
     spacelines::Spacelines,
 };
 
@@ -166,7 +166,7 @@ impl SpaceByTime {
         assert!(x_goal >= 2);
         // println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
 
-        let x_stride = find_stride(tape_negative_len, tape_nonnegative_len, x_goal);
+        let x_stride = find_x_stride(tape_negative_len, tape_nonnegative_len, x_goal);
         let x_zero = x_stride.div_ceil_into(tape_negative_len);
         let x_actual = x_zero + x_stride.div_ceil_into(tape_nonnegative_len);
 
@@ -304,7 +304,7 @@ impl SpaceByTime {
 
                     // cmk00 remove from loop?
                     match self.pixel_policy {
-                        PixelPolicy::Binning => first.merge(&second),
+                        PixelPolicy::Binning => first.merge_simd(&second),
                         PixelPolicy::Sampling => (),
                     }
                     first

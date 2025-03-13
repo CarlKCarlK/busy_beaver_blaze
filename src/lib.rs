@@ -243,6 +243,7 @@ pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pi
     result
 }
 
+// cmk00 move this to tape and give a better name
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_with_simd<const LANES: usize>(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel>
@@ -485,11 +486,11 @@ pub const fn prev_power_of_two(x: usize) -> usize {
     1usize << (usize::BITS as usize - x.leading_zeros() as usize - 1)
 }
 
-fn find_stride(tape_neg_len: usize, tape_non_neg_len: usize, goal: usize) -> PowerOfTwo {
-    assert!(goal >= 2, "Goal must be at least 2");
+fn find_x_stride(tape_neg_len: usize, tape_non_neg_len: usize, x_goal: usize) -> PowerOfTwo {
+    assert!(x_goal >= 2, "Goal must be at least 2");
     let tape_len = tape_neg_len + tape_non_neg_len;
     // If the total length is less than the goal, use no downsampling.
-    if tape_len < goal {
+    if tape_len < x_goal {
         return PowerOfTwo::ONE;
     }
     for exp in 0u8..63 {
@@ -499,14 +500,11 @@ fn find_stride(tape_neg_len: usize, tape_non_neg_len: usize, goal: usize) -> Pow
         let non_neg_len = stride.div_ceil_into(tape_non_neg_len);
         let len = neg_len + non_neg_len;
         // We want combined to be in [goal_x, 2*goal_x).
-        if goal <= len && len < 2 * goal {
+        if x_goal <= len && len < 2 * x_goal {
             return stride;
         }
     }
-    panic!(
-        "Stride not found. This should never happen. \
-        Please report this as a bug.",
-    )
+    panic!("x_stride not found. This should never happen. Please report this as a bug.",)
 }
 
 // cmk000 works on packed_data that is one too big, currently can't use SIMD because packed data is not aligned
@@ -526,6 +524,7 @@ fn compress_packed_data_if_one_too_big(
         // reduce the # of rows in half my averaging
         let mut new_packed_data = AVec::with_capacity(ALIGN, x_actual as usize * y_goal as usize);
         new_packed_data.resize(x_actual as usize * y_goal as usize, 0u8);
+
         packed_data
             .chunks_exact_mut(x_actual as usize * 2)
             .zip(new_packed_data.chunks_exact_mut(x_actual as usize))

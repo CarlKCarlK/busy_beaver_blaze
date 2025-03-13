@@ -72,7 +72,7 @@ impl Spacelines {
             .tuples()
             .map(|(mut a, b)| {
                 assert!(a.tape_start() >= b.tape_start(), "real assert 4a");
-                a.merge(&b);
+                a.merge_simd(&b);
                 a
             })
             .collect();
@@ -114,7 +114,7 @@ impl Spacelines {
                     assert!(weight_last < y_stride, "real assert");
                     // Otherwise, we half it's color and double the weight
 
-                    spaceline_last.merge_with_white();
+                    spaceline_last.merge_with_white_simd();
 
                     Self::push_internal(
                         &mut buffer0,
@@ -157,7 +157,7 @@ impl Spacelines {
                 }
                 PixelPolicy::Binning => {
                     // Merge spacelines and double weight
-                    last_spaceline.merge(&spaceline);
+                    last_spaceline.merge_simd(&spaceline);
                     // Continue with the merged spaceline
                     spaceline = last_spaceline;
                 }

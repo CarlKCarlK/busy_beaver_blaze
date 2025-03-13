@@ -4,7 +4,7 @@ use crate::pixel::Pixel;
 use crate::tape::Tape;
 use crate::{
     ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, average_with_iterators,
-    average_with_simd, find_stride, is_even, sample_with_iterators,
+    average_with_simd, find_x_stride, is_even, sample_with_iterators,
 };
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;
@@ -97,6 +97,7 @@ impl Spaceline {
         }
     }
 
+    // cmk0000 remove this
     #[inline]
     #[must_use]
     pub fn tape_start(&self) -> i64 {
@@ -297,52 +298,49 @@ impl Spaceline {
 
     #[allow(clippy::missing_panics_doc)]
     #[inline]
-    pub fn merge(&mut self, other: &Self) {
-        assert!(
-            self.time < other.time,
-            "self.time {} should be < other.time {}",
-            self.time,
-            other.time
-        );
-        assert!(self.x_stride <= other.x_stride, "real assert 3");
-        assert!(self.tape_start() >= other.tape_start(), "real assert 4");
+    pub fn merge_simd(&mut self, other: &Self) {
+        assert!(self.time < other.time,);
+        assert!(self.x_stride <= other.x_stride);
+
         self.compress_x_if_needed(other.x_stride);
-        assert!(self.x_stride == other.x_stride, "real assert 5b");
-        assert!(self.tape_start() >= other.tape_start(), "real assert 6c");
+        assert!(self.x_stride == other.x_stride);
+
+        assert!(self.tape_start() >= other.tape_start());
         while self.tape_start() > other.tape_start() {
             self.negative.push(Pixel::WHITE);
         }
-        Pixel::slice_merge(&mut self.negative, &other.negative);
         assert!(self.tape_start() == other.tape_start(), "real assert 6c");
+        Pixel::slice_merge_simd(&mut self.negative, &other.negative);
+
         while self.nonnegative.len() < other.nonnegative.len() {
             self.nonnegative.push(Pixel::WHITE);
         }
-        assert!(
-            self.nonnegative.len() == other.nonnegative.len(),
-            "real assert 6d"
-        );
-        Pixel::slice_merge(&mut self.nonnegative, &other.nonnegative);
+        assert!(self.nonnegative.len() == other.nonnegative.len());
+        Pixel::slice_merge_simd(&mut self.nonnegative, &other.nonnegative);
     }
 
     #[inline]
-    pub fn merge_with_white(&mut self) {
-        Pixel::slice_merge_with_white(&mut self.nonnegative);
-        Pixel::slice_merge_with_white(&mut self.negative);
+    pub fn merge_with_white_simd(&mut self) {
+        Pixel::slice_merge_with_white_simd(&mut self.nonnegative);
+        Pixel::slice_merge_with_white_simd(&mut self.negative);
     }
 
     #[allow(clippy::missing_panics_doc)]
     #[inline]
     #[must_use]
     pub fn new(tape: &Tape, x_goal: u32, step_index: u64, pixel_policy: PixelPolicy) -> Self {
-        let x_stride = find_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
+        // cmk00 move this to tape and give a better name
+        let x_stride = find_x_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
         match pixel_policy {
             PixelPolicy::Binning => {
                 let (negative, nonnegative) = match x_stride {
                     PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => (
+                        // cmk00 move this to tape and give a better name
                         average_with_iterators(&tape.negative, x_stride),
                         average_with_iterators(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::EIGHT => (
+                        // cmk00 move this to tape and give a better name
                         average_with_simd::<8>(&tape.negative, x_stride),
                         average_with_simd::<8>(&tape.nonnegative, x_stride),
                     ),
@@ -392,7 +390,7 @@ impl Spaceline {
     ) -> bool {
         // let x_stride = sample_rate(tape.nonnegative.len() as u64, x_goal)
         //     .min(sample_rate(tape.negative.len() as u64, x_goal));
-        let x_stride = find_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
+        let x_stride = find_x_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
 
         // When the sample
         if self.x_stride != x_stride {

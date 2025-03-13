@@ -60,7 +60,7 @@ impl Pixel {
     }
 
     #[inline]
-    pub(crate) fn slice_merge(left: &mut [Self], right: &[Self]) {
+    pub(crate) fn slice_merge_simd(left: &mut [Self], right: &[Self]) {
         debug_assert_eq!(
             left.len(),
             right.len(),
@@ -70,7 +70,7 @@ impl Pixel {
         let left_bytes: &mut [u8] = left.as_mut_bytes();
         let right_bytes: &[u8] = right.as_bytes();
 
-        Self::slice_merge_bytes(left_bytes, right_bytes);
+        Self::slice_merge_bytes_simd(left_bytes, right_bytes);
     }
 
     #[inline]
@@ -91,7 +91,7 @@ impl Pixel {
     }
 
     #[inline]
-    pub(crate) fn slice_merge_bytes(left_bytes: &mut [u8], right_bytes: &[u8]) {
+    pub(crate) fn slice_merge_bytes_simd(left_bytes: &mut [u8], right_bytes: &[u8]) {
         // cmk debug_assert
         assert!(
             Self::simd_precondition::<u8, LANES_CMK>(left_bytes, right_bytes),
@@ -130,7 +130,7 @@ impl Pixel {
     }
 
     #[inline]
-    pub(crate) fn slice_merge_with_white(left: &mut [Self]) {
+    pub(crate) fn slice_merge_with_white_simd(left: &mut [Self]) {
         let left_bytes: &mut [u8] = left.as_mut_bytes();
 
         // Process chunks with SIMD where possible
