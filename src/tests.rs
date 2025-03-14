@@ -209,17 +209,17 @@ fn test_average() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn parts() {
-    // let early_stop = 2413u64;
-    // let part_count = 3;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
-    // let binning = true;
-
-    let early_stop = 250_000_000u64;
-    let part_count = 16;
+    let early_stop = 2413u64;
+    let part_count = 3;
     let goal_x: u32 = 360;
-    let goal_y: u32 = 432;
+    let goal_y: u32 = 30;
     let binning = true;
+
+    // let early_stop = 250_000_000u64;
+    // let part_count = 16;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
 
     // let early_stop = 10_000_000u64;
     // let part_count = 16;
@@ -434,19 +434,26 @@ fn one() {
 
 #[test]
 fn frames() {
+    // let early_stop = 2413;
     // let frame_count = 100;
-    // let early_stop = 2413u64;
     // let part_count = 3;
     // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
+    // let goal_y: u32 = 432;
     // let binning = true;
 
-    let early_stop = 250_000_000u64;
-    let frame_count = 1000;
-    let part_count = 42;
+    let early_stop = 2413u64;
+    let frame_count = 100;
+    let part_count = 3;
     let goal_x: u32 = 360;
     let goal_y: u32 = 432;
     let binning = true;
+
+    // let early_stop = 250_000_000u64;
+    // let frame_count = 1000;
+    // let part_count = 42;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
 
     // let early_stop = 100_000_000_000u64;
     // let frame_count = 2000;

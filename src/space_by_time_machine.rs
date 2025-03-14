@@ -1,7 +1,7 @@
 extern crate alloc;
 use alloc::collections::BTreeMap;
 use core::ops::Range;
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, thread};
 
 use aligned_vec::AVec;
 use crossbeam::channel::{self, Receiver, Sender};
@@ -209,7 +209,7 @@ impl SpaceByTimeMachine {
         binning: bool,
         frame_step_indexes: &[u64],
     ) -> Self {
-        let (sender, receiver) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
+        let (sender0, receiver0) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
         // cmk should part_count be a usize?
         let part_count = Self::run_parts(
             early_stop,
@@ -219,10 +219,25 @@ impl SpaceByTimeMachine {
             goal_y,
             binning,
             frame_step_indexes,
-            sender,
+            sender0,
         );
 
-        Self::combine_results(goal_x, goal_y, part_count, &receiver)
+        let (sender1, receiver1) = channel::unbounded::<(usize, Vec<u8>)>();
+        // Spawn combine_results on its own thread.
+        let combine_handle = thread::spawn({
+            move || Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
+        });
+
+        for (frame_index, _step_index) in frame_step_indexes.iter().enumerate() {
+            print!("Looking for frame {frame_index}... ");
+            let (frame_index1, png_data) = receiver1.recv().unwrap();
+            println!("Found frame {frame_index1}!");
+            // cmk0000 assert_eq!(frame_index, frame_index1);
+            let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index1:07}.png");
+            fs::write(cmk_file, &png_data).unwrap();
+        }
+
+        combine_handle.join().unwrap()
     }
 
     #[inline]
@@ -288,7 +303,7 @@ impl SpaceByTimeMachine {
         let mut snapshots: Vec<Snapshot> = vec![];
         let step_index_to_frame_index =
             Self::build_step_index_to_frame_index(frame_step_indexes, start, end);
-        for step_index in start + 1..end {
+        for step_index in start..end {
             if let Some(frame_indexes) = step_index_to_frame_index.get(&step_index) {
                 snapshots.push(Snapshot::new(frame_indexes.clone(), self));
             }
@@ -334,7 +349,7 @@ impl SpaceByTimeMachine {
                     .y_stride
                     .rem_into_u64(space_by_time.step_index() + 1);
                 // This should be 0 on all but the last part
-                assert!(inside_index == 0 || part_index == part_count as usize - 1);
+                assert!(inside_index == 0 || part_index == part_count - 1);
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                     space_by_time.flush_buffer0_and_compress();
@@ -351,7 +366,8 @@ impl SpaceByTimeMachine {
         x_goal: u32,
         y_goal: u32,
         part_count: usize,
-        receiver: &Receiver<(usize, Vec<Snapshot>, Self)>,
+        receiver0: &Receiver<(usize, Vec<Snapshot>, Self)>,
+        sender1: &Sender<(usize, Vec<u8>)>,
     ) -> Self {
         assert!(part_count > 0);
         let mut buffer = BTreeMap::new();
@@ -366,10 +382,10 @@ impl SpaceByTimeMachine {
                 .first_key_value()
                 .is_none_or(|(&key, _)| key != next_index)
             {
-                let (index_received, snapshots, space_by_time_machine) =
-                    receiver.recv().expect("Channel closed unexpectedly");
-                println!("Received : {index_received}");
-                buffer.insert(index_received, (snapshots, space_by_time_machine));
+                let (part_index_received, snapshots, space_by_time_machine) =
+                    receiver0.recv().expect("Channel closed unexpectedly");
+                println!("Received : {part_index_received}");
+                buffer.insert(part_index_received, (snapshots, space_by_time_machine));
             }
             // pop
             let (popped_index, (snapshots, space_by_time_machine)) =
@@ -384,10 +400,15 @@ impl SpaceByTimeMachine {
 
                 for mut snapshot_first in snapshots {
                     let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-                    for frame_index in &snapshot_first.frame_indexes {
-                        let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
-                        fs::write(cmk_file, &png_data).unwrap();
+                    let (last, all_but_last) = snapshot_first.frame_indexes.split_last().unwrap();
+                    for index in all_but_last {
+                        sender1
+                            .send((*index, png_data.clone()))
+                            .expect("Failed to send PNG data");
                     }
+                    sender1
+                        .send((*last, png_data))
+                        .expect("Failed to send PNG data");
                 }
                 space_by_time_first_outer = Some(space_by_time_first);
                 machine_first = Some(space_by_time_machine.machine);
@@ -407,10 +428,15 @@ impl SpaceByTimeMachine {
                 // cmk this is convoluted way to combine these two
                 snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
                 let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-                for frame_index in &snapshot_other.frame_indexes {
-                    let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
-                    fs::write(cmk_file, &png_data).unwrap();
+                let (last, all_but_last) = snapshot_other.frame_indexes.split_last().unwrap();
+                for index in all_but_last {
+                    sender1
+                        .send((*index, png_data.clone()))
+                        .expect("Failed to send PNG data");
                 }
+                sender1
+                    .send((*last, png_data))
+                    .expect("Failed to send PNG data");
             }
 
             space_by_time_first_outer = Some(space_by_time_first.append(space_by_time_other));
