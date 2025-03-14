@@ -214,8 +214,7 @@ impl SpaceByTimeMachine {
             goal_y,
             binning,
             frame_step_indexes,
-        )
-        .collect();
+        );
 
         Self::combine_results(goal_x, goal_y, snapshots_and_space_by_time_machines)
     }
@@ -303,7 +302,7 @@ impl SpaceByTimeMachine {
         goal_y: u32,
         binning: bool,
         frame_step_indexes: &[u64],
-    ) -> impl ParallelIterator<Item = (Vec<Snapshot>, Self)> {
+    ) -> Vec<(Vec<Snapshot>, Self)> {
         assert!(early_stop > 0); // panic if early_stop is 0
         assert!(part_count_goal > 0); // panic if part_count_goal is 0
 
@@ -336,6 +335,7 @@ impl SpaceByTimeMachine {
 
                 (snapshots, space_by_time_machine)
             })
+            .collect()
     }
 
     // cmk is it sometimes x_goal and sometimes goal_x????
