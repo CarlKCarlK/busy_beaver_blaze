@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs};
 
 use aligned_vec::AVec;
 use instant::Instant;
-use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use wasm_bindgen::prelude::*;
 
 use crate::{Machine, PixelPolicy, Snapshot, find_y_stride, space_by_time::SpaceByTime};
@@ -214,7 +214,8 @@ impl SpaceByTimeMachine {
             goal_y,
             binning,
             frame_step_indexes,
-        );
+        )
+        .collect();
 
         Self::combine_results(goal_x, goal_y, snapshots_and_space_by_time_machines)
     }
@@ -302,7 +303,7 @@ impl SpaceByTimeMachine {
         goal_y: u32,
         binning: bool,
         frame_step_indexes: &[u64],
-    ) -> Vec<(Vec<Snapshot>, Self)> {
+    ) -> impl ParallelIterator<Item = (Vec<Snapshot>, Self)> {
         assert!(early_stop > 0); // panic if early_stop is 0
         assert!(part_count_goal > 0); // panic if part_count_goal is 0
 
@@ -310,10 +311,9 @@ impl SpaceByTimeMachine {
         let part_count = range_list.len() as u64;
 
         range_list
-            .par_iter()
-            // .iter()
+            .into_par_iter()
             .enumerate()
-            .map(|(part_index, range)| {
+            .map(move |(part_index, range)| {
                 let (start, end) = (range.start, range.end);
 
                 let mut space_by_time_machine =
@@ -336,7 +336,6 @@ impl SpaceByTimeMachine {
 
                 (snapshots, space_by_time_machine)
             })
-            .collect()
     }
 
     // cmk is it sometimes x_goal and sometimes goal_x????
