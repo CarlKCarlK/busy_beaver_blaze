@@ -532,7 +532,6 @@ fn compress_packed_data_if_one_too_big(
             .zip(new_packed_data.chunks_exact_mut(x_actual as usize))
             .for_each(|(chunk, new_chunk)| {
                 let (left, right) = chunk.split_at_mut(x_actual as usize);
-                // cmk00 so many issues: why no_simd?
                 // cmk00 why binning in the inner loop?
                 match pixel_policy {
                     PixelPolicy::Binning => Pixel::slice_merge_bytes_no_simd(left, right),

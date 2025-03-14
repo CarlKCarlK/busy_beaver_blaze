@@ -256,6 +256,43 @@ impl SpaceByTimeMachine {
             .collect()
     }
 
+    fn build_step_index_to_frame_index(
+        frame_step_indexes: &[u64],
+        start: u64,
+        end: u64,
+    ) -> HashMap<u64, Vec<usize>> {
+        let mut step_index_to_frame_index: HashMap<u64, Vec<usize>> = HashMap::new();
+        for (index, &step_index) in frame_step_indexes.iter().enumerate() {
+            if step_index >= start && step_index < end {
+                step_index_to_frame_index
+                    .entry(step_index)
+                    .or_default()
+                    .push(index);
+            }
+        }
+        step_index_to_frame_index
+    }
+
+    fn generate_snapshots(
+        &mut self,
+        frame_step_indexes: &[u64],
+        start: u64,
+        end: u64,
+    ) -> Vec<Snapshot> {
+        let mut snapshots: Vec<Snapshot> = vec![];
+        let step_index_to_frame_index =
+            Self::build_step_index_to_frame_index(frame_step_indexes, start, end);
+        for step_index in start + 1..end {
+            if let Some(frame_indexes) = step_index_to_frame_index.get(&step_index) {
+                snapshots.push(Snapshot::new(frame_indexes.clone(), self));
+            }
+            if self.next().is_none() {
+                break;
+            }
+        }
+        snapshots
+    }
+
     // cmk000 need to handle the case of early halting.
     fn run_parts(
         early_stop: u64,
@@ -279,41 +316,19 @@ impl SpaceByTimeMachine {
             .map(|(part_index, range)| {
                 let (start, end) = (range.start, range.end);
 
-                // Create a hashmap where the key is any frame_step_indexes between start..end and
-                // the value is a list of all the enumeration index in the frame_step_indexes vector.
-                let mut step_index_to_frame_index: HashMap<u64, Vec<usize>> = HashMap::new();
-                for (index, &step_index) in frame_step_indexes.iter().enumerate() {
-                    if step_index >= start && step_index < end {
-                        step_index_to_frame_index
-                            .entry(step_index)
-                            .or_default()
-                            .push(index);
-                    }
-                }
-
                 let mut space_by_time_machine =
                     Self::from_str(program_string, goal_x, goal_y, binning, start)
                         .expect("Failed to create machine");
 
-                let mut snapshots: Vec<Snapshot> = vec![];
-                for step_index in start + 1..end {
-                    if let Some(frame_indexes) = step_index_to_frame_index.get(&step_index) {
-                        snapshots
-                            .push(Snapshot::new(frame_indexes.clone(), &space_by_time_machine));
-                    }
-                    if space_by_time_machine.next().is_none() {
-                        break;
-                    }
-                }
+                let snapshots =
+                    space_by_time_machine.generate_snapshots(frame_step_indexes, start, end);
 
                 let space_by_time = &mut space_by_time_machine.space_by_time;
                 let inside_index = space_by_time
                     .y_stride
                     .rem_into_u64(space_by_time.step_index() + 1);
                 // This should be 0 on all but the last part
-                if (part_index as u64) < part_count - 1 {
-                    assert_eq!(inside_index, 0, "real assert 1");
-                }
+                assert!(inside_index == 0 || part_index == part_count as usize - 1);
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                     space_by_time.flush_buffer0_and_compress();

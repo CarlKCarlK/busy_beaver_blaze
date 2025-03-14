@@ -1,4 +1,6 @@
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+
+// cmk0 look at https://www.reddit.com/r/rust/comments/1jafvbe/how_to_inform_the_rust_compiler_of_an_enforced/
 pub struct PowerOfTwo(u8);
 
 impl core::fmt::Debug for PowerOfTwo {
