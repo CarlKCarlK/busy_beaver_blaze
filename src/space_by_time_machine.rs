@@ -1,7 +1,10 @@
+extern crate alloc;
+use alloc::collections::BTreeMap;
 use core::ops::Range;
 use std::{collections::HashMap, fs};
 
 use aligned_vec::AVec;
+use crossbeam::channel::{self, Receiver, Sender};
 use instant::Instant;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use wasm_bindgen::prelude::*;
@@ -199,14 +202,16 @@ impl SpaceByTimeMachine {
     pub fn from_str_in_parts(
         // cmk change the order of the inputs
         early_stop: u64,
-        part_count_goal: u64,
+        part_count_goal: usize,
         program_string: &str,
         goal_x: u32,
         goal_y: u32,
         binning: bool,
         frame_step_indexes: &[u64],
     ) -> Self {
-        let snapshots_and_space_by_time_machines = Self::run_parts(
+        let (sender, receiver) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
+        // cmk should part_count be a usize?
+        let part_count = Self::run_parts(
             early_stop,
             part_count_goal,
             program_string,
@@ -214,9 +219,10 @@ impl SpaceByTimeMachine {
             goal_y,
             binning,
             frame_step_indexes,
+            sender,
         );
 
-        Self::combine_results(goal_x, goal_y, snapshots_and_space_by_time_machines)
+        Self::combine_results(goal_x, goal_y, part_count, &receiver)
     }
 
     #[inline]
@@ -243,8 +249,8 @@ impl SpaceByTimeMachine {
         self.machine.tape_index()
     }
 
-    fn create_range_list(early_stop: u64, part_count_goal: u64, goal_y: u32) -> Vec<Range<u64>> {
-        let mut rows_per_part = early_stop.div_ceil(part_count_goal);
+    fn create_range_list(early_stop: u64, part_count_goal: usize, goal_y: u32) -> Vec<Range<u64>> {
+        let mut rows_per_part = early_stop.div_ceil(part_count_goal as u64);
 
         let y_stride = find_y_stride(rows_per_part, goal_y);
         rows_per_part += y_stride.offset_to_align(rows_per_part as usize) as u64;
@@ -296,23 +302,24 @@ impl SpaceByTimeMachine {
     // cmk000 need to handle the case of early halting.
     fn run_parts(
         early_stop: u64,
-        part_count_goal: u64,
+        part_count_goal: usize,
         program_string: &str,
         goal_x: u32,
         goal_y: u32,
         binning: bool,
         frame_step_indexes: &[u64],
-    ) -> Vec<(Vec<Snapshot>, Self)> {
+        sender: Sender<(usize, Vec<Snapshot>, Self)>,
+    ) -> usize {
         assert!(early_stop > 0); // panic if early_stop is 0
         assert!(part_count_goal > 0); // panic if part_count_goal is 0
 
         let range_list = Self::create_range_list(early_stop, part_count_goal, goal_y);
-        let part_count = range_list.len() as u64;
+        let part_count = range_list.len();
 
         range_list
             .into_par_iter()
             .enumerate()
-            .map(move |(part_index, range)| {
+            .for_each(move |(part_index, range)| {
                 let (start, end) = (range.start, range.end);
 
                 let mut space_by_time_machine =
@@ -332,58 +339,85 @@ impl SpaceByTimeMachine {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                     space_by_time.flush_buffer0_and_compress();
                 }
-
-                (snapshots, space_by_time_machine)
-            })
-            .collect()
+                sender
+                    .send((part_index, snapshots, space_by_time_machine))
+                    .unwrap();
+            });
+        part_count
     }
 
     // cmk is it sometimes x_goal and sometimes goal_x????
     fn combine_results(
         x_goal: u32,
         y_goal: u32,
-        snapshots_and_space_by_time_machines: Vec<(Vec<Snapshot>, Self)>,
+        part_count: usize,
+        receiver: &Receiver<(usize, Vec<Snapshot>, Self)>,
     ) -> Self {
-        let part_count = snapshots_and_space_by_time_machines.len() as u64;
-        // Extract FIRST result
-        let mut results_iter = snapshots_and_space_by_time_machines.into_iter();
-        let result = results_iter.next().unwrap();
-        let (snapshots_first, space_by_time_machine_first) = result;
-        let mut space_by_time_first = space_by_time_machine_first.space_by_time;
-        let mut machine_first = space_by_time_machine_first.machine;
-        assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
+        assert!(part_count > 0);
+        let mut buffer = BTreeMap::new();
+        let mut next_index: usize = 0;
 
-        for mut snapshot_first in snapshots_first {
-            let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-            for frame_index in &snapshot_first.frame_indexes {
-                let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
-                fs::write(cmk_file, &png_data).unwrap();
+        let mut space_by_time_first_outer = None;
+        let mut machine_first = None;
+        while next_index < part_count {
+            // if buffer doesn't start with next_index, then collect something from the channel,
+            // and insert it into the buffer and then use "continue" to try again
+            if buffer
+                .first_key_value()
+                .is_none_or(|(&key, _)| key != next_index)
+            {
+                let (index, snapshots, space_by_time_machine) =
+                    receiver.recv().expect("Channel closed unexpectedly");
+                buffer.insert(index, (snapshots, space_by_time_machine));
+                continue;
             }
-        }
+            // pop
+            let (popped_index, (snapshots, space_by_time_machine)) =
+                buffer.pop_first().expect("Expected next result in buffer");
+            assert_eq!(popped_index, next_index);
+            println!("Processing: {next_index}");
+            if next_index == 0 {
+                let space_by_time_first = space_by_time_machine.space_by_time;
+                assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
 
-        let mut index: usize = 0;
-        for (snapshots_other, space_by_time_machine_other) in results_iter {
-            index += 1;
-            let space_by_time_other = space_by_time_machine_other.space_by_time;
-            Self::assert_empty_buffer_if_not_last_part(&space_by_time_other, index, part_count);
-
-            for mut snapshot_other in snapshots_other {
-                // cmk this is convoluted way to combine these two
-                snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
-                let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-                for frame_index in &snapshot_other.frame_indexes {
-                    let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
-                    fs::write(cmk_file, &png_data).unwrap();
+                for mut snapshot_first in snapshots {
+                    let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
+                    for frame_index in &snapshot_first.frame_indexes {
+                        let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
+                        fs::write(cmk_file, &png_data).unwrap();
+                    }
                 }
-            }
+                space_by_time_first_outer = Some(space_by_time_first);
+                machine_first = Some(space_by_time_machine.machine);
+            } else {
+                let space_by_time_first = space_by_time_first_outer.unwrap();
 
-            space_by_time_first = space_by_time_first.append(space_by_time_other);
-            machine_first = space_by_time_machine_other.machine;
+                let space_by_time_other = space_by_time_machine.space_by_time;
+                Self::assert_empty_buffer_if_not_last_part(
+                    &space_by_time_other,
+                    next_index,
+                    part_count,
+                );
+
+                for mut snapshot_other in snapshots {
+                    // cmk this is convoluted way to combine these two
+                    snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
+                    let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
+                    for frame_index in &snapshot_other.frame_indexes {
+                        let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
+                        fs::write(cmk_file, &png_data).unwrap();
+                    }
+                }
+
+                space_by_time_first_outer = Some(space_by_time_first.append(space_by_time_other));
+                machine_first = Some(space_by_time_machine.machine);
+            }
+            next_index += 1;
         }
 
         Self {
-            machine: machine_first,
-            space_by_time: space_by_time_first,
+            machine: machine_first.unwrap(),
+            space_by_time: space_by_time_first_outer.unwrap(),
         }
     }
 
@@ -391,9 +425,9 @@ impl SpaceByTimeMachine {
     fn assert_empty_buffer_if_not_last_part(
         space_by_time_other: &SpaceByTime,
         index: usize,
-        part_count: u64,
+        part_count: usize,
     ) {
-        if index < part_count as usize - 1 {
+        if index < part_count - 1 {
             assert!(
                 space_by_time_other.spacelines.buffer0.is_empty(),
                 "real assert 2"
