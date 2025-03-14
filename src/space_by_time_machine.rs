@@ -355,27 +355,29 @@ impl SpaceByTimeMachine {
     ) -> Self {
         assert!(part_count > 0);
         let mut buffer = BTreeMap::new();
-        let mut next_index: usize = 0;
 
         let mut space_by_time_first_outer = None;
         let mut machine_first = None;
-        while next_index < part_count {
+        for next_index in 0..part_count {
+            println!("Waiting for: {next_index}");
             // if buffer doesn't start with next_index, then collect something from the channel,
-            // and insert it into the buffer and then use "continue" to try again
-            if buffer
+            // and insert it into the buffer and loop again
+            while buffer
                 .first_key_value()
                 .is_none_or(|(&key, _)| key != next_index)
             {
-                let (index, snapshots, space_by_time_machine) =
+                let (index_received, snapshots, space_by_time_machine) =
                     receiver.recv().expect("Channel closed unexpectedly");
-                buffer.insert(index, (snapshots, space_by_time_machine));
-                continue;
+                println!("Received : {index_received}");
+                buffer.insert(index_received, (snapshots, space_by_time_machine));
             }
             // pop
             let (popped_index, (snapshots, space_by_time_machine)) =
                 buffer.pop_first().expect("Expected next result in buffer");
             assert_eq!(popped_index, next_index);
             println!("Processing: {next_index}");
+
+            // Special processing for the first part
             if next_index == 0 {
                 let space_by_time_first = space_by_time_machine.space_by_time;
                 assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
@@ -389,30 +391,30 @@ impl SpaceByTimeMachine {
                 }
                 space_by_time_first_outer = Some(space_by_time_first);
                 machine_first = Some(space_by_time_machine.machine);
-            } else {
-                let space_by_time_first = space_by_time_first_outer.unwrap();
-
-                let space_by_time_other = space_by_time_machine.space_by_time;
-                Self::assert_empty_buffer_if_not_last_part(
-                    &space_by_time_other,
-                    next_index,
-                    part_count,
-                );
-
-                for mut snapshot_other in snapshots {
-                    // cmk this is convoluted way to combine these two
-                    snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
-                    let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-                    for frame_index in &snapshot_other.frame_indexes {
-                        let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
-                        fs::write(cmk_file, &png_data).unwrap();
-                    }
-                }
-
-                space_by_time_first_outer = Some(space_by_time_first.append(space_by_time_other));
-                machine_first = Some(space_by_time_machine.machine);
+                continue;
             }
-            next_index += 1;
+
+            // Process the rest of the parts
+            let space_by_time_first = space_by_time_first_outer.unwrap();
+            let space_by_time_other = space_by_time_machine.space_by_time;
+            Self::assert_empty_buffer_if_not_last_part(
+                &space_by_time_other,
+                next_index,
+                part_count,
+            );
+
+            for mut snapshot_other in snapshots {
+                // cmk this is convoluted way to combine these two
+                snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
+                let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
+                for frame_index in &snapshot_other.frame_indexes {
+                    let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
+                    fs::write(cmk_file, &png_data).unwrap();
+                }
+            }
+
+            space_by_time_first_outer = Some(space_by_time_first.append(space_by_time_other));
+            machine_first = Some(space_by_time_machine.machine);
         }
 
         Self {
