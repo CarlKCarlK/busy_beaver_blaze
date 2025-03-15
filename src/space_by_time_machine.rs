@@ -198,57 +198,6 @@ impl SpaceByTimeMachine {
             .unwrap()
     }
 
-    #[must_use]
-    pub fn from_str_in_parts(
-        // cmk change the order of the inputs
-        early_stop: u64,
-        part_count_goal: usize,
-        program_string: &str,
-        goal_x: u32,
-        goal_y: u32,
-        binning: bool,
-        frame_index_to_step_indexes: &[u64],
-    ) -> Self {
-        assert!(part_count_goal > 0); // panic if part_count_goal is 0
-
-        let range_list = Self::create_range_list(early_stop, part_count_goal, goal_y);
-        let part_count = range_list.len();
-
-        let (sender0, receiver0) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
-        let (sender1, receiver1) = channel::unbounded::<(usize, Vec<u8>)>();
-
-        let frame_index_to_step_indexes_clone = frame_index_to_step_indexes.to_vec();
-        let program_string_clone = program_string.to_owned();
-        let run_handle = thread::spawn(move || {
-            Self::run_parts(
-                early_stop,
-                range_list,
-                program_string_clone,
-                goal_x,
-                goal_y,
-                binning,
-                frame_index_to_step_indexes_clone,
-                sender0,
-            )
-        });
-
-        // Spawn combine_results on its own thread.
-        let combine_handle = thread::spawn({
-            move || Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
-        });
-
-        for (frame_index, _step_index) in frame_index_to_step_indexes.iter().enumerate() {
-            // print!("Looking for frame {frame_index}... ");
-            let (frame_index1, png_data) = receiver1.recv().unwrap();
-            // println!("Found frame {frame_index1}!");
-            assert_eq!(frame_index, frame_index1);
-            let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index1:07}.png");
-            fs::write(cmk_file, &png_data).unwrap();
-        }
-        run_handle.join().unwrap();
-        combine_handle.join().unwrap()
-    }
-
     #[inline]
     #[must_use]
     pub const fn machine(&self) -> &Machine {
@@ -271,19 +220,6 @@ impl SpaceByTimeMachine {
     #[must_use]
     pub fn tape_index(&self) -> i64 {
         self.machine.tape_index()
-    }
-
-    fn create_range_list(early_stop: u64, part_count_goal: usize, goal_y: u32) -> Vec<Range<u64>> {
-        let mut rows_per_part = early_stop.div_ceil(part_count_goal as u64);
-
-        let y_stride = find_y_stride(rows_per_part, goal_y);
-        rows_per_part += y_stride.offset_to_align(rows_per_part as usize) as u64;
-        assert!(y_stride.divides_u64(rows_per_part), "even?");
-
-        (0..early_stop)
-            .step_by(rows_per_part as usize)
-            .map(|start| start..(start + rows_per_part).min(early_stop))
-            .collect()
     }
 
     fn build_step_index_to_frame_index(

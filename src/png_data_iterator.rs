@@ -1,15 +1,12 @@
 extern crate alloc;
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec::Vec};
+use core::mem::ManuallyDrop;
 use core::ops::Range;
 use crossbeam::channel::{self, Receiver, Sender};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use std::{
-    collections::HashMap,
-    fs,
-    thread::{self, JoinHandle},
-};
 
 use crate::{Snapshot, SpaceByTime, SpaceByTimeMachine, find_y_stride};
+use std::thread::{self, JoinHandle}; // Keep thread imports as they're not in alloc/core
 
 // cmk000 rename?
 /// An iterator that yields PNG data (as Vec<u8>) for each frame.
@@ -249,6 +246,33 @@ impl PngDataIterator {
             .map(|start| start..(start + rows_per_part).min(early_stop))
             .collect()
     }
+
+    /// Consumes this iterator and returns the final `SpaceByTimeMachine`
+    /// by joining the combine thread.
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
+    pub fn into_space_by_time_machine(self) -> SpaceByTimeMachine {
+        // Wrap self in ManuallyDrop so we can extract its fields without triggering Drop.
+        let this = ManuallyDrop::new(self);
+        // SAFETY: We are manually extracting the fields from `this` because we
+        // know we're consuming `self` entirely.
+        let receiver = unsafe { core::ptr::read(&this.receiver) };
+        let run_handle = unsafe { core::ptr::read(&this.run_handle) };
+        let combine_handle = unsafe { core::ptr::read(&this.combine_handle) };
+
+        // Drop the receiver to signal no more frames.
+        drop(receiver);
+        // Join the combine thread to get the final machine.
+        let machine = combine_handle
+            .expect("combine_handle missing")
+            .join()
+            .expect("combine thread panicked");
+        // Join the run_handle if it still exists.
+        if let Some(handle) = run_handle {
+            let _ = handle.join();
+        }
+        machine
+    }
 }
 
 impl Iterator for PngDataIterator {
@@ -274,3 +298,12 @@ impl Drop for PngDataIterator {
         }
     }
 }
+
+// cmk0000000 turn the iterator into a final SpaceTimeMachine
+// let mut space_by_time_machine_first = png_data_iterator.into_cmk();
+// let png_data = space_by_time_machine_first.png_data();
+// fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
+
+// cmk should we be using async instead of threads for the two?
+// cmk0000000 remove old code from SpaceTimeMachine.
+// cmk0000000 make it work with an empty frame list and still give the final result.

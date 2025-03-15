@@ -2,7 +2,8 @@ use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
     PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
     average_with_simd_count_ones64, average_with_simd_push, bool_u8::BoolU8, find_x_stride,
-    pixel::Pixel, png_data_iterator, spaceline::Spaceline, test_utils::compress_x_no_simd_binning,
+    machine, pixel::Pixel, png_data_iterator, spaceline::Spaceline,
+    test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
 use rand::{Rng, SeedableRng};
@@ -206,60 +207,6 @@ fn test_average() {
     assert_eq!(result, expected);
 }
 
-#[allow(clippy::shadow_reuse, clippy::too_many_lines)]
-#[test]
-fn parts() {
-    // let early_stop = 2413u64;
-    // let part_count = 3;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
-    // let binning = true;
-
-    let early_stop = 250_000_000;
-    let part_count = 16;
-    let goal_x: u32 = 360;
-    let goal_y: u32 = 432;
-    let binning = true;
-
-    // let early_stop = 10_000_000;
-    // let part_count = 16;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
-    // let binning = true;
-
-    // let early_stop = 1_000_000;
-    // let part_count = 1;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
-    // let binning = true;
-
-    // let early_stop = 300;
-    // let part_count = 2;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
-    // let binning = true;
-
-    // let early_stop = 5u64;
-    // let part_count = 10;
-
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
-    let program_string = BB6_CONTENDER;
-    let mut space_by_time_machine_first = SpaceByTimeMachine::from_str_in_parts(
-        early_stop,
-        part_count,
-        program_string,
-        goal_x,
-        goal_y,
-        binning,
-        &[0u64; 0],
-    );
-    let png_data = space_by_time_machine_first.png_data();
-    fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
-
-    // assert!(len < goal_y as usize * 2, "real assert 2");
-}
-
 #[test]
 fn resample_simd() {
     for len in [0, 1, 2, 3, 5, 101, 111, 4001] {
@@ -334,7 +281,7 @@ fn combo() {
                             );
                             println!("{key}");
 
-                            let mut machine = SpaceByTimeMachine::from_str_in_parts(
+                            let png_data_iterator = PngDataIterator::new(
                                 early_stop,
                                 part_count,
                                 program_string,
@@ -343,12 +290,19 @@ fn combo() {
                                 binning,
                                 &[0u64; 0],
                             );
-                            let (png_data, x, y, packed_data) = machine.png_data_and_packed_data();
+                            let mut space_by_time_machine =
+                                png_data_iterator.into_space_by_time_machine();
+                            let (png_data, x, y, packed_data) =
+                                space_by_time_machine.png_data_and_packed_data();
 
                             // Must be the same length and a given value can vary by no more than y_stride.log2() + x_stride.log2()
-                            let last_spacetime =
-                                machine.space_by_time.spacelines.main.last().unwrap();
-                            let max_diff = machine.space_by_time.y_stride.log2()
+                            let last_spacetime = space_by_time_machine
+                                .space_by_time
+                                .spacelines
+                                .main
+                                .last()
+                                .unwrap();
+                            let max_diff = space_by_time_machine.space_by_time.y_stride.log2()
                                 + last_spacetime.x_stride.log2();
                             // println!("max_diff: {max_diff}");
 
@@ -408,7 +362,7 @@ fn one() {
     );
     println!("{key}");
 
-    let mut machine = SpaceByTimeMachine::from_str_in_parts(
+    let png_data_iterator = PngDataIterator::new(
         early_stop,
         part_count,
         program_string,
@@ -417,7 +371,8 @@ fn one() {
         binning,
         &[0u64; 0],
     );
-    let png_data = machine.png_data_and_packed_data().0;
+    let mut space_by_time_machine = png_data_iterator.into_space_by_time_machine();
+    let png_data = space_by_time_machine.png_data_and_packed_data().0;
 
     // println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
     // println!("ref_packed: {ref_packed:?}");
@@ -430,78 +385,6 @@ fn one() {
         (png_data == reference_png_data),
         "PNG data does not match for {key}"
     );
-}
-
-#[test]
-fn del_cmk_frames() {
-    // let frame_count = 100;
-    // let early_stop = 2413u64;
-    // let part_count = 3;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
-    // let binning = true;
-
-    let early_stop = 250_000_000;
-    let frame_count = 1000;
-    let part_count = 42;
-    let goal_x: u32 = 360;
-    let goal_y: u32 = 432;
-    let binning = true;
-
-    // let early_stop = 10_000_000_000;
-    // let frame_count = 2000;
-    // let part_count = 32;
-    // let goal_x: u32 = 1920;
-    // let goal_y: u32 = 1080;
-    // let binning = true;
-
-    // let early_stop = 250_000_000_000;
-    // let frame_count = 2000;
-    // let part_count = 32;
-    // let goal_x: u32 = 1920;
-    // let goal_y: u32 = 1080;
-    // let binning = true;
-
-    // let early_stop = 10_000_000;
-    // let part_count = 16;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
-    // let binning = true;
-
-    // let early_stop = 1_000_000;
-    // let part_count = 1;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
-    // let binning = true;
-
-    // let early_stop = 300;
-    // let part_count = 2;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
-    // let binning = true;
-
-    // let early_stop = 5u64;
-    // let part_count = 10;
-
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
-
-    let frame_index_to_step_indexes: Vec<_> =
-        LogStepIterator::new(early_stop, frame_count).collect();
-    let program_string = BB6_CONTENDER;
-    let mut space_by_time_machine_first = SpaceByTimeMachine::from_str_in_parts(
-        early_stop,
-        part_count,
-        program_string,
-        goal_x,
-        goal_y,
-        binning,
-        frame_index_to_step_indexes.as_slice(),
-    );
-    let png_data = space_by_time_machine_first.png_data();
-    fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
-
-    // assert!(len < goal_y as usize * 2, "real assert 2");
 }
 
 #[test]
@@ -587,12 +470,4 @@ fn frames() {
         let cmk_file = format!(r"M:\deldir\bb\frames_test2\cmk{frame_index:07}.png");
         fs::write(cmk_file, &png_data).unwrap();
     }
-
-    // cmk0000000 turn the iterator into a final SpaceTimeMachine
-    // let mut space_by_time_machine_first = png_data_iterator.into_cmk();
-    // let png_data = space_by_time_machine_first.png_data();
-    // fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
-
-    // cmk should we be using async instead of threads for the two?
-    // cmk0000000 remove old code from SpaceTimeMachine.
 }
