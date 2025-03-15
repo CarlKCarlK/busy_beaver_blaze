@@ -452,8 +452,7 @@ fn frames() {
 
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 432;
-    let frame_index_to_step_indexes: Vec<_> =
-        LogStepIterator::new(early_stop, frame_count).collect();
+    let frame_index_to_step_index: Vec<_> = LogStepIterator::new(early_stop, frame_count).collect();
 
     let png_data_iterator = PngDataIterator::new(
         early_stop,
@@ -462,10 +461,10 @@ fn frames() {
         goal_x,
         goal_y,
         binning,
-        frame_index_to_step_indexes.as_slice(),
+        frame_index_to_step_index.as_slice(),
     );
 
-    for (frame_index, png_data) in png_data_iterator.enumerate() {
+    for (frame_index, (_step_index, png_data)) in png_data_iterator.enumerate() {
         let cmk_file = format!(r"M:\deldir\bb\frames_test2\cmk{frame_index:07}.png");
         fs::write(cmk_file, &png_data).unwrap();
     }

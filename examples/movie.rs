@@ -1,9 +1,10 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, SpaceByTimeMachine};
+use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PngDataIterator};
 use core::str::FromStr;
 use image::Rgba;
 use image::{DynamicImage, imageops::FilterType};
 use imageproc::drawing::draw_text_mut;
+use itertools::Itertools;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -64,36 +65,29 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         .and_then(|arg| arg.parse().ok())
         .unwrap_or(true);
 
-    let (up_x, up_y) = (goal_x, goal_y);
-    let (mut space_by_time_machine, end_step, num_frames, (output_dir, run_id)) = match machine_name
-        .as_str()
-    {
+    // let (up_x, up_y) = (goal_x, goal_y);
+    let (program_string, end_step, num_frames, (output_dir, run_id)) = match machine_name.as_str() {
         "bb5_champ" => {
-            let machine = SpaceByTimeMachine::from_str(BB5_CHAMP, up_x, up_y, binning, 0)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb5_champ")?;
-            (machine, 47_176_870, 1000, dir_info)
+            (BB5_CHAMP, 47_176_870, 1000, dir_info)
         }
         "bb6_contender" => {
-            let machine = SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning, 0)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
-            (machine, 1_000_000_000_000u64, 2000, dir_info)
+            (BB6_CONTENDER, 1_000_000_000_000u64, 2000, dir_info)
         }
         "bb6_contender2" => {
-            let machine = SpaceByTimeMachine::from_str(BB6_CONTENDER, up_x, up_y, binning, 0)?;
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender2")?;
-            (machine, 1_000_000_000u64, 1000, dir_info)
+            (BB6_CONTENDER, 1_000_000_000u64, 1000, dir_info)
         }
         "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
-            let machine = SpaceByTimeMachine::from_str(
-                "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
-                up_x,
-                up_y,
-                binning,
-                0,
-            )?;
             let dir_info =
                 create_sequential_subdir(r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
-            (machine, 1_000_000_000u64, 1000, dir_info)
+            (
+                "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
+                1_000_000_000u64,
+                1000,
+                dir_info,
+            )
         }
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
@@ -105,17 +99,21 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     );
     println!("Using resolution: {resolution:?} ({goal_x}x{goal_y})");
 
+    let part_count = 32;
+
     // cmk0000000 if LogStepIterator changes, revisit how it is used here
     let log_iter = LogStepIterator::new(end_step, num_frames);
+    let png_data_iterator = PngDataIterator::new(
+        end_step,
+        part_count,
+        program_string,
+        goal_x,
+        goal_y,
+        binning,
+        &log_iter.collect_vec(),
+    );
 
-    for (frame_index, goal_step_index) in log_iter.enumerate() {
-        let actual_step_index = space_by_time_machine.step_count() - 1;
-        if goal_step_index > actual_step_index
-            && !space_by_time_machine.nth_js(goal_step_index - actual_step_index - 1)
-        {
-            break;
-        }
-        let actual_step_index = space_by_time_machine.step_count() - 1;
+    for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
         println!(
             "run_id: {}, Frame {}, time so far {:?}",
             run_id,
@@ -124,11 +122,11 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         );
 
         save_frame(
-            &mut space_by_time_machine,
+            &png_data,
             &output_dir,
             run_id,
             frame_index as u32,
-            actual_step_index + 1,
+            step_index + 1,
             goal_x,
             goal_y,
         )?;
@@ -143,7 +141,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 }
 
 fn save_frame(
-    machine: &mut SpaceByTimeMachine,
+    png_data: &Vec<u8>,
     output_dir: &Path,
     run_id: u32,
     frame: u32,
@@ -171,8 +169,7 @@ fn save_frame(
     let font = FontArc::try_from_slice(font_data).map_err(|_| "Failed to load font")?;
     let scale = PxScale::from(50.0);
 
-    let png_data = machine.png_data();
-    let base = image::load_from_memory(&png_data)?;
+    let base = image::load_from_memory(png_data)?;
     base.save(&base_file_name)?;
 
     // Resize and anti-alias the image

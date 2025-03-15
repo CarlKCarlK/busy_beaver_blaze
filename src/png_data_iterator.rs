@@ -14,7 +14,7 @@ use std::{
 // cmk000 rename?
 /// An iterator that yields PNG data (as Vec<u8>) for each frame.
 pub struct PngDataIterator {
-    receiver: Receiver<(usize, Vec<u8>)>,
+    receiver: Receiver<(usize, u64, Vec<u8>)>,
     // Optionally hold the join handles so that threads are joined when the iterator is dropped.
     run_handle: Option<JoinHandle<()>>,
     combine_handle: Option<JoinHandle<SpaceByTimeMachine>>,
@@ -30,9 +30,11 @@ impl PngDataIterator {
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-        frame_index_to_step_indexes: &[u64],
+        frame_index_to_step_index: &[u64],
     ) -> Self {
         assert!(part_count_goal > 0, "part_count_goal must be > 0");
+        // cmk000 ??? frame_index_to_step_index should be monotonically increasing (do they need to be?) but we don't check that
+        // cmk000 also might be nice to warn of the step_indexes are beyond early_stop
 
         // Create the range list based on provided parameters.
         let range_list = Self::create_range_list(early_stop, part_count_goal, goal_y);
@@ -41,10 +43,10 @@ impl PngDataIterator {
         // Set up channels for inter-thread communication.
         let (sender0, receiver0) =
             channel::unbounded::<(usize, Vec<Snapshot>, SpaceByTimeMachine)>();
-        let (sender1, receiver1) = channel::unbounded::<(usize, Vec<u8>)>();
+        let (sender1, receiver1) = channel::unbounded::<(usize, u64, Vec<u8>)>();
 
         // Clone any data needed by the spawned threads.
-        let frame_index_to_step_indexes_clone = frame_index_to_step_indexes.to_vec();
+        let frame_index_to_step_index_clone = frame_index_to_step_index.to_vec();
         let program_string_clone = program_string.to_owned();
 
         // Spawn the thread that processes parts.
@@ -56,7 +58,7 @@ impl PngDataIterator {
                 goal_x,
                 goal_y,
                 binning,
-                frame_index_to_step_indexes_clone,
+                frame_index_to_step_index_clone,
                 sender0,
             );
         });
@@ -82,7 +84,7 @@ impl PngDataIterator {
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-        frame_index_to_step_indexes: Vec<u64>,
+        frame_index_to_step_index: Vec<u64>,
         sender: Sender<(usize, Vec<Snapshot>, SpaceByTimeMachine)>,
     ) {
         assert!(early_stop > 0); // panic if early_stop is 0
@@ -106,7 +108,7 @@ impl PngDataIterator {
             println!("Part {part_index}/{part_count}, have fast-forwarded {start} steps before visualization.");
 
             let snapshots = Self::generate_snapshots(&mut space_by_time_machine,
-                frame_index_to_step_indexes.as_slice(),
+                frame_index_to_step_index.as_slice(),
                 start,
                 end,
             );
@@ -143,7 +145,7 @@ impl PngDataIterator {
         y_goal: u32,
         part_count: usize,
         receiver0: &Receiver<(usize, Vec<Snapshot>, SpaceByTimeMachine)>,
-        sender1: &Sender<(usize, Vec<u8>)>,
+        sender1: &Sender<(usize, u64, Vec<u8>)>,
     ) -> SpaceByTimeMachine {
         assert!(part_count > 0);
         let mut buffer = BTreeMap::new();
@@ -177,13 +179,15 @@ impl PngDataIterator {
                 for mut snapshot_first in snapshots {
                     let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
                     let (last, all_but_last) = snapshot_first.frame_indexes.split_last().unwrap();
+                    let step_index = snapshot_first.space_by_time.step_index();
+                    // The same step can be rendered to multiple places
                     for index in all_but_last {
                         sender1
-                            .send((*index, png_data.clone()))
+                            .send((*index, step_index, png_data.clone()))
                             .expect("Failed to send PNG data");
                     }
                     sender1
-                        .send((*last, png_data))
+                        .send((*last, step_index, png_data))
                         .expect("Failed to send PNG data");
                 }
                 space_by_time_first_outer = Some(space_by_time_first);
@@ -205,13 +209,14 @@ impl PngDataIterator {
                 snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
                 let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
                 let (last, all_but_last) = snapshot_other.frame_indexes.split_last().unwrap();
+                let step_index = snapshot_other.space_by_time.step_index();
                 for index in all_but_last {
                     sender1
-                        .send((*index, png_data.clone()))
+                        .send((*index, step_index, png_data.clone()))
                         .expect("Failed to send PNG data");
                 }
                 sender1
-                    .send((*last, png_data))
+                    .send((*last, step_index, png_data))
                     .expect("Failed to send PNG data");
             }
 
@@ -281,13 +286,13 @@ impl PngDataIterator {
 
     fn generate_snapshots(
         space_by_time_machine: &mut SpaceByTimeMachine,
-        frame_index_to_step_indexes: &[u64],
+        frame_index_to_step_index: &[u64],
         start: u64,
         end: u64,
     ) -> Vec<Snapshot> {
         let mut snapshots: Vec<Snapshot> = vec![];
         let step_index_to_frame_index_0_based =
-            Self::build_step_index_to_frame_index(frame_index_to_step_indexes, start, end);
+            Self::build_step_index_to_frame_index(frame_index_to_step_index, start, end);
         for step_index in start..end - 1 {
             if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&step_index) {
                 snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
@@ -304,12 +309,12 @@ impl PngDataIterator {
     }
 
     fn build_step_index_to_frame_index(
-        frame_index_to_step_indexes: &[u64],
+        frame_index_to_step_index: &[u64],
         start: u64,
         end: u64,
     ) -> HashMap<u64, Vec<usize>> {
         let mut step_index_to_frame_index: HashMap<u64, Vec<usize>> = HashMap::new();
-        for (index, &step_index) in frame_index_to_step_indexes.iter().enumerate() {
+        for (index, &step_index) in frame_index_to_step_index.iter().enumerate() {
             if step_index >= start && step_index < end {
                 step_index_to_frame_index
                     .entry(step_index)
@@ -323,14 +328,14 @@ impl PngDataIterator {
 
 #[allow(clippy::missing_trait_methods)]
 impl Iterator for PngDataIterator {
-    type Item = Vec<u8>;
+    type Item = (u64, Vec<u8>);
 
     fn next(&mut self) -> Option<Self::Item> {
         // This will block until a new frame is available or the channel is closed.
         self.receiver
             .recv()
             .ok()
-            .map(|(_frame_index, png_data)| png_data)
+            .map(|(_frame_index, step_index, png_data)| (step_index, png_data))
     }
 }
 
@@ -347,5 +352,3 @@ impl Drop for PngDataIterator {
 }
 
 // cmk should we be using async instead of threads for the two?
-// cmk0000000 remove old code from SpaceTimeMachine.
-// cmk0000000 make it work with an empty frame list and still give the final result.
