@@ -332,7 +332,8 @@ impl SpaceByTimeMachine {
         let part_count = range_list.len();
 
         range_list
-            .into_par_iter()
+            // .into_par_iter()
+            .into_iter() // cmk000000000000000
             .enumerate()
             .for_each(move |(part_index, range)| {
                 let (start, end) = (range.start, range.end);
@@ -348,7 +349,10 @@ impl SpaceByTimeMachine {
                 let inside_index = space_by_time
                     .y_stride
                     .rem_into_u64(space_by_time.step_index() + 1);
-                // This should be 0 on all but the last part
+                println!(
+                    "part {part_index}/{part_count} inside_index: {inside_index}, y_stride: {:?}, step_index: {:?}",
+                    space_by_time.y_stride, space_by_time.step_index()
+                );
                 assert!(inside_index == 0 || part_index == part_count - 1);
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)

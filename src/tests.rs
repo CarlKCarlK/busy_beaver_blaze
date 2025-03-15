@@ -366,7 +366,7 @@ fn combo() {
                                     continue;
                                 }
                                 println!(
-                                    "goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}"
+                                    "goal_x {goal_x}, goal_y {goal_y}, ref_x: {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}"
                                 );
                                 let ref_file = "tests/expected/combo_parts_ref.png";
                                 fs::write(ref_file, &reference_png_data).unwrap();
@@ -434,6 +434,20 @@ fn one() {
 
 #[test]
 fn frames() {
+    let early_stop = 2413;
+    let frame_count = 100;
+    let part_count = 3;
+    let goal_x: u32 = 360;
+    let goal_y: u32 = 43;
+    let binning = true;
+
+    // let early_stop = 1800;
+    // let frame_count = 3;
+    // let part_count = 2;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
+
     // let early_stop = 2413;
     // let frame_count = 100;
     // let part_count = 3;
@@ -441,21 +455,7 @@ fn frames() {
     // let goal_y: u32 = 432;
     // let binning = true;
 
-    let early_stop = 2413u64;
-    let frame_count = 100;
-    let part_count = 3;
-    let goal_x: u32 = 360;
-    let goal_y: u32 = 432;
-    let binning = true;
-
-    // let early_stop = 250_000_000u64;
-    // let frame_count = 1000;
-    // let part_count = 42;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
-    // let binning = true;
-
-    // let early_stop = 100_000_000_000u64;
+    // let early_stop = 100_000_000_000;
     // let frame_count = 2000;
     // let part_count = 32;
     // let goal_x: u32 = 1920;

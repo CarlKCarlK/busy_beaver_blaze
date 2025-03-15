@@ -391,8 +391,10 @@ impl SpaceByTime {
         debug_assert!(self.spacelines.buffer0.len() <= 1);
         let spacelines = &mut self.spacelines;
         if !spacelines.buffer0.is_empty() {
-            assert!(spacelines.buffer0.len() == 1, "real assert 13");
-            spacelines.main.push(spacelines.buffer0.pop().unwrap().0);
+            assert!(spacelines.buffer0.len() == 1);
+            let (spaceline, weight) = spacelines.buffer0.pop().unwrap();
+            // cmk0000000 put back? assert!(weight == self.y_stride);
+            spacelines.main.push(spaceline);
         }
         let y_stride = find_y_stride(self.step_index, self.y_goal);
         if y_stride != self.y_stride {

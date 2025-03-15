@@ -151,27 +151,22 @@ impl PowerOfTwo {
     }
 
     #[inline]
-    pub fn rem_into_u64<T>(self, x: T) -> T
-    where
-        T: Copy
-            + core::ops::BitAnd<Output = T>
-            + core::ops::Sub<Output = T>
-            + From<u64>
-            + PartialEq,
-    {
-        x & (T::from(self.as_u64()) - T::from(1u64))
+    #[must_use]
+    // #[allow(clippy::integer_division_remainder_used, clippy::missing_panics_doc)]
+    pub const fn rem_into_u64(self, x: u64) -> u64 {
+        // // cmk000000000
+        // let as_64 = self.as_u64();
+        // let a_ref = x % as_64;
+        // let a = x & (self.as_u64() - 1);
+        // assert_eq!(a, a_ref);
+        // a
+        x & (self.as_u64() - 1)
     }
 
     #[inline]
-    pub fn rem_into_usize<T>(self, x: T) -> T
-    where
-        T: Copy
-            + core::ops::BitAnd<Output = T>
-            + core::ops::Sub<Output = T>
-            + From<usize>
-            + PartialEq,
-    {
-        x & (T::from(self.as_usize()) - T::from(1usize))
+    #[must_use]
+    pub fn rem_into_usize(self, x: usize) -> usize {
+        x & (self.as_usize() - 1)
     }
 
     #[inline]
