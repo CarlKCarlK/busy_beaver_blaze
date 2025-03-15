@@ -207,7 +207,7 @@ impl SpaceByTimeMachine {
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-        frame_index_to_step_indexes_0_based: &[u64], // cmk0000000 rename
+        frame_index_to_step_indexes: &[u64], // cmk0000000 rename
     ) -> Self {
         let (sender0, receiver0) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
         // cmk should part_count be a usize?
@@ -218,11 +218,26 @@ impl SpaceByTimeMachine {
             goal_x,
             goal_y,
             binning,
-            frame_index_to_step_indexes_0_based,
+            frame_index_to_step_indexes,
             sender0,
         );
 
-        Self::combine_results(goal_x, goal_y, part_count, &receiver0)
+        let (sender1, receiver1) = channel::unbounded::<(usize, Vec<u8>)>();
+        // Spawn combine_results on its own thread.
+        let combine_handle = thread::spawn({
+            move || Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
+        });
+
+        for (frame_index, _step_index) in frame_index_to_step_indexes.iter().enumerate() {
+            print!("Looking for frame {frame_index}... ");
+            let (frame_index1, png_data) = receiver1.recv().unwrap();
+            println!("Found frame {frame_index1}!");
+            // cmk0000 assert_eq!(frame_index, frame_index1);
+            let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index1:07}.png");
+            fs::write(cmk_file, &png_data).unwrap();
+        }
+
+        combine_handle.join().unwrap()
     }
 
     #[inline]
@@ -263,12 +278,12 @@ impl SpaceByTimeMachine {
     }
 
     fn build_step_index_to_frame_index(
-        frame_index_to_step_indexes_0_based: &[u64],
+        frame_index_to_step_indexes: &[u64],
         start: u64,
         end: u64,
     ) -> HashMap<u64, Vec<usize>> {
         let mut step_index_to_frame_index: HashMap<u64, Vec<usize>> = HashMap::new();
-        for (index, &step_index) in frame_index_to_step_indexes_0_based.iter().enumerate() {
+        for (index, &step_index) in frame_index_to_step_indexes.iter().enumerate() {
             if step_index >= start && step_index < end {
                 step_index_to_frame_index
                     .entry(step_index)
@@ -281,13 +296,13 @@ impl SpaceByTimeMachine {
 
     fn generate_snapshots(
         &mut self,
-        frame_index_to_step_indexes_0_based: &[u64], // cmk000000 rename
+        frame_index_to_step_indexes: &[u64], // cmk000000 rename
         start: u64,
         end: u64,
     ) -> Vec<Snapshot> {
         let mut snapshots: Vec<Snapshot> = vec![];
         let step_index_to_frame_index_0_based =
-            Self::build_step_index_to_frame_index(frame_index_to_step_indexes_0_based, start, end);
+            Self::build_step_index_to_frame_index(frame_index_to_step_indexes, start, end);
         // cmk0000000 or start..end????
         for step_index in start..end - 1 {
             if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&step_index) {
@@ -312,7 +327,7 @@ impl SpaceByTimeMachine {
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-        frame_index_to_step_indexes_0_based: &[u64], // cmk00000 rename
+        frame_index_to_step_indexes: &[u64], // cmk00000 rename
         sender: Sender<(usize, Vec<Snapshot>, Self)>,
     ) -> usize {
         assert!(early_stop > 0); // panic if early_stop is 0
@@ -333,7 +348,7 @@ impl SpaceByTimeMachine {
                         .expect("Failed to create machine");
 
                 let snapshots =
-                    space_by_time_machine.generate_snapshots(frame_index_to_step_indexes_0_based, start, end);
+                    space_by_time_machine.generate_snapshots(frame_index_to_step_indexes, start, end);
 
                 let space_by_time = &mut space_by_time_machine.space_by_time;
                 let inside_index = space_by_time
@@ -362,6 +377,7 @@ impl SpaceByTimeMachine {
         y_goal: u32,
         part_count: usize,
         receiver0: &Receiver<(usize, Vec<Snapshot>, Self)>,
+        sender1: &Sender<(usize, Vec<u8>)>,
     ) -> Self {
         assert!(part_count > 0);
         let mut buffer = BTreeMap::new();
@@ -394,10 +410,15 @@ impl SpaceByTimeMachine {
 
                 for mut snapshot_first in snapshots {
                     let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-                    for frame_index in &snapshot_first.frame_indexes {
-                        let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
-                        fs::write(cmk_file, &png_data).unwrap();
+                    let (last, all_but_last) = snapshot_first.frame_indexes.split_last().unwrap();
+                    for index in all_but_last {
+                        sender1
+                            .send((*index, png_data.clone()))
+                            .expect("Failed to send PNG data");
                     }
+                    sender1
+                        .send((*last, png_data))
+                        .expect("Failed to send PNG data");
                 }
                 space_by_time_first_outer = Some(space_by_time_first);
                 machine_first = Some(space_by_time_machine.machine);
@@ -417,10 +438,15 @@ impl SpaceByTimeMachine {
                 // cmk this is convoluted way to combine these two
                 snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
                 let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-                for frame_index in &snapshot_other.frame_indexes {
-                    let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index:07}.png");
-                    fs::write(cmk_file, &png_data).unwrap();
+                let (last, all_but_last) = snapshot_other.frame_indexes.split_last().unwrap();
+                for index in all_but_last {
+                    sender1
+                        .send((*index, png_data.clone()))
+                        .expect("Failed to send PNG data");
                 }
+                sender1
+                    .send((*last, png_data))
+                    .expect("Failed to send PNG data");
             }
 
             space_by_time_first_outer = Some(space_by_time_first.append(space_by_time_other));
