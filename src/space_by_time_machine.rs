@@ -1,7 +1,7 @@
 extern crate alloc;
 use alloc::collections::BTreeMap;
 use core::ops::Range;
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, thread};
 
 use aligned_vec::AVec;
 use crossbeam::channel::{self, Receiver, Sender};
@@ -207,9 +207,9 @@ impl SpaceByTimeMachine {
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-        frame_step_indexes: &[u64],
+        frame_index_to_step_indexes_0_based: &[u64], // cmk0000000 rename
     ) -> Self {
-        let (sender, receiver) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
+        let (sender0, receiver0) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
         // cmk should part_count be a usize?
         let part_count = Self::run_parts(
             early_stop,
@@ -218,11 +218,11 @@ impl SpaceByTimeMachine {
             goal_x,
             goal_y,
             binning,
-            frame_step_indexes,
-            sender,
+            frame_index_to_step_indexes_0_based,
+            sender0,
         );
 
-        Self::combine_results(goal_x, goal_y, part_count, &receiver)
+        Self::combine_results(goal_x, goal_y, part_count, &receiver0)
     }
 
     #[inline]
@@ -263,12 +263,12 @@ impl SpaceByTimeMachine {
     }
 
     fn build_step_index_to_frame_index(
-        frame_step_indexes: &[u64],
+        frame_index_to_step_indexes_0_based: &[u64],
         start: u64,
         end: u64,
     ) -> HashMap<u64, Vec<usize>> {
         let mut step_index_to_frame_index: HashMap<u64, Vec<usize>> = HashMap::new();
-        for (index, &step_index) in frame_step_indexes.iter().enumerate() {
+        for (index, &step_index) in frame_index_to_step_indexes_0_based.iter().enumerate() {
             if step_index >= start && step_index < end {
                 step_index_to_frame_index
                     .entry(step_index)
@@ -281,20 +281,25 @@ impl SpaceByTimeMachine {
 
     fn generate_snapshots(
         &mut self,
-        frame_step_indexes: &[u64],
+        frame_index_to_step_indexes_0_based: &[u64], // cmk000000 rename
         start: u64,
         end: u64,
     ) -> Vec<Snapshot> {
         let mut snapshots: Vec<Snapshot> = vec![];
-        let step_index_to_frame_index =
-            Self::build_step_index_to_frame_index(frame_step_indexes, start, end);
-        for step_index in start + 1..end {
-            if let Some(frame_indexes) = step_index_to_frame_index.get(&step_index) {
+        let step_index_to_frame_index_0_based =
+            Self::build_step_index_to_frame_index(frame_index_to_step_indexes_0_based, start, end);
+        // cmk0000000 or start..end????
+        for step_index in start..end - 1 {
+            if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&step_index) {
                 snapshots.push(Snapshot::new(frame_indexes.clone(), self));
             }
             if self.next().is_none() {
                 break;
             }
+        }
+        // cmk00000 not sure if should show last frame if self.next was none
+        if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&(end - 1)) {
+            snapshots.push(Snapshot::new(frame_indexes.clone(), self));
         }
         snapshots
     }
@@ -307,7 +312,7 @@ impl SpaceByTimeMachine {
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-        frame_step_indexes: &[u64],
+        frame_index_to_step_indexes_0_based: &[u64], // cmk00000 rename
         sender: Sender<(usize, Vec<Snapshot>, Self)>,
     ) -> usize {
         assert!(early_stop > 0); // panic if early_stop is 0
@@ -317,7 +322,8 @@ impl SpaceByTimeMachine {
         let part_count = range_list.len();
 
         range_list
-            .into_par_iter()
+            // .into_par_iter()
+            .into_iter() // cmk000000000000000
             .enumerate()
             .for_each(move |(part_index, range)| {
                 let (start, end) = (range.start, range.end);
@@ -327,14 +333,18 @@ impl SpaceByTimeMachine {
                         .expect("Failed to create machine");
 
                 let snapshots =
-                    space_by_time_machine.generate_snapshots(frame_step_indexes, start, end);
+                    space_by_time_machine.generate_snapshots(frame_index_to_step_indexes_0_based, start, end);
 
                 let space_by_time = &mut space_by_time_machine.space_by_time;
                 let inside_index = space_by_time
                     .y_stride
                     .rem_into_u64(space_by_time.step_index() + 1);
                 // This should be 0 on all but the last part
-                assert!(inside_index == 0 || part_index == part_count as usize - 1);
+                println!(
+                    "part {part_index}/{part_count} inside_index: {inside_index}, y_stride: {:?}, step_index: {:?}",
+                    space_by_time.y_stride, space_by_time.step_index()
+                );
+                assert!(inside_index == 0 || part_index == part_count - 1);
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                     space_by_time.flush_buffer0_and_compress();
@@ -351,7 +361,7 @@ impl SpaceByTimeMachine {
         x_goal: u32,
         y_goal: u32,
         part_count: usize,
-        receiver: &Receiver<(usize, Vec<Snapshot>, Self)>,
+        receiver0: &Receiver<(usize, Vec<Snapshot>, Self)>,
     ) -> Self {
         assert!(part_count > 0);
         let mut buffer = BTreeMap::new();
@@ -366,10 +376,10 @@ impl SpaceByTimeMachine {
                 .first_key_value()
                 .is_none_or(|(&key, _)| key != next_index)
             {
-                let (index_received, snapshots, space_by_time_machine) =
-                    receiver.recv().expect("Channel closed unexpectedly");
-                println!("Received : {index_received}");
-                buffer.insert(index_received, (snapshots, space_by_time_machine));
+                let (part_index_received, snapshots, space_by_time_machine) =
+                    receiver0.recv().expect("Channel closed unexpectedly");
+                println!("Received : {part_index_received}");
+                buffer.insert(part_index_received, (snapshots, space_by_time_machine));
             }
             // pop
             let (popped_index, (snapshots, space_by_time_machine)) =

@@ -3,15 +3,18 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Cargo test",
+            "name": "Debug Cargo Test",
             "cargo": {
                 "args": [
                     "test",
-                    "--no-run",
                     "--lib"
                 ]
             },
-            "args": []
+            "args": [],
+            "env": {
+                "RUST_BACKTRACE": "1"
+            },
+            "stopOnEntry": false
         }
     ]
 }

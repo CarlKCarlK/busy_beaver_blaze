@@ -105,6 +105,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     );
     println!("Using resolution: {resolution:?} ({goal_x}x{goal_y})");
 
+    // cmk0000000 if LogStepIterator changes, revisit how it is used here
     let log_iter = LogStepIterator::new(end_step, num_frames);
 
     for (frame_index, goal_step_index) in log_iter.enumerate() {

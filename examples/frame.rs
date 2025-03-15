@@ -80,6 +80,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     let log_iter = LogStepIterator::new(end_step, num_frames);
 
     for goal_step_index in log_iter {
+        // cmk000000000 update this for new LogStepIterator
         if goal_step_index == 0 {
             continue;
         }

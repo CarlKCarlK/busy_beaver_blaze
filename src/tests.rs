@@ -366,7 +366,7 @@ fn combo() {
                                     continue;
                                 }
                                 println!(
-                                    "goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}"
+                                    "goal_x {goal_x}, goal_y {goal_y}, ref_x: {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}"
                                 );
                                 let ref_file = "tests/expected/combo_parts_ref.png";
                                 fs::write(ref_file, &reference_png_data).unwrap();
@@ -434,19 +434,19 @@ fn one() {
 
 #[test]
 fn frames() {
-    // let frame_count = 100;
-    // let early_stop = 2413u64;
-    // let part_count = 3;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
-    // let binning = true;
-
-    let early_stop = 250_000_000u64;
-    let frame_count = 1000;
-    let part_count = 42;
+    let frame_count = 100;
+    let early_stop = 2413u64;
+    let part_count = 3;
     let goal_x: u32 = 360;
-    let goal_y: u32 = 432;
+    let goal_y: u32 = 30;
     let binning = true;
+
+    // let early_stop = 250_000_000u64;
+    // let frame_count = 1000;
+    // let part_count = 42;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
 
     // let early_stop = 100_000_000_000u64;
     // let frame_count = 2000;
@@ -479,7 +479,8 @@ fn frames() {
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 432;
 
-    let frame_step_indexes: Vec<_> = LogStepIterator::new(early_stop, frame_count).collect();
+    let frame_index_to_step_indexes_0_based: Vec<_> =
+        LogStepIterator::new(early_stop, frame_count).collect();
     let program_string = BB6_CONTENDER;
     let mut space_by_time_machine_first = SpaceByTimeMachine::from_str_in_parts(
         early_stop,
@@ -488,10 +489,23 @@ fn frames() {
         goal_x,
         goal_y,
         binning,
-        frame_step_indexes.as_slice(),
+        frame_index_to_step_indexes_0_based.as_slice(),
     );
     let png_data = space_by_time_machine_first.png_data();
     fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
 
     // assert!(len < goal_y as usize * 2, "real assert 2");
+}
+
+#[test]
+fn test_log_step() {
+    let log_step_iterator = LogStepIterator::new(10, 10);
+    assert_eq!(
+        vec![0, 0, 0, 1, 1, 2, 3, 4, 6, 9],
+        log_step_iterator.collect::<Vec<_>>()
+    );
+    // println!(
+    //     "log_step_iterator: {:?}",
+    //     log_step_iterator.collect::<Vec<_>>()
+    // );
 }

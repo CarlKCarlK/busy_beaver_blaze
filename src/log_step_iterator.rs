@@ -24,23 +24,19 @@ impl LogStepIterator {
 )]
 impl Iterator for LogStepIterator {
     type Item = u64;
-
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_frame >= self.total_frames {
             return None;
         }
 
-        // Normalized frame index from 0 to 1
         let t = self.current_frame as f64 / (self.total_frames - 1) as f64;
-
-        // Apply logarithmic-like spacing using an exponential function
-        let value = if t == 0.0 {
-            0
-        } else if t == 1.0 {
+        let value = if t == 1.0 {
             self.max_value - 1
         } else {
-            let log_value = ((self.max_value as f64).ln() * t).exp();
-            log_value.round().min((self.max_value - 1) as f64) as u64
+            // f(t) = exp( ln(max_value) * t ) - 1
+            let log_value = ((self.max_value as f64).ln() * t).exp_m1();
+            // Use floor instead of round so that the lower integer is used until f(t) reaches the next integer.
+            log_value.floor().min((self.max_value - 1) as f64) as u64
         };
 
         self.current_frame += 1;
