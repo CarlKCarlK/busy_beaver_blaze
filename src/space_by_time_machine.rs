@@ -13,7 +13,7 @@ use crate::{Machine, PixelPolicy, Snapshot, find_y_stride, space_by_time::SpaceB
 
 #[wasm_bindgen]
 pub struct SpaceByTimeMachine {
-    machine: Machine,
+    pub(crate) machine: Machine,
     pub(crate) space_by_time: SpaceByTime,
 }
 
@@ -303,7 +303,7 @@ impl SpaceByTimeMachine {
         step_index_to_frame_index
     }
 
-    fn generate_snapshots(
+    pub(crate) fn generate_snapshots(
         &mut self,
         frame_index_to_step_indexes: &[u64],
         start: u64,

@@ -1,8 +1,8 @@
 use crate::{
-    ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PowerOfTwo,
-    SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
+    ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
+    PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
     average_with_simd_count_ones64, average_with_simd_push, bool_u8::BoolU8, find_x_stride,
-    pixel::Pixel, spaceline::Spaceline, test_utils::compress_x_no_simd_binning,
+    pixel::Pixel, png_data_iterator, spaceline::Spaceline, test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
 use rand::{Rng, SeedableRng};
@@ -433,7 +433,7 @@ fn one() {
 }
 
 #[test]
-fn frames() {
+fn del_cmk_frames() {
     // let frame_count = 100;
     // let early_stop = 2413u64;
     // let part_count = 3;
@@ -486,7 +486,7 @@ fn frames() {
     // let goal_x: u32 = 360;
     // let goal_y: u32 = 432;
 
-    let frame_index_to_step_indexes_0_based: Vec<_> =
+    let frame_index_to_step_indexes: Vec<_> =
         LogStepIterator::new(early_stop, frame_count).collect();
     let program_string = BB6_CONTENDER;
     let mut space_by_time_machine_first = SpaceByTimeMachine::from_str_in_parts(
@@ -496,7 +496,7 @@ fn frames() {
         goal_x,
         goal_y,
         binning,
-        frame_index_to_step_indexes_0_based.as_slice(),
+        frame_index_to_step_indexes.as_slice(),
     );
     let png_data = space_by_time_machine_first.png_data();
     fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
@@ -515,4 +515,84 @@ fn test_log_step() {
     //     "log_step_iterator: {:?}",
     //     log_step_iterator.collect::<Vec<_>>()
     // );
+}
+
+#[test]
+fn frames() {
+    // let frame_count = 100;
+    // let early_stop = 2413u64;
+    // let part_count = 3;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 30;
+    // let binning = true;
+
+    let early_stop = 250_000_000;
+    let frame_count = 1000;
+    let part_count = 42;
+    let goal_x: u32 = 360;
+    let goal_y: u32 = 432;
+    let binning = true;
+
+    // let early_stop = 10_000_000_000;
+    // let frame_count = 2000;
+    // let part_count = 32;
+    // let goal_x: u32 = 1920;
+    // let goal_y: u32 = 1080;
+    // let binning = true;
+
+    // let early_stop = 250_000_000_000;
+    // let frame_count = 2000;
+    // let part_count = 32;
+    // let goal_x: u32 = 1920;
+    // let goal_y: u32 = 1080;
+    // let binning = true;
+
+    // let early_stop = 10_000_000;
+    // let part_count = 16;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 30;
+    // let binning = true;
+
+    // let early_stop = 1_000_000;
+    // let part_count = 1;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 30;
+    // let binning = true;
+
+    // let early_stop = 300;
+    // let part_count = 2;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
+
+    // let early_stop = 5u64;
+    // let part_count = 10;
+
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    let frame_index_to_step_indexes: Vec<_> =
+        LogStepIterator::new(early_stop, frame_count).collect();
+
+    let png_data_iterator = PngDataIterator::new(
+        early_stop,
+        part_count,
+        BB6_CONTENDER,
+        goal_x,
+        goal_y,
+        binning,
+        frame_index_to_step_indexes.as_slice(),
+    );
+
+    for (frame_index, png_data) in png_data_iterator.enumerate() {
+        let cmk_file = format!(r"M:\deldir\bb\frames_test2\cmk{frame_index:07}.png");
+        fs::write(cmk_file, &png_data).unwrap();
+    }
+
+    // cmk0000000 turn the iterator into a final SpaceTimeMachine
+    // let mut space_by_time_machine_first = png_data_iterator.into_cmk();
+    // let png_data = space_by_time_machine_first.png_data();
+    // fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
+
+    // cmk should we be using async instead of threads for the two?
+    // cmk0000000 remove old code from SpaceTimeMachine.
 }
