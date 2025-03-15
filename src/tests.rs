@@ -2,8 +2,7 @@ use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
     PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
     average_with_simd_count_ones64, average_with_simd_push, bool_u8::BoolU8, find_x_stride,
-    machine, pixel::Pixel, png_data_iterator, spaceline::Spaceline,
-    test_utils::compress_x_no_simd_binning,
+    pixel::Pixel, spaceline::Spaceline, test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
 use rand::{Rng, SeedableRng};

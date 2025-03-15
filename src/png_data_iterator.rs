@@ -6,7 +6,10 @@ use crossbeam::channel::{self, Receiver, Sender};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 use crate::{Snapshot, SpaceByTime, SpaceByTimeMachine, find_y_stride};
-use std::thread::{self, JoinHandle}; // Keep thread imports as they're not in alloc/core
+use std::{
+    collections::HashMap,
+    thread::{self, JoinHandle},
+}; // Keep thread imports as they're not in alloc/core
 
 // cmk000 rename?
 /// An iterator that yields PNG data (as Vec<u8>) for each frame.
@@ -19,6 +22,7 @@ pub struct PngDataIterator {
 impl PngDataIterator {
     /// Creates a new `PngDataIterator` by spawning the necessary worker threads.
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn new(
         early_stop: u64,
         part_count_goal: usize,
@@ -54,7 +58,7 @@ impl PngDataIterator {
                 binning,
                 frame_index_to_step_indexes_clone,
                 sender0,
-            )
+            );
         });
 
         // Spawn the thread that combines the results into PNG data.
@@ -70,6 +74,7 @@ impl PngDataIterator {
     }
 
     // cmk000 need to handle the case of early halting.
+    #[allow(clippy::too_many_arguments)]
     fn run_parts(
         early_stop: u64,
         range_list: Vec<Range<u64>>,
@@ -100,7 +105,7 @@ impl PngDataIterator {
 
             println!("Part {part_index}/{part_count}, have fast-forwarded {start} steps before visualization.");
 
-            let snapshots = space_by_time_machine.generate_snapshots(
+            let snapshots = Self::generate_snapshots(&mut space_by_time_machine,
                 frame_index_to_step_indexes.as_slice(),
                 start,
                 end,
@@ -273,8 +278,50 @@ impl PngDataIterator {
         }
         machine
     }
+
+    fn generate_snapshots(
+        space_by_time_machine: &mut SpaceByTimeMachine,
+        frame_index_to_step_indexes: &[u64],
+        start: u64,
+        end: u64,
+    ) -> Vec<Snapshot> {
+        let mut snapshots: Vec<Snapshot> = vec![];
+        let step_index_to_frame_index_0_based =
+            Self::build_step_index_to_frame_index(frame_index_to_step_indexes, start, end);
+        for step_index in start..end - 1 {
+            if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&step_index) {
+                snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
+            }
+            if space_by_time_machine.next().is_none() {
+                break;
+            }
+        }
+        // cmk00000 not sure if should show last frame if self.next was none
+        if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&(end - 1)) {
+            snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
+        }
+        snapshots
+    }
+
+    fn build_step_index_to_frame_index(
+        frame_index_to_step_indexes: &[u64],
+        start: u64,
+        end: u64,
+    ) -> HashMap<u64, Vec<usize>> {
+        let mut step_index_to_frame_index: HashMap<u64, Vec<usize>> = HashMap::new();
+        for (index, &step_index) in frame_index_to_step_indexes.iter().enumerate() {
+            if step_index >= start && step_index < end {
+                step_index_to_frame_index
+                    .entry(step_index)
+                    .or_default()
+                    .push(index);
+            }
+        }
+        step_index_to_frame_index
+    }
 }
 
+#[allow(clippy::missing_trait_methods)]
 impl Iterator for PngDataIterator {
     type Item = Vec<u8>;
 
@@ -298,11 +345,6 @@ impl Drop for PngDataIterator {
         }
     }
 }
-
-// cmk0000000 turn the iterator into a final SpaceTimeMachine
-// let mut space_by_time_machine_first = png_data_iterator.into_cmk();
-// let png_data = space_by_time_machine_first.png_data();
-// fs::write("tests/expected/part.png", &png_data).unwrap(); // cmk handle error
 
 // cmk should we be using async instead of threads for the two?
 // cmk0000000 remove old code from SpaceTimeMachine.

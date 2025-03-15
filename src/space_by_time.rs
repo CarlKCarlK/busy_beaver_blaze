@@ -393,7 +393,6 @@ impl SpaceByTime {
         if !spacelines.buffer0.is_empty() {
             assert!(spacelines.buffer0.len() == 1);
             let (spaceline, weight) = spacelines.buffer0.pop().unwrap();
-            // cmk0000000 keep this?
             assert!(weight == self.y_stride);
             spacelines.main.push(spaceline);
         }
