@@ -207,13 +207,39 @@ impl SpaceByTimeMachine {
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-        frame_index_to_step_indexes: &[u64], // cmk0000000 rename
+        frame_index_to_step_indexes: &[u64],
     ) -> Self {
+        assert!(part_count_goal > 0); // panic if part_count_goal is 0
+
+        let range_list = Self::create_range_list(early_stop, part_count_goal, goal_y);
+        let part_count = range_list.len();
+
         let (sender0, receiver0) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
+        let (sender1, receiver1) = channel::unbounded::<(usize, Vec<u8>)>();
+        // Spawn combine_results on its own thread.
+        let combine_handle = thread::spawn({
+            move || Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
+        });
+
+        let write_handle = thread::spawn({
+            let frame_index_to_step_indexes_clone = frame_index_to_step_indexes.to_vec();
+            move || {
+                for (frame_index, _step_index) in
+                    frame_index_to_step_indexes_clone.iter().enumerate()
+                {
+                    // print!("Looking for frame {frame_index}... ");
+                    let (frame_index1, png_data) = receiver1.recv().unwrap();
+                    // println!("Found frame {frame_index1}!");
+                    assert_eq!(frame_index, frame_index1);
+                    let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index1:07}.png");
+                    fs::write(cmk_file, &png_data).unwrap();
+                }
+            }
+        });
         // cmk should part_count be a usize?
-        let part_count = Self::run_parts(
+        Self::run_parts(
             early_stop,
-            part_count_goal,
+            range_list,
             program_string,
             goal_x,
             goal_y,
@@ -221,22 +247,7 @@ impl SpaceByTimeMachine {
             frame_index_to_step_indexes,
             sender0,
         );
-
-        let (sender1, receiver1) = channel::unbounded::<(usize, Vec<u8>)>();
-        // Spawn combine_results on its own thread.
-        let combine_handle = thread::spawn({
-            move || Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
-        });
-
-        for (frame_index, _step_index) in frame_index_to_step_indexes.iter().enumerate() {
-            print!("Looking for frame {frame_index}... ");
-            let (frame_index1, png_data) = receiver1.recv().unwrap();
-            println!("Found frame {frame_index1}!");
-            // cmk0000 assert_eq!(frame_index, frame_index1);
-            let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index1:07}.png");
-            fs::write(cmk_file, &png_data).unwrap();
-        }
-
+        write_handle.join().unwrap();
         combine_handle.join().unwrap()
     }
 
@@ -296,14 +307,13 @@ impl SpaceByTimeMachine {
 
     fn generate_snapshots(
         &mut self,
-        frame_index_to_step_indexes: &[u64], // cmk000000 rename
+        frame_index_to_step_indexes: &[u64],
         start: u64,
         end: u64,
     ) -> Vec<Snapshot> {
         let mut snapshots: Vec<Snapshot> = vec![];
         let step_index_to_frame_index_0_based =
             Self::build_step_index_to_frame_index(frame_index_to_step_indexes, start, end);
-        // cmk0000000 or start..end????
         for step_index in start..end - 1 {
             if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&step_index) {
                 snapshots.push(Snapshot::new(frame_indexes.clone(), self));
@@ -322,43 +332,52 @@ impl SpaceByTimeMachine {
     // cmk000 need to handle the case of early halting.
     fn run_parts(
         early_stop: u64,
-        part_count_goal: usize,
+        range_list: Vec<Range<u64>>,
         program_string: &str,
         goal_x: u32,
         goal_y: u32,
         binning: bool,
         frame_index_to_step_indexes: &[u64], // cmk00000 rename
         sender: Sender<(usize, Vec<Snapshot>, Self)>,
-    ) -> usize {
+    ) {
         assert!(early_stop > 0); // panic if early_stop is 0
-        assert!(part_count_goal > 0); // panic if part_count_goal is 0
 
-        let range_list = Self::create_range_list(early_stop, part_count_goal, goal_y);
         let part_count = range_list.len();
 
         range_list
-            // .into_par_iter()
-            .into_iter() // cmk000000000000000
+            .into_par_iter()
+            // .into_iter()
             .enumerate()
             .for_each(move |(part_index, range)| {
                 let (start, end) = (range.start, range.end);
+                println!(
+                    "Part {part_index}/{part_count}, working on visualizing steps {start}..{end}."
+                );
 
                 let mut space_by_time_machine =
                     Self::from_str(program_string, goal_x, goal_y, binning, start)
                         .expect("Failed to create machine");
 
-                let snapshots =
-                    space_by_time_machine.generate_snapshots(frame_index_to_step_indexes, start, end);
+                println!("Part {part_index}/{part_count}, have fast-forwarded {start} steps before visualization.");
+
+                let snapshots = space_by_time_machine.generate_snapshots(
+                    frame_index_to_step_indexes,
+                    start,
+                    end,
+                );
+
+                println!("Part {part_index}/{part_count}, have snapshotted desired steps from {start} to {end}.");
+
 
                 let space_by_time = &mut space_by_time_machine.space_by_time;
                 let inside_index = space_by_time
                     .y_stride
                     .rem_into_u64(space_by_time.step_index() + 1);
                 // This should be 0 on all but the last part
-                println!(
-                    "part {part_index}/{part_count} inside_index: {inside_index}, y_stride: {:?}, step_index: {:?}",
-                    space_by_time.y_stride, space_by_time.step_index()
-                );
+                // println!(
+                //     "part {part_index}/{part_count} inside_index: {inside_index}, y_stride: {:?}, step_index: {:?}",
+                //     space_by_time.y_stride, space_by_time.step_index()
+                // );
                 assert!(inside_index == 0 || part_index == part_count - 1);
                 if inside_index == 0 {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
@@ -367,8 +386,10 @@ impl SpaceByTimeMachine {
                 sender
                     .send((part_index, snapshots, space_by_time_machine))
                     .unwrap();
+
+                    println!("Part {part_index}/{part_count}, have transmitted snapshots");
+
             });
-        part_count
     }
 
     // cmk is it sometimes x_goal and sometimes goal_x????
@@ -384,13 +405,13 @@ impl SpaceByTimeMachine {
 
         let mut space_by_time_first_outer = None;
         let mut machine_first = None;
-        for next_index in 0..part_count {
-            println!("Waiting for: {next_index}");
+        for next_part_index in 0..part_count {
+            println!("Waiting for: {next_part_index}");
             // if buffer doesn't start with next_index, then collect something from the channel,
             // and insert it into the buffer and loop again
             while buffer
                 .first_key_value()
-                .is_none_or(|(&key, _)| key != next_index)
+                .is_none_or(|(&key, _)| key != next_part_index)
             {
                 let (part_index_received, snapshots, space_by_time_machine) =
                     receiver0.recv().expect("Channel closed unexpectedly");
@@ -400,11 +421,11 @@ impl SpaceByTimeMachine {
             // pop
             let (popped_index, (snapshots, space_by_time_machine)) =
                 buffer.pop_first().expect("Expected next result in buffer");
-            assert_eq!(popped_index, next_index);
-            println!("Processing: {next_index}");
+            assert_eq!(popped_index, next_part_index);
+            println!("Processing: {next_part_index}");
 
             // Special processing for the first part
-            if next_index == 0 {
+            if next_part_index == 0 {
                 let space_by_time_first = space_by_time_machine.space_by_time;
                 assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
 
@@ -430,7 +451,7 @@ impl SpaceByTimeMachine {
             let space_by_time_other = space_by_time_machine.space_by_time;
             Self::assert_empty_buffer_if_not_last_part(
                 &space_by_time_other,
-                next_index,
+                next_part_index,
                 part_count,
             );
 

@@ -154,12 +154,6 @@ impl PowerOfTwo {
     #[must_use]
     // #[allow(clippy::integer_division_remainder_used, clippy::missing_panics_doc)]
     pub const fn rem_into_u64(self, x: u64) -> u64 {
-        // // cmk000000000
-        // let as_64 = self.as_u64();
-        // let a_ref = x % as_64;
-        // let a = x & (self.as_u64() - 1);
-        // assert_eq!(a, a_ref);
-        // a
         x & (self.as_u64() - 1)
     }
 
