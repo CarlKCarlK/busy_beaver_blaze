@@ -216,38 +216,36 @@ impl SpaceByTimeMachine {
 
         let (sender0, receiver0) = channel::unbounded::<(usize, Vec<Snapshot>, Self)>();
         let (sender1, receiver1) = channel::unbounded::<(usize, Vec<u8>)>();
+
+        let frame_index_to_step_indexes_clone = frame_index_to_step_indexes.to_vec();
+        let program_string_clone = program_string.to_owned();
+        let run_handle = thread::spawn(move || {
+            Self::run_parts(
+                early_stop,
+                range_list,
+                program_string_clone,
+                goal_x,
+                goal_y,
+                binning,
+                frame_index_to_step_indexes_clone,
+                sender0,
+            )
+        });
+
         // Spawn combine_results on its own thread.
         let combine_handle = thread::spawn({
             move || Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
         });
 
-        let write_handle = thread::spawn({
-            let frame_index_to_step_indexes_clone = frame_index_to_step_indexes.to_vec();
-            move || {
-                for (frame_index, _step_index) in
-                    frame_index_to_step_indexes_clone.iter().enumerate()
-                {
-                    // print!("Looking for frame {frame_index}... ");
-                    let (frame_index1, png_data) = receiver1.recv().unwrap();
-                    // println!("Found frame {frame_index1}!");
-                    assert_eq!(frame_index, frame_index1);
-                    let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index1:07}.png");
-                    fs::write(cmk_file, &png_data).unwrap();
-                }
-            }
-        });
-        // cmk should part_count be a usize?
-        Self::run_parts(
-            early_stop,
-            range_list,
-            program_string,
-            goal_x,
-            goal_y,
-            binning,
-            frame_index_to_step_indexes,
-            sender0,
-        );
-        write_handle.join().unwrap();
+        for (frame_index, _step_index) in frame_index_to_step_indexes.iter().enumerate() {
+            // print!("Looking for frame {frame_index}... ");
+            let (frame_index1, png_data) = receiver1.recv().unwrap();
+            // println!("Found frame {frame_index1}!");
+            assert_eq!(frame_index, frame_index1);
+            let cmk_file = format!(r"M:\deldir\bb\frames_test\cmk{frame_index1:07}.png");
+            fs::write(cmk_file, &png_data).unwrap();
+        }
+        run_handle.join().unwrap();
         combine_handle.join().unwrap()
     }
 
@@ -333,11 +331,11 @@ impl SpaceByTimeMachine {
     fn run_parts(
         early_stop: u64,
         range_list: Vec<Range<u64>>,
-        program_string: &str,
+        program_string: String,
         goal_x: u32,
         goal_y: u32,
         binning: bool,
-        frame_index_to_step_indexes: &[u64], // cmk00000 rename
+        frame_index_to_step_indexes: Vec<u64>,
         sender: Sender<(usize, Vec<Snapshot>, Self)>,
     ) {
         assert!(early_stop > 0); // panic if early_stop is 0
@@ -355,13 +353,13 @@ impl SpaceByTimeMachine {
                 );
 
                 let mut space_by_time_machine =
-                    Self::from_str(program_string, goal_x, goal_y, binning, start)
+                    Self::from_str(&program_string, goal_x, goal_y, binning, start)
                         .expect("Failed to create machine");
 
                 println!("Part {part_index}/{part_count}, have fast-forwarded {start} steps before visualization.");
 
                 let snapshots = space_by_time_machine.generate_snapshots(
-                    frame_index_to_step_indexes,
+                    frame_index_to_step_indexes.as_slice(),
                     start,
                     end,
                 );

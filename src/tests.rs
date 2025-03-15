@@ -441,21 +441,21 @@ fn frames() {
     // let goal_y: u32 = 30;
     // let binning = true;
 
-    // let early_stop = 250_000_000u64;
-    // let frame_count = 1000;
-    // let part_count = 42;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 432;
-    // let binning = true;
-
-    let early_stop = 10_000_000_000;
-    let frame_count = 2000;
-    let part_count = 32;
-    let goal_x: u32 = 1920;
-    let goal_y: u32 = 1080;
+    let early_stop = 250_000_000;
+    let frame_count = 1000;
+    let part_count = 42;
+    let goal_x: u32 = 360;
+    let goal_y: u32 = 432;
     let binning = true;
 
-    // let early_stop = 100_000_000_000;
+    // let early_stop = 10_000_000_000;
+    // let frame_count = 2000;
+    // let part_count = 32;
+    // let goal_x: u32 = 1920;
+    // let goal_y: u32 = 1080;
+    // let binning = true;
+
+    // let early_stop = 250_000_000_000;
     // let frame_count = 2000;
     // let part_count = 32;
     // let goal_x: u32 = 1920;
