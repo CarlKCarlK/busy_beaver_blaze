@@ -1,6 +1,6 @@
 use crate::{Error, SpaceByTime, SpaceByTimeMachine};
 
-pub(crate) struct Snapshot {
+pub struct Snapshot {
     pub(crate) frame_indexes: Vec<usize>, // cmk make private
     tape_negative_len: usize,
     tape_nonnegative_len: usize,
@@ -21,6 +21,7 @@ impl Snapshot {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn to_png(&mut self, x_goal: u32, y_goal: u32) -> Result<Vec<u8>, Error> {
         self.space_by_time.to_png(
             self.tape_negative_len,

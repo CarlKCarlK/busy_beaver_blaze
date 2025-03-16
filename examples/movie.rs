@@ -145,7 +145,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 }
 
 fn save_frame(
-    png_data: &Vec<u8>,
+    png_data: &[u8],
     output_dir: &Path,
     run_id: u32,
     frame: u32,

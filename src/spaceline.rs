@@ -104,7 +104,8 @@ impl Spaceline {
         -((self.x_stride * self.negative.len()) as i64)
     }
 
-    #[allow(clippy::cast_ptr_alignment, clippy::integer_division_remainder_used)]
+    // cmk0000
+    #[allow(clippy::cast_ptr_alignment)]
     pub fn compress_x_simd_binning(pixels: &mut AVec<Pixel>) {
         // Local constant for the static swizzle indices.
         const SWIZZLE_INDICES: [usize; 64] = [
@@ -119,7 +120,7 @@ impl Spaceline {
         let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
         let len = pixels_bytes.len();
         // We'll process the input in 64-byte blocks.
-        let num_chunks = len / 64;
+        let num_chunks = len >> 6; // Shift right by 6 is equivalent to dividing by 64
 
         // Destination pointer: we'll pack results to the start of this buffer.
         let dst_ptr = pixels_bytes.as_mut_ptr();
@@ -151,7 +152,6 @@ impl Spaceline {
 
             // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
             // cmk0000 could make this unbiased
-
             let result: &mut Simd<u8, 32> =
                 unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
             *result = left & right;
@@ -166,6 +166,7 @@ impl Spaceline {
         // Process the remaining bytes (suffix) with scalar code.
         let mut i = num_chunks * 64;
         while i + 1 < len {
+            // cmk0000
             // Compute the average for a pair of pixels.
             pixels_bytes[write_index] = Pixel::mean_bytes(pixels_bytes[i], pixels_bytes[i + 1]);
             write_index += 1;
@@ -173,7 +174,8 @@ impl Spaceline {
         }
         if i < len {
             // For a leftover pixel, average it with white (i.e. divide by 2).
-            pixels_bytes[write_index] = pixels_bytes[i] / 2;
+            // cmk0000
+            pixels_bytes[write_index] = pixels_bytes[i] >> 1;
             write_index += 1;
         }
 
@@ -181,7 +183,7 @@ impl Spaceline {
         pixels.truncate(write_index);
     }
 
-    #[allow(clippy::cast_ptr_alignment, clippy::integer_division_remainder_used)]
+    #[allow(clippy::cast_ptr_alignment)]
     pub fn compress_x_simd_sampling(pixels: &mut AVec<Pixel>) {
         // Local constant for the static swizzle indices.
         const SWIZZLE_INDICES: [usize; 64] = [
@@ -193,7 +195,7 @@ impl Spaceline {
         let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
         let len = pixels_bytes.len();
         // We'll process the input in 64-byte blocks.
-        let num_chunks = len / 64;
+        let num_chunks = len >> 6; // Shift right by 6 is equivalent to dividing by 64
 
         // Destination pointer: we'll pack results to the start of this buffer.
         let dst_ptr = pixels_bytes.as_mut_ptr();
@@ -272,6 +274,7 @@ impl Spaceline {
         result
     }
 
+    // cmk0000
     #[allow(clippy::missing_panics_doc)]
     #[inline]
     pub fn merge_simd(&mut self, other: &Self) {
@@ -285,6 +288,7 @@ impl Spaceline {
         Pixel::avec_merge_simd(&mut self.nonnegative, &other.nonnegative);
     }
 
+    // cmk0000
     #[inline]
     pub fn merge_with_white_simd(&mut self) {
         Pixel::slice_merge_with_white_simd(&mut self.nonnegative);

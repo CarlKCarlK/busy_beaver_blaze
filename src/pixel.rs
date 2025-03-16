@@ -5,7 +5,8 @@ use core::simd::{self, prelude::*};
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-/// We define +, += to be the average of two pixels.
+// cmk0000
+/// We define +, += to be the average of two pixels. // cmk0000 is this wise?
 #[repr(transparent)]
 #[derive(
     Default, Copy, Clone, IntoBytes, FromBytes, Immutable, Display, PartialEq, Eq, KnownLayout,
@@ -60,6 +61,7 @@ impl Pixel {
         self.0
     }
 
+    // cmk0000
     #[inline]
     pub(crate) fn avec_merge_simd(left: &mut AVec<Self>, right: &AVec<Self>) {
         assert!(
@@ -70,6 +72,7 @@ impl Pixel {
         Self::slice_merge_simd(left, right);
     }
 
+    // cmk0000
     #[inline]
     pub(crate) fn slice_merge_simd(left: &mut [Self], right: &[Self]) {
         assert!(left.len() == right.len());
@@ -97,6 +100,7 @@ impl Pixel {
         left_align == right_align
     }
 
+    // cmk0000
     #[inline]
     pub(crate) fn slice_merge_bytes_simd(left_bytes: &mut [u8], right_bytes: &[u8]) {
         // cmk debug_assert

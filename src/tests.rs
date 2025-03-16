@@ -77,6 +77,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     clippy::cognitive_complexity,
     clippy::too_many_lines
 )]
+// cmk0000
 #[test]
 fn test_average() {
     let values = AVec::from_iter(
