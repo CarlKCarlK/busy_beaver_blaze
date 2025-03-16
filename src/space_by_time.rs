@@ -9,8 +9,8 @@ use crate::{
 
 #[derive(Clone)]
 pub struct SpaceByTime {
-    skip: u64,
-    pub(crate) step_index: u64,           // cmk make private
+    pub(crate) skip: u64,
+    pub(crate) vis_step: u64,             // cmk make private
     pub(crate) x_goal: u32,               // cmk make private
     pub(crate) y_goal: u32,               // cmk make private
     pub(crate) y_stride: PowerOfTwo,      // cmk make private
@@ -28,7 +28,7 @@ impl SpaceByTime {
     pub fn new0(x_goal: u32, y_goal: u32, pixel_policy: PixelPolicy) -> Self {
         Self {
             skip: 0,
-            step_index: 0,
+            vis_step: 0,
             x_goal,
             y_goal,
             y_stride: PowerOfTwo::ONE,
@@ -50,7 +50,7 @@ impl SpaceByTime {
         // cmk0 confusing to refer to both machine time and space time as "step_count"
         Self {
             skip,
-            step_index: 0,
+            vis_step: 0,
             x_goal,
             y_goal,
             y_stride: PowerOfTwo::ONE,
@@ -63,7 +63,7 @@ impl SpaceByTime {
     #[inline]
     #[must_use]
     pub const fn step_index(&self) -> u64 {
-        self.step_index
+        self.vis_step + self.skip
     }
 
     // cmk0 understand the `compress_cmk*` functions
@@ -78,8 +78,8 @@ impl SpaceByTime {
 
     #[inline]
     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
-        self.step_index += 1;
-        let inside_index = self.y_stride.rem_into_u64(self.step_index);
+        self.vis_step += 1;
+        let inside_index = self.y_stride.rem_into_u64(self.vis_step);
 
         match self.pixel_policy {
             PixelPolicy::Binning => {
@@ -93,7 +93,7 @@ impl SpaceByTime {
                         previous_tape_index,
                         machine.tape(),
                         self.x_goal,
-                        self.step_index + self.skip,
+                        self.step_index(),
                         self.pixel_policy,
                     ) {
                         previous
@@ -101,7 +101,7 @@ impl SpaceByTime {
                         Spaceline::new(
                             machine.tape(),
                             self.x_goal,
-                            self.step_index + self.skip,
+                            self.step_index(),
                             self.pixel_policy,
                         )
                     }
@@ -109,7 +109,7 @@ impl SpaceByTime {
                     Spaceline::new(
                         machine.tape(),
                         self.x_goal,
-                        self.step_index + self.skip,
+                        self.step_index(),
                         self.pixel_policy,
                     )
                 };
@@ -127,7 +127,7 @@ impl SpaceByTime {
                     Spaceline::new(
                         machine.tape(),
                         self.x_goal,
-                        self.step_index + self.skip,
+                        self.step_index(),
                         self.pixel_policy,
                     ),
                     self.pixel_policy,
@@ -269,6 +269,7 @@ impl SpaceByTime {
                 break;
             }
         }
+        self.vis_step += other.vis_step;
         self
     }
 
@@ -396,7 +397,7 @@ impl SpaceByTime {
             assert!(weight == self.y_stride);
             spacelines.main.push(spaceline);
         }
-        let y_stride = find_y_stride(self.step_index, self.y_goal);
+        let y_stride = find_y_stride(self.vis_step, self.y_goal);
         if y_stride != self.y_stride {
             assert_eq!(y_stride, self.y_stride.double());
             self.y_stride = y_stride;

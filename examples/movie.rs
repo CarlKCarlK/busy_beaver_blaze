@@ -115,9 +115,10 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 
     for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
         println!(
-            "run_id: {}, Frame {}, time so far {:?}",
+            "run_id: {}, Frame {}, Step {}, time so far {:?}",
             run_id,
             frame_index,
+            step_index + 1,
             start.elapsed()
         );
 

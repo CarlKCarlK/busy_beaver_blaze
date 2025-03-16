@@ -33,12 +33,26 @@ impl PngDataIterator {
         frame_index_to_step_index: &[u64],
     ) -> Self {
         assert!(part_count_goal > 0, "part_count_goal must be > 0");
-        // cmk000 ??? frame_index_to_step_index should be monotonically increasing (do they need to be?) but we don't check that
-        // cmk000 also might be nice to warn of the step_indexes are beyond early_stop
+        assert!(early_stop > 0); // panic if early_stop is 0
+
+        // cmk000 for now require that values in frame_index_to_step_index be increasing and in range. This would be removed later.
+
+        assert!(
+            frame_index_to_step_index
+                .windows(2)
+                .all(|window| window[0] <= window[1]),
+            "frame_index_to_step_index must be monotonically increasing"
+        );
+        assert!(
+            frame_index_to_step_index
+                .iter()
+                .all(|value| value < &early_stop),
+            "frame_index_to_step_index values must be less than early_stop"
+        );
 
         // Create the range list based on provided parameters.
-        let range_list = Self::create_range_list(early_stop, part_count_goal, goal_y);
-        let part_count = range_list.len();
+        let step_index_ranges = Self::create_step_index_ranges(early_stop, part_count_goal, goal_y);
+        let part_count = step_index_ranges.len();
 
         // Set up channels for inter-thread communication.
         let (sender0, receiver0) =
@@ -53,7 +67,7 @@ impl PngDataIterator {
         let run_handle = thread::spawn(move || {
             Self::run_parts(
                 early_stop,
-                range_list,
+                step_index_ranges,
                 program_string_clone,
                 goal_x,
                 goal_y,
@@ -79,7 +93,7 @@ impl PngDataIterator {
     #[allow(clippy::too_many_arguments)]
     fn run_parts(
         early_stop: u64,
-        range_list: Vec<Range<u64>>,
+        step_index_ranges: Vec<Range<u64>>,
         program_string: String,
         goal_x: u32,
         goal_y: u32,
@@ -89,37 +103,37 @@ impl PngDataIterator {
     ) {
         assert!(early_stop > 0); // panic if early_stop is 0
 
-        let part_count = range_list.len();
+        let part_count = step_index_ranges.len();
 
-        range_list
+        step_index_ranges
         .into_par_iter()
         // .into_iter()
         .enumerate()
-        .for_each(move |(part_index, range)| {
-            let (start, end) = (range.start, range.end);
+        .for_each(move |(part_index, step_index_range)| {
+            let (step_start, step_end) = (step_index_range.start, step_index_range.end);
             println!(
-                "Part {part_index}/{part_count}, working on visualizing steps {start}..{end}."
+                "Part {part_index}/{part_count}, working on visualizing step_index {step_start}..{step_end}."
             );
 
             let mut space_by_time_machine =
-                SpaceByTimeMachine::from_str(&program_string, goal_x, goal_y, binning, start)
+                SpaceByTimeMachine::from_str(&program_string, goal_x, goal_y, binning, step_start)
                     .expect("Failed to create machine");
 
-            println!("Part {part_index}/{part_count}, have fast-forwarded {start} steps before visualization.");
+            println!("Part {part_index}/{part_count}, have fast-forwarded {step_start} steps before visualization.");
 
             let snapshots = Self::generate_snapshots(&mut space_by_time_machine,
                 frame_index_to_step_index.as_slice(),
-                start,
-                end,
+                step_start,
+                step_end,
             );
 
-            println!("Part {part_index}/{part_count}, have snapshotted desired steps from {start} to {end}.");
+            println!("Part {part_index}/{part_count}, have snapshotted desired steps from {step_start} to {step_end}.");
 
 
             let space_by_time = &mut space_by_time_machine.space_by_time;
             let inside_index = space_by_time
                 .y_stride
-                .rem_into_u64(space_by_time.step_index() + 1);
+                .rem_into_u64(space_by_time.vis_step + 1);
             // This should be 0 on all but the last part
             // println!(
             //     "part {part_index}/{part_count} inside_index: {inside_index}, y_stride: {:?}, step_index: {:?}",
@@ -134,7 +148,7 @@ impl PngDataIterator {
                 .send((part_index, snapshots, space_by_time_machine))
                 .unwrap();
 
-                println!("Part {part_index}/{part_count}, have transmitted snapshots");
+            println!("Part {part_index}/{part_count}, have transmitted snapshots");
 
         });
     }
@@ -205,7 +219,6 @@ impl PngDataIterator {
             );
 
             for mut snapshot_other in snapshots {
-                // cmk this is convoluted way to combine these two
                 snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
                 let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
                 let (last, all_but_last) = snapshot_other.frame_indexes.split_last().unwrap();
@@ -244,7 +257,11 @@ impl PngDataIterator {
         }
     }
 
-    fn create_range_list(early_stop: u64, part_count_goal: usize, goal_y: u32) -> Vec<Range<u64>> {
+    fn create_step_index_ranges(
+        early_stop: u64,
+        part_count_goal: usize,
+        goal_y: u32,
+    ) -> Vec<Range<u64>> {
         let mut rows_per_part = early_stop.div_ceil(part_count_goal as u64);
 
         let y_stride = find_y_stride(rows_per_part, goal_y);
@@ -287,14 +304,21 @@ impl PngDataIterator {
     fn generate_snapshots(
         space_by_time_machine: &mut SpaceByTimeMachine,
         frame_index_to_step_index: &[u64],
-        start: u64,
-        end: u64,
+        step_start: u64,
+        step_end: u64,
     ) -> Vec<Snapshot> {
+        println!("---\n{step_start}..{step_end}: {frame_index_to_step_index:?}");
         let mut snapshots: Vec<Snapshot> = vec![];
-        let step_index_to_frame_index_0_based =
-            Self::build_step_index_to_frame_index(frame_index_to_step_index, start, end);
-        for step_index in start..end - 1 {
-            if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&step_index) {
+        let step_index_to_frame_index =
+            Self::build_step_index_to_frame_index(frame_index_to_step_index, step_start, step_end);
+        println!("---\n{step_start}..{step_end}: {step_index_to_frame_index:?}");
+        for step_index in step_start..step_end - 1 {
+            if let Some(frame_indexes) = step_index_to_frame_index.get(&step_index) {
+                println!(
+                    "step_index {step_index} ({}), {:?}",
+                    space_by_time_machine.space_by_time.step_index(),
+                    frame_indexes
+                );
                 snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
             }
             if space_by_time_machine.next().is_none() {
@@ -302,7 +326,13 @@ impl PngDataIterator {
             }
         }
         // cmk00000 not sure if should show last frame if self.next was none
-        if let Some(frame_indexes) = step_index_to_frame_index_0_based.get(&(end - 1)) {
+        if let Some(frame_indexes) = step_index_to_frame_index.get(&(step_end - 1)) {
+            println!(
+                "step_index {} ({}), {:?}",
+                step_end - 1,
+                space_by_time_machine.space_by_time.step_index(),
+                frame_indexes
+            );
             snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
         }
         snapshots

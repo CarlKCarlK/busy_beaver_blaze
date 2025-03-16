@@ -401,19 +401,26 @@ fn test_log_step() {
 
 #[test]
 fn frames() {
-    // let frame_count = 100;
-    // let early_stop = 2413u64;
-    // let part_count = 3;
-    // let goal_x: u32 = 360;
-    // let goal_y: u32 = 30;
+    // let early_stop = 1_000_000_000;
+    // let frame_count = 4;
+    // let part_count = 16;
+    // let goal_x: u32 = 1920;
+    // let goal_y: u32 = 1080;
     // let binning = true;
 
-    let early_stop = 250_000_000;
-    let frame_count = 1000;
-    let part_count = 42;
+    let frame_count = 10;
+    let early_stop = 30;
+    let part_count = 2;
     let goal_x: u32 = 360;
-    let goal_y: u32 = 432;
+    let goal_y: u32 = 30;
     let binning = true;
+
+    // let early_stop = 250_000_000;
+    // let frame_count = 1000;
+    // let part_count = 42;
+    // let goal_x: u32 = 360;
+    // let goal_y: u32 = 432;
+    // let binning = true;
 
     // let early_stop = 10_000_000_000;
     // let frame_count = 2000;
@@ -464,8 +471,9 @@ fn frames() {
         frame_index_to_step_index.as_slice(),
     );
 
-    for (frame_index, (_step_index, png_data)) in png_data_iterator.enumerate() {
+    for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
         let cmk_file = format!(r"M:\deldir\bb\frames_test2\cmk{frame_index:07}.png");
+        println!("Frame {}, Step {}", frame_index, step_index + 1);
         fs::write(cmk_file, &png_data).unwrap();
     }
 }
