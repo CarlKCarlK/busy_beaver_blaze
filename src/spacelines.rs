@@ -59,7 +59,7 @@ impl Spacelines {
         }
     }
 
-    // cmk0000
+    // cmk_binning
     #[allow(clippy::min_ident_chars)]
     #[inline]
     pub(crate) fn compress_y_average(&mut self) {

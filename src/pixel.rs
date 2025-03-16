@@ -5,8 +5,8 @@ use core::simd::{self, prelude::*};
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-// cmk0000
-/// We define +, += to be the average of two pixels. // cmk0000 is this wise?
+// cmk_binning
+/// We define +, += to be the average of two pixels. // cmk_binning is this wise?
 #[repr(transparent)]
 #[derive(
     Default, Copy, Clone, IntoBytes, FromBytes, Immutable, Display, PartialEq, Eq, KnownLayout,
@@ -40,14 +40,14 @@ impl Pixel {
     pub const WHITE: Self = Self(0);
     const SPLAT_1: Simd<u8, LANES_CMK> = Simd::<u8, LANES_CMK>::splat(1);
 
-    // cmk0000 could make this unbiased
+    // cmk_binning could make this unbiased
     #[must_use]
     #[inline]
     pub const fn mean_bytes(first: u8, second: u8) -> u8 {
         (first & second) + ((first ^ second) >> 1)
     }
 
-    // cmk0000 inconsistent with the terms 'mean', 'average', 'merge', 'binning'
+    // cmk_binning inconsistent with the terms 'mean', 'average', 'merge', 'binning'
     #[inline]
     const fn mean_assign_bytes(first: &mut u8, second: u8) {
         let first_and_second = *first & second;
@@ -61,7 +61,7 @@ impl Pixel {
         self.0
     }
 
-    // cmk0000
+    // cmk_binning
     #[inline]
     pub(crate) fn avec_merge_simd(left: &mut AVec<Self>, right: &AVec<Self>) {
         assert!(
@@ -72,7 +72,7 @@ impl Pixel {
         Self::slice_merge_simd(left, right);
     }
 
-    // cmk0000
+    // cmk_binning
     #[inline]
     pub(crate) fn slice_merge_simd(left: &mut [Self], right: &[Self]) {
         assert!(left.len() == right.len());
@@ -100,7 +100,7 @@ impl Pixel {
         left_align == right_align
     }
 
-    // cmk0000
+    // cmk_binning
     #[inline]
     pub(crate) fn slice_merge_bytes_simd(left_bytes: &mut [u8], right_bytes: &[u8]) {
         // cmk debug_assert
@@ -117,7 +117,7 @@ impl Pixel {
             Self::mean_assign_bytes(left_byte, *right_byte);
         }
 
-        // cmk0000 could make this unbiased
+        // cmk_binning could make this unbiased
         // Process SIMD chunks using (a & b) + ((a ^ b) >> 1) formula
         for (left_chunk, right_chunk) in left_chunks.iter_mut().zip(right_chunks.iter()) {
             let a_and_b = *left_chunk & *right_chunk;
@@ -132,7 +132,7 @@ impl Pixel {
         }
     }
 
-    // cmk0000
+    // cmk_binning
     // cmk0 see if this can be removed
     #[inline]
     pub(crate) fn slice_merge_bytes_no_simd(left_bytes: &mut [u8], right_bytes: &[u8]) {
@@ -141,7 +141,7 @@ impl Pixel {
         }
     }
 
-    // cmk0000
+    // cmk_binning
     #[inline]
     pub(crate) fn slice_merge_with_white_simd(left: &mut [Self]) {
         let left_bytes: &mut [u8] = left.as_mut_bytes();

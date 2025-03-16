@@ -224,7 +224,7 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
     Ok(buf)
 }
 
-// cmk0000
+// cmk_binning
 // cmk0 could this be faster without chunks?
 #[must_use]
 pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
@@ -236,7 +236,7 @@ pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<P
 
     for chunk in chunk_iter {
         let sum: u32 = chunk.iter().map(u32::from).sum();
-        // cmk0000
+        // cmk_binning
         let average = step.divide_into(sum * 255).into();
         result.push(average);
     }
@@ -245,7 +245,7 @@ pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<P
     if !remainder.is_empty() {
         let sum: u32 = remainder.iter().map(u32::from).sum();
         // We need to divide by step size, not remainder.len()
-        // cmk0000
+        // cmk_binning
         let average = step.divide_into(sum * 255).into();
         result.push(average);
     }
@@ -272,7 +272,7 @@ pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pi
     result
 }
 
-// cmk0000
+// cmk_binning
 // cmk move this to tape and give a better name
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
@@ -301,14 +301,14 @@ where
 
     // ✅ Process chunks using `zip()`, no `push()`
     if lanes_per_chunk == PowerOfTwo::ONE {
-        // cmk0000
+        // cmk_binning
         for (average, chunk) in result.iter_mut().zip(chunks.iter()) {
             let sum = chunk.reduce_sum() as u32;
             *average = (step.divide_into(sum * 255) as u8).into();
         }
     } else {
         let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
-        // cmk0000
+        // cmk_binning
         for (average, sub_chunk) in result.iter_mut().zip(&mut chunk_iter) {
             let sum: u32 = sub_chunk
                 .iter()
@@ -333,7 +333,7 @@ where
     result
 }
 
-// cmk0000
+// cmk_binning
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_chunk_with_simd<const LANES: usize>(chunk: &[BoolU8], step: PowerOfTwo) -> Pixel
@@ -374,7 +374,7 @@ where
     }
 }
 
-// cmk0000
+// cmk_binning
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_with_simd_push<const LANES: usize>(
@@ -403,7 +403,7 @@ where
     if lanes_per_chunk == PowerOfTwo::ONE {
         for chunk in chunks {
             let sum = chunk.reduce_sum() as u32;
-            // cmk0000
+            // cmk_binning
             let average = step.divide_into(sum * 255) as u8;
             result.push(average.into());
         }
@@ -417,7 +417,7 @@ where
                 .iter()
                 .map(|chunk| chunk.reduce_sum() as u32)
                 .sum();
-            // cmk0000
+            // cmk_binning
             let average = step.divide_into(sum * 255) as u8;
             result.push(average.into());
         }
@@ -433,7 +433,7 @@ where
             .take(unused_items)
             .map(|&x| x as u32)
             .sum();
-        // cmk0000
+        // cmk_binning
         let average = step.divide_into(sum * 255) as u8;
         result.push(average.into());
     }
@@ -441,7 +441,7 @@ where
     result
 }
 
-// cmk0000
+// cmk_binning
 #[allow(clippy::missing_panics_doc, clippy::shadow_reuse)]
 #[must_use]
 pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
@@ -470,7 +470,7 @@ pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -
                     .cast::<core::simd::Simd<u64, 8>>()
             };
             let sum = chunk.count_ones().reduce_sum() as u32;
-            // cmk0000
+            // cmk_binning
             let average = step.divide_into(sum * 255) as u8;
             result.push(average.into());
         }
@@ -490,7 +490,7 @@ pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -
                     chunk.count_ones().reduce_sum() as u32
                 })
                 .sum();
-            // cmk0000
+            // cmk_binning
             let average = step.divide_into(sum * 255) as u8;
             result.push(average.into());
         }
@@ -564,7 +564,7 @@ pub mod test_utils {
     use crate::{Pixel, is_even};
     use aligned_vec::AVec;
 
-    // cmk0000
+    // cmk_binning
     pub fn compress_x_no_simd_binning(pixels: &mut AVec<Pixel>) {
         let len = pixels.len();
         let mut write_index = 0;

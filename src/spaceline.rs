@@ -104,7 +104,7 @@ impl Spaceline {
         -((self.x_stride * self.negative.len()) as i64)
     }
 
-    // cmk0000
+    // cmk_binning
     #[allow(clippy::cast_ptr_alignment)]
     pub fn compress_x_simd_binning(pixels: &mut AVec<Pixel>) {
         // Local constant for the static swizzle indices.
@@ -151,7 +151,7 @@ impl Spaceline {
             };
 
             // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
-            // cmk0000 could make this unbiased
+            // cmk_binning could make this unbiased
             let result: &mut Simd<u8, 32> =
                 unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
             *result = left & right;
@@ -166,7 +166,7 @@ impl Spaceline {
         // Process the remaining bytes (suffix) with scalar code.
         let mut i = num_chunks * 64;
         while i + 1 < len {
-            // cmk0000
+            // cmk_binning
             // Compute the average for a pair of pixels.
             pixels_bytes[write_index] = Pixel::mean_bytes(pixels_bytes[i], pixels_bytes[i + 1]);
             write_index += 1;
@@ -174,7 +174,7 @@ impl Spaceline {
         }
         if i < len {
             // For a leftover pixel, average it with white (i.e. divide by 2).
-            // cmk0000
+            // cmk_binning
             pixels_bytes[write_index] = pixels_bytes[i] >> 1;
             write_index += 1;
         }
@@ -274,7 +274,7 @@ impl Spaceline {
         result
     }
 
-    // cmk0000
+    // cmk_binning
     #[allow(clippy::missing_panics_doc)]
     #[inline]
     pub fn merge_simd(&mut self, other: &Self) {
@@ -288,7 +288,7 @@ impl Spaceline {
         Pixel::avec_merge_simd(&mut self.nonnegative, &other.nonnegative);
     }
 
-    // cmk0000
+    // cmk_binning
     #[inline]
     pub fn merge_with_white_simd(&mut self) {
         Pixel::slice_merge_with_white_simd(&mut self.nonnegative);
