@@ -269,7 +269,7 @@ impl SpaceByTime {
                 break;
             }
         }
-        self.vis_step += other.vis_step;
+        self.vis_step += other.vis_step + 1;
         self
     }
 
