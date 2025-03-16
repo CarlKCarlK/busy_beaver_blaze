@@ -150,7 +150,7 @@ impl Spaceline {
             };
 
             // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
-            // cmk00 could make this unbiased
+            // cmk0000 could make this unbiased
 
             let result: &mut Simd<u8, 32> =
                 unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
@@ -295,18 +295,18 @@ impl Spaceline {
     #[inline]
     #[must_use]
     pub fn new(tape: &Tape, x_goal: u32, step_index: u64, pixel_policy: PixelPolicy) -> Self {
-        // cmk00 move this to tape and give a better name
+        // cmk move this to tape and give a better name
         let x_stride = find_x_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
         match pixel_policy {
             PixelPolicy::Binning => {
                 let (negative, nonnegative) = match x_stride {
                     PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => (
-                        // cmk00 move this to tape and give a better name
+                        // cmk move this to tape and give a better name
                         average_with_iterators(&tape.negative, x_stride),
                         average_with_iterators(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::EIGHT => (
-                        // cmk00 move this to tape and give a better name
+                        // cmk move this to tape and give a better name
                         average_with_simd::<8>(&tape.negative, x_stride),
                         average_with_simd::<8>(&tape.nonnegative, x_stride),
                     ),

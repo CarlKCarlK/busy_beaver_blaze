@@ -269,7 +269,7 @@ pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pi
     result
 }
 
-// cmk00 move this to tape and give a better name
+// cmk move this to tape and give a better name
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_with_simd<const LANES: usize>(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel>

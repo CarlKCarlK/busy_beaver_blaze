@@ -5,6 +5,7 @@ use crate::{
     pixel::Pixel, spaceline::Spaceline, test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
+use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use std::{
     collections::{HashMap, HashSet},
@@ -473,6 +474,36 @@ fn frames() {
 
     for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
         let cmk_file = format!(r"M:\deldir\bb\frames_test2\cmk{frame_index:07}.png");
+        println!("Frame {}, Step {}", frame_index, step_index + 1);
+        fs::write(cmk_file, &png_data).unwrap();
+    }
+}
+
+#[test]
+fn stop_early() {
+    let early_stop = 47_176_869;
+    let frame_count = 100;
+    let part_count = 5;
+    let goal_x: u32 = 1920;
+    let goal_y: u32 = 1080;
+    let binning = true;
+
+    let frame_index_to_step_index = LogStepIterator::new(early_stop, frame_count).collect_vec();
+    let png_data_iterator = PngDataIterator::new(
+        early_stop,
+        part_count,
+        BB5_CHAMP,
+        goal_x,
+        goal_y,
+        binning,
+        &frame_index_to_step_index,
+    );
+
+    let output_dir = r"M:\deldir\bb\stop_early";
+    fs::create_dir_all(output_dir).unwrap();
+
+    for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
+        let cmk_file = format!(r"{output_dir}\cmk{frame_index:07}.png");
         println!("Frame {}, Step {}", frame_index, step_index + 1);
         fs::write(cmk_file, &png_data).unwrap();
     }

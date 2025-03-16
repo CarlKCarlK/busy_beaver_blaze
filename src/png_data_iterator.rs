@@ -11,8 +11,6 @@ use std::{
     thread::{self, JoinHandle},
 }; // Keep thread imports as they're not in alloc/core
 
-// cmk000 rename?
-/// An iterator that yields PNG data (as Vec<u8>) for each frame.
 pub struct PngDataIterator {
     receiver: Receiver<(usize, u64, Vec<u8>)>,
     // Optionally hold the join handles so that threads are joined when the iterator is dropped.
@@ -35,7 +33,7 @@ impl PngDataIterator {
         assert!(part_count_goal > 0, "part_count_goal must be > 0");
         assert!(early_stop > 0); // panic if early_stop is 0
 
-        // cmk000 for now require that values in frame_index_to_step_index be increasing and in range. This would be removed later.
+        // cmk for now require that values in frame_index_to_step_index be increasing and in range. This could be removed later.
 
         assert!(
             frame_index_to_step_index
@@ -89,7 +87,6 @@ impl PngDataIterator {
         }
     }
 
-    // cmk000 need to handle the case of early halting.
     #[allow(clippy::too_many_arguments)]
     fn run_parts(
         early_stop: u64,
@@ -307,32 +304,32 @@ impl PngDataIterator {
         step_start: u64,
         step_end: u64,
     ) -> Vec<Snapshot> {
-        println!("---\n{step_start}..{step_end}: {frame_index_to_step_index:?}");
+        // println!("---\n{step_start}..{step_end}: {frame_index_to_step_index:?}");
         let mut snapshots: Vec<Snapshot> = vec![];
         let step_index_to_frame_index =
             Self::build_step_index_to_frame_index(frame_index_to_step_index, step_start, step_end);
-        println!("---\n{step_start}..{step_end}: {step_index_to_frame_index:?}");
+        // println!("---\n{step_start}..{step_end}: {step_index_to_frame_index:?}");
         for step_index in step_start..step_end - 1 {
             if let Some(frame_indexes) = step_index_to_frame_index.get(&step_index) {
-                println!(
-                    "step_index {step_index} ({}), {:?}",
-                    space_by_time_machine.space_by_time.step_index(),
-                    frame_indexes
-                );
+                // println!(
+                //     "step_index {step_index} ({}), {:?}",
+                //     space_by_time_machine.space_by_time.step_index(),
+                //     frame_indexes
+                // );
                 snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
             }
             if space_by_time_machine.next().is_none() {
                 break;
             }
         }
-        // cmk00000 not sure if should show last frame if self.next was none
+        // cmk00 not sure if should show last frame if self.next was none
         if let Some(frame_indexes) = step_index_to_frame_index.get(&(step_end - 1)) {
-            println!(
-                "step_index {} ({}), {:?}",
-                step_end - 1,
-                space_by_time_machine.space_by_time.step_index(),
-                frame_indexes
-            );
+            // println!(
+            //     "step_index {} ({}), {:?}",
+            //     step_end - 1,
+            //     space_by_time_machine.space_by_time.step_index(),
+            //     frame_indexes
+            // );
             snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
         }
         snapshots

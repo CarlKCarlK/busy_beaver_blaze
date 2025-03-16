@@ -71,6 +71,10 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb5_champ")?;
             (BB5_CHAMP, 47_176_870, 1000, dir_info)
         }
+        "bb5_champ2" => {
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb5_champ2")?;
+            (BB5_CHAMP, 100_000_000, 250, dir_info)
+        }
         "bb6_contender" => {
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
             (BB6_CONTENDER, 1_000_000_000_000u64, 2000, dir_info)
@@ -101,8 +105,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 
     let part_count = 32;
 
-    // cmk0000000 if LogStepIterator changes, revisit how it is used here
-    let log_iter = LogStepIterator::new(end_step, num_frames);
+    let log_iter = LogStepIterator::new(end_step, num_frames).collect_vec();
     let png_data_iterator = PngDataIterator::new(
         end_step,
         part_count,
@@ -110,7 +113,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         goal_x,
         goal_y,
         binning,
-        &log_iter.collect_vec(),
+        &log_iter,
     );
 
     for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
