@@ -1,13 +1,11 @@
 extern crate alloc;
 use alloc::vec::Vec;
-use core::mem::ManuallyDrop;
+
 use core::ops::Range;
 use crossbeam::channel::{self, Receiver, Sender};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
-use crate::{
-    Snapshot, SpaceByTime, SpaceByTimeMachine, find_y_stride, message0::Message0, snapshot,
-};
+use crate::{Snapshot, SpaceByTime, SpaceByTimeMachine, find_y_stride, message0::Message0};
 use alloc::collections::BinaryHeap;
 use std::{
     collections::HashMap,
@@ -192,11 +190,6 @@ impl PngDataIterator {
                     } => {
                         assert_eq!(part_index, next_part_index);
                         if next_part_index == 0 {
-                            // let space_by_time_first = snapshot.space_by_time;
-                            assert!(
-                                snapshot.space_by_time.spacelines.buffer0.is_empty()
-                                    || part_count == 1
-                            );
                             let step_index = snapshot.space_by_time.step_index();
                             let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
@@ -210,16 +203,8 @@ impl PngDataIterator {
                                 .send((*last, step_index, png_data))
                                 .expect("Failed to send PNG data");
                         } else {
-                            // Process the rest of the parts
                             let space_by_time_first =
                                 space_by_time_first_outer.as_ref().unwrap().clone();
-                            // let space_by_time_other = snapshot.space_by_time;
-                            Self::assert_empty_buffer_if_not_last_part(
-                                &snapshot.space_by_time,
-                                next_part_index,
-                                part_count,
-                            );
-
                             snapshot = snapshot.prepend(space_by_time_first);
                             let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
@@ -251,13 +236,26 @@ impl PngDataIterator {
                     } => {
                         assert_eq!(part_index, next_part_index);
                         if next_part_index == 0 {
+                            assert!(
+                                space_by_time_machine
+                                    .space_by_time
+                                    .spacelines
+                                    .buffer0
+                                    .is_empty()
+                                    || part_count == 1
+                            );
                             assert!(space_by_time_first_outer.is_none());
                             space_by_time_first_outer = Some(space_by_time_machine.space_by_time);
                         } else {
                             let space_by_time_first = space_by_time_first_outer.unwrap();
-                            let space_by_time = space_by_time_machine.space_by_time;
+                            let space_by_time_other = space_by_time_machine.space_by_time;
+                            Self::assert_empty_buffer_if_not_last_part(
+                                &space_by_time_other,
+                                next_part_index,
+                                part_count,
+                            );
                             space_by_time_first_outer =
-                                Some(space_by_time_first.append(space_by_time));
+                                Some(space_by_time_first.append(space_by_time_other));
                         }
                         // cmk000000 we don't need the whole space_by_time_machine, just the machine
                         machine_first = Some(space_by_time_machine.machine);
