@@ -6,7 +6,8 @@ use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 // cmk_binning
-/// We define +, += to be the average of two pixels. // cmk_binning is this wise?
+/// We define +, += to be the average of two pixels.  
+// cmk_binning is this wise?
 #[repr(transparent)]
 #[derive(
     Default, Copy, Clone, IntoBytes, FromBytes, Immutable, Display, PartialEq, Eq, KnownLayout,

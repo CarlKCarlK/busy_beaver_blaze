@@ -1,18 +1,21 @@
 extern crate alloc;
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use core::mem::ManuallyDrop;
 use core::ops::Range;
 use crossbeam::channel::{self, Receiver, Sender};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
-use crate::{Snapshot, SpaceByTime, SpaceByTimeMachine, find_y_stride};
+use crate::{
+    Snapshot, SpaceByTime, SpaceByTimeMachine, find_y_stride, message0::Message0, snapshot,
+};
+use alloc::collections::BinaryHeap;
 use std::{
     collections::HashMap,
     thread::{self, JoinHandle},
-}; // Keep thread imports as they're not in alloc/core
+};
 
 pub struct PngDataIterator {
-    receiver: Receiver<(usize, u64, Vec<u8>)>,
+    receiver1: Receiver<(usize, u64, Vec<u8>)>,
     // Optionally hold the join handles so that threads are joined when the iterator is dropped.
     run_handle: Option<JoinHandle<()>>,
     combine_handle: Option<JoinHandle<SpaceByTimeMachine>>,
@@ -53,8 +56,7 @@ impl PngDataIterator {
         let part_count = step_index_ranges.len();
 
         // Set up channels for inter-thread communication.
-        let (sender0, receiver0) =
-            channel::unbounded::<(usize, Vec<Snapshot>, SpaceByTimeMachine)>();
+        let (sender0, receiver0) = channel::unbounded::<Message0>();
         let (sender1, receiver1) = channel::unbounded::<(usize, u64, Vec<u8>)>();
 
         // Clone any data needed by the spawned threads.
@@ -81,7 +83,7 @@ impl PngDataIterator {
         });
 
         Self {
-            receiver: receiver1,
+            receiver1,
             run_handle: Some(run_handle),
             combine_handle: Some(combine_handle),
         }
@@ -96,7 +98,7 @@ impl PngDataIterator {
         goal_y: u32,
         binning: bool,
         frame_index_to_step_index: Vec<u64>,
-        sender: Sender<(usize, Vec<Snapshot>, SpaceByTimeMachine)>,
+        sender0: Sender<Message0>,
     ) {
         assert!(early_stop > 0); // panic if early_stop is 0
 
@@ -118,10 +120,12 @@ impl PngDataIterator {
 
             println!("Part {part_index}/{part_count}, have fast-forwarded {step_start} steps before visualization.");
 
-            let snapshots = Self::generate_snapshots(&mut space_by_time_machine,
+            Self::generate_snapshots(&mut space_by_time_machine,
                 frame_index_to_step_index.as_slice(),
                 step_start,
                 step_end,
+                &sender0,
+                part_index,
             );
 
             println!("Part {part_index}/{part_count}, have snapshotted desired steps from {step_start} to {step_end}.");
@@ -141,11 +145,11 @@ impl PngDataIterator {
                 // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                 space_by_time.flush_buffer0_and_compress();
             }
-            sender
-                .send((part_index, snapshots, space_by_time_machine))
-                .unwrap();
 
-            println!("Part {part_index}/{part_count}, have transmitted snapshots");
+            let message = Message0::SpaceByTimeMachine { part_index , space_by_time_machine };
+            sender0.send(message).unwrap();
+
+            println!("Part {part_index}/{part_count} has transmitted all snapshots and the space_by_time_machine");
 
         });
     }
@@ -155,83 +159,114 @@ impl PngDataIterator {
         x_goal: u32,
         y_goal: u32,
         part_count: usize,
-        receiver0: &Receiver<(usize, Vec<Snapshot>, SpaceByTimeMachine)>,
+        receiver0: &Receiver<Message0>,
         sender1: &Sender<(usize, u64, Vec<u8>)>,
     ) -> SpaceByTimeMachine {
         assert!(part_count > 0);
-        let mut buffer = BTreeMap::new();
+        let mut buffer: BinaryHeap<Message0> = BinaryHeap::new();
 
-        let mut space_by_time_first_outer = None;
+        let mut space_by_time_first_outer: Option<SpaceByTime> = None;
         let mut machine_first = None;
         for next_part_index in 0..part_count {
             println!("Waiting for: {next_part_index}");
             // if buffer doesn't start with next_index, then collect something from the channel,
             // and insert it into the buffer and loop again
             while buffer
-                .first_key_value()
-                .is_none_or(|(&key, _)| key != next_part_index)
+                .peek()
+                .is_none_or(|msg| msg.part_index() != next_part_index)
             {
-                let (part_index_received, snapshots, space_by_time_machine) =
-                    receiver0.recv().expect("Channel closed unexpectedly");
-                println!("Received : {part_index_received}");
-                buffer.insert(part_index_received, (snapshots, space_by_time_machine));
+                let message0 = receiver0.recv().expect("Channel closed unexpectedly");
+                println!("Received: part_index={}", message0.part_index());
+                buffer.push(message0);
             }
-            // pop
-            let (popped_index, (snapshots, space_by_time_machine)) =
-                buffer.pop_first().expect("Expected next result in buffer");
-            assert_eq!(popped_index, next_part_index);
-            println!("Processing: {next_part_index}");
 
-            // Special processing for the first part
-            if next_part_index == 0 {
-                let space_by_time_first = space_by_time_machine.space_by_time;
-                assert!(space_by_time_first.spacelines.buffer0.is_empty() || part_count == 1,);
+            'SAME_PART: loop {
+                let message0 = buffer.pop().expect("Expected next result in buffer");
+                assert_eq!(message0.part_index(), next_part_index);
+                println!("Processing: part_index={next_part_index}");
 
-                for mut snapshot_first in snapshots {
-                    let png_data = snapshot_first.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-                    let (last, all_but_last) = snapshot_first.frame_indexes.split_last().unwrap();
-                    let step_index = snapshot_first.space_by_time.step_index();
-                    // The same step can be rendered to multiple places
-                    for index in all_but_last {
-                        sender1
-                            .send((*index, step_index, png_data.clone()))
-                            .expect("Failed to send PNG data");
+                match message0 {
+                    Message0::Snapshot {
+                        part_index,
+                        mut snapshot,
+                    } => {
+                        assert_eq!(part_index, next_part_index);
+                        if next_part_index == 0 {
+                            // let space_by_time_first = snapshot.space_by_time;
+                            assert!(
+                                snapshot.space_by_time.spacelines.buffer0.is_empty()
+                                    || part_count == 1
+                            );
+                            let step_index = snapshot.space_by_time.step_index();
+                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
+                            let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
+                            // The same step can be rendered to multiple places
+                            for index in all_but_last {
+                                sender1
+                                    .send((*index, step_index, png_data.clone()))
+                                    .expect("Failed to send PNG data");
+                            }
+                            sender1
+                                .send((*last, step_index, png_data))
+                                .expect("Failed to send PNG data");
+                        } else {
+                            // Process the rest of the parts
+                            let space_by_time_first =
+                                space_by_time_first_outer.as_ref().unwrap().clone();
+                            // let space_by_time_other = snapshot.space_by_time;
+                            Self::assert_empty_buffer_if_not_last_part(
+                                &snapshot.space_by_time,
+                                next_part_index,
+                                part_count,
+                            );
+
+                            snapshot = snapshot.prepend(space_by_time_first);
+                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
+                            let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
+                            let step_index = snapshot.space_by_time.step_index();
+                            for index in all_but_last {
+                                sender1
+                                    .send((*index, step_index, png_data.clone()))
+                                    .expect("Failed to send PNG data");
+                            }
+                            sender1
+                                .send((*last, step_index, png_data))
+                                .expect("Failed to send PNG data");
+                        }
+
+                        // Keep reading until we get another with the same part_index. There must be one
+                        // because the SpaceByTimeMachine message is last.
+                        while buffer
+                            .peek()
+                            .is_none_or(|msg| msg.part_index() != next_part_index)
+                        {
+                            let message00 = receiver0.recv().expect("Channel closed unexpectedly");
+                            println!("Received: part_index={}", message00.part_index());
+                            buffer.push(message00);
+                        }
                     }
-                    sender1
-                        .send((*last, step_index, png_data))
-                        .expect("Failed to send PNG data");
+                    Message0::SpaceByTimeMachine {
+                        part_index,
+                        space_by_time_machine,
+                    } => {
+                        assert_eq!(part_index, next_part_index);
+                        if next_part_index == 0 {
+                            assert!(space_by_time_first_outer.is_none());
+                            space_by_time_first_outer = Some(space_by_time_machine.space_by_time);
+                        } else {
+                            let space_by_time_first = space_by_time_first_outer.unwrap();
+                            let space_by_time = space_by_time_machine.space_by_time;
+                            space_by_time_first_outer =
+                                Some(space_by_time_first.append(space_by_time));
+                        }
+                        // cmk000000 we don't need the whole space_by_time_machine, just the machine
+                        machine_first = Some(space_by_time_machine.machine);
+
+                        // ...
+                        break 'SAME_PART;
+                    }
                 }
-                space_by_time_first_outer = Some(space_by_time_first);
-                machine_first = Some(space_by_time_machine.machine);
-                continue;
             }
-
-            // Process the rest of the parts
-            let space_by_time_first = space_by_time_first_outer.unwrap();
-            let space_by_time_other = space_by_time_machine.space_by_time;
-            Self::assert_empty_buffer_if_not_last_part(
-                &space_by_time_other,
-                next_part_index,
-                part_count,
-            );
-
-            for mut snapshot_other in snapshots {
-                snapshot_other = snapshot_other.prepend(space_by_time_first.clone());
-                let png_data = snapshot_other.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
-                let (last, all_but_last) = snapshot_other.frame_indexes.split_last().unwrap();
-                let step_index = snapshot_other.space_by_time.step_index();
-                for index in all_but_last {
-                    sender1
-                        .send((*index, step_index, png_data.clone()))
-                        .expect("Failed to send PNG data");
-                }
-                sender1
-                    .send((*last, step_index, png_data))
-                    .expect("Failed to send PNG data");
-            }
-
-            space_by_time_first_outer = Some(space_by_time_first.append(space_by_time_other));
-            machine_first = Some(space_by_time_machine.machine);
         }
 
         SpaceByTimeMachine {
@@ -275,27 +310,18 @@ impl PngDataIterator {
     /// by joining the combine thread.
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
-    pub fn into_space_by_time_machine(self) -> SpaceByTimeMachine {
-        // Wrap self in ManuallyDrop so we can extract its fields without triggering Drop.
-        let this = ManuallyDrop::new(self);
-        // SAFETY: We are manually extracting the fields from `this` because we
-        // know we're consuming `self` entirely.
-        let receiver = unsafe { core::ptr::read(&this.receiver) };
-        let run_handle = unsafe { core::ptr::read(&this.run_handle) };
-        let combine_handle = unsafe { core::ptr::read(&this.combine_handle) };
+    pub fn into_space_by_time_machine(mut self) -> SpaceByTimeMachine {
+        let Some(combine_handle) = self.combine_handle.take() else {
+            panic!("combine_handle missing");
+        };
+        let space_by_time_machine = combine_handle.join().unwrap();
+        let Some(run_handle) = self.run_handle.take() else {
+            panic!("run_handle missing");
+        };
+        let _ = run_handle.join();
+        // cmk00000 need to do more to shutdown threads?
 
-        // Drop the receiver to signal no more frames.
-        drop(receiver);
-        // Join the combine thread to get the final machine.
-        let machine = combine_handle
-            .expect("combine_handle missing")
-            .join()
-            .expect("combine thread panicked");
-        // Join the run_handle if it still exists.
-        if let Some(handle) = run_handle {
-            let _ = handle.join();
-        }
-        machine
+        space_by_time_machine
     }
 
     fn generate_snapshots(
@@ -303,20 +329,21 @@ impl PngDataIterator {
         frame_index_to_step_index: &[u64],
         step_start: u64,
         step_end: u64,
-    ) -> Vec<Snapshot> {
+        sender0: &Sender<Message0>,
+        part_index: usize,
+    ) {
         // println!("---\n{step_start}..{step_end}: {frame_index_to_step_index:?}");
-        let mut snapshots: Vec<Snapshot> = vec![];
         let step_index_to_frame_index =
             Self::build_step_index_to_frame_index(frame_index_to_step_index, step_start, step_end);
         // println!("---\n{step_start}..{step_end}: {step_index_to_frame_index:?}");
         for step_index in step_start..step_end - 1 {
             if let Some(frame_indexes) = step_index_to_frame_index.get(&step_index) {
-                // println!(
-                //     "step_index {step_index} ({}), {:?}",
-                //     space_by_time_machine.space_by_time.step_index(),
-                //     frame_indexes
-                // );
-                snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
+                let snapshot = Snapshot::new(frame_indexes.clone(), space_by_time_machine);
+                let message = Message0::Snapshot {
+                    part_index,
+                    snapshot,
+                };
+                sender0.send(message).unwrap();
             }
             if space_by_time_machine.next().is_none() {
                 break;
@@ -324,15 +351,13 @@ impl PngDataIterator {
         }
         // cmk00 not sure if should show last frame if self.next was none
         if let Some(frame_indexes) = step_index_to_frame_index.get(&(step_end - 1)) {
-            // println!(
-            //     "step_index {} ({}), {:?}",
-            //     step_end - 1,
-            //     space_by_time_machine.space_by_time.step_index(),
-            //     frame_indexes
-            // );
-            snapshots.push(Snapshot::new(frame_indexes.clone(), space_by_time_machine));
+            let snapshot = Snapshot::new(frame_indexes.clone(), space_by_time_machine);
+            let message = Message0::Snapshot {
+                part_index,
+                snapshot,
+            };
+            sender0.send(message).unwrap();
         }
-        snapshots
     }
 
     fn build_step_index_to_frame_index(
@@ -359,7 +384,7 @@ impl Iterator for PngDataIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         // This will block until a new frame is available or the channel is closed.
-        self.receiver
+        self.receiver1
             .recv()
             .ok()
             .map(|(_frame_index, step_index, png_data)| (step_index, png_data))

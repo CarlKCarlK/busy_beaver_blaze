@@ -8,6 +8,7 @@ mod tests;
 mod bool_u8;
 mod log_step_iterator;
 mod machine;
+mod message0;
 mod pixel;
 mod pixel_policy;
 mod png_data_iterator;
