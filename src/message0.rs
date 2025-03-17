@@ -22,6 +22,16 @@ impl Message0 {
             }
         }
     }
+
+    pub const fn step_index(&self) -> u64 {
+        match self {
+            Self::SpaceByTimeMachine {
+                space_by_time_machine,
+                ..
+            } => space_by_time_machine.step_index(),
+            Self::Snapshot { snapshot, .. } => snapshot.space_by_time.step_index(),
+        }
+    }
 }
 
 // Implement PartialEq to define equality comparison

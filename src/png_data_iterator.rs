@@ -153,6 +153,7 @@ impl PngDataIterator {
     }
 
     // cmk is it sometimes x_goal and sometimes goal_x????
+    #[allow(clippy::too_many_lines)]
     fn combine_results(
         x_goal: u32,
         y_goal: u32,
@@ -174,21 +175,28 @@ impl PngDataIterator {
                 .is_none_or(|msg| msg.part_index() != next_part_index)
             {
                 let message0 = receiver0.recv().expect("Channel closed unexpectedly");
-                println!("Received: part_index={}", message0.part_index());
+                println!(
+                    "Received: part_index={}, step_index={}",
+                    message0.part_index(),
+                    message0.step_index()
+                );
                 buffer.push(message0);
             }
 
             'SAME_PART: loop {
                 let message0 = buffer.pop().expect("Expected next result in buffer");
                 assert_eq!(message0.part_index(), next_part_index);
-                println!("Processing: part_index={next_part_index}");
-
                 match message0 {
                     Message0::Snapshot {
                         part_index,
                         mut snapshot,
                     } => {
                         assert_eq!(part_index, next_part_index);
+                        println!(
+                            "Processing snapshot: part_index={next_part_index}, frame_indexes={:?}",
+                            snapshot.frame_indexes
+                        );
+
                         if next_part_index == 0 {
                             let step_index = snapshot.space_by_time.step_index();
                             let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
@@ -226,7 +234,11 @@ impl PngDataIterator {
                             .is_none_or(|msg| msg.part_index() != next_part_index)
                         {
                             let message00 = receiver0.recv().expect("Channel closed unexpectedly");
-                            println!("Received: part_index={}", message00.part_index());
+                            println!(
+                                "Received: part_index={}, step_index={}",
+                                message00.part_index(),
+                                message00.step_index()
+                            );
                             buffer.push(message00);
                         }
                     }
@@ -235,6 +247,9 @@ impl PngDataIterator {
                         space_by_time_machine,
                     } => {
                         assert_eq!(part_index, next_part_index);
+
+                        println!("Processing space_by_time_machine: part_index={next_part_index}");
+
                         if next_part_index == 0 {
                             assert!(
                                 space_by_time_machine

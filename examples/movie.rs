@@ -156,7 +156,7 @@ fn save_frame(
     let base_file_name = output_dir.join(format!("base/{run_id}_{frame:07}.png"));
     let resized_file_name = output_dir.join(format!("resized/{run_id}_{frame:07}.png"));
     let metadata_file_name = output_dir.join(format!("metadata/{run_id}_{frame:07}.txt"));
-    // create the 3 subdirectories if they don't exist
+    // Create the 3 subdirectories if they don't exist
     fs::create_dir_all(base_file_name.parent().unwrap())?;
     fs::create_dir_all(resized_file_name.parent().unwrap())?;
     fs::create_dir_all(metadata_file_name.parent().unwrap())?;
@@ -171,8 +171,18 @@ fn save_frame(
     );
 
     let font = FontArc::try_from_slice(font_data).map_err(|_| "Failed to load font")?;
-    let scale = PxScale::from(50.0);
 
+    // Compute a scale factor based on a base resolution of 1920x1080.
+    // Here, we use the vertical dimension (1080) as the reference.
+    let scale_factor = goal_y as f32 / 1080.0;
+    let base_font_size = 50.0; // Font size that works for 1080p
+    let scale = PxScale::from(base_font_size * scale_factor);
+
+    // Use relative padding (using the same scale factor)
+    let horizontal_padding = (25.0 * scale_factor).round() as u32;
+    let vertical_padding = (10.0 * scale_factor).round() as u32;
+
+    // Load the base image from memory and save it
     let base = image::load_from_memory(png_data)?;
     base.save(&base_file_name)?;
 
@@ -193,20 +203,26 @@ fn save_frame(
         )
     };
 
-    // Calculate text position for lower right corner
-    let text = format!("{:>75}", step.separate_with_commas());
-    let text_height = 50.0; // Approximate height based on font size
-    let y_position = goal_y as f32 - text_height - 10.0; // 10 pixels padding from bottom
+    // Prepare the text. Here we assume `step.separate_with_commas()` returns a String.
+    let text = step.separate_with_commas();
+    // Save the metadata
+    fs::write(&metadata_file_name, &text)?;
 
-    // save text to metadata text file
-    let metadata = &text;
-    fs::write(&metadata_file_name, metadata)?;
+    // Calculate text dimensions using imageproc's text_size helper.
+    let (text_width, text_height) = imageproc::drawing::text_size(scale, &font, &text);
 
+    // Position the text in the bottom right corner.
+    // x_position: from the right edge, back off horizontal_padding and the text width.
+    // y_position: from the bottom edge, back off vertical_padding and the text height.
+    let x_position = goal_x - horizontal_padding - text_width;
+    let y_position = goal_y - vertical_padding - text_height - (text_height >> 1);
+
+    // Draw the text onto the resized image
     draw_text_mut(
         &mut resized,
-        Rgba([110, 110, 110, 255]), // Color
-        25,                         // X position (keep same padding from edge)
-        y_position as i32,          // Y position now near bottom
+        Rgba([110, 110, 110, 255]), // Text color
+        x_position as i32,
+        y_position as i32,
         scale,
         &font,
         &text,
