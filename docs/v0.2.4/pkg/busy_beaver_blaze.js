@@ -196,10 +196,10 @@ export class Machine {
         wasm.__wbg_machine_free(ptr, 0);
     }
     /**
-     * @param {string} input
+     * @param {string} program
      */
-    constructor(input) {
-        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    constructor(program) {
+        const ptr0 = passStringToWasm0(program, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.machine_from_string(ptr0, len0);
         if (ret[2]) {
@@ -273,15 +273,16 @@ export class SpaceByTimeMachine {
         wasm.__wbg_spacebytimemachine_free(ptr, 0);
     }
     /**
-     * @param {string} s
+     * @param {string} program
      * @param {number} goal_x
      * @param {number} goal_y
      * @param {boolean} binning
+     * @param {bigint} skip
      */
-    constructor(s, goal_x, goal_y, binning) {
-        const ptr0 = passStringToWasm0(s, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    constructor(program, goal_x, goal_y, binning, skip) {
+        const ptr0 = passStringToWasm0(program, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.spacebytimemachine_from_str(ptr0, len0, goal_x, goal_y, binning);
+        const ret = wasm.spacebytimemachine_from_str(ptr0, len0, goal_x, goal_y, binning, skip);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }

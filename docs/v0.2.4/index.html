@@ -38,7 +38,7 @@
                 Stop Early at
             </label>
             <label for="earlyStopValue">
-                <input type="number" id="earlyStopValue" value="500000000" min="1">
+                <input type="number" id="earlyStopValue" value="50000000" min="1">
                 steps
             </label>
         </div>
@@ -76,8 +76,8 @@
                 Stretch?
             </label>
             <label style="margin-left: 0.5em;">
-                Smooth:
-                <input type="number" id="smoothness" value="0" min="0" max="63" style="width: 4em;">
+                <input type="checkbox" id="binning" checked>
+                Use Binning
             </label>
         </div>
         <button id="runButton">Run</button>
@@ -102,9 +102,8 @@
                     </ul>
                 </li>
                 <li>Supports billions and billions of steps. OK, to turn off Stop Early.</li>
-                <li>Smoothing averages rather than sampling. <code>Smooth</code>
-                    goes from 0 (fast sampling) to 63 (full but slow averaging)</li>
-                <li>You can set settings via the URL hash fragment, for example, <code>#program=bb5&earlyStop=false&smoothness=3</code>. Include <code>run=true</code> to run the program immediately.</li>
+                <li>Use Binning for full pixel averaging rather than (faster) sampling.</li>
+                <li>You can set settings via the URL hash fragment, for example, <code>#program=bb5&earlyStop=false</code>. Include <code>run=true</code> to run the program immediately.</li>
 
             </ul>
         </div>
@@ -133,7 +132,7 @@
             if (!useEarlyStop.checked) params.set('earlyStop', 'false');
             
             const earlyStopValue = document.getElementById('earlyStopValue');
-            if (earlyStopValue.value !== '500000000') params.set('steps', earlyStopValue.value);
+            if (earlyStopValue.value !== '50000000') params.set('steps', earlyStopValue.value);
             
             const sizePreset = document.getElementById('sizePreset');
             if (sizePreset.value !== '360,432') params.set('size', sizePreset.value);
@@ -141,8 +140,8 @@
             const stretchImage = document.getElementById('stretchImage');
             if (!stretchImage.checked) params.set('stretch', 'false');
 
-            const smoothness = document.getElementById('smoothness');
-            if (smoothness.value !== '0') params.set('smoothness', smoothness.value);
+            const binning = document.getElementById('binning');
+            if (!binning.checked) params.set('binning', 'false');
 
             // Update URL without reloading
             window.location.hash = params.toString();
@@ -181,8 +180,8 @@
                 document.getElementById('stretchImage').checked = params.get('stretch') === 'true';
             }
 
-            if (params.has('smoothness')) {
-                document.getElementById('smoothness').value = params.get('smoothness');
+            if (params.has('binning')) {
+                document.getElementById('binning').checked = params.get('binning') === 'true';
             }
 
             // Return whether we should auto-run
@@ -361,8 +360,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                             goal_x,
                             goal_y,
                             early_stop,
-                            x_smoothness: parseInt(document.getElementById('smoothness').value),
-                            y_smoothness: parseInt(document.getElementById('smoothness').value)
+                            binning: document.getElementById('binning').checked
                         });
                     });
 
@@ -433,8 +431,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 updateHashFromUI();
             });
 
-            // Add event listener for smoothness control
-            document.getElementById('smoothness').addEventListener('change', () => {
+            // Add event listener for binning control
+            document.getElementById('binning').addEventListener('change', () => {
                 updateHashFromUI();
             });
 

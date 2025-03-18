@@ -2,7 +2,7 @@
 /* eslint-disable */
 export class Machine {
   free(): void;
-  constructor(input: string);
+  constructor(program: string);
   step(): boolean;
   count_ones(): number;
   is_halted(): boolean;
@@ -12,7 +12,7 @@ export class Machine {
 }
 export class SpaceByTimeMachine {
   free(): void;
-  constructor(s: string, goal_x: number, goal_y: number, binning: boolean);
+  constructor(program: string, goal_x: number, goal_y: number, binning: boolean, skip: bigint);
   nth(n: bigint): boolean;
   step_for_secs(seconds: number, early_stop: bigint | null | undefined, loops_per_time_check: bigint): boolean;
   png_data(): Uint8Array;
@@ -25,14 +25,6 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_spacebytimemachine_free: (a: number, b: number) => void;
-  readonly spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
-  readonly spacebytimemachine_nth: (a: number, b: bigint) => number;
-  readonly spacebytimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
-  readonly spacebytimemachine_png_data: (a: number) => [number, number];
-  readonly spacebytimemachine_step_count: (a: number) => bigint;
-  readonly spacebytimemachine_count_ones: (a: number) => number;
-  readonly spacebytimemachine_is_halted: (a: number) => number;
   readonly __wbg_machine_free: (a: number, b: number) => void;
   readonly machine_from_string: (a: number, b: number) => [number, number, number];
   readonly machine_step: (a: number) => number;
@@ -41,6 +33,14 @@ export interface InitOutput {
   readonly machine_count: (a: number, b: number, c: bigint) => bigint;
   readonly machine_state: (a: number) => number;
   readonly machine_tape_index: (a: number) => bigint;
+  readonly __wbg_spacebytimemachine_free: (a: number, b: number) => void;
+  readonly spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [number, number, number];
+  readonly spacebytimemachine_nth: (a: number, b: bigint) => number;
+  readonly spacebytimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
+  readonly spacebytimemachine_png_data: (a: number) => [number, number];
+  readonly spacebytimemachine_step_count: (a: number) => bigint;
+  readonly spacebytimemachine_count_ones: (a: number) => number;
+  readonly spacebytimemachine_is_halted: (a: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
