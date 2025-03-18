@@ -21,6 +21,56 @@
     <meta name="twitter:title" content="Busy Beaver Blaze">
     <meta name="twitter:description" content="Explore Turing Machines and Busy Beavers with this interactive Rust-powered WASM simulator.">
     <meta name="twitter:image" content="https://carlkcarlk.github.io/busy_beaver_blaze/preview.png?v=2">
+    <style>
+        /* Toggle Switch for Quality/Speed */
+        .quality-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 16px; /* Reduced from 24px */
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 16px; /* Adjusted to match new height */
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 10px; /* Reduced from 16px */
+            width: 10px; /* Reduced from 16px */
+            left: 3px; /* Adjusted for smaller knob */
+            bottom: 3px; /* Adjusted for smaller knob */
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #0078D7; /* Changed from #2196F3 to match checkbox blue */
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #0078D7; /* Changed to match new color */
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px); /* Adjusted for narrower width */
+        }
+    </style>
 </head>
 <body>
     <div class="header-container">
@@ -75,10 +125,14 @@
                 <input type="checkbox" id="stretchImage" checked>
                 Stretch?
             </label>
-            <label style="margin-left: 0.5em;">
-                <input type="checkbox" id="binning" checked>
-                Use Binning
-            </label>
+            <div class="quality-toggle" style="display: inline-block; margin-left: 0.5em;">
+                <span>Speed</span>
+                <label class="switch">
+                    <input type="checkbox" id="binning" checked>
+                    <span class="slider"></span>
+                </label>
+                <span>Quality</span>
+            </div>
         </div>
         <button id="runButton">Run</button>
         <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
@@ -102,7 +156,7 @@
                     </ul>
                 </li>
                 <li>Supports billions and billions of steps. OK, to turn off Stop Early.</li>
-                <li>Use Binning for full pixel averaging rather than (faster) sampling.</li>
+                <li>Choose "Quality" for full pixel averaging or "Speed" for fast sampling.</li>
                 <li>You can set settings via the URL hash fragment, for example, <code>#program=bb5&earlyStop=false</code>. Include <code>run=true</code> to run the program immediately.</li>
 
             </ul>
