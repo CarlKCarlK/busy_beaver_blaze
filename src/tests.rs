@@ -5,6 +5,7 @@ use crate::{
     pixel::Pixel, spaceline::Spaceline, test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
+use core::simd::Simd;
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use std::{
@@ -356,7 +357,7 @@ fn one() {
     let mut reference_machine =
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0).unwrap();
     reference_machine.nth_js(early_stop - 2);
-    let reference_png_data = reference_machine.png_data_and_packed_data().0;
+    let (reference_png_data, ..) = reference_machine.png_data_and_packed_data();
 
     let key = format!(
         "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
@@ -373,7 +374,7 @@ fn one() {
         &[0u64; 0],
     );
     let mut space_by_time_machine = png_data_iterator.into_space_by_time_machine();
-    let png_data = space_by_time_machine.png_data_and_packed_data().0;
+    let (png_data, ..) = space_by_time_machine.png_data_and_packed_data();
 
     // println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
     // println!("ref_packed: {ref_packed:?}");
@@ -508,4 +509,37 @@ fn stop_early() {
         println!("Frame {}, Step {}", frame_index, step_index + 1);
         fs::write(cmk_file, &png_data).unwrap();
     }
+}
+
+#[test]
+#[allow(clippy::shadow_reuse)]
+fn interleave() {
+    let left = Simd::from_array([0, 1, 2, 3]);
+    let right = Simd::from_array([4, 5, 6, 7]);
+    let (left, right) = left.deinterleave(right);
+    assert_eq!(left.to_array(), [0, 2, 4, 6]);
+    assert_eq!(right.to_array(), [1, 3, 5, 7]);
+}
+
+#[test]
+fn compress_x_simd_binning() {
+    let mut pixels = AVec::from_iter(ALIGN, (0u8..201).map(Pixel::from));
+    pixels[0] = Pixel::from(255u8);
+    let mut reference = AVec::from_iter(ALIGN, (0u8..201).step_by(2).map(Pixel::from));
+    reference[0] = Pixel::from(128u8);
+    reference[100] = Pixel::from(100u8);
+    Spaceline::compress_x_simd_binning(&mut pixels);
+    println!("pixels: {pixels:?}");
+    assert_eq!(pixels, reference);
+}
+
+#[test]
+fn compress_x_simd_sampling() {
+    let mut pixels = AVec::from_iter(ALIGN, (0u8..201).map(Pixel::from));
+    pixels[0] = Pixel::from(255u8);
+    let mut reference = AVec::from_iter(ALIGN, (0u8..201).step_by(2).map(Pixel::from));
+    reference[0] = Pixel::from(255u8);
+    Spaceline::compress_x_simd_sampling(&mut pixels);
+    println!("pixels: {pixels:?}");
+    assert_eq!(pixels, reference);
 }

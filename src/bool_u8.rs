@@ -24,20 +24,20 @@ impl BoolU8 {
 
 impl From<BoolU8> for u8 {
     #[inline]
-    fn from(bool_u8: BoolU8) -> Self {
-        bool_u8.0
+    fn from(BoolU8(bool_u8): BoolU8) -> Self {
+        bool_u8
     }
 }
 
 impl From<BoolU8> for usize {
-    fn from(bool_u8: BoolU8) -> Self {
-        bool_u8.0 as Self
+    fn from(BoolU8(bool_u8): BoolU8) -> Self {
+        bool_u8 as Self
     }
 }
 
 impl From<BoolU8> for u32 {
-    fn from(bool_u8: BoolU8) -> Self {
-        bool_u8.0 as Self
+    fn from(BoolU8(bool_u8): BoolU8) -> Self {
+        bool_u8 as Self
     }
 }
 
@@ -48,13 +48,13 @@ impl From<bool> for BoolU8 {
 }
 
 impl From<&BoolU8> for usize {
-    fn from(bool_u8: &BoolU8) -> Self {
-        bool_u8.0 as Self
+    fn from(BoolU8(bool_u8): &BoolU8) -> Self {
+        *bool_u8 as Self
     }
 }
 
 impl From<&BoolU8> for u32 {
-    fn from(bool_u8: &BoolU8) -> Self {
-        bool_u8.0 as Self
+    fn from(BoolU8(bool_u8): &BoolU8) -> Self {
+        *bool_u8 as Self
     }
 }

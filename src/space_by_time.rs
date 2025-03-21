@@ -333,7 +333,9 @@ impl SpaceByTime {
             Spacelines::push_internal(buffer0, spaceline, weight, self.pixel_policy);
             old_weight = Some(weight);
 
-            if buffer0.len() == 1 && buffer0.first().unwrap().1 == self.y_stride {
+            if let [(_, weight_z)] = buffer0.as_slice()
+                && *weight_z == self.y_stride
+            {
                 // This is a special case where we have a spaceline that is exactly the y_stride, so we can just push it to the main buffer
                 let (spaceline_z, _weight_z) = buffer0.pop().unwrap();
                 self.spacelines.main.push(spaceline_z);

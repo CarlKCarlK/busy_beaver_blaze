@@ -28,9 +28,10 @@ impl core::ops::Mul<usize> for PowerOfTwo {
 
     #[inline]
     fn mul(self, rhs: usize) -> Self::Output {
-        // Multiply rhs by 2^(self.0)
-        // This is equivalent to shifting rhs left by self.0 bits.
-        rhs * (1usize << self.0)
+        // Multiply rhs by 2^exp
+        // This is equivalent to shifting rhs left by exp bits.
+        let Self(exp) = self;
+        rhs * (1usize << exp)
     }
 }
 
@@ -51,13 +52,14 @@ impl PowerOfTwo {
     #[inline]
     #[must_use]
     pub fn offset_to_align(self, len: usize) -> usize {
+        let Self(exp) = self;
         debug_assert!(
-            (self.0 as u32) < usize::BITS,
+            (exp as u32) < usize::BITS,
             "Cannot shift left by self.0 = {} for usize::BITS = {}, which would overflow.",
-            self.0,
+            exp,
             usize::BITS
         );
-        len.wrapping_neg() & ((1 << self.0) - 1)
+        len.wrapping_neg() & ((1 << exp) - 1)
     }
 
     #[inline]
@@ -70,39 +72,42 @@ impl PowerOfTwo {
     #[inline]
     #[must_use]
     pub const fn as_u64(self) -> u64 {
-        1 << self.0
+        let Self(exp) = self;
+        1 << exp
     }
 
     #[inline]
     #[must_use]
-    pub const fn saturating_div(self, rhs: Self) -> Self {
+    pub const fn saturating_div(self, Self(rhs): Self) -> Self {
         // Subtract exponents; if the subtrahend is larger, saturate to 0 aks One
-        Self(self.0.saturating_sub(rhs.0))
+        let Self(exp) = self;
+        Self(exp.saturating_sub(rhs))
     }
 
     #[inline]
     pub const fn assign_saturating_div_two(&mut self) {
-        self.0 = self.0.saturating_sub(1);
+        let Self(exp) = self;
+        *exp = exp.saturating_sub(1);
     }
 
     #[inline]
     #[must_use]
     pub const fn double(self) -> Self {
-        debug_assert!(self.0 < Self::MAX.0, "Value must be 63 or less");
-        Self(self.0 + 1)
+        let Self(exp) = self;
+        debug_assert!(exp < Self::MAX.0, "Value must be 63 or less");
+        Self(exp + 1)
     }
 
     #[inline]
     #[must_use]
     pub fn as_usize(self) -> usize {
+        let Self(exp) = self;
         let bits = core::mem::size_of::<usize>() * 8;
         debug_assert!(
-            (self.0 as usize) < bits,
-            "Exponent {} too large for usize ({} bits)",
-            self.0,
-            bits
+            (exp as usize) < bits,
+            "Exponent {exp} too large for usize ({bits} bits)"
         );
-        1 << self.0
+        1 << exp
     }
 
     // from u64
@@ -147,7 +152,8 @@ impl PowerOfTwo {
     #[inline]
     #[must_use]
     pub const fn log2(self) -> u8 {
-        self.0
+        let Self(exp) = self;
+        exp
     }
 
     #[inline]
@@ -165,7 +171,8 @@ impl PowerOfTwo {
     #[inline]
     #[must_use]
     pub fn rem_euclid_into(self, dividend: i64) -> i64 {
-        let divisor = 1i64 << self.0; // Compute 2^n
+        let Self(exp) = self;
+        let divisor = 1i64 << exp; // Compute 2^n
         debug_assert!(divisor > 0, "divisor must be a power of two");
         let mask = divisor - 1;
         let remainder = dividend & mask;
@@ -185,9 +192,10 @@ impl PowerOfTwo {
             + core::ops::Shr<u8, Output = T>
             + From<u8>,
     {
+        let Self(exp) = self;
         let one = T::from(1);
-        let two_pow = one << self.0;
-        (other + two_pow - one) >> self.0
+        let two_pow = one << exp;
+        (other + two_pow - one) >> exp
     }
 
     #[inline]
@@ -195,31 +203,29 @@ impl PowerOfTwo {
     where
         T: Copy + core::ops::Shr<u8, Output = T>,
     {
-        x >> self.0
+        let Self(exp) = self;
+        x >> exp
     }
 
     #[inline]
     #[must_use]
     pub const fn divides_u64(self, x: u64) -> bool {
+        let Self(exp) = self;
         // If x is divisible by 2^(self.0), shifting right then left recovers x.
-        (x >> self.0) << self.0 == x
+        (x >> exp) << exp == x
     }
 
     #[inline]
     #[must_use]
     pub const fn divides_i64(self, x: i64) -> bool {
-        (x >> self.0) << self.0 == x
+        let Self(exp) = self;
+        (x >> exp) << exp == x
     }
 
     #[inline]
     #[must_use]
     pub const fn divides_usize(self, x: usize) -> bool {
-        (x >> self.0) << self.0 == x
+        let Self(exp) = self;
+        (x >> exp) << exp == x
     }
-
-    //     // #[inline]
-    // #[must_use]
-    // pub const fn divides_pixel_policy(self, other: Self) -> bool {
-    //     self.0 <= other.0
-    // }
 }

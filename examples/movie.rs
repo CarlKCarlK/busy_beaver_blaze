@@ -81,7 +81,11 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         }
         "bb6_contender10T" => {
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
-            (BB6_CONTENDER, 10_000_000_000_000u64, 2000, dir_info)
+            (BB6_CONTENDER, 10_000_000_000_000u64, 4000, dir_info)
+        }
+        "bb6_contender100T" => {
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
+            (BB6_CONTENDER, 100_000_000_000_000u64, 4000, dir_info)
         }
         "bb6_contender2" => {
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender2")?;

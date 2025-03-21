@@ -1,10 +1,10 @@
-use core::simd::{Simd, simd_swizzle};
+use core::simd::Simd;
 
 use crate::pixel::Pixel;
 use crate::tape::Tape;
 use crate::{
     ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, average_with_iterators,
-    average_with_simd, find_x_stride, sample_with_iterators,
+    average_with_simd, find_x_stride, is_even, sample_with_iterators,
 };
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;
@@ -104,93 +104,63 @@ impl Spaceline {
         -((self.x_stride * self.negative.len()) as i64)
     }
 
-    // cmk_binning
-    #[allow(clippy::cast_ptr_alignment)]
+    #[allow(clippy::shadow_reuse, clippy::missing_panics_doc)]
     pub fn compress_x_simd_binning(pixels: &mut AVec<Pixel>) {
-        // Local constant for the static swizzle indices.
-        const SWIZZLE_INDICES: [usize; 64] = [
-            0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44,
-            46, 48, 50, 52, 54, 56, 58, 60, 62, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27,
-            29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63,
-        ];
         // Constant used for the right shift in our average formula.
         const SPLAT_1_32: Simd<u8, 32> = Simd::splat(1);
 
-        // Access the pixel data as a mutable byte slice.
-        let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
-        let len = pixels_bytes.len();
-        // We'll process the input in 64-byte blocks.
-        let num_chunks = len >> 6; // Shift right by 6 is equivalent to dividing by 64
+        let pixels_len = pixels.len();
 
-        // Destination pointer: we'll pack results to the start of this buffer.
-        let dst_ptr = pixels_bytes.as_mut_ptr();
-        let mut write_index = 0;
+        // Create immutable and mutable slices in one step each, directly from pointers
+        // This is UB (undefined behavior) so we're just assuming it works.
+        let (pixels_bytes, pixels_bytes_mut) = unsafe {
+            (
+                core::slice::from_raw_parts(pixels.as_slice().as_ptr().cast::<u8>(), pixels_len),
+                core::slice::from_raw_parts_mut(
+                    pixels.as_mut_slice().as_mut_ptr().cast::<u8>(),
+                    pixels_len,
+                ),
+            )
+        };
 
-        // Process each 64-byte block.
-        for i in 0..num_chunks {
-            let chunk_start = i * 64;
-            // Load the 64-byte chunk from the source.
-            let src_chunk_ptr = unsafe {
-                pixels_bytes
-                    .as_ptr()
-                    .add(chunk_start)
-                    .cast::<Simd<u8, 64>>()
-            };
-            let chunk = unsafe { *src_chunk_ptr };
-
-            // Static swizzle to rearrange:
-            //  - first 32 lanes: even-indexed bytes,
-            //  - last 32 lanes: odd-indexed bytes.
-            let swizzled: Simd<u8, 64> = simd_swizzle!(chunk, SWIZZLE_INDICES);
-
-            // Split the swizzled vector into two halves (each 32 lanes).
-            let (left, right) = unsafe {
-                // Cast the 64-lane vector to a pointer to two consecutive 32-lane vectors.
-                let ptr = (&raw const swizzled).cast::<Simd<u8, 32>>();
-                (*ptr, *ptr.add(1))
-            };
-
+        // Process 32-byte chunks of the pixel data.
+        let (prefix, chunks, suffix) = pixels_bytes.as_simd::<32>();
+        let (prefix_mut, chunks_mut, _) = pixels_bytes_mut.as_simd_mut::<32>();
+        assert!(prefix.is_empty() && prefix_mut.is_empty(), "assert aligned");
+        let chunk_pairs = chunks.array_chunks::<2>();
+        let remainder_len = chunk_pairs.remainder().len();
+        for (result, [left, right]) in chunks_mut.iter_mut().zip(chunk_pairs) {
+            let (left, right) = left.deinterleave(*right);
             // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
-            // cmk_binning could make this unbiased
-            let result: &mut Simd<u8, 32> =
-                unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
-            *result = left & right;
-            let mut avg = left;
-            avg ^= right;
-            avg >>= SPLAT_1_32;
-            *result += avg;
-
-            write_index += 32;
+            let mut xor = left ^ right;
+            xor >>= SPLAT_1_32;
+            *result = left & right; // result and left could be the same
+            *result += xor;
         }
 
-        // Process the remaining bytes (suffix) with scalar code.
-        let mut i = num_chunks * 64;
-        while i + 1 < len {
-            // cmk_binning
-            // Compute the average for a pair of pixels.
-            pixels_bytes[write_index] = Pixel::mean_bytes(pixels_bytes[i], pixels_bytes[i + 1]);
-            write_index += 1;
-            i += 2;
-        }
-        if i < len {
-            // For a leftover pixel, average it with white (i.e. divide by 2).
-            // cmk_binning
-            pixels_bytes[write_index] = pixels_bytes[i] >> 1;
-            write_index += 1;
+        // We may have one leftover chunk of 32 bytes and also some unaligned suffix.
+        let read_start = pixels_len - remainder_len * 32 - suffix.len();
+        // The `pixels_len - 1` stops us from reading any last odd byte.
+        if pixels_len > 0 {
+            for read_index in (read_start..pixels_len - 1).step_by(2) {
+                pixels_bytes_mut[read_index >> 1] =
+                    Pixel::mean_bytes(pixels_bytes[read_index], pixels_bytes[read_index + 1]);
+            }
         }
 
-        // Finally, truncate the vector to the new length (in bytes).
-        pixels.truncate(write_index);
+        // We may still have one leftover odd byte.
+        if is_even(pixels_len) {
+            pixels.truncate(pixels_len >> 1);
+        } else {
+            let write_index = pixels_len >> 1;
+            // divide its level by 2
+            pixels_bytes_mut[write_index] = pixels_bytes[pixels_len - 1] >> 1;
+            pixels.truncate(write_index + 1);
+        }
     }
 
-    #[allow(clippy::cast_ptr_alignment)]
+    #[allow(clippy::cast_ptr_alignment, clippy::shadow_reuse)]
     pub fn compress_x_simd_sampling(pixels: &mut AVec<Pixel>) {
-        // Local constant for the static swizzle indices.
-        const SWIZZLE_INDICES: [usize; 64] = [
-            0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44,
-            46, 48, 50, 52, 54, 56, 58, 60, 62, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27,
-            29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57, 59, 61, 63,
-        ];
         // Access the pixel data as a mutable byte slice.
         let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
         let len = pixels_bytes.len();
@@ -204,22 +174,19 @@ impl Spaceline {
         // Process each 64-byte block.
         for i in 0..num_chunks {
             let chunk_start = i * 64;
-            // Load the 64-byte chunk from the source.
-            let src_chunk_ptr = unsafe {
-                pixels_bytes
+            let left = unsafe {
+                *pixels_bytes
                     .as_ptr()
                     .add(chunk_start)
-                    .cast::<Simd<u8, 64>>()
+                    .cast::<Simd<u8, 32>>()
             };
-            let chunk = unsafe { *src_chunk_ptr };
-
-            // Static swizzle to rearrange:
-            //  - first 32 lanes: even-indexed bytes,
-            //  - last 32 lanes: odd-indexed bytes.
-            let swizzled: Simd<u8, 64> = simd_swizzle!(chunk, SWIZZLE_INDICES);
-
-            // Split the swizzled vector into two halves (each 32 lanes).
-            let left = unsafe { *(&raw const swizzled).cast::<Simd<u8, 32>>() };
+            let right = unsafe {
+                *pixels_bytes
+                    .as_ptr()
+                    .add(chunk_start + 32)
+                    .cast::<Simd<u8, 32>>()
+            };
+            let (left, _) = left.deinterleave(right);
 
             let result: &mut Simd<u8, 32> =
                 unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };

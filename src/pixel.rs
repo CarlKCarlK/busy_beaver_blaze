@@ -18,15 +18,17 @@ impl Add for Pixel {
     type Output = Self;
 
     #[inline]
-    fn add(self, other: Self) -> Self {
-        Self(Self::mean_bytes(self.0, other.0))
+    fn add(self, Self(other): Self) -> Self {
+        let Self(value) = self;
+        Self(Self::mean_bytes(value, other))
     }
 }
 
 impl AddAssign for Pixel {
     #[inline]
-    fn add_assign(&mut self, other: Self) {
-        Self::mean_assign_bytes(&mut self.0, other.0);
+    fn add_assign(&mut self, Self(other): Self) {
+        let Self(value) = self;
+        Self::mean_assign_bytes(value, other);
     }
 }
 
@@ -58,8 +60,10 @@ impl Pixel {
     }
 
     #[inline]
-    pub(crate) const fn as_u8(self) -> u8 {
-        self.0
+    #[must_use]
+    pub const fn as_u8(self) -> u8 {
+        let Self(value) = self;
+        value
     }
 
     // cmk_binning
@@ -181,15 +185,15 @@ impl From<u8> for Pixel {
 
 impl From<Pixel> for u8 {
     #[inline]
-    fn from(value: Pixel) -> Self {
-        value.0
+    fn from(Pixel(value): Pixel) -> Self {
+        value
     }
 }
 
 impl From<&Pixel> for u8 {
     #[inline]
-    fn from(value: &Pixel) -> Self {
-        value.0
+    fn from(Pixel(value): &Pixel) -> Self {
+        *value
     }
 }
 
