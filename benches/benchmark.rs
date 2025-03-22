@@ -5,7 +5,6 @@ use aligned_vec::AVec;
 use busy_beaver_blaze::test_utils::compress_x_no_simd_binning;
 use busy_beaver_blaze::{
     ALIGN, Pixel, PowerOfTwo, Spaceline, average_with_iterators, average_with_simd,
-    average_with_simd_count_ones64, average_with_simd_push,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -25,13 +24,6 @@ fn small(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| average_with_iterators(black_box(&values_clone), black_box(step)),
-        );
-    });
-
-    group.bench_function("simd", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| average_with_simd_push::<32>(black_box(&values_clone), black_box(step)),
         );
     });
 
@@ -68,22 +60,6 @@ fn large(criterion: &mut Criterion) {
         );
     });
 
-    // group.bench_function("simd64_count_ones", |bencher| {
-    //     bencher.iter_with_setup(
-    //         || values.clone(),
-    //         |values_clone| {
-    //             average_with_simd_count_ones64(black_box(&values_clone), black_box(step))
-    //         },
-    //     );
-    // });
-
-    group.bench_function("simd64_push", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| average_with_simd_push::<64>(black_box(&values_clone), black_box(step)),
-        );
-    });
-
     group.finish();
 }
 
@@ -114,22 +90,6 @@ fn len_100m(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| average_with_simd::<64>(black_box(&values_clone), black_box(step)),
-        );
-    });
-
-    group.bench_function("simd64_count_ones", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| {
-                average_with_simd_count_ones64(black_box(&values_clone), black_box(step))
-            },
-        );
-    });
-
-    group.bench_function("simd64_push", |bencher| {
-        bencher.iter_with_setup(
-            || values.clone(),
-            |values_clone| average_with_simd_push::<64>(black_box(&values_clone), black_box(step)),
         );
     });
 

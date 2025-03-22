@@ -377,139 +377,72 @@ where
     }
 }
 
-// cmk_binning
-#[allow(clippy::missing_panics_doc)]
-#[must_use]
-pub fn average_with_simd_push<const LANES: usize>(
-    values: &AVec<BoolU8>,
-    step: PowerOfTwo,
-) -> AVec<Pixel>
-where
-    LaneCount<LANES>: SupportedLaneCount,
-{
-    assert!(
-        { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
-        "LANES must be less than or equal to step and alignment"
-    );
-    let values_u8 = values.as_bytes();
-    let values_len = values_u8.len();
-    let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values_len));
-    let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
+// // cmk_binning
+// #[allow(clippy::missing_panics_doc)]
+// #[must_use]
+// pub fn average_with_simd_push<const LANES: usize>(
+//     values: &AVec<BoolU8>,
+//     step: PowerOfTwo,
+// ) -> AVec<Pixel>
+// where
+//     LaneCount<LANES>: SupportedLaneCount,
+// {
+//     assert!(
+//         { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
+//         "LANES must be less than or equal to step and alignment"
+//     );
+//     let values_u8 = values.as_bytes();
+//     let values_len = values_u8.len();
+//     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values_len));
+//     let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
 
-    let (prefix, chunks, _suffix) = values_u8.as_simd::<LANES>();
+//     let (prefix, chunks, _suffix) = values_u8.as_simd::<LANES>();
 
-    // Since we're using AVec with 64-byte alignment, the prefix should be empty
-    debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
-    // Process SIMD chunks directly (each chunk is N elements)
-    let lanes_per_chunk = step.saturating_div(lanes);
+//     // Since we're using AVec with 64-byte alignment, the prefix should be empty
+//     debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
+//     // Process SIMD chunks directly (each chunk is N elements)
+//     let lanes_per_chunk = step.saturating_div(lanes);
 
-    if lanes_per_chunk == PowerOfTwo::ONE {
-        for chunk in chunks {
-            let sum = chunk.reduce_sum() as u32;
-            // cmk_binning
-            let average = step.divide_into(sum * 255) as u8;
-            result.push(average.into());
-        }
-    } else {
-        let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
+//     if lanes_per_chunk == PowerOfTwo::ONE {
+//         for chunk in chunks {
+//             let sum = chunk.reduce_sum() as u32;
+//             // cmk_binning
+//             let average = step.divide_into(sum * 255) as u8;
+//             result.push(average.into());
+//         }
+//     } else {
+//         let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
 
-        // Process complete chunks
-        for sub_chunk in &mut chunk_iter {
-            // Sum the values within the vector - values are just 0 or 1
-            let sum: u32 = sub_chunk
-                .iter()
-                .map(|chunk| chunk.reduce_sum() as u32)
-                .sum();
-            // cmk_binning
-            let average = step.divide_into(sum * 255) as u8;
-            result.push(average.into());
-        }
-    }
+//         // Process complete chunks
+//         for sub_chunk in &mut chunk_iter {
+//             // Sum the values within the vector - values are just 0 or 1
+//             let sum: u32 = sub_chunk
+//                 .iter()
+//                 .map(|chunk| chunk.reduce_sum() as u32)
+//                 .sum();
+//             // cmk_binning
+//             let average = step.divide_into(sum * 255) as u8;
+//             result.push(average.into());
+//         }
+//     }
 
-    // How many elements are unprocessed?
-    let unused_items = step.rem_into_usize(values_len);
-    if unused_items > 0 {
-        // sum the last missing_items
-        let sum: u32 = values_u8
-            .iter()
-            .rev()
-            .take(unused_items)
-            .map(|&x| x as u32)
-            .sum();
-        // cmk_binning
-        let average = step.divide_into(sum * 255) as u8;
-        result.push(average.into());
-    }
+//     // How many elements are unprocessed?
+//     let unused_items = step.rem_into_usize(values_len);
+//     if unused_items > 0 {
+//         // sum the last missing_items
+//         let sum: u32 = values_u8
+//             .iter()
+//             .rev()
+//             .take(unused_items)
+//             .map(|&x| x as u32)
+//             .sum();
+//         // cmk_binning
+//         let average = step.divide_into(sum * 255) as u8;
+//         result.push(average.into());
+//     }
 
-    result
-}
-
-// cmk_binning
-#[allow(clippy::missing_panics_doc, clippy::shadow_reuse)]
-#[must_use]
-pub fn average_with_simd_count_ones64(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
-    const LANES: usize = 64;
-    assert!(
-        { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
-        "LANES must be less than or equal to step and alignment"
-    );
-
-    let values_len = values.len();
-    let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values_len));
-    let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
-
-    let (prefix, chunks, _suffix) = values.as_bytes().as_simd::<LANES>();
-
-    // Since we're using AVec with 64-byte alignment, the prefix should be empty
-    debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
-    // Process SIMD chunks directly (each chunk is N elements)
-    let lanes_per_chunk = step.saturating_div(lanes);
-
-    if lanes_per_chunk == PowerOfTwo::ONE {
-        for chunk in chunks {
-            // reinterpret as &simd<u64,1> in place using raw pointers instead of transmute
-            let chunk = unsafe {
-                &*core::ptr::from_ref::<core::simd::Simd<u8, 64>>(chunk)
-                    .cast::<core::simd::Simd<u64, 8>>()
-            };
-            let sum = chunk.count_ones().reduce_sum() as u32;
-            // cmk_binning
-            let average = step.divide_into(sum * 255) as u8;
-            result.push(average.into());
-        }
-    } else {
-        let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
-
-        // Process complete chunks
-        for sub_chunk in &mut chunk_iter {
-            // Sum the values within the vector - values are just 0 or 1
-            let sum: u32 = sub_chunk
-                .iter()
-                .map(|chunk| {
-                    let chunk = unsafe {
-                        &*core::ptr::from_ref::<core::simd::Simd<u8, 64>>(chunk)
-                            .cast::<core::simd::Simd<u64, 8>>()
-                    };
-                    chunk.count_ones().reduce_sum() as u32
-                })
-                .sum();
-            // cmk_binning
-            let average = step.divide_into(sum * 255) as u8;
-            result.push(average.into());
-        }
-    }
-
-    // How many elements are unprocessed?
-    let unused_items = step.rem_into_usize(values_len);
-    if unused_items > 0 {
-        // sum the last missing_items
-        let sum: u32 = values.iter().rev().take(unused_items).map(u32::from).sum();
-        let average = step.divide_into(sum * 255) as u8;
-        result.push(average.into());
-    }
-
-    result
-}
+//     result
+// }
 
 #[inline]
 pub fn is_even<T>(x: T) -> bool
