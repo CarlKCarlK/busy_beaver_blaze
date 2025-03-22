@@ -4,7 +4,7 @@ use crate::pixel::Pixel;
 use crate::tape::Tape;
 use crate::{
     ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, average_with_iterators,
-    average_with_simd, find_x_stride, is_even, sample_with_iterators,
+    average_with_simd, find_x_stride, sample_with_iterators,
 };
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;
@@ -104,109 +104,99 @@ impl Spaceline {
         -((self.x_stride * self.negative.len()) as i64)
     }
 
-    #[allow(clippy::shadow_reuse, clippy::missing_panics_doc)]
+    #[allow(clippy::missing_panics_doc, clippy::shadow_reuse)]
     pub fn compress_x_simd_binning(pixels: &mut AVec<Pixel>) {
         // Constant used for the right shift in our average formula.
-        const SPLAT_1_32: Simd<u8, 32> = Simd::splat(1);
-
+        const SPLAT_1: Simd<u8, ALIGN> = Simd::splat(1);
         let pixels_len = pixels.len();
 
-        // Create immutable and mutable slices in one step each, directly from pointers
-        // This is UB (undefined behavior) so we're just assuming it works.
-        let (pixels_bytes, pixels_bytes_mut) = unsafe {
-            (
-                core::slice::from_raw_parts(pixels.as_slice().as_ptr().cast::<u8>(), pixels_len),
-                core::slice::from_raw_parts_mut(
-                    pixels.as_mut_slice().as_mut_ptr().cast::<u8>(),
-                    pixels_len,
-                ),
-            )
-        };
+        // Loop through an even number of 32-bit chunks
+        let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
+        let (prefix, chunks, _) = pixels_bytes.as_simd_mut::<ALIGN>();
+        assert!(prefix.is_empty(), "assert aligned");
+        let mut len_half = chunks.len() >> 1;
+        let mut read_index = 0;
+        let mut write_index = 0;
+        while write_index < len_half {
+            chunks[write_index] = {
+                let (mut left, right) = chunks[read_index].deinterleave(chunks[read_index + 1]);
+                read_index += 2;
 
-        // Process 32-byte chunks of the pixel data.
-        let (prefix, chunks, suffix) = pixels_bytes.as_simd::<32>();
-        let (prefix_mut, chunks_mut, _) = pixels_bytes_mut.as_simd_mut::<32>();
-        assert!(prefix.is_empty() && prefix_mut.is_empty(), "assert aligned");
-        let chunk_pairs = chunks.array_chunks::<2>();
-        let remainder_len = chunk_pairs.remainder().len();
-        for (result, [left, right]) in chunks_mut.iter_mut().zip(chunk_pairs) {
-            let (left, right) = left.deinterleave(*right);
-            // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
-            let mut xor = left ^ right;
-            xor >>= SPLAT_1_32;
-            *result = left & right; // result and left could be the same
-            *result += xor;
+                // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
+                let mut result = left ^ right;
+                result >>= SPLAT_1;
+                left &= right;
+                result += left;
+                result
+            };
+            write_index += 1;
         }
 
-        // We may have one leftover chunk of 32 bytes and also some unaligned suffix.
-        let read_start = pixels_len - remainder_len * 32 - suffix.len();
-        // The `pixels_len - 1` stops us from reading any last odd byte.
-        if pixels_len > 0 {
-            for read_index in (read_start..pixels_len - 1).step_by(2) {
-                pixels_bytes_mut[read_index >> 1] =
-                    Pixel::mean_bytes(pixels_bytes[read_index], pixels_bytes[read_index + 1]);
-            }
+        // Switch from chunks to bytes and finish any remaining chunks and the suffix.
+        write_index *= ALIGN;
+        read_index *= ALIGN;
+        len_half = pixels_len >> 1;
+        while write_index < len_half {
+            pixels_bytes[write_index] = {
+                let mut left = pixels_bytes[read_index];
+                read_index += 1;
+                let right = pixels_bytes[read_index];
+                read_index += 1;
+
+                // Compute the average using the formula: (a & b) + ((a ^ b) >> 1)
+                let mut result = left ^ right;
+                result >>= 1;
+                left &= right;
+                result += left;
+                result
+            };
+            write_index += 1;
         }
 
-        // We may still have one leftover odd byte.
-        if is_even(pixels_len) {
-            pixels.truncate(pixels_len >> 1);
-        } else {
-            let write_index = pixels_len >> 1;
-            // divide its level by 2
-            pixels_bytes_mut[write_index] = pixels_bytes[pixels_len - 1] >> 1;
-            pixels.truncate(write_index + 1);
+        if read_index < pixels_len {
+            // Handle the last pixel if the length is odd by reducing it by half
+            pixels_bytes[write_index] = pixels_bytes[read_index] >> 1;
+            // read_index += 1;
+            write_index += 1;
         }
+        pixels.truncate(write_index);
     }
 
-    #[allow(clippy::cast_ptr_alignment, clippy::shadow_reuse)]
+    #[allow(clippy::shadow_reuse, clippy::missing_panics_doc)]
     pub fn compress_x_simd_sampling(pixels: &mut AVec<Pixel>) {
-        // Access the pixel data as a mutable byte slice.
+        let pixels_len = pixels.len();
+
+        // Loop through an even number of 32-bit chunks
         let pixels_bytes = pixels.as_mut_slice().as_mut_bytes();
-        let len = pixels_bytes.len();
-        // We'll process the input in 64-byte blocks.
-        let num_chunks = len >> 6; // Shift right by 6 is equivalent to dividing by 64
-
-        // Destination pointer: we'll pack results to the start of this buffer.
-        let dst_ptr = pixels_bytes.as_mut_ptr();
+        let (prefix, chunks, _) = pixels_bytes.as_simd_mut::<ALIGN>();
+        assert!(prefix.is_empty(), "assert aligned");
+        let mut len_half = chunks.len() >> 1;
+        let mut read_index = 0;
         let mut write_index = 0;
-
-        // Process each 64-byte block.
-        for i in 0..num_chunks {
-            let chunk_start = i * 64;
-            let left = unsafe {
-                *pixels_bytes
-                    .as_ptr()
-                    .add(chunk_start)
-                    .cast::<Simd<u8, 32>>()
+        while write_index < len_half {
+            chunks[write_index] = {
+                let (left, _) = chunks[read_index].deinterleave(chunks[read_index + 1]);
+                read_index += 2;
+                left
             };
-            let right = unsafe {
-                *pixels_bytes
-                    .as_ptr()
-                    .add(chunk_start + 32)
-                    .cast::<Simd<u8, 32>>()
-            };
-            let (left, _) = left.deinterleave(right);
-
-            let result: &mut Simd<u8, 32> =
-                unsafe { &mut *dst_ptr.add(write_index).cast::<Simd<u8, 32>>() };
-            *result = left;
-            write_index += 32;
-        }
-
-        // Process the remaining bytes (suffix) with scalar code.
-        let mut i = num_chunks * 64;
-        while i + 1 < len {
-            pixels_bytes[write_index] = pixels_bytes[i];
-            write_index += 1;
-            i += 2;
-        }
-        if i < len {
-            pixels_bytes[write_index] = pixels_bytes[i];
             write_index += 1;
         }
 
-        // Finally, truncate the vector to the new length (in bytes).
+        // Switch from chunks to bytes and finish any remaining chunks and the suffix.
+        write_index *= ALIGN;
+        read_index *= ALIGN;
+        len_half = pixels_len >> 1;
+        while write_index < len_half {
+            pixels_bytes[write_index] = pixels_bytes[read_index];
+            read_index += 2;
+            write_index += 1;
+        }
+
+        if read_index < pixels_len {
+            pixels_bytes[write_index] = pixels_bytes[read_index];
+            // read_index += 1;
+            write_index += 1;
+        }
         pixels.truncate(write_index);
     }
 
