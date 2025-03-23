@@ -77,7 +77,7 @@ impl SpaceByTime {
                     self.flush_buffer0_and_compress();
                 }
                 let spaceline = if let Some(mut previous) = self.previous_space_line.take() {
-                    // cmk messy code
+                    // TODO messy code
                     if previous.redo_pixel(
                         previous_tape_index,
                         machine.tape(),
@@ -142,7 +142,7 @@ impl SpaceByTime {
         clippy::wrong_self_convention,
         clippy::missing_panics_doc,
         clippy::too_many_lines,
-        clippy::shadow_reuse // cmk turn this off globally
+        clippy::shadow_reuse // TODO turn this off globally
     )]
     pub fn to_png_and_packed_data(
         &mut self,
@@ -341,16 +341,14 @@ impl SpaceByTime {
             let mut previous_y_stride: Option<PowerOfTwo> = None;
             let mut previous_time: Option<u64> = None;
 
-            // cmk remove this variable
-            let space_by_time = self;
-            let y_stride = space_by_time.y_stride;
+            let y_stride = self.y_stride;
             if let Some(previous_y_stride) = previous_y_stride {
                 assert_eq!(
                     y_stride, previous_y_stride,
                     "from part to part, the stride should be the same"
                 );
             }
-            let spacelines = &space_by_time.spacelines;
+            let spacelines = &self.spacelines;
             let main = &spacelines.main;
             for spaceline in main {
                 if let Some(previous_time) = previous_time {

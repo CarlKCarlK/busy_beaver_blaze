@@ -35,7 +35,7 @@ impl core::ops::Mul<usize> for PowerOfTwo {
     }
 }
 
-// cmk make the auto constructor so private that it can't be used w/ modules, so that new check is run.
+// TODO make the auto constructor so private that it can't be used w/ modules, so that new check is run.
 
 impl PowerOfTwo {
     /// The smallest valid `pixel_policy` value, representing `2^0 = 1`.

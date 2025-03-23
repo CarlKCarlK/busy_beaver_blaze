@@ -42,7 +42,7 @@ impl Tape {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)
         } else {
-            ((-index - 1) as usize, &mut self.negative) // cmk this code appear more than once
+            ((-index - 1) as usize, &mut self.negative) // TODO this code appear more than once
         };
 
         if index == vec.len() {

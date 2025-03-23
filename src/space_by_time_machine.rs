@@ -150,7 +150,7 @@ impl SpaceByTimeMachine {
             .unwrap_or_else(|e| format!("{e:?}").into_bytes())
     }
 
-    // cmk why is it step_count and count_ones. That doesn't make sense.
+    // TODO why is it step_count and count_ones. That doesn't make sense.
     #[wasm_bindgen]
     #[inline]
     #[must_use]

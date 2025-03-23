@@ -254,18 +254,18 @@ impl Spaceline {
     #[inline]
     #[must_use]
     pub fn new(tape: &Tape, x_goal: u32, step_index: u64, pixel_policy: PixelPolicy) -> Self {
-        // cmk move this to tape and give a better name
+        // TODO move this to tape and give a better name
         let x_stride = find_x_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
         match pixel_policy {
             PixelPolicy::Binning => {
                 let (negative, nonnegative) = match x_stride {
                     PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => (
-                        // cmk move this to tape and give a better name
+                        // TODO move this to tape and give a better name
                         average_with_iterators(&tape.negative, x_stride),
                         average_with_iterators(&tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::EIGHT => (
-                        // cmk move this to tape and give a better name
+                        // TODO move this to tape and give a better name
                         average_with_simd::<8>(&tape.negative, x_stride),
                         average_with_simd::<8>(&tape.nonnegative, x_stride),
                     ),

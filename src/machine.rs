@@ -122,7 +122,7 @@ impl Iterator for Machine {
     }
 }
 
-type StateToSymbolToAction = ArrayVec<Action, { Program::MAX_STATE_COUNT }>; // cmk const
+type StateToSymbolToAction = ArrayVec<Action, { Program::MAX_STATE_COUNT }>;
 
 #[derive(Debug)]
 pub struct Program {
@@ -164,7 +164,6 @@ impl Program {
     }
 
     fn parse_state(input: impl AsRef<str>) -> Result<char, Error> {
-        // println!("cmk {:?}", input.as_ref());
         let mut chars = input.as_ref().chars();
         match (chars.next(), chars.next()) {
             (Some(char @ 'A'..='Z'), None) => Ok(char), // Ensure single uppercase letter

@@ -17,8 +17,7 @@ use thousands::Separable;
 #[allow(clippy::shadow_reuse, clippy::integer_division_remainder_used)]
 #[test]
 fn bb5_champ_space_by_time_native() -> Result<(), Error> {
-    let mut machine: Machine = BB5_CHAMP.parse()?; // cmk
-    // let mut machine: Machine = BB6_CONTENDER.parse()?;
+    let mut machine: Machine = BB5_CHAMP.parse()?;
 
     let goal_x: u32 = 1000;
     let goal_y: u32 = 1000;
@@ -54,7 +53,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
         goal_x as usize,
         goal_y as usize,
     )?;
-    fs::write("tests/expected/test.png", &png_data).unwrap(); // cmk handle error
+    fs::write("tests/expected/test.png", &png_data).unwrap(); // TODO handle error
 
     println!(
         "Final: Steps {}: {:?}, #1's {}",

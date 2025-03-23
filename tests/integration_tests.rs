@@ -142,7 +142,7 @@ fn machine_7_135_505() -> Result<(), Error> {
 
 // Create a test that runs bb5 champ to halting and then prints the time it took
 // to run the test
-// cmk which of these should be bindgen tests?
+// TODO which of these should be bindgen tests?
 #[wasm_bindgen_test]
 #[test]
 fn bb5_champ_time() {
@@ -184,10 +184,10 @@ fn benchmark1() -> Result<(), String> {
     assert_eq!(space_by_time_machine.state(), 1);
     assert_eq!(space_by_time_machine.tape_index(), 34054);
 
-    // cmk LATER what is one method png_data and another to to_png?
+    // TODO LATER what is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
     let png_data = space_by_time_machine.png_data();
-    fs::write("tests/expected/bench.png", &png_data).unwrap(); // cmk handle error
+    fs::write("tests/expected/bench.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start2.elapsed());
     Ok(())
 }
@@ -258,11 +258,6 @@ fn benchmark2() -> Result<(), String> {
         space_by_time_machine.count_ones(),
     );
 
-    // // cmk LATER what is one method png_data and another to to_png?
-    // let start = std::time::Instant::now();
-    // let png_data = space_by_time_machine.png_data();
-    // fs::write("tests/expected/bench2.png", &png_data).unwrap(); // cmk handle error
-    // println!("Elapsed png: {:?}", start.elapsed());
     Ok(())
 }
 
@@ -379,10 +374,10 @@ fn benchmark63() -> Result<(), String> {
         space_by_time_machine.count_ones(),
     );
 
-    // cmk LATER what is one method png_data and another to to_png?
+    // TODO LATER what is one method png_data and another to to_png?
     let start = std::time::Instant::now();
     let png_data = space_by_time_machine.png_data();
-    fs::write("tests/expected/bench63.png", &png_data).unwrap(); // cmk handle error
+    fs::write("tests/expected/bench63.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start.elapsed());
     Ok(())
 }

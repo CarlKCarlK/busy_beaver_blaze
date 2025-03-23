@@ -34,8 +34,7 @@ impl PngDataIterator {
         assert!(part_count_goal > 0, "part_count_goal must be > 0");
         assert!(early_stop > 0); // panic if early_stop is 0
 
-        // cmk for now require that values in frame_index_to_step_index be increasing and in range. This could be removed later.
-
+        // TODO for now require that values in frame_index_to_step_index be increasing and in range. This could be removed later.
         assert!(
             frame_index_to_step_index
                 .windows(2)
@@ -152,7 +151,7 @@ impl PngDataIterator {
         });
     }
 
-    // cmk is it sometimes x_goal and sometimes goal_x????
+    // TODO is it sometimes x_goal and sometimes goal_x????
     #[allow(clippy::too_many_lines)]
     fn combine_results(
         x_goal: u32,
@@ -415,5 +414,3 @@ impl Drop for PngDataIterator {
         }
     }
 }
-
-// cmk should we be using async instead of threads for the two?

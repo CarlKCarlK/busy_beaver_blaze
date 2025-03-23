@@ -5,8 +5,7 @@ use core::simd::{self, prelude::*};
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-/// We define +, += to be the average of two pixels.  
-// cmk_binning is this wise?
+/// We define +, += to be the average of two pixels, TODO is this wise?
 #[repr(transparent)]
 #[derive(
     Default, Copy, Clone, IntoBytes, FromBytes, Immutable, Display, PartialEq, Eq, KnownLayout,
@@ -48,7 +47,7 @@ impl Pixel {
         (first & second) + ((first ^ second) >> 1)
     }
 
-    // cmk_binning inconsistent with the terms 'mean', 'average', 'merge', 'binning'
+    // TODO inconsistent with the terms 'mean', 'average', 'merge', 'binning'
     #[inline]
     const fn mean_assign_bytes(first: &mut u8, second: u8) {
         let first_and_second = *first & second;
@@ -103,7 +102,7 @@ impl Pixel {
 
     #[inline]
     pub(crate) fn slice_merge_bytes_simd(left_bytes: &mut [u8], right_bytes: &[u8]) {
-        // cmk debug_assert
+        // TODO Look at all asserts and think if some should be debug_assert.
         assert!(
             Self::simd_precondition::<u8, ALIGN>(left_bytes, right_bytes),
             "SIMD precondition failed"
@@ -117,7 +116,6 @@ impl Pixel {
             Self::mean_assign_bytes(left_byte, *right_byte);
         }
 
-        // cmk_binning could make this unbiased
         // Process SIMD chunks using (a & b) + ((a ^ b) >> 1) formula
         for (left_chunk, right_chunk) in left_chunks.iter_mut().zip(right_chunks.iter()) {
             let a_and_b = *left_chunk & *right_chunk;

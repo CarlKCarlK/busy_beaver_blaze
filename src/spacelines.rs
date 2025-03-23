@@ -64,7 +64,6 @@ impl Spacelines {
     pub(crate) fn compress_y_average(&mut self) {
         assert!(self.buffer0.is_empty(), "real assert b2");
         assert!(is_even(self.main.len()), "real assert 11");
-        // println!("cmk compress_average");
 
         self.main = self
             .main
@@ -82,26 +81,24 @@ impl Spacelines {
     pub(crate) fn compress_y_take_first(&mut self, new_stride: PowerOfTwo) {
         assert!(self.buffer0.is_empty(), "real assert e2");
         assert!(is_even(self.main.len()), "real assert e11");
-        // println!("cmk compress_take_first");
         self.main
             .retain(|spaceline| new_stride.divides_u64(spaceline.time));
     }
 
     pub(crate) fn last(&self, y_stride: PowerOfTwo, pixel_policy: PixelPolicy) -> Spaceline {
         if self.buffer0.is_empty() {
-            // cmk would be nice to remove this clone
+            // TODO would be nice to remove this clone
             return self.main.last().unwrap().clone();
         }
 
         match pixel_policy {
             PixelPolicy::Sampling => {
                 let (spaceline, _weight) = self.buffer0.first().unwrap();
-                // cmk remove assert!(*weight == y_stride || weight.double() == y_stride);
                 assert!(y_stride.divides_u64(spaceline.time));
                 spaceline.clone()
             }
             PixelPolicy::Binning => {
-                // cmk in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
+                // TODO in the special case in which the sample is 1 and the buffer is 1, can't we just return the buffer's item (as a ref???)
                 let mut buffer0 = self.buffer0.clone();
 
                 //We clone because we compress in place.

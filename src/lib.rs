@@ -265,7 +265,7 @@ pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pi
     result
 }
 
-// cmk move this to tape and give a better name
+// TODO move this to tape and give a better name
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_with_simd<const LANES: usize>(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel>
@@ -363,8 +363,6 @@ where
     }
 }
 
-
-
 #[inline]
 pub fn is_even<T>(x: T) -> bool
 where
@@ -382,7 +380,6 @@ pub const fn prev_power_of_two(x: usize) -> usize {
     1usize << (usize::BITS as usize - x.leading_zeros() as usize - 1)
 }
 
-// cmk
 fn compress_packed_data_if_one_too_big(
     mut packed_data: AVec<u8>,
     pixel_policy: PixelPolicy,
@@ -394,7 +391,6 @@ fn compress_packed_data_if_one_too_big(
         (packed_data, y_actual)
     } else {
         assert!(y_actual == 2 * y_goal, "y_actual must be 2 * y_goal");
-        // cmk remove the constant
         // reduce the # of rows in half my averaging
         let mut new_packed_data = AVec::with_capacity(ALIGN, x_actual as usize * y_goal as usize);
         new_packed_data.resize(x_actual as usize * y_goal as usize, 0u8);
