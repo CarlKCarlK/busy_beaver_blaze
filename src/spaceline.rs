@@ -207,7 +207,7 @@ impl Spaceline {
         assert!(self.x_stride <= new_x_stride);
         while self.x_stride < new_x_stride {
             for pixels in [&mut self.nonnegative, &mut self.negative] {
-                // cmk00 pull this out of the inner loop
+                // TODO pull this out of the inner loop
                 match self.pixel_policy {
                     PixelPolicy::Binning => Self::compress_x_simd_binning(pixels),
                     PixelPolicy::Sampling => Self::compress_x_simd_sampling(pixels),
@@ -231,7 +231,6 @@ impl Spaceline {
         result
     }
 
-    // cmk_binning
     #[allow(clippy::missing_panics_doc)]
     #[inline]
     pub fn merge_simd(&mut self, other: &Self) {
@@ -245,7 +244,6 @@ impl Spaceline {
         Pixel::avec_merge_simd(&mut self.nonnegative, &other.nonnegative);
     }
 
-    // cmk_binning
     #[inline]
     pub fn merge_with_white_simd(&mut self) {
         Pixel::slice_merge_with_white_simd(&mut self.nonnegative);

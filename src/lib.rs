@@ -42,13 +42,7 @@ pub use space_by_time_machine::SpaceByTimeMachine;
 pub use spaceline::Spaceline;
 pub use tape::Tape;
 
-const LANES_CMK: usize = 64;
 pub const ALIGN: usize = 64;
-
-// use web_sys::console;
-
-// cmk is the image size is a power of 2, then don't apply filters (may be a bad idea, because user doesn't control native size exactly)
-// cmk0 see if can remove more as_u64()'s
 
 pub const BB2_CHAMP: &str = "
 	A	B
@@ -227,8 +221,6 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
     Ok(buf)
 }
 
-// cmk_binning
-// cmk0 could this be faster without chunks?
 #[must_use]
 pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
@@ -239,7 +231,6 @@ pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<P
 
     for chunk in chunk_iter {
         let sum: u32 = chunk.iter().map(u32::from).sum();
-        // cmk_binning
         let average = step.divide_into(sum * 255).into();
         result.push(average);
     }
@@ -248,7 +239,6 @@ pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<P
     if !remainder.is_empty() {
         let sum: u32 = remainder.iter().map(u32::from).sum();
         // We need to divide by step size, not remainder.len()
-        // cmk_binning
         let average = step.divide_into(sum * 255).into();
         result.push(average);
     }
@@ -275,7 +265,6 @@ pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pi
     result
 }
 
-// cmk_binning
 // cmk move this to tape and give a better name
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
@@ -304,14 +293,12 @@ where
 
     // ✅ Process chunks using `zip()`, no `push()`
     if lanes_per_chunk == PowerOfTwo::ONE {
-        // cmk_binning
         for (average, chunk) in result.iter_mut().zip(chunks.iter()) {
             let sum = chunk.reduce_sum() as u32;
             *average = (step.divide_into(sum * 255) as u8).into();
         }
     } else {
         let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
-        // cmk_binning
         for (average, sub_chunk) in result.iter_mut().zip(&mut chunk_iter) {
             let sum: u32 = sub_chunk
                 .iter()
@@ -336,7 +323,6 @@ where
     result
 }
 
-// cmk_binning
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_chunk_with_simd<const LANES: usize>(chunk: &[BoolU8], step: PowerOfTwo) -> Pixel
@@ -377,72 +363,7 @@ where
     }
 }
 
-// // cmk_binning
-// #[allow(clippy::missing_panics_doc)]
-// #[must_use]
-// pub fn average_with_simd_push<const LANES: usize>(
-//     values: &AVec<BoolU8>,
-//     step: PowerOfTwo,
-// ) -> AVec<Pixel>
-// where
-//     LaneCount<LANES>: SupportedLaneCount,
-// {
-//     assert!(
-//         { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
-//         "LANES must be less than or equal to step and alignment"
-//     );
-//     let values_u8 = values.as_bytes();
-//     let values_len = values_u8.len();
-//     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values_len));
-//     let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
 
-//     let (prefix, chunks, _suffix) = values_u8.as_simd::<LANES>();
-
-//     // Since we're using AVec with 64-byte alignment, the prefix should be empty
-//     debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
-//     // Process SIMD chunks directly (each chunk is N elements)
-//     let lanes_per_chunk = step.saturating_div(lanes);
-
-//     if lanes_per_chunk == PowerOfTwo::ONE {
-//         for chunk in chunks {
-//             let sum = chunk.reduce_sum() as u32;
-//             // cmk_binning
-//             let average = step.divide_into(sum * 255) as u8;
-//             result.push(average.into());
-//         }
-//     } else {
-//         let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
-
-//         // Process complete chunks
-//         for sub_chunk in &mut chunk_iter {
-//             // Sum the values within the vector - values are just 0 or 1
-//             let sum: u32 = sub_chunk
-//                 .iter()
-//                 .map(|chunk| chunk.reduce_sum() as u32)
-//                 .sum();
-//             // cmk_binning
-//             let average = step.divide_into(sum * 255) as u8;
-//             result.push(average.into());
-//         }
-//     }
-
-//     // How many elements are unprocessed?
-//     let unused_items = step.rem_into_usize(values_len);
-//     if unused_items > 0 {
-//         // sum the last missing_items
-//         let sum: u32 = values_u8
-//             .iter()
-//             .rev()
-//             .take(unused_items)
-//             .map(|&x| x as u32)
-//             .sum();
-//         // cmk_binning
-//         let average = step.divide_into(sum * 255) as u8;
-//         result.push(average.into());
-//     }
-
-//     result
-// }
 
 #[inline]
 pub fn is_even<T>(x: T) -> bool
@@ -461,7 +382,7 @@ pub const fn prev_power_of_two(x: usize) -> usize {
     1usize << (usize::BITS as usize - x.leading_zeros() as usize - 1)
 }
 
-// cmk Can't use simd because chunks left & right may not be aligned (?) -- also not on the critical path
+// cmk
 fn compress_packed_data_if_one_too_big(
     mut packed_data: AVec<u8>,
     pixel_policy: PixelPolicy,
@@ -483,8 +404,9 @@ fn compress_packed_data_if_one_too_big(
             .zip(new_packed_data.chunks_exact_mut(x_actual as usize))
             .for_each(|(chunk, new_chunk)| {
                 let (left, right) = chunk.split_at_mut(x_actual as usize);
-                // cmk00 why binning in the inner loop?
+                // TODO why binning in the inner loop?
                 match pixel_policy {
+                    // Can't use simd because chunks left & right may not be aligned.
                     PixelPolicy::Binning => Pixel::slice_merge_bytes_no_simd(left, right),
                     PixelPolicy::Sampling => (),
                 }
@@ -500,7 +422,6 @@ pub mod test_utils {
     use crate::{Pixel, is_even};
     use aligned_vec::AVec;
 
-    // cmk_binning
     pub fn compress_x_no_simd_binning(pixels: &mut AVec<Pixel>) {
         let len = pixels.len();
         let mut write_index = 0;

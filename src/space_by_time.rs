@@ -10,12 +10,12 @@ use crate::{
 #[derive(Clone)]
 pub struct SpaceByTime {
     pub(crate) skip: u64,
-    pub(crate) vis_step: u64,             // cmk make private
-    pub(crate) x_goal: u32,               // cmk make private
-    pub(crate) y_goal: u32,               // cmk make private
-    pub(crate) y_stride: PowerOfTwo,      // cmk make private
-    pub(crate) spacelines: Spacelines,    // cmk0 consider making this private
-    pub(crate) pixel_policy: PixelPolicy, // cmk0 consider making this private
+    pub(crate) vis_step: u64,             // TODO make private
+    pub(crate) x_goal: u32,               // TODO make private
+    pub(crate) y_goal: u32,               // TODO make private
+    pub(crate) y_stride: PowerOfTwo,      // TODO make private
+    pub(crate) spacelines: Spacelines,    // TODO consider making this private
+    pub(crate) pixel_policy: PixelPolicy, // TODO consider making this private
     previous_space_line: Option<Spaceline>,
 }
 
@@ -47,7 +47,6 @@ impl SpaceByTime {
         y_goal: u32,
         pixel_policy: PixelPolicy,
     ) -> Self {
-        // cmk0 confusing to refer to both machine time and space time as "step_count"
         Self {
             skip,
             vis_step: 0,
@@ -65,16 +64,6 @@ impl SpaceByTime {
     pub const fn step_index(&self) -> u64 {
         self.vis_step + self.skip
     }
-
-    // cmk0 understand the `compress_cmk*` functions
-
-    // cmk ideas
-    // use
-    //       assert!(self.stride.is_power_of_two(), "Sample must be a power of two");
-    //       // Use bitwise AND for fast divisibility check
-    //       if self.step_index & (self.stride - 1) != 0 {
-    //  Also: Inline the top part of the function.
-    //  Maybe pre-subtract 1 from sample
 
     #[inline]
     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
@@ -175,7 +164,7 @@ impl SpaceByTime {
         let mut packed_data = AVec::with_capacity(ALIGN, x_actual * y_actual);
         packed_data.resize(x_actual * y_actual, 0u8);
 
-        // cmk0 move this into a function
+        // TODO too many lines, move this into a function
         for (spaceline, _weight) in &mut self.spacelines.buffer0 {
             if spaceline.x_stride == x_stride {
                 break;
@@ -303,7 +292,7 @@ impl SpaceByTime {
                 .map(|(mut first, second)| {
                     assert!(first.tape_start() >= second.tape_start());
 
-                    // cmk00 remove from loop?
+                    // TODO remove from loop?
                     match self.pixel_policy {
                         PixelPolicy::Binning => first.merge_simd(&second),
                         PixelPolicy::Sampling => (),

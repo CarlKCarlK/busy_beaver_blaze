@@ -199,7 +199,7 @@ impl PngDataIterator {
 
                         if next_part_index == 0 {
                             let step_index = snapshot.space_by_time.step_index();
-                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
+                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); // TODO need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
                             // The same step can be rendered to multiple places
                             for index in all_but_last {
@@ -214,7 +214,7 @@ impl PngDataIterator {
                             let space_by_time_first =
                                 space_by_time_first_outer.as_ref().unwrap().clone();
                             snapshot = snapshot.prepend(space_by_time_first);
-                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); //cmk0 need to handle
+                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); // TODO need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
                             let step_index = snapshot.space_by_time.step_index();
                             for index in all_but_last {
@@ -272,7 +272,7 @@ impl PngDataIterator {
                             space_by_time_first_outer =
                                 Some(space_by_time_first.append(space_by_time_other));
                         }
-                        // cmk000000 we don't need the whole space_by_time_machine, just the machine
+                        // TODO ??? we don't need the whole space_by_time_machine, just the machine
                         machine_first = Some(space_by_time_machine.machine);
 
                         // ...
@@ -332,7 +332,7 @@ impl PngDataIterator {
             panic!("run_handle missing");
         };
         let _ = run_handle.join();
-        // cmk00000 need to do more to shutdown threads?
+        // TODO??? need to do more to shutdown threads?
 
         space_by_time_machine
     }
@@ -362,7 +362,7 @@ impl PngDataIterator {
                 break;
             }
         }
-        // cmk00 not sure if should show last frame if self.next was none
+        // TODO not sure if should show last frame if self.next was none
         if let Some(frame_indexes) = step_index_to_frame_index.get(&(step_end - 1)) {
             let snapshot = Snapshot::new(frame_indexes.clone(), space_by_time_machine);
             let message = Message0::Snapshot {

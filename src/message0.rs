@@ -2,7 +2,8 @@ use core::cmp::Ordering;
 
 use crate::{SpaceByTimeMachine, snapshot::Snapshot};
 
-// cmk000 consider boxing, etc to make smaller
+// TODO consider boxing, etc to make smaller
+#[allow(clippy::large_enum_variant)]
 pub enum Message0 {
     Snapshot {
         part_index: usize,

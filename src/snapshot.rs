@@ -1,10 +1,10 @@
 use crate::{Error, SpaceByTime, SpaceByTimeMachine};
 
 pub struct Snapshot {
-    pub(crate) frame_indexes: Vec<usize>, // cmk make private
+    pub(crate) frame_indexes: Vec<usize>, // TODO make private
     tape_negative_len: usize,
     tape_nonnegative_len: usize,
-    pub(crate) space_by_time: SpaceByTime, // cmk make private
+    pub(crate) space_by_time: SpaceByTime, // TODO make private
 }
 
 // given a frame_index and SpaceTimeMachine, create a snapshot

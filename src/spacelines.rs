@@ -4,8 +4,8 @@ use crate::{PixelPolicy, Tape, is_even, power_of_two::PowerOfTwo, spaceline::Spa
 
 #[derive(Clone)]
 pub struct Spacelines {
-    pub(crate) main: Vec<Spaceline>,                  // cmk make private
-    pub(crate) buffer0: Vec<(Spaceline, PowerOfTwo)>, // cmk0 better names
+    pub(crate) main: Vec<Spaceline>,                  // TODO make private
+    pub(crate) buffer0: Vec<(Spaceline, PowerOfTwo)>, // TODO buffer0 could just be buffer
 }
 
 // define a debug that lists the lines of main (one spaceline per line) and then for buffer0, lists the weight and the line, one pair per line
@@ -59,7 +59,6 @@ impl Spacelines {
         }
     }
 
-    // cmk_binning
     #[allow(clippy::min_ident_chars)]
     #[inline]
     pub(crate) fn compress_y_average(&mut self) {
@@ -128,7 +127,7 @@ impl Spacelines {
         }
     }
 
-    // cmk make private
+    // TODO make private
     #[inline]
     pub(crate) fn push_internal(
         buffer0: &mut Vec<(Spaceline, PowerOfTwo)>,
