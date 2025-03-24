@@ -192,7 +192,13 @@ pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
 }
 
 #[allow(clippy::integer_division_remainder_used)]
-fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
+fn encode_png(
+    width: u32,
+    height: u32,
+    [zero_red, zero_green, zero_blue]: [u8; 3],
+    [one_red, one_green, one_blue]: [u8; 3],
+    image_data: &[u8],
+) -> Result<Vec<u8>, Error> {
     let mut buf = Vec::new();
     {
         if image_data.len() != (width * height) as usize {
@@ -202,12 +208,13 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
         encoder.set_color(ColorType::Indexed);
         encoder.set_depth(BitDepth::Eight);
 
-        // Generate a palette with 256 shades from white (255,255,255) to bright orange (255,165,0)
+        // Generate a palette with 256 shades interpolating between zero_color and one_color
         let mut palette = Vec::with_capacity(256 * 3);
-        for i in 0u16..256 {
-            let green = 255 - ((255 - 165) * i / 255); // Green fades from 255 to 165
-            let blue = 255 - (255 * i / 255); // Blue fades from 255 to 0
-            palette.extend_from_slice(&[255, green as u8, blue as u8]);
+        for i in 0..=255 {
+            let red = zero_red as i32 + ((one_red as i32 - zero_red as i32) * i / 255);
+            let green = zero_green as i32 + ((one_green as i32 - zero_green as i32) * i / 255);
+            let blue = zero_blue as i32 + ((one_blue as i32 - zero_blue as i32) * i / 255);
+            palette.extend_from_slice(&[red as u8, green as u8, blue as u8]);
         }
 
         // Set the palette before writing the header
@@ -220,7 +227,6 @@ fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Err
     };
     Ok(buf)
 }
-
 #[must_use]
 pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));

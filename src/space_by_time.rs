@@ -132,9 +132,18 @@ impl SpaceByTime {
         tape_nonnegative_len: usize,
         x_goal: usize,
         y_goal: usize,
+        zero_color: [u8; 3],
+        one_color: [u8; 3],
     ) -> Result<Vec<u8>, Error> {
-        let (png, _x, _y, _packed_data) =
-            self.to_png_and_packed_data(tape_negative_len, tape_nonnegative_len, x_goal, y_goal)?;
+        let (png, _x, _y, _packed_data) = self.to_png_and_packed_data(
+            tape_negative_len,
+            tape_nonnegative_len,
+            x_goal,
+            y_goal,
+            zero_color,
+            one_color,
+        )?;
+
         Ok(png)
     }
 
@@ -150,6 +159,8 @@ impl SpaceByTime {
         tape_nonnegative_len: usize,
         x_goal: usize,
         y_goal: usize,
+        zero_color: [u8; 3],
+        one_color: [u8; 3],
     ) -> Result<(Vec<u8>, u32, u32, AVec<u8>), Error> {
         assert!(tape_nonnegative_len > 0);
         assert!(x_goal >= 2);
@@ -212,7 +223,13 @@ impl SpaceByTime {
             y_actual as u32,
         );
 
-        let png = encode_png(x_actual as u32, y_actual, &packed_data)?;
+        let png = encode_png(
+            x_actual as u32,
+            y_actual,
+            zero_color,
+            one_color,
+            &packed_data,
+        )?;
 
         Ok((png, x_actual as u32, y_actual, packed_data))
     }

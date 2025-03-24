@@ -52,6 +52,8 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
         machine.tape.nonnegative.len(),
         goal_x as usize,
         goal_y as usize,
+        [255, 255, 255], // white
+        [255, 165, 0],   // orange
     )?;
     fs::write("tests/expected/test.png", &png_data).unwrap(); // TODO handle error
 
@@ -266,7 +268,8 @@ fn combo() {
                         //     reference_machine.space_by_time.spacelines
                         // );
                         let (reference_png_data, ref_x, ref_y, reference_packed_data) =
-                            reference_machine.png_data_and_packed_data();
+                            reference_machine
+                                .png_data_and_packed_data([255, 255, 255], [255, 165, 0]);
                         // println!("---------------");
                         for part_count in [1, 2, 5, 16] {
                             let key = format!(
@@ -280,13 +283,15 @@ fn combo() {
                                 program_string,
                                 goal_x,
                                 goal_y,
+                                [255, 255, 255], // white
+                                [255, 165, 0],   // orange
                                 binning,
                                 &[0u64; 0],
                             );
                             let mut space_by_time_machine =
                                 png_data_iterator.into_space_by_time_machine();
-                            let (png_data, x, y, packed_data) =
-                                space_by_time_machine.png_data_and_packed_data();
+                            let (png_data, x, y, packed_data) = space_by_time_machine
+                                .png_data_and_packed_data([255, 255, 255], [255, 165, 0]);
 
                             // Must be the same length and a given value can vary by no more than y_stride.log2() + x_stride.log2()
                             let last_spacetime = space_by_time_machine
@@ -348,12 +353,17 @@ fn one() {
     let mut reference_machine =
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0).unwrap();
     reference_machine.nth_js(early_stop - 2);
-    let (reference_png_data, ..) = reference_machine.png_data_and_packed_data();
+    let (reference_png_data, ..) = reference_machine.png_data_and_packed_data(
+        [255, 255, 255], // white
+        [255, 165, 0],   // orange
+    );
 
     let key = format!(
         "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
     );
     println!("{key}");
+
+    let (zero_color, one_color) = ([255, 255, 255], [255, 165, 0]); // white, orange
 
     let png_data_iterator = PngDataIterator::new(
         early_stop,
@@ -361,11 +371,13 @@ fn one() {
         program_string,
         goal_x,
         goal_y,
+        zero_color,
+        one_color,
         binning,
         &[0u64; 0],
     );
     let mut space_by_time_machine = png_data_iterator.into_space_by_time_machine();
-    let (png_data, ..) = space_by_time_machine.png_data_and_packed_data();
+    let (png_data, ..) = space_by_time_machine.png_data_and_packed_data(zero_color, one_color);
 
     // println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
     // println!("ref_packed: {ref_packed:?}");
@@ -461,6 +473,8 @@ fn frames() {
         BB6_CONTENDER,
         goal_x,
         goal_y,
+        [255, 255, 255], // white
+        [255, 165, 0],   // orange
         binning,
         frame_index_to_step_index.as_slice(),
     );
@@ -479,6 +493,8 @@ fn stop_early() {
     let part_count = 5;
     let goal_x: u32 = 1920;
     let goal_y: u32 = 1080;
+    let zero_color = [255, 255, 255]; // white
+    let one_color = [255, 165, 0]; // orange
     let binning = true;
 
     let frame_index_to_step_index = LogStepIterator::new(early_stop, frame_count).collect_vec();
@@ -488,6 +504,8 @@ fn stop_early() {
         BB5_CHAMP,
         goal_x,
         goal_y,
+        zero_color,
+        one_color,
         binning,
         &frame_index_to_step_index,
     );

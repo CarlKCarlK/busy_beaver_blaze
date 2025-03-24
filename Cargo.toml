@@ -10,7 +10,9 @@ crate-type = ["cdylib", "rlib"]
 ab_glyph = "0.2.29"
 aligned-vec = "0.6.2"
 arrayvec = "0.7.6"
-crossbeam = "0.8.4" # look at features
+crossbeam = "0.8.4"   # look at features
+csscolorparser = "0.7.0"
+
 derive_more = { version = "2.0.1", default-features = false, features = [
     "debug",
     "display",

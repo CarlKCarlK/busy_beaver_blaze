@@ -120,6 +120,8 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         program_string,
         goal_x,
         goal_y,
+        [255, 255, 255], // white
+        [255, 165, 0],   // orange
         binning,
         &log_iter,
     );

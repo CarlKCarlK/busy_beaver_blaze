@@ -20,14 +20,17 @@ pub struct PngDataIterator {
 }
 impl PngDataIterator {
     /// Creates a new `PngDataIterator` by spawning the necessary worker threads.
+    // TODO: Review all the "allow"'s
     #[must_use]
-    #[allow(clippy::missing_panics_doc)]
+    #[allow(clippy::missing_panics_doc, clippy::too_many_arguments)]
     pub fn new(
         early_stop: u64,
         part_count_goal: usize,
         program_string: &str,
         goal_x: u32,
         goal_y: u32,
+        zero_color: [u8; 3],
+        one_color: [u8; 3],
         binning: bool,
         frame_index_to_step_index: &[u64],
     ) -> Self {
@@ -76,7 +79,9 @@ impl PngDataIterator {
 
         // Spawn the thread that combines the results into PNG data.
         let combine_handle = thread::spawn(move || {
-            Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
+            Self::combine_results(
+                goal_x, goal_y, zero_color, one_color, part_count, &receiver0, &sender1,
+            )
         });
 
         Self {
@@ -156,6 +161,9 @@ impl PngDataIterator {
     fn combine_results(
         x_goal: u32,
         y_goal: u32,
+        zero_color: [u8; 3],
+        one_color: [u8; 3],
+
         part_count: usize,
         receiver0: &Receiver<Message0>,
         sender1: &Sender<(usize, u64, Vec<u8>)>,
@@ -198,7 +206,9 @@ impl PngDataIterator {
 
                         if next_part_index == 0 {
                             let step_index = snapshot.space_by_time.step_index();
-                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); // TODO need to handle
+                            let png_data = snapshot
+                                .to_png(x_goal, y_goal, zero_color, one_color)
+                                .unwrap(); // TODO need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
                             // The same step can be rendered to multiple places
                             for index in all_but_last {
@@ -213,7 +223,9 @@ impl PngDataIterator {
                             let space_by_time_first =
                                 space_by_time_first_outer.as_ref().unwrap().clone();
                             snapshot = snapshot.prepend(space_by_time_first);
-                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); // TODO need to handle
+                            let png_data = snapshot
+                                .to_png(x_goal, y_goal, zero_color, one_color)
+                                .unwrap(); // TODO need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
                             let step_index = snapshot.space_by_time.step_index();
                             for index in all_but_last {

@@ -138,16 +138,27 @@ impl SpaceByTimeMachine {
 
     #[wasm_bindgen]
     #[inline]
-    #[must_use]
-    pub fn png_data(&mut self) -> Vec<u8> {
+    pub fn to_png(&mut self, zero_color: &str, one_color: &str) -> Result<Vec<u8>, String> {
         self.space_by_time
             .to_png(
                 self.machine.tape.negative.len(),
                 self.machine.tape.nonnegative.len(),
                 self.space_by_time.x_goal as usize,
                 self.space_by_time.y_goal as usize,
+                Self::parse_color(zero_color)?,
+                Self::parse_color(one_color)?,
             )
-            .unwrap_or_else(|e| format!("{e:?}").into_bytes())
+            .map_err(|e| format!("Error creating PNG: {e}"))
+    }
+
+    // Helper function to parse CSS color strings into RGB arrays
+    fn parse_color(color_str: &str) -> Result<[u8; 3], String> {
+        csscolorparser::parse(color_str)
+            .map(|c| {
+                let rgba = c.to_rgba8();
+                [rgba[0], rgba[1], rgba[2]]
+            })
+            .map_err(|e| format!("Invalid color: {e}"))
     }
 
     // TODO why is it step_count and count_ones. That doesn't make sense.
@@ -182,13 +193,19 @@ impl SpaceByTimeMachine {
 impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
-    pub fn png_data_and_packed_data(&mut self) -> (Vec<u8>, u32, u32, AVec<u8>) {
+    pub fn png_data_and_packed_data(
+        &mut self,
+        zero_color: [u8; 3],
+        one_color: [u8; 3],
+    ) -> (Vec<u8>, u32, u32, AVec<u8>) {
         self.space_by_time
             .to_png_and_packed_data(
                 self.machine.tape.negative.len(),
                 self.machine.tape.nonnegative.len(),
                 self.space_by_time.x_goal as usize,
                 self.space_by_time.y_goal as usize,
+                zero_color,
+                one_color,
             )
             .unwrap()
     }

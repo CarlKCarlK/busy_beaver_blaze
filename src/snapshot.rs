@@ -22,12 +22,20 @@ impl Snapshot {
     }
 
     #[allow(clippy::wrong_self_convention)]
-    pub(crate) fn to_png(&mut self, x_goal: u32, y_goal: u32) -> Result<Vec<u8>, Error> {
+    pub(crate) fn to_png(
+        &mut self,
+        x_goal: u32,
+        y_goal: u32,
+        zero_color: [u8; 3],
+        one_color: [u8; 3],
+    ) -> Result<Vec<u8>, Error> {
         self.space_by_time.to_png(
             self.tape_negative_len,
             self.tape_nonnegative_len,
             x_goal as usize,
             y_goal as usize,
+            zero_color,
+            one_color,
         )
     }
 
