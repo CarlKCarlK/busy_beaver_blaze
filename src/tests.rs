@@ -10,7 +10,8 @@ use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    env, fs,
+    path::PathBuf,
 };
 use thousands::Separable;
 
@@ -479,11 +480,21 @@ fn frames() {
         frame_index_to_step_index.as_slice(),
     );
 
+    let folder = test_output_dir("bb/frames_test2");
     for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
-        let cmk_file = format!(r"M:\deldir\bb\frames_test2\cmk{frame_index:07}.png");
+        let cmk_file = folder.join(format!("cmk{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
         fs::write(cmk_file, &png_data).unwrap();
     }
+}
+
+fn test_output_dir(subfolder: &str) -> PathBuf {
+    let dir = env::var_os("TEST_TMPDIR")
+        .map_or_else(env::temp_dir, PathBuf::from)
+        .join(subfolder);
+    fs::create_dir_all(&dir).expect("Failed to create test output directory");
+
+    dir
 }
 
 #[test]
@@ -493,8 +504,8 @@ fn stop_early() {
     let part_count = 5;
     let goal_x: u32 = 1920;
     let goal_y: u32 = 1080;
-    let zero_color = [255, 255, 255]; // white
-    let one_color = [255, 165, 0]; // orange
+    let zero_color = [0, 0, 0]; // black
+    let one_color = [255, 255, 255]; // white
     let binning = true;
 
     let frame_index_to_step_index = LogStepIterator::new(early_stop, frame_count).collect_vec();
@@ -510,11 +521,10 @@ fn stop_early() {
         &frame_index_to_step_index,
     );
 
-    let output_dir = r"M:\deldir\bb\stop_early";
-    fs::create_dir_all(output_dir).unwrap();
+    let output_dir = test_output_dir("bb/stop_early");
 
     for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
-        let cmk_file = format!(r"{output_dir}\cmk{frame_index:07}.png");
+        let cmk_file = output_dir.join(format!("cmk{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
         fs::write(cmk_file, &png_data).unwrap();
     }

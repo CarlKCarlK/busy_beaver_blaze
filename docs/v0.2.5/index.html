@@ -133,6 +133,10 @@
                 </label>
                 <span>Quality</span>
             </div>
+            <label style="margin-left: 0.5em;">
+                <input type="checkbox" id="darkMode">
+                Dark
+            </label>
         </div>
         <button id="runButton">Run</button>
         <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
@@ -196,6 +200,9 @@
 
             const binning = document.getElementById('binning');
             if (!binning.checked) params.set('binning', 'false');
+            
+            const darkMode = document.getElementById('darkMode');
+            if (darkMode.checked) params.set('dark', 'true');
 
             // Update URL without reloading
             window.location.hash = params.toString();
@@ -236,6 +243,10 @@
 
             if (params.has('binning')) {
                 document.getElementById('binning').checked = params.get('binning') === 'true';
+            }
+            
+            if (params.has('dark')) {
+                document.getElementById('darkMode').checked = params.get('dark') === 'true';
             }
 
             // Return whether we should auto-run
@@ -414,7 +425,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                             goal_x,
                             goal_y,
                             early_stop,
-                            binning: document.getElementById('binning').checked
+                            binning: document.getElementById('binning').checked,
+                            darkMode: document.getElementById('darkMode').checked
                         });
                     });
 
@@ -485,9 +497,48 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 updateHashFromUI();
             });
 
+            // Function to reset the image container to show instructions
+            function resetImageContainer() {
+                const container = document.getElementById('imageContainer');
+                // Only reset if there's an image currently displayed
+                if (container.querySelector('img')) {
+                    container.innerHTML = `No diagram yet
+                        <br><br>
+                        Tips:
+                        <ul style="margin-top: 0.5em; text-align: left;">
+                            <li>Press "Run" to start.</li>
+                            <li>Try changing the Stop Early steps.</li>
+                            <li>Select programs or edit/paste them.</li>
+                            <li>It accepts programs in 3 popular formats:
+                                <ul>
+                                    <li>Symbol Major</li>
+                                    <li>State Major</li>
+                                    <li>BB Challenge Standard Format</li>
+                                </ul>
+                            </li>
+                            <li>Supports billions and billions of steps. OK, to turn off Stop Early.</li>
+                            <li>Choose "Quality" for full pixel averaging or "Speed" for fast sampling.</li>
+                            <li>You can set settings via the URL hash fragment, for example, <code>#program=bb5&earlyStop=false</code>. Include <code>run=true</code> to run the program immediately.</li>
+                        </ul>`;
+                    
+                    // Reset status counters
+                    document.getElementById('stepCount').textContent = '-';
+                    document.getElementById('onesCount').textContent = '-';
+                    document.getElementById('haltedStatus').textContent = '-';
+                    document.getElementById('runTime').textContent = 'not run yet';
+                }
+            }
+
             // Add event listener for binning control
             document.getElementById('binning').addEventListener('change', () => {
                 updateHashFromUI();
+                resetImageContainer();
+            });
+
+            // Add event listener for dark mode control
+            document.getElementById('darkMode').addEventListener('change', () => {
+                updateHashFromUI();
+                resetImageContainer();
             });
 
             // Initial custom size visibility

@@ -3,7 +3,7 @@
 **A Turing machine interpreter and space-time visualizer, implemented in Rust and compiled to native & WebAssembly.**
 
 - [Run this program in your web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
-- Watch [an animation](https://youtu.be/IBcJ2vRHGAY) made with this program.
+- Watch [an animation](https://www.youtube.com/watch?v=qYi5_mNLppY) made with this program.
 
 ## Features
 
