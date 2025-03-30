@@ -172,13 +172,9 @@ fn save_frame(
     fs::create_dir_all(metadata_file_name.parent().unwrap())?;
 
     #[cfg(target_os = "linux")]
-    let font_data = include_bytes!(
-        r"/mnt/c/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.21.10351.0_x64__8wekyb3d8bbwe/CascadiaMono.ttf"
-    );
+    let font_data = include_bytes!(r"/mnt/c/Windows/Fonts/CascadiaMono.ttf");
     #[cfg(target_os = "windows")]
-    let font_data = include_bytes!(
-        r"C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_1.21.10351.0_x64__8wekyb3d8bbwe\CascadiaMono.ttf"
-    );
+    let font_data = include_bytes!(r"C:\Windows\Fonts\CascadiaMono.ttf");
 
     let font = FontArc::try_from_slice(font_data).map_err(|_| "Failed to load font")?;
 
