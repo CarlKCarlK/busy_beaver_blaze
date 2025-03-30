@@ -40,62 +40,62 @@ impl<T: Decrementable> CountDownMut for T {
     }
 }
 
-fn sum(a: u32, sum: &mut BigUint) {
+fn sum(a: u32, sum_acc: &mut BigUint) {
     for _ in 0..a {
-        *sum += 1u32;
+        *sum_acc += 1u32;
     }
 }
 
-fn product(a: u32, product: &mut BigUint) {
-    let mut sum = BigUint::ZERO;
-    for () in product.count_down() {
+fn product(a: u32, product_acc: &mut BigUint) {
+    let mut sum_acc = BigUint::ZERO;
+    for () in product_acc.count_down() {
         for _ in 0..a {
-            sum += 1u32;
+            sum_acc += 1u32;
         }
     }
-    *product = sum;
+    *product_acc = sum_acc;
 }
 
-fn power(a: u32, power: &mut BigUint) {
+fn power(a: u32, power_acc: &mut BigUint) {
     assert!(
-        a > 0 || *power > BigUint::ZERO,
+        a > 0 || *power_acc > BigUint::ZERO,
         "a must be greater than 0 or power greater than 0"
     );
 
-    let mut product = BigUint::ZERO;
-    product += 1u32;
-    for () in power.count_down() {
-        let mut sum = BigUint::ZERO;
-        for () in product.count_down() {
+    let mut product_acc = BigUint::ZERO;
+    product_acc += 1u32;
+    for () in power_acc.count_down() {
+        let mut sum_acc = BigUint::ZERO;
+        for () in product_acc.count_down() {
             for _ in 0..a {
-                sum += 1u32;
+                sum_acc += 1u32;
             }
         }
-        product = sum;
+        product_acc = sum_acc;
     }
-    *power = product;
+    *power_acc = product_acc;
 }
 
-fn tetrate(a: u32, tetration: &mut BigUint) {
+fn tetration(a: u32, tetration_acc: &mut BigUint) {
     assert!(a > 0, "a must be greater than 0");
 
-    let mut power = BigUint::ZERO;
-    power += 1u32;
-    for () in tetration.count_down() {
-        let mut product = BigUint::ZERO;
-        product += 1u32;
-        for () in power.count_down() {
-            let mut sum = BigUint::ZERO;
-            for () in product.count_down() {
+    let mut power_acc = BigUint::ZERO;
+    power_acc += 1u32;
+    for () in tetration_acc.count_down() {
+        let mut product_acc = BigUint::ZERO;
+        product_acc += 1u32;
+        for () in power_acc.count_down() {
+            let mut sum_acc = BigUint::ZERO;
+            for () in product_acc.count_down() {
                 for _ in 0..a {
-                    sum += 1u32;
+                    sum_acc += 1u32;
                 }
             }
-            product = sum;
+            product_acc = sum_acc;
         }
-        power = product;
+        power_acc = product_acc;
     }
-    *tetration = power;
+    *tetration_acc = power_acc;
 }
 
 #[allow(clippy::shadow_reuse)]
@@ -125,7 +125,7 @@ fn main() {
     let a = 2;
     let mut b = BigUint::from(4u32);
     print!("{a}↑↑{b}\t= ");
-    tetrate(a, &mut b);
+    tetration(a, &mut b);
     assert_eq!(b, BigUint::from(65536u32));
     println!("{b}");
 }
