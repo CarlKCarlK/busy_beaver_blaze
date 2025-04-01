@@ -1,5 +1,11 @@
 # Useful Commands
 
+## Python Dev mode
+
+```bash
+uv pip install -e .
+```
+
 ## Run Fastest
 
 ```bash

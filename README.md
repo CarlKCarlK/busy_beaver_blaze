@@ -4,6 +4,7 @@
 
 - [Run this program in your web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
 - Watch [an animation](https://www.youtube.com/watch?v=qYi5_mNLppY) made with this program.
+- Read [How to Optimize your Rust Program for Slowness](https://medium.com/@carlmkadie/how-to-optimize-your-rust-program-for-slowness-eb2c1a64d184), an article about this project.
 
 ## Features
 
