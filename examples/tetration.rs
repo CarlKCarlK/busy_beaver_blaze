@@ -40,92 +40,109 @@ impl<T: Decrementable> CountDownMut for T {
     }
 }
 
-fn sum(a: u32, sum_acc: &mut BigUint) {
+fn increment(increment_acc: &mut BigUint) {
+    *increment_acc += 1u32;
+}
+
+fn add(a: u32, add_acc: &mut BigUint) {
     for _ in 0..a {
-        *sum_acc += 1u32;
+        // We in-line `increment` manually, to keep our work explicit.
+        *add_acc += 1u32;
     }
 }
 
-fn product(a: u32, product_acc: &mut BigUint) {
-    let mut sum_acc = BigUint::ZERO;
-    for () in product_acc.count_down() {
+fn multiply(a: u32, multiply_acc: &mut BigUint) {
+    let mut add_acc = BigUint::ZERO;
+    for () in multiply_acc.count_down() {
         for _ in 0..a {
-            sum_acc += 1u32;
+            add_acc += 1u32;
         }
     }
-    *product_acc = sum_acc;
+    *multiply_acc = add_acc;
 }
 
-fn power(a: u32, power_acc: &mut BigUint) {
+fn exponentiate(a: u32, exponentiate_acc: &mut BigUint) {
     assert!(
-        a > 0 || *power_acc > BigUint::ZERO,
-        "a must be greater than 0 or power greater than 0"
+        a > 0 || *exponentiate_acc != BigUint::ZERO,
+        "0^0 is undefined"
     );
 
-    let mut product_acc = BigUint::ZERO;
-    product_acc += 1u32;
-    for () in power_acc.count_down() {
-        let mut sum_acc = BigUint::ZERO;
-        for () in product_acc.count_down() {
+    let mut multiply_acc = BigUint::ZERO;
+    multiply_acc += 1u32;
+    for () in exponentiate_acc.count_down() {
+        let mut add_acc = BigUint::ZERO;
+        for () in multiply_acc.count_down() {
             for _ in 0..a {
-                sum_acc += 1u32;
+                add_acc += 1u32;
             }
         }
-        product_acc = sum_acc;
+        multiply_acc = add_acc;
     }
-    *power_acc = product_acc;
+    *exponentiate_acc = multiply_acc;
 }
 
-fn tetration(a: u32, tetration_acc: &mut BigUint) {
-    assert!(a > 0, "a must be greater than 0");
+fn tetrate(a: u32, tetrate_acc: &mut BigUint) {
+    assert!(a > 0, "we don’t define 0↑↑b");
 
-    let mut power_acc = BigUint::ZERO;
-    power_acc += 1u32;
-    for () in tetration_acc.count_down() {
-        let mut product_acc = BigUint::ZERO;
-        product_acc += 1u32;
-        for () in power_acc.count_down() {
-            let mut sum_acc = BigUint::ZERO;
-            for () in product_acc.count_down() {
+    let mut exponentiate_acc = BigUint::ZERO;
+    exponentiate_acc += 1u32;
+    for () in tetrate_acc.count_down() {
+        let mut multiply_acc = BigUint::ZERO;
+        multiply_acc += 1u32;
+        for () in exponentiate_acc.count_down() {
+            let mut add_acc = BigUint::ZERO;
+            for () in multiply_acc.count_down() {
                 for _ in 0..a {
-                    sum_acc += 1u32;
+                    add_acc += 1u32;
                 }
             }
-            product_acc = sum_acc;
+            multiply_acc = add_acc;
         }
-        power_acc = product_acc;
+        exponentiate_acc = multiply_acc;
     }
-    *tetration_acc = power_acc;
+    *tetrate_acc = exponentiate_acc;
 }
 
 #[allow(clippy::shadow_reuse)]
 #[allow(clippy::shadow_unrelated)]
 fn main() {
+    let mut b = BigUint::from(4u32);
+    print!("{b}++\t= ");
+    increment(&mut b);
+    assert_eq!(b, BigUint::from(5u32));
+    println!("{b}");
+
     let a = 2;
     let mut b = BigUint::from(4u32);
     print!("{a} + {b}\t= ");
-    sum(a, &mut b);
+    add(a, &mut b);
     assert_eq!(b, BigUint::from(6u32));
     println!("{b}");
 
     let a = 2;
     let mut b = BigUint::from(4u32);
     print!("{a} * {b}\t= ");
-    product(a, &mut b);
+    multiply(a, &mut b);
     assert_eq!(b, BigUint::from(8u32));
     println!("{b}");
 
     let a = 2;
     let mut b = BigUint::from(4u32);
     print!("{a}^{b}\t= ");
-    power(a, &mut b);
+    exponentiate(a, &mut b);
     assert_eq!(b, BigUint::from(16u32));
     println!("{b}");
 
     let a = 2;
     let mut b = BigUint::from(4u32);
     print!("{a}↑↑{b}\t= ");
-    tetration(a, &mut b);
+    tetrate(a, &mut b);
     assert_eq!(b, BigUint::from(65536u32));
     println!("{b}");
+
+    // let a = 10;
+    // let mut b = BigUint::from(15u32);
+    // print!("{a}↑↑{b}\t= ");
+    // tetrate(a, &mut b);
+    // println!("{b}");
 }
