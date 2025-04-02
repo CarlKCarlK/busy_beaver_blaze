@@ -4,6 +4,8 @@
 
 ```bash
 uv pip install -e .
+uv pip install -e ".[dev]"
+python -m pytest
 ```
 
 ## Run Fastest

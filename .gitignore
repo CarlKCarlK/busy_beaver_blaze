@@ -1,4 +1,5 @@
 /target
 del.s
 src/busy_beaver_blaze.egg-info/*
-busy_beaver_blaze/__pycache__/*
+**/__pycache__/*
+
