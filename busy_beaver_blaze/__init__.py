@@ -284,11 +284,11 @@ class Program:
 
 
 class Machine:
-    def __init__(self, program, tape=None):
+    def __init__(self, program):
         self.state = 0
         self.tape_index = 0
-        self.tape = tape if tape is not None else Tape()
-        self.program = program
+        self.tape = Tape()
+        self.program = Program.from_text(program)
 
     def __iter__(self):
         return self
@@ -318,15 +318,111 @@ class Machine:
         else:
             raise StopIteration
 
-    def step(self):
-        try:
-            return next(self)
-        except StopIteration:
-            return None
-
     def is_halted(self):
         return self.state >= self.program.state_count
 
     def count_ones(self):
         """Count the number of 1s on the tape"""
         return self.tape.count_ones()
+
+
+def test_machine_halting():
+    """Test that a specific machine halts after the expected number of steps with the correct number of ones."""
+    import itertools
+
+    machine = Machine("1RB1LC_0LA0LD_1LA1RZ_1LB1RE_0RD0RB")
+    step_limit = 10_000_000
+
+    # Count steps until halting or limit
+    steps_run = sum(1 for _ in itertools.islice(machine, step_limit))
+    ones_count = machine.count_ones()
+    is_halted = machine.is_halted()
+
+    # Check results
+    expected_steps = 2_133_492
+    expected_ones = 1_915
+    assert is_halted, "Machine did not halt as expected"
+
+    assert steps_run == expected_steps, (
+        f"Expected {expected_steps} steps, got {steps_run}"
+    )
+    assert ones_count == expected_ones, (
+        f"Expected {expected_ones} ones, got {ones_count}"
+    )
+
+    print(
+        f"Test passed: Machine halted after {steps_run:,} steps with {ones_count:,} ones on the tape"
+    )
+
+
+def test_machine_non_halting():
+    """Test a machine that doesn't halt within a step limit but has the expected number of ones."""
+    import itertools
+
+    # Multi-line format as specified in the comment
+    program_text = """0	1
+A	1RB	0RE
+B	0RC	0RA
+C	1LD	---
+D	1LA	0LB
+E	1RA	0LC"""
+
+    machine = Machine(program_text)
+    step_limit = 100_000
+
+    # Run for up to the step limit
+    steps_run = sum(1 for _ in itertools.islice(machine, step_limit))
+    ones_count = machine.count_ones()
+    is_halted = machine.is_halted()
+
+    # Check results
+    expected_steps = step_limit  # Should reach the limit without halting
+    expected_ones = 49
+
+    assert not is_halted, "Machine unexpectedly halted"
+
+    assert steps_run == expected_steps, (
+        f"Expected {expected_steps} steps, got {steps_run}"
+    )
+    assert ones_count == expected_ones, (
+        f"Expected {expected_ones} ones, got {ones_count}"
+    )
+    assert not machine.is_halted(), "Machine unexpectedly halted"
+
+    print(
+        f"Test passed: Machine ran for {steps_run:,} steps without halting, with {ones_count} ones on the tape"
+    )
+
+
+def test_machine_transposed_format():
+    """Test a machine defined in the transposed format (symbol-to-state)."""
+    import itertools
+
+    # Transposed format (symbol-to-state)
+    program_text = """    A   B   C   D   E
+0   1RB 1LC 1LA 1RA 1LE
+1   1RE 1RD 0LC --- 0RB"""
+
+    machine = Machine(program_text)
+    step_limit = 10
+
+    # Run for exactly 10 steps
+    steps_run = sum(1 for _ in itertools.islice(machine, step_limit))
+    ones_count = machine.count_ones()
+    is_halted = machine.is_halted()
+
+    # Check results
+    expected_steps = step_limit
+    expected_ones = 5
+
+    assert not is_halted, "Machine unexpectedly halted"
+    assert steps_run == expected_steps, (
+        f"Expected {expected_steps} steps, got {steps_run}"
+    )
+    assert ones_count == expected_ones, (
+        f"Expected {expected_ones} ones, got {ones_count}"
+    )
+
+    print(
+        f"Test passed: Machine ran for {steps_run} steps without halting, with {ones_count} ones on the tape"
+    )
