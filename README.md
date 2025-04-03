@@ -6,6 +6,11 @@
 - Watch [an animation](https://www.youtube.com/watch?v=qYi5_mNLppY) made with this program.
 - Read [How to Optimize your Rust Program for Slowness](https://medium.com/@carlmkadie/how-to-optimize-your-rust-program-for-slowness-eb2c1a64d184), an article about this project.
 
+## Articles
+
+- Rust: [How to Optimize your Rust Program for Slowness: Write a Short Program That Finishes After the Universe Dies](https://medium.com/@carlmkadie/how-to-optimize-your-rust-program-for-slowness-eb2c1a64d184)
+- Python: *Coming soon*  Python version of the article. Watch for it [@carlkadie.bsky.social](https://bsky.app/profile/carlkadie.bsky.social).
+
 ## Features
 
 - Run the champion [Busy Beaver](https://en.wikipedia.org/wiki/Busy_beaver) Turing machines for millions of steps in less than a second.

@@ -107,7 +107,7 @@ fn tetrate(a: u32, tetrate_acc: &mut BigUint) {
 #[allow(clippy::shadow_unrelated)]
 fn main() {
     let mut b = BigUint::from(4u32);
-    print!("{b}++\t= ");
+    print!("++{b}\t= ");
     increment(&mut b);
     assert_eq!(b, BigUint::from(5u32));
     println!("{b}");
