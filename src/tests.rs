@@ -33,9 +33,11 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
         .next()
         .filter(|_| early_stop.is_none_or(|stop| sample_space_by_time.step_index() + 1 < stop))
     {
-        if debug_interval
-            .is_none_or(|debug_interval| sample_space_by_time.step_index() % debug_interval == 0)
-        {
+        if debug_interval.is_none_or(|debug_interval| {
+            sample_space_by_time
+                .step_index()
+                .is_multiple_of(debug_interval)
+        }) {
             println!(
                 "Step {}: {:?},\t{}",
                 sample_space_by_time.step_index().separate_with_commas(),

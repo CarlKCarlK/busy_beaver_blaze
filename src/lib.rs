@@ -1,6 +1,4 @@
 #![feature(portable_simd)]
-#![feature(array_chunks)]
-#![feature(let_chains)]
 
 // Add the tests module
 #[cfg(test)]

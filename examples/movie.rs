@@ -248,14 +248,13 @@ fn create_sequential_subdir(top_dir: &str) -> std::io::Result<(PathBuf, u32)> {
     // Find the highest numbered subdirectory
     let mut max_num = 0;
     for entry in entries.flatten() {
-        if entry.path().is_dir() {
-            if let Some(num) = entry
+        if entry.path().is_dir()
+            && let Some(num) = entry
                 .file_name()
                 .to_str()
                 .and_then(|name| name.parse::<u32>().ok())
-            {
-                max_num = max_num.max(num);
-            }
+        {
+            max_num = max_num.max(num);
         }
     }
 

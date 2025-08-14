@@ -137,6 +137,7 @@ impl PowerOfTwo {
 
     #[inline]
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub const fn from_usize(value: usize) -> Self {
         assert!(value.is_power_of_two(), "Value must be a power of two");
         Self::from_exp(value.trailing_zeros() as u8)

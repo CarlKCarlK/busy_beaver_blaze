@@ -28,14 +28,14 @@ impl<T: Decrementable> Iterator for CountDownMutRef<'_, T> {
 }
 
 trait CountDownMut {
-    fn count_down(&mut self) -> CountDownMutRef<Self>
+    fn count_down(&mut self) -> CountDownMutRef<'_, Self>
     where
         Self: Sized + Decrementable;
 }
 
 impl<T: Decrementable> CountDownMut for T {
     #[inline]
-    fn count_down(&mut self) -> CountDownMutRef<T> {
+    fn count_down(&mut self) -> CountDownMutRef<'_, T> {
         CountDownMutRef { current: self }
     }
 }
