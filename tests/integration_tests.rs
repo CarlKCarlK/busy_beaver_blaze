@@ -17,14 +17,14 @@ fn bb5_champ() -> Result<(), Error> {
     let step_count = machine.debug_count(debug_interval);
 
     println!(
-        "Final: Steps {}: {:?}, #1's {}",
+        "Final: Steps {}: {:?}, #non0's {}",
         step_count.separate_with_commas(),
         machine,
-        machine.count_ones()
+        machine.count_nonzeros()
     );
 
     assert_eq!(step_count, 47_176_870);
-    assert_eq!(machine.count_ones(), 4098);
+    assert_eq!(machine.count_nonzeros(), 4098);
     assert_eq!(machine.state(), 7);
     assert_eq!(machine.tape_index(), -12242);
 
@@ -41,14 +41,14 @@ fn bb5_champ_js() -> Result<(), String> {
     let step_count = machine.count_js(early_stop_some, early_stop_number);
 
     println!(
-        "Final: Steps {}: {:?}, #1's {}",
+        "Final: Steps {}: {:?}, #non0's {}",
         step_count.separate_with_commas(),
         machine,
-        machine.count_ones()
+        machine.count_nonzeros()
     );
 
     assert_eq!(step_count, 47_176_870);
-    assert_eq!(machine.count_ones(), 4098);
+    assert_eq!(machine.count_nonzeros(), 4098);
     assert_eq!(machine.state(), 7);
     assert_eq!(machine.tape_index(), -12242);
 
@@ -68,25 +68,25 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
 
     while space_by_time_machine.nth_js(n - 1) {
         println!(
-            "Index {}: {:?}, #1's {}",
+            "Index {}: {:?}, #non0's {}",
             space_by_time_machine.step_index().separate_with_commas(),
             space_by_time_machine.machine(),
-            space_by_time_machine.count_ones()
+            space_by_time_machine.count_nonzeros()
         );
     }
 
     println!(
-        "Final: Steps {}: {:?}, #1's {}",
+        "Final: Steps {}: {:?}, #non0's {}",
         space_by_time_machine.step_index().separate_with_commas(),
         space_by_time_machine.machine(),
-        space_by_time_machine.count_ones()
+        space_by_time_machine.count_nonzeros()
     );
 
     let png_data = space_by_time_machine.to_png("white", "orange")?;
     fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
-    assert_eq!(space_by_time_machine.count_ones(), 4098);
+    assert_eq!(space_by_time_machine.count_nonzeros(), 4098);
     assert_eq!(space_by_time_machine.state(), 7);
     assert_eq!(space_by_time_machine.tape_index(), -12242);
 
@@ -106,18 +106,18 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
 
     while space_by_time_machine.step_for_secs_js(seconds, None, 100_000) {
         println!(
-            "Index {}: {:?}, #1's {}",
+            "Index {}: {:?}, #non0's {}",
             space_by_time_machine.step_index().separate_with_commas(),
             space_by_time_machine.machine(),
-            space_by_time_machine.count_ones()
+            space_by_time_machine.count_nonzeros()
         );
     }
 
     println!(
-        "Final: Steps {}: {:?}, #1's {}",
+        "Final: Steps {}: {:?}, #non0's {}",
         space_by_time_machine.step_index().separate_with_commas(),
         space_by_time_machine.machine(),
-        space_by_time_machine.count_ones()
+        space_by_time_machine.count_nonzeros()
     );
 
     let png_data = space_by_time_machine.to_png("white", "orange")?;
@@ -125,7 +125,7 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
         .map_err(|error: std::io::Error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
-    assert_eq!(space_by_time_machine.count_ones(), 4098);
+    assert_eq!(space_by_time_machine.count_nonzeros(), 4098);
     assert_eq!(space_by_time_machine.state(), 7);
     assert_eq!(space_by_time_machine.tape_index(), -12242);
 
@@ -173,14 +173,14 @@ fn benchmark1() -> Result<(), String> {
     println!("Elapsed: {:?}", start.elapsed());
 
     println!(
-        "Final: Steps {}: {:?}, #1's {}",
+        "Final: Steps {}: {:?}, #non0's {}",
         space_by_time_machine.step_index().separate_with_commas(),
         space_by_time_machine.machine(),
-        space_by_time_machine.count_ones()
+        space_by_time_machine.count_nonzeros()
     );
 
     assert_eq!(space_by_time_machine.step_index(), n);
-    assert_eq!(space_by_time_machine.count_ones(), 10669);
+    assert_eq!(space_by_time_machine.count_nonzeros(), 10669);
     assert_eq!(space_by_time_machine.state(), 1);
     assert_eq!(space_by_time_machine.tape_index(), 34054);
 
@@ -232,12 +232,12 @@ fn benchmark2() -> Result<(), String> {
 
         // Send intermediate update
         println!(
-            "intermediate: {:?} Steps {}: {:?}, #1's {}",
+            "intermediate: {:?} Steps {}: {:?}, #non0's {}",
             0,
             // start.elapsed(),
             space_by_time_machine.step_index().separate_with_commas(),
             space_by_time_machine.machine(),
-            space_by_time_machine.count_ones()
+            space_by_time_machine.count_nonzeros()
         );
 
         // let _png_data = space_by_time_machine.png_data();
@@ -251,11 +251,11 @@ fn benchmark2() -> Result<(), String> {
     // Send final result
 
     println!(
-        "Final: {:?} Steps {}: {:?}, #1's {}",
+        "Final: {:?} Steps {}: {:?}, #non0's {}",
         0, // start.elapsed(),
         space_by_time_machine.step_index().separate_with_commas(),
         space_by_time_machine.machine(),
-        space_by_time_machine.count_ones(),
+        space_by_time_machine.count_nonzeros(),
     );
 
     Ok(())
@@ -283,7 +283,7 @@ fn benchmark3() -> Result<(), String> {
             "{}\t{}\t{}\t{}",
             binning,
             space_by_time_machine.step_count(),
-            space_by_time_machine.count_ones(),
+            space_by_time_machine.count_nonzeros(),
             elapsed
         );
 
@@ -348,12 +348,12 @@ fn benchmark63() -> Result<(), String> {
 
         // Send intermediate update
         println!(
-            "intermediate: {:?} Steps {}: {:?}, #1's {}",
+            "intermediate: {:?} Steps {}: {:?}, #non0's {}",
             0,
             // start.elapsed(),
             space_by_time_machine.step_index().separate_with_commas(),
             space_by_time_machine.machine(),
-            space_by_time_machine.count_ones()
+            space_by_time_machine.count_nonzeros()
         );
 
         // let _png_data = space_by_time_machine.png_data();
@@ -367,11 +367,11 @@ fn benchmark63() -> Result<(), String> {
     // Send final result
 
     println!(
-        "Final: {:?} Steps {}: {:?}, #1's {}",
+        "Final: {:?} Steps {}: {:?}, #non0's {}",
         0, // start.elapsed(),
         space_by_time_machine.step_index().separate_with_commas(),
         space_by_time_machine.machine(),
-        space_by_time_machine.count_ones(),
+        space_by_time_machine.count_nonzeros(),
     );
 
     // TODO LATER what is one method png_data and another to to_png?

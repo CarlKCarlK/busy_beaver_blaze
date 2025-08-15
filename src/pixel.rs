@@ -213,6 +213,7 @@ impl From<&u32> for Pixel {
 // cmk000000000
 impl From<SymbolU8> for Pixel {
     fn from(symbol_u8: SymbolU8) -> Self {
+        // todo!("Implement conversion from SymbolU8 to Pixel");
         Self(u8::from(symbol_u8) * 255) // Maps 0 → 0, 1 → 255
     }
 }

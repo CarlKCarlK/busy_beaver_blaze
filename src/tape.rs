@@ -58,11 +58,12 @@ impl Tape {
         }
     }
 
-    pub fn count_ones(&self) -> usize {
+    #[must_use]
+    pub fn count_nonzeros(&self) -> usize {
         self.nonnegative
             .iter()
-            .chain(self.negative.iter()) // Combine both vectors
-            .map(usize::from)
+            .chain(self.negative.iter())
+            .map(|&x| (x != SymbolU8::STATE_ZERO) as usize)
             .sum()
     }
 

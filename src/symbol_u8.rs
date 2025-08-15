@@ -23,6 +23,7 @@ impl SymbolU8 {
     pub const STATE_TWO: Self = Self(2);
     pub const STATE_THREE: Self = Self(3);
     pub const STATE_FOUR: Self = Self(4);
+    // cmk what if more than 5 states?
 }
 
 impl From<SymbolU8> for u8 {

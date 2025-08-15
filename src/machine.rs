@@ -26,8 +26,8 @@ impl Machine {
     #[wasm_bindgen]
     #[inline]
     #[must_use]
-    pub fn count_ones(&self) -> u32 {
-        self.tape.count_ones() as u32
+    pub fn count_nonzeros(&self) -> u32 {
+        self.tape.count_nonzeros() as u32
     }
 
     #[wasm_bindgen]
@@ -188,6 +188,10 @@ impl Program {
         let next_symbol = match asciis[0] {
             b'0' => SymbolU8::STATE_ZERO,
             b'1' => SymbolU8::STATE_ONE,
+            b'2' => SymbolU8::STATE_TWO,
+            b'3' => SymbolU8::STATE_THREE,
+            b'4' => SymbolU8::STATE_FOUR,
+            // cmk catch at compile time?
             _ => return Err(Error::InvalidChar),
         };
         let direction = match asciis[1] {
