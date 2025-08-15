@@ -1,7 +1,7 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
     PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
-    bool_u8::BoolU8, find_x_stride, pixel::Pixel, spaceline::Spaceline,
+    find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol_u8::SymbolU8,
     test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
@@ -87,15 +87,15 @@ fn test_average() {
     let values = AVec::from_iter(
         ALIGN,
         [
-            BoolU8::FALSE,
-            BoolU8::FALSE,
-            BoolU8::FALSE,
-            BoolU8::TRUE,
-            BoolU8::TRUE,
-            BoolU8::FALSE,
-            BoolU8::TRUE,
-            BoolU8::TRUE,
-            BoolU8::TRUE,
+            SymbolU8::STATE_ZERO,
+            SymbolU8::STATE_ZERO,
+            SymbolU8::STATE_ZERO,
+            SymbolU8::STATE_ONE,
+            SymbolU8::STATE_ONE,
+            SymbolU8::STATE_ZERO,
+            SymbolU8::STATE_ONE,
+            SymbolU8::STATE_ONE,
+            SymbolU8::STATE_ONE,
         ]
         .iter()
         .copied(),

@@ -5,7 +5,6 @@
 mod tests;
 
 // Add modules
-mod bool_u8;
 mod log_step_iterator;
 mod machine;
 mod message0;
@@ -18,14 +17,15 @@ mod space_by_time;
 mod space_by_time_machine;
 mod spaceline;
 mod spacelines;
+mod symbol_u8;
 mod tape;
 
 use aligned_vec::AVec;
-use bool_u8::BoolU8;
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
 use snapshot::Snapshot;
+use symbol_u8::SymbolU8;
 use thousands::Separable;
 use zerocopy::IntoBytes;
 // Export types from modules
@@ -226,7 +226,7 @@ fn encode_png(
     Ok(buf)
 }
 #[must_use]
-pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
+pub fn average_with_iterators(values: &AVec<SymbolU8>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks
@@ -251,7 +251,7 @@ pub fn average_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<P
 }
 
 #[must_use]
-pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel> {
+pub fn sample_with_iterators(values: &AVec<SymbolU8>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks
@@ -272,7 +272,10 @@ pub fn sample_with_iterators(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pi
 // TODO move this to tape and give a better name
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
-pub fn average_with_simd<const LANES: usize>(values: &AVec<BoolU8>, step: PowerOfTwo) -> AVec<Pixel>
+pub fn average_with_simd<const LANES: usize>(
+    values: &AVec<SymbolU8>,
+    step: PowerOfTwo,
+) -> AVec<Pixel>
 where
     LaneCount<LANES>: SupportedLaneCount,
 {
@@ -329,7 +332,7 @@ where
 
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
-pub fn average_chunk_with_simd<const LANES: usize>(chunk: &[BoolU8], step: PowerOfTwo) -> Pixel
+pub fn average_chunk_with_simd<const LANES: usize>(chunk: &[SymbolU8], step: PowerOfTwo) -> Pixel
 where
     LaneCount<LANES>: SupportedLaneCount,
 {

@@ -1,17 +1,17 @@
 use crate::ALIGN;
-use crate::BoolU8;
+use crate::SymbolU8;
 use aligned_vec::AVec;
 
 #[derive(Debug)]
 pub struct Tape {
-    pub(crate) negative: AVec<BoolU8>,
-    pub(crate) nonnegative: AVec<BoolU8>,
+    pub(crate) negative: AVec<SymbolU8>,
+    pub(crate) nonnegative: AVec<SymbolU8>,
 }
 
 impl Default for Tape {
     fn default() -> Self {
         let mut nonnegative = AVec::new(ALIGN);
-        nonnegative.push(BoolU8::FALSE);
+        nonnegative.push(SymbolU8::STATE_ZERO);
         Self {
             negative: AVec::new(ALIGN),
             nonnegative,
@@ -22,23 +22,23 @@ impl Default for Tape {
 impl Tape {
     #[inline]
     #[must_use]
-    pub fn read(&self, index: i64) -> BoolU8 {
+    pub fn read(&self, index: i64) -> SymbolU8 {
         if index >= 0 {
             self.nonnegative
                 .get(index as usize)
                 .copied()
-                .unwrap_or(BoolU8::FALSE)
+                .unwrap_or(SymbolU8::STATE_ZERO)
         } else {
             self.negative
                 .get((-index - 1) as usize)
                 .copied()
-                .unwrap_or(BoolU8::FALSE)
+                .unwrap_or(SymbolU8::STATE_ZERO)
         }
     }
 
     #[inline]
     #[allow(clippy::shadow_reuse)]
-    pub fn write(&mut self, index: i64, value: BoolU8) {
+    pub fn write(&mut self, index: i64, value: SymbolU8) {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)
         } else {

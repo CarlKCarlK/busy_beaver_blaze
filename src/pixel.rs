@@ -1,4 +1,4 @@
-use crate::{ALIGN, bool_u8::BoolU8};
+use crate::{ALIGN, symbol_u8::SymbolU8};
 use aligned_vec::AVec;
 use core::ops::{Add, AddAssign};
 use core::simd::{self, prelude::*};
@@ -210,8 +210,9 @@ impl From<&u32> for Pixel {
     }
 }
 
-impl From<BoolU8> for Pixel {
-    fn from(bool_u8: BoolU8) -> Self {
-        Self(u8::from(bool_u8) * 255) // Maps 0 → 0, 1 → 255
+// cmk000000000
+impl From<SymbolU8> for Pixel {
+    fn from(symbol_u8: SymbolU8) -> Self {
+        Self(u8::from(symbol_u8) * 255) // Maps 0 → 0, 1 → 255
     }
 }
