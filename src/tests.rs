@@ -61,15 +61,15 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     fs::write("tests/expected/test.png", &png_data).unwrap(); // TODO handle error
 
     println!(
-        "Final: Steps {}: {:?}, count_nonzeros {}",
+        "Final: Steps {}: {:?}, count_nonblanks {}",
         sample_space_by_time.step_index().separate_with_commas(),
         machine,
-        machine.count_nonzeros()
+        machine.count_nonblanks()
     );
 
     if early_stop.is_none() {
         assert_eq!(sample_space_by_time.step_index(), 47_176_870);
-        assert_eq!(machine.count_nonzeros(), 4098);
+        assert_eq!(machine.count_nonblanks(), 4098);
         assert_eq!(machine.state(), 7);
         assert_eq!(machine.tape_index(), -12242);
     }

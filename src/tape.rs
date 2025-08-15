@@ -59,7 +59,7 @@ impl Tape {
     }
 
     #[must_use]
-    pub fn count_nonzeros(&self) -> usize {
+    pub fn count_nonblanks(&self) -> usize {
         self.nonnegative
             .iter()
             .chain(self.negative.iter())

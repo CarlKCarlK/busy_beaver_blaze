@@ -26,8 +26,8 @@ impl Machine {
     #[wasm_bindgen]
     #[inline]
     #[must_use]
-    pub fn count_nonzeros(&self) -> u32 {
-        self.tape.count_nonzeros() as u32
+    pub fn count_nonblanks(&self) -> u32 {
+        self.tape.count_nonblanks() as u32
     }
 
     #[wasm_bindgen]

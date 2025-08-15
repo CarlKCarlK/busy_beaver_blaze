@@ -173,8 +173,8 @@ impl SpaceByTimeMachine {
     #[wasm_bindgen]
     #[inline]
     #[must_use]
-    pub fn count_nonzeros(&self) -> u32 {
-        self.machine.count_nonzeros()
+    pub fn count_nonblanks(&self) -> u32 {
+        self.machine.count_nonblanks()
     }
 
     #[wasm_bindgen]
