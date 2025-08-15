@@ -10,6 +10,14 @@ python -m pytest
 
 ## Run Fastest
 
+Set up
+
+```bash
+rustup toolchain install nightly
+rustup target add wasm32-unknown-unknown --toolchain nightly
+rustup override set nightly
+```
+
 ```bash
 set RUSTFLAGS=-C target-cpu=native -C opt-level=3
 cargo build --release

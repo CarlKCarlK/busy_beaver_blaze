@@ -127,7 +127,7 @@ type StateToSymbolToAction = ArrayVec<Action, { Program::MAX_STATE_COUNT }>;
 #[derive(Debug)]
 pub struct Program {
     state_count: u8,
-    // symbol_count: u8,
+    symbol_count: u8,
     state_to_symbol_to_action: StateToSymbolToAction, // Changed from SmallVec
 }
 
@@ -154,12 +154,12 @@ impl FromStr for Program {
 }
 
 impl Program {
-    pub const SYMBOL_COUNT: usize = 2;
-    pub const MAX_STATE_COUNT: usize = Self::SYMBOL_COUNT * 50;
+    // pub const SYMBOL_COUNT: usize = 2;
+    pub const MAX_STATE_COUNT: usize = 100;
 
     #[inline]
     fn action(&self, state: u8, symbol: BoolU8) -> &Action {
-        let offset = state as usize * Self::SYMBOL_COUNT + usize::from(symbol);
+        let offset = (state * self.symbol_count) as usize + usize::from(symbol);
         &self.state_to_symbol_to_action[offset]
     }
 
@@ -244,12 +244,13 @@ impl Program {
                 got: 0,
             });
         }
-        if symbol_count != Self::SYMBOL_COUNT as u8 {
-            return Err(Error::InvalidSymbolsCount {
-                expected: Self::SYMBOL_COUNT,
-                got: symbol_count as usize,
-            });
-        }
+        // cmk remove errorInvalidSymbolsCount
+        // if symbol_count != self.symbol_count {
+        //     return Err(Error::InvalidSymbolsCount {
+        //         expected: self.symbol_count as usize,
+        //         got: symbol_count as usize,
+        //     });
+        // }
 
         // Ensure proper dimensions (STATE_COUNT x 2)
         let state_count = state_to_symbol_to_action.len() as u8;
@@ -260,7 +261,7 @@ impl Program {
             });
         }
 
-        if state_count > Self::MAX_STATE_COUNT as u8 {
+        if state_count as usize > Self::MAX_STATE_COUNT {
             return Err(Error::InvalidStatesCount {
                 expected: Self::MAX_STATE_COUNT,
                 got: state_count as usize,
@@ -269,7 +270,7 @@ impl Program {
 
         Ok(Self {
             state_count,
-            // symbol_count,
+            symbol_count,
             state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
@@ -310,13 +311,6 @@ impl Program {
             });
         }
 
-        if state_count > Self::MAX_STATE_COUNT as u8 {
-            return Err(Error::InvalidStatesCount {
-                expected: Self::MAX_STATE_COUNT,
-                got: state_count as usize,
-            });
-        }
-
         let symbol_count = state_to_symbol_to_action[0].len() as u8;
         if symbol_count == 0 {
             return Err(Error::InvalidSymbolsCount {
@@ -325,16 +319,16 @@ impl Program {
             });
         }
 
-        if symbol_count != Self::SYMBOL_COUNT as u8 {
-            return Err(Error::InvalidSymbolsCount {
-                expected: Self::SYMBOL_COUNT,
-                got: symbol_count as usize,
+        if state_count as usize > Self::MAX_STATE_COUNT {
+            return Err(Error::InvalidStatesCount {
+                expected: Self::MAX_STATE_COUNT,
+                got: state_count as usize,
             });
         }
 
         Ok(Self {
             state_count,
-            // symbol_count,
+            symbol_count,
             state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
@@ -374,12 +368,13 @@ impl Program {
             });
         }
 
-        if symbol_count != Self::SYMBOL_COUNT {
-            return Err(Error::InvalidSymbolsCount {
-                expected: Self::SYMBOL_COUNT,
-                got: symbol_count,
-            });
-        }
+        // cmk remove errorInvalidSymbolsCount
+        // if symbol_count != Self::SYMBOL_COUNT {
+        //     return Err(Error::InvalidSymbolsCount {
+        //         expected: Self::SYMBOL_COUNT,
+        //         got: symbol_count,
+        //     });
+        // }
 
         let state_count = vec_of_vec[0].len();
         if state_count == 0 {
@@ -417,7 +412,7 @@ impl Program {
 
         Ok(Self {
             state_count: state_count as u8,
-            // symbol_count: symbol_count as u8,
+            symbol_count: symbol_count as u8, // cmk there are many "as" that could be removed
             state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
