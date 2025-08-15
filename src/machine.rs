@@ -243,10 +243,7 @@ impl Program {
 
         let symbol_count = state_to_symbol_to_action[0].len() as u8;
         if symbol_count == 0 {
-            return Err(Error::InvalidSymbolsCount {
-                expected: 1,
-                got: 0,
-            });
+            return Err(Error::InvalidSymbolsCount { got: 0 });
         }
         // cmk remove errorInvalidSymbolsCount
         // if symbol_count != self.symbol_count {
@@ -317,10 +314,7 @@ impl Program {
 
         let symbol_count = state_to_symbol_to_action[0].len() as u8;
         if symbol_count == 0 {
-            return Err(Error::InvalidSymbolsCount {
-                expected: 1,
-                got: 0,
-            });
+            return Err(Error::InvalidSymbolsCount { got: 0 });
         }
 
         if state_count as usize > Self::MAX_STATE_COUNT {
@@ -366,10 +360,7 @@ impl Program {
         // Ensure proper dimensions (2 x STATE_COUNT)
         let symbol_count = vec_of_vec.len();
         if symbol_count == 0 {
-            return Err(Error::InvalidSymbolsCount {
-                expected: 1,
-                got: 0,
-            });
+            return Err(Error::InvalidSymbolsCount { got: 0 });
         }
 
         // cmk remove errorInvalidSymbolsCount

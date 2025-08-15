@@ -81,6 +81,9 @@ E	0LA	0RE
 ";
 pub const MACHINE_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
 
+// https://github.com/sligocki/busy-beaver/blob/main/Machines/bb/3x3
+pub const BB_3_3_355317: &str = "1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB";
+
 /// A trait for iterators that can print debug output at intervals.
 pub trait DebuggableIterator: Iterator {
     /// Runs the iterator while printing debug output at intervals.
@@ -124,8 +127,8 @@ pub enum Error {
     #[display("Unexpected empty field in input")]
     MissingField,
 
-    #[display("Unexpected symbols count. Expected {} and got {}", expected, got)]
-    InvalidSymbolsCount { expected: usize, got: usize },
+    #[display("Unexpected symbols count. and got {}", got)]
+    InvalidSymbolsCount { got: usize },
 
     #[display("Unexpected states count. Expected {} and got {}", expected, got)]
     InvalidStatesCount { expected: usize, got: usize },

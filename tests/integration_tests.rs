@@ -1,8 +1,8 @@
 use std::fs;
 
 use busy_beaver_blaze::{
-    BB5_CHAMP, BB6_CONTENDER, DebuggableIterator, Error, MACHINE_7_135_505_A, MACHINE_7_135_505_B,
-    Machine, SpaceByTimeMachine,
+    BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, DebuggableIterator, Error, MACHINE_7_135_505_A,
+    MACHINE_7_135_505_B, Machine, SpaceByTimeMachine,
 };
 use thousands::Separable;
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -381,4 +381,23 @@ fn benchmark63() -> Result<(), String> {
     fs::write("tests/expected/bench63.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start.elapsed());
     Ok(())
+}
+
+// Create a test that runs bb5 champ to halting and then prints the time it took
+// to run the test
+// TODO which of these should be bindgen tests?
+// cmk000 #[wasm_bindgen_test]
+#[test]
+fn bb_3_3_355317_time() {
+    let start = std::time::Instant::now();
+    let machine = BB_3_3_355317.parse::<Machine>().unwrap();
+    println!("Parsed machine: {:?}", &machine);
+    let step_count = 1 + machine.count();
+    let duration = start.elapsed();
+    println!(
+        "Steps: {}, Duration: {:?}",
+        step_count.separate_with_commas(),
+        duration
+    );
+    assert_eq!(step_count, 355_317);
 }
