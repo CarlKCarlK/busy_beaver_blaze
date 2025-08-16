@@ -17,7 +17,7 @@ mod space_by_time;
 mod space_by_time_machine;
 mod spaceline;
 mod spacelines;
-mod symbol_u8;
+mod symbol;
 mod tape;
 
 use aligned_vec::AVec;
@@ -25,7 +25,7 @@ use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
 use snapshot::Snapshot;
-use symbol_u8::SymbolU8;
+use symbol::Symbol;
 use thousands::Separable;
 use zerocopy::IntoBytes;
 // Export types from modules
@@ -39,6 +39,8 @@ pub use space_by_time::SpaceByTime;
 pub use space_by_time_machine::SpaceByTimeMachine;
 pub use spaceline::Spaceline;
 pub use tape::Tape;
+
+pub const SELECT_CMK: u8 = 1; // cmk00000000000
 
 pub const ALIGN: usize = 64;
 
@@ -229,7 +231,7 @@ fn encode_png(
     Ok(buf)
 }
 #[must_use]
-pub fn average_with_iterators(values: &AVec<SymbolU8>, step: PowerOfTwo) -> AVec<Pixel> {
+pub fn average_with_iterators(select: u8, values: &AVec<Symbol>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks
@@ -237,16 +239,16 @@ pub fn average_with_iterators(values: &AVec<SymbolU8>, step: PowerOfTwo) -> AVec
     let remainder = chunk_iter.remainder();
 
     for chunk in chunk_iter {
-        let sum: u32 = chunk.iter().map(u32::from).sum();
-        let average = step.divide_into(sum * 255).into();
+        let sum: u32 = chunk.iter().map(|symbol| symbol.select_to_u32(select)).sum();
+        let average = step.divide_into(sum * 255).into(); // cmk0000000000
         result.push(average);
     }
 
     // Handle the remainder - pad with zeros
     if !remainder.is_empty() {
-        let sum: u32 = remainder.iter().map(u32::from).sum();
+        let sum: u32 = remainder.iter().map(|symbol| symbol.select_to_u32(select)).sum();
         // We need to divide by step size, not remainder.len()
-        let average = step.divide_into(sum * 255).into();
+        let average = step.divide_into(sum * 255).into(); // cmk0000000000
         result.push(average);
     }
 
@@ -254,7 +256,7 @@ pub fn average_with_iterators(values: &AVec<SymbolU8>, step: PowerOfTwo) -> AVec
 }
 
 #[must_use]
-pub fn sample_with_iterators(values: &AVec<SymbolU8>, step: PowerOfTwo) -> AVec<Pixel> {
+pub fn sample_with_iterators(select: u8, values: &AVec<Symbol>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks
@@ -262,11 +264,11 @@ pub fn sample_with_iterators(values: &AVec<SymbolU8>, step: PowerOfTwo) -> AVec<
     let remainder = chunk_iter.remainder();
 
     for chunk in chunk_iter {
-        result.push(chunk[0].into());
+        result.push(Pixel::from_symbol(chunk[0], select));
     }
 
     if !remainder.is_empty() {
-        result.push(remainder[0].into());
+        result.push(Pixel::from_symbol(remainder[0], select));
     }
 
     result
@@ -276,7 +278,8 @@ pub fn sample_with_iterators(values: &AVec<SymbolU8>, step: PowerOfTwo) -> AVec<
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_with_simd<const LANES: usize>(
-    values: &AVec<SymbolU8>,
+    select: u8,
+    values: &AVec<Symbol>,
     step: PowerOfTwo,
 ) -> AVec<Pixel>
 where
@@ -301,10 +304,12 @@ where
     debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
     let lanes_per_chunk = step.saturating_div(lanes);
 
+    let select_vec = Simd::splat(select);
+
     // ✅ Process chunks using `zip()`, no `push()`
     if lanes_per_chunk == PowerOfTwo::ONE {
         for (average, chunk) in result.iter_mut().zip(chunks.iter()) {
-            let sum = chunk.reduce_sum() as u32;
+            let sum = chunk.simd_eq(select_vec).to_bitmask().count_ones();
             *average = (step.divide_into(sum * 255) as u8).into();
         }
     } else {
@@ -312,7 +317,7 @@ where
         for (average, sub_chunk) in result.iter_mut().zip(&mut chunk_iter) {
             let sum: u32 = sub_chunk
                 .iter()
-                .map(|chunk| chunk.reduce_sum() as u32)
+                .map(|chunk| chunk.simd_eq(select_vec).to_bitmask().count_ones())
                 .sum();
             *average = step.divide_into(sum * 255).into();
         }
@@ -323,7 +328,7 @@ where
     if unused_items > 0 {
         let sum: u32 = values[values_len - unused_items..]
             .iter()
-            .map(u32::from)
+            .map(|symbol| symbol.select_to_u32(select))
             .sum();
         if let Some(last) = result.last_mut() {
             *last = step.divide_into(sum * 255).into();
@@ -335,7 +340,11 @@ where
 
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
-pub fn average_chunk_with_simd<const LANES: usize>(chunk: &[SymbolU8], step: PowerOfTwo) -> Pixel
+pub fn average_chunk_with_simd<const LANES: usize>(
+    select: u8,
+    chunk: &[Symbol],
+    step: PowerOfTwo,
+) -> Pixel
 where
     LaneCount<LANES>: SupportedLaneCount,
 {
@@ -359,15 +368,17 @@ where
     let lanes_per_chunk = step.saturating_div(lanes);
     debug_assert!(step.divides_usize(chunk.len()));
 
+    let select_vec = Simd::splat(select);
+
     // ✅ Process chunks using `zip()`, no `push()`
     if lanes_per_chunk == PowerOfTwo::ONE {
         debug_assert!(sub_chunks.len() == 1, "Expected one chunk");
-        let sum = sub_chunks[0].reduce_sum() as u32;
+        let sum = sub_chunks[0].simd_eq(select_vec).to_bitmask().count_ones();
         (step.divide_into(sum * 255) as u8).into()
     } else {
         let sum: u32 = sub_chunks
             .iter()
-            .map(|sub_chunk| sub_chunk.reduce_sum() as u32)
+            .map(|sub_chunk| sub_chunk.simd_eq(select_vec).to_bitmask().count_ones())
             .sum();
         (step.divide_into(sum * 255) as u8).into()
     }

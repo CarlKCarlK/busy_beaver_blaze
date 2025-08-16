@@ -1,7 +1,7 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
     PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
-    find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol_u8::SymbolU8,
+    find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol::Symbol,
     test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
@@ -84,18 +84,19 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
 )]
 #[test]
 fn test_average() {
+    let select = 1u8;
     let values = AVec::from_iter(
         ALIGN,
         [
-            SymbolU8::STATE_ZERO,
-            SymbolU8::STATE_ZERO,
-            SymbolU8::STATE_ZERO,
-            SymbolU8::STATE_ONE,
-            SymbolU8::STATE_ONE,
-            SymbolU8::STATE_ZERO,
-            SymbolU8::STATE_ONE,
-            SymbolU8::STATE_ONE,
-            SymbolU8::STATE_ONE,
+            Symbol::STATE_ZERO,
+            Symbol::STATE_ZERO,
+            Symbol::STATE_ZERO,
+            Symbol::STATE_ONE,
+            Symbol::STATE_ONE,
+            Symbol::STATE_ZERO,
+            Symbol::STATE_ONE,
+            Symbol::STATE_ONE,
+            Symbol::STATE_ONE,
         ]
         .iter()
         .copied(),
@@ -105,103 +106,103 @@ fn test_average() {
     let bytes: &[u8] = &[0, 0, 0, 255, 255, 0, 255, 255, 255];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
 
-    let result = average_with_iterators(&values, step);
+    let result = average_with_iterators(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<1>(&values, step);
+    let result = average_with_simd::<1>(select, &values, step);
     assert_eq!(result, expected);
 
     let step = PowerOfTwo::TWO;
     let bytes = &[0u8, 127, 127, 255, 127];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
 
-    let result = average_with_iterators(&values, step);
+    let result = average_with_iterators(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<1>(&values, step);
+    let result = average_with_simd::<1>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<2>(&values, step);
+    let result = average_with_simd::<2>(select, &values, step);
     assert_eq!(result, expected);
     // Expected to panic
-    // let result = average_with_simd::<4>(&values, step);
+    // let result = average_with_simd::<4>(select, &values, step);
     // assert_eq!(result, expected);
 
     let step = PowerOfTwo::FOUR;
     let bytes = &[63u8, 191, 63];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
-    let result = average_with_iterators(&values, step);
+    let result = average_with_iterators(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<1>(&values, step);
+    let result = average_with_simd::<1>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<2>(&values, step);
+    let result = average_with_simd::<2>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<4>(&values, step);
+    let result = average_with_simd::<4>(select, &values, step);
     assert_eq!(result, expected);
 
     let step = PowerOfTwo::EIGHT;
     let bytes = &[127u8, 31];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
-    let result = average_with_iterators(&values, step);
+    let result = average_with_iterators(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<1>(&values, step);
+    let result = average_with_simd::<1>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<2>(&values, step);
+    let result = average_with_simd::<2>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<4>(&values, step);
+    let result = average_with_simd::<4>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<8>(&values, step);
+    let result = average_with_simd::<8>(select, &values, step);
     assert_eq!(result, expected);
 
     let step = PowerOfTwo::SIXTEEN;
     let bytes = &[79u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
-    let result = average_with_iterators(&values, step);
+    let result = average_with_iterators(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<1>(&values, step);
+    let result = average_with_simd::<1>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<2>(&values, step);
+    let result = average_with_simd::<2>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<4>(&values, step);
+    let result = average_with_simd::<4>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<8>(&values, step);
+    let result = average_with_simd::<8>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<16>(&values, step);
+    let result = average_with_simd::<16>(select, &values, step);
     assert_eq!(result, expected);
 
     let step = PowerOfTwo::THIRTY_TWO;
     let bytes = &[39u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
-    let result = average_with_iterators(&values, step);
+    let result = average_with_iterators(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<1>(&values, step);
+    let result = average_with_simd::<1>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<2>(&values, step);
+    let result = average_with_simd::<2>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<4>(&values, step);
+    let result = average_with_simd::<4>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<8>(&values, step);
+    let result = average_with_simd::<8>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<16>(&values, step);
+    let result = average_with_simd::<16>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<32>(&values, step);
+    let result = average_with_simd::<32>(select, &values, step);
     assert_eq!(result, expected);
 
     let step = PowerOfTwo::SIXTY_FOUR;
     let bytes = &[19u8];
     let expected = AVec::<Pixel>::from_iter(ALIGN, bytes.iter().map(Pixel::from));
-    let result = average_with_iterators(&values, step);
+    let result = average_with_iterators(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<1>(&values, step);
+    let result = average_with_simd::<1>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<2>(&values, step);
+    let result = average_with_simd::<2>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<4>(&values, step);
+    let result = average_with_simd::<4>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<8>(&values, step);
+    let result = average_with_simd::<8>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<16>(&values, step);
+    let result = average_with_simd::<16>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<32>(&values, step);
+    let result = average_with_simd::<32>(select, &values, step);
     assert_eq!(result, expected);
-    let result = average_with_simd::<64>(&values, step);
+    let result = average_with_simd::<64>(select, &values, step);
     assert_eq!(result, expected);
 }
 

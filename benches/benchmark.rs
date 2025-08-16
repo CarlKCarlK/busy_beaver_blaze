@@ -4,7 +4,7 @@
 use aligned_vec::AVec;
 use busy_beaver_blaze::test_utils::compress_x_no_simd_binning;
 use busy_beaver_blaze::{
-    ALIGN, Pixel, PowerOfTwo, Spaceline, average_with_iterators, average_with_simd,
+    ALIGN, Pixel, PowerOfTwo, Spaceline, average_with_iterators, average_with_simd,SELECT_CMK,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -23,7 +23,7 @@ fn small(criterion: &mut Criterion) {
     group.bench_function("iterators", |bencher| {
         bencher.iter_with_setup(
             || values.clone(),
-            |values_clone| average_with_iterators(black_box(&values_clone), black_box(step)),
+            |values_clone| average_with_iterators(SELECT_CMK, black_box(&values_clone), black_box(step)),
         );
     });
 
@@ -42,21 +42,21 @@ fn large(criterion: &mut Criterion) {
     group.bench_function("iterators", |bencher| {
         bencher.iter_with_setup(
             || values.clone(),
-            |values_clone| average_with_iterators(black_box(&values_clone), black_box(step)),
+            |values_clone| average_with_iterators(SELECT_CMK, black_box(&values_clone), black_box(step)),
         );
     });
 
     group.bench_function("simd32", |bencher| {
         bencher.iter_with_setup(
             || values.clone(),
-            |values_clone| average_with_simd::<32>(black_box(&values_clone), black_box(step)),
+            |values_clone| average_with_simd::<32>(SELECT_CMK,black_box(&values_clone), black_box(step)),
         );
     });
 
     group.bench_function("simd64", |bencher| {
         bencher.iter_with_setup(
             || values.clone(),
-            |values_clone| average_with_simd::<64>(black_box(&values_clone), black_box(step)),
+            |values_clone| average_with_simd::<64>(SELECT_CMK,black_box(&values_clone), black_box(step)),
         );
     });
 
@@ -75,21 +75,21 @@ fn len_100m(criterion: &mut Criterion) {
     group.bench_function("iterators", |bencher| {
         bencher.iter_with_setup(
             || values.clone(),
-            |values_clone| average_with_iterators(black_box(&values_clone), black_box(step)),
+            |values_clone| average_with_iterators(SELECT_CMK, black_box(&values_clone), black_box(step)),
         );
     });
 
     group.bench_function("simd32", |bencher| {
         bencher.iter_with_setup(
             || values.clone(),
-            |values_clone| average_with_simd::<32>(black_box(&values_clone), black_box(step)),
+            |values_clone| average_with_simd::<32>(SELECT_CMK, black_box(&values_clone), black_box(step)),
         );
     });
 
     group.bench_function("simd64", |bencher| {
         bencher.iter_with_setup(
             || values.clone(),
-            |values_clone| average_with_simd::<64>(black_box(&values_clone), black_box(step)),
+            |values_clone| average_with_simd::<64>(SELECT_CMK, black_box(&values_clone), black_box(step)),
         );
     });
 

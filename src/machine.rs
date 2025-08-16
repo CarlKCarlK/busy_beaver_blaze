@@ -1,4 +1,4 @@
-use crate::{Error, SymbolU8, Tape};
+use crate::{Error, Symbol, Tape};
 use arrayvec::ArrayVec;
 use core::{fmt, str::FromStr};
 use wasm_bindgen::prelude::*;
@@ -158,7 +158,7 @@ impl Program {
     pub const MAX_STATE_COUNT: usize = 100;
 
     #[inline]
-    fn action(&self, state: u8, symbol: SymbolU8) -> &Action {
+    fn action(&self, state: u8, symbol: Symbol) -> &Action {
         let offset = (state * self.symbol_count) as usize + usize::from(symbol);
         &self.state_to_symbol_to_action[offset]
     }
@@ -181,16 +181,16 @@ impl Program {
         if asciis == b"---" {
             return Ok(Action {
                 next_state: 25,
-                next_symbol: SymbolU8::STATE_ZERO,
+                next_symbol: Symbol::STATE_ZERO,
                 direction: -1,
             });
         }
         let next_symbol = match asciis[0] {
-            b'0' => SymbolU8::STATE_ZERO,
-            b'1' => SymbolU8::STATE_ONE,
-            b'2' => SymbolU8::STATE_TWO,
-            b'3' => SymbolU8::STATE_THREE,
-            b'4' => SymbolU8::STATE_FOUR,
+            b'0' => Symbol::STATE_ZERO,
+            b'1' => Symbol::STATE_ONE,
+            b'2' => Symbol::STATE_TWO,
+            b'3' => Symbol::STATE_THREE,
+            b'4' => Symbol::STATE_FOUR,
             // cmk catch at compile time?
             _ => return Err(Error::InvalidChar),
         };
@@ -416,6 +416,6 @@ impl Program {
 #[derive(Debug)]
 struct Action {
     next_state: u8,
-    next_symbol: SymbolU8,
+    next_symbol: Symbol,
     direction: i8,
 }

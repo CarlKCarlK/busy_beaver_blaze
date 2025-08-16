@@ -1,17 +1,17 @@
 use crate::ALIGN;
-use crate::SymbolU8;
+use crate::Symbol;
 use aligned_vec::AVec;
 
 #[derive(Debug)]
 pub struct Tape {
-    pub(crate) negative: AVec<SymbolU8>,
-    pub(crate) nonnegative: AVec<SymbolU8>,
+    pub(crate) negative: AVec<Symbol>,
+    pub(crate) nonnegative: AVec<Symbol>,
 }
 
 impl Default for Tape {
     fn default() -> Self {
         let mut nonnegative = AVec::new(ALIGN);
-        nonnegative.push(SymbolU8::STATE_ZERO);
+        nonnegative.push(Symbol::STATE_ZERO);
         Self {
             negative: AVec::new(ALIGN),
             nonnegative,
@@ -22,23 +22,23 @@ impl Default for Tape {
 impl Tape {
     #[inline]
     #[must_use]
-    pub fn read(&self, index: i64) -> SymbolU8 {
+    pub fn read(&self, index: i64) -> Symbol {
         if index >= 0 {
             self.nonnegative
                 .get(index as usize)
                 .copied()
-                .unwrap_or(SymbolU8::STATE_ZERO)
+                .unwrap_or(Symbol::STATE_ZERO)
         } else {
             self.negative
                 .get((-index - 1) as usize)
                 .copied()
-                .unwrap_or(SymbolU8::STATE_ZERO)
+                .unwrap_or(Symbol::STATE_ZERO)
         }
     }
 
     #[inline]
     #[allow(clippy::shadow_reuse)]
-    pub fn write(&mut self, index: i64, value: SymbolU8) {
+    pub fn write(&mut self, index: i64, value: Symbol) {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)
         } else {
@@ -63,7 +63,7 @@ impl Tape {
         self.nonnegative
             .iter()
             .chain(self.negative.iter())
-            .map(|&x| (x != SymbolU8::STATE_ZERO) as usize)
+            .map(|&x| (x != Symbol::STATE_ZERO) as usize)
             .sum()
     }
 

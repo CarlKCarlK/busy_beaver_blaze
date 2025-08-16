@@ -3,14 +3,14 @@ use core::simd::Simd;
 use crate::pixel::Pixel;
 use crate::tape::Tape;
 use crate::{
-    ALIGN, PixelPolicy, PowerOfTwo, average_chunk_with_simd, average_with_iterators,
-    average_with_simd, find_x_stride, sample_with_iterators,
+    average_chunk_with_simd, average_with_iterators, average_with_simd, find_x_stride, sample_with_iterators, PixelPolicy, PowerOfTwo, ALIGN
 };
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;
 
 #[derive(Clone)]
 pub struct Spaceline {
+    pub select: u8,
     pub x_stride: PowerOfTwo,
     pub negative: AVec<Pixel>,
     pub nonnegative: AVec<Pixel>,
@@ -47,10 +47,11 @@ impl core::fmt::Debug for Spaceline {
 impl Spaceline {
     #[must_use]
     #[inline]
-    pub fn new0(pixel_policy: PixelPolicy) -> Self {
+    pub fn new0(select: u8, pixel_policy: PixelPolicy) -> Self {
         let mut nonnegative = AVec::new(ALIGN);
         nonnegative.push(Pixel::WHITE);
         Self {
+            select,
             x_stride: PowerOfTwo::ONE,
             negative: AVec::new(ALIGN),
             nonnegative,
@@ -253,7 +254,13 @@ impl Spaceline {
     #[allow(clippy::missing_panics_doc)]
     #[inline]
     #[must_use]
-    pub fn new(tape: &Tape, x_goal: u32, step_index: u64, pixel_policy: PixelPolicy) -> Self {
+    pub fn new(
+        select: u8,
+        tape: &Tape,
+        x_goal: u32,
+        step_index: u64,
+        pixel_policy: PixelPolicy,
+    ) -> Self {
         // TODO move this to tape and give a better name
         let x_stride = find_x_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
         match pixel_policy {
@@ -261,28 +268,29 @@ impl Spaceline {
                 let (negative, nonnegative) = match x_stride {
                     PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => (
                         // TODO move this to tape and give a better name
-                        average_with_iterators(&tape.negative, x_stride),
-                        average_with_iterators(&tape.nonnegative, x_stride),
+                        average_with_iterators(select, &tape.negative, x_stride),
+                        average_with_iterators(select, &tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::EIGHT => (
                         // TODO move this to tape and give a better name
-                        average_with_simd::<8>(&tape.negative, x_stride),
-                        average_with_simd::<8>(&tape.nonnegative, x_stride),
+                        average_with_simd::<8>(select, &tape.negative, x_stride),
+                        average_with_simd::<8>(select, &tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::SIXTEEN => (
-                        average_with_simd::<16>(&tape.negative, x_stride),
-                        average_with_simd::<16>(&tape.nonnegative, x_stride),
+                        average_with_simd::<16>(select, &tape.negative, x_stride),
+                        average_with_simd::<16>(select, &tape.nonnegative, x_stride),
                     ),
                     PowerOfTwo::THIRTY_TWO => (
-                        average_with_simd::<32>(&tape.negative, x_stride),
-                        average_with_simd::<32>(&tape.nonnegative, x_stride),
+                        average_with_simd::<32>(select, &tape.negative, x_stride),
+                        average_with_simd::<32>(select, &tape.nonnegative, x_stride),
                     ),
                     _ => (
-                        average_with_simd::<64>(&tape.negative, x_stride),
-                        average_with_simd::<64>(&tape.nonnegative, x_stride),
+                        average_with_simd::<64>(select, &tape.negative, x_stride),
+                        average_with_simd::<64>(select, &tape.nonnegative, x_stride),
                     ),
                 };
                 Self {
+                    select,
                     x_stride,
                     negative,
                     nonnegative,
@@ -291,9 +299,10 @@ impl Spaceline {
                 }
             }
             PixelPolicy::Sampling => {
-                let negative = sample_with_iterators(&tape.negative, x_stride);
-                let nonnegative = sample_with_iterators(&tape.nonnegative, x_stride);
+                let negative = sample_with_iterators(select, &tape.negative, x_stride);
+                let nonnegative = sample_with_iterators(select, &tape.nonnegative, x_stride);
                 Self {
+                    select,
                     x_stride,
                     negative,
                     nonnegative,
@@ -342,7 +351,7 @@ impl Spaceline {
                 // If tape is short, then sum one by one
                 if part.len() < tape_slice_end {
                     let sum: u32 = (tape_slice_start..part.len())
-                        .map(|i| u32::from(part[i]))
+                        .map(|i| part[i].select_to_u32(self.select))
                         .sum();
                     let mean = x_stride.divide_into(sum * 255) as u8;
                     *pixel = Pixel::from(mean);
@@ -351,18 +360,24 @@ impl Spaceline {
 
                     *pixel = match x_stride {
                         PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => {
-                            let sum: u32 = slice.iter().map(u32::from).sum();
+                            let sum: u32 = slice.iter().map(|symbol| symbol.select_to_u32(self.select)).sum();
                             (x_stride.divide_into(sum * 255) as u8).into()
                         }
-                        PowerOfTwo::EIGHT => average_chunk_with_simd::<8>(slice, x_stride),
-                        PowerOfTwo::SIXTEEN => average_chunk_with_simd::<16>(slice, x_stride),
-                        PowerOfTwo::THIRTY_TWO => average_chunk_with_simd::<32>(slice, x_stride),
-                        _ => average_chunk_with_simd::<64>(slice, x_stride),
+                        PowerOfTwo::EIGHT => {
+                            average_chunk_with_simd::<8>(self.select, slice, x_stride)
+                        }
+                        PowerOfTwo::SIXTEEN => {
+                            average_chunk_with_simd::<16>(self.select, slice, x_stride)
+                        }
+                        PowerOfTwo::THIRTY_TWO => {
+                            average_chunk_with_simd::<32>(self.select, slice, x_stride)
+                        }
+                        _ => average_chunk_with_simd::<64>(self.select, slice, x_stride),
                     };
                 }
             }
             PixelPolicy::Sampling => {
-                *pixel = Pixel::from(part[x_stride * pixel_index]);
+                *pixel = Pixel::from_symbol(part[x_stride * pixel_index], self.select);
             }
         }
         true

@@ -1,4 +1,4 @@
-use crate::{ALIGN, symbol_u8::SymbolU8};
+use crate::{ALIGN, symbol::Symbol};
 use aligned_vec::AVec;
 use core::ops::{Add, AddAssign};
 use core::simd::{self, prelude::*};
@@ -40,6 +40,13 @@ impl core::fmt::Debug for Pixel {
 impl Pixel {
     pub const WHITE: Self = Self(0);
     const SPLAT_1: Simd<u8, ALIGN> = Simd::<u8, ALIGN>::splat(1);
+
+    #[must_use]
+    #[inline]
+    pub fn from_symbol(symbol: Symbol, select: u8) -> Self {
+        let value = u8::from(symbol);
+        Self((value == select) as u8 * 255) // Maps 0 → 0, select → 255
+    }
 
     #[must_use]
     #[inline]
@@ -159,6 +166,7 @@ impl Pixel {
     }
 }
 
+// cmk0000000
 impl From<bool> for Pixel {
     #[inline]
     fn from(value: bool) -> Self {
@@ -194,6 +202,7 @@ impl From<&u8> for Pixel {
     }
 }
 
+// cmk0000000
 impl From<u32> for Pixel {
     #[inline]
     fn from(value: u32) -> Self {
@@ -202,6 +211,7 @@ impl From<u32> for Pixel {
     }
 }
 
+// cmk0000000
 impl From<&u32> for Pixel {
     #[inline]
     fn from(value: &u32) -> Self {
@@ -210,11 +220,11 @@ impl From<&u32> for Pixel {
     }
 }
 
-// cmk000000000
-impl From<SymbolU8> for Pixel {
-    fn from(symbol_u8: SymbolU8) -> Self {
-        let value = u8::from(symbol_u8);
-        assert!(value <= 1, "need code for 2+");
-        Self(value * 255) // Maps 0 → 0, 1 → 255
-    }
-}
+// // cmk000000000
+// impl From<SymbolU8> for Pixel {
+//     fn from(symbol_u8: SymbolU8) -> Self {
+//         let value = u8::from(symbol_u8);
+//         assert!(value <= 1, "need code for 2+");
+//         Self(value * 255) // Maps 0 → 0, 1 → 255
+//     }
+// }

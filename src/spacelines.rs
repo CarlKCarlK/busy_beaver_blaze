@@ -27,20 +27,21 @@ impl core::fmt::Debug for Spacelines {
 }
 
 impl Spacelines {
-    pub(crate) fn new0(pixel_policy: PixelPolicy) -> Self {
+    pub(crate) fn new0(select: u8, pixel_policy: PixelPolicy) -> Self {
         Self {
-            main: vec![Spaceline::new0(pixel_policy)],
+            main: vec![Spaceline::new0(select, pixel_policy)],
             buffer0: Vec::new(),
         }
     }
 
     pub(crate) fn new_skipped(
+        select: u8,
         tape: &Tape,
         x_goal: u32,
         step_index: u64,
         pixel_policy: PixelPolicy,
     ) -> Self {
-        let spaceline = Spaceline::new(tape, x_goal, step_index, pixel_policy);
+        let spaceline = Spaceline::new(select, tape, x_goal, step_index, pixel_policy);
         Self {
             main: vec![spaceline],
             buffer0: Vec::new(),

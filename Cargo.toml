@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 ab_glyph = "0.2.29"
 aligned-vec = "0.6.2"
 arrayvec = "0.7.6"
-crossbeam = "0.8.4"   # look at features
+crossbeam = "0.8.4"      # look at features
 csscolorparser = "0.7.0"
 
 derive_more = { version = "2.0.1", default-features = false, features = [
@@ -32,7 +32,7 @@ zerocopy = { version = "0.8.21", features = ["std", "derive"] }
 rand = "0.9.0"
 
 [dependencies.web-sys]
-version = "0.3.64"
+version = "0.3.77"
 features = ["console"]
 
 [dev-dependencies]
