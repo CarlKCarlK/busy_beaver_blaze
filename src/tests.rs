@@ -1,7 +1,7 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
     PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
-    find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol::Symbol,
+    find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol::Symbol,SELECT_CMK,
     test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
@@ -23,7 +23,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     let goal_x: u32 = 1000;
     let goal_y: u32 = 1000;
     let pixel_policy: PixelPolicy = PixelPolicy::Sampling;
-    let mut sample_space_by_time = SpaceByTime::new0(goal_x, goal_y, pixel_policy);
+    let mut sample_space_by_time = SpaceByTime::new0(SELECT_CMK,goal_x, goal_y, pixel_policy);
 
     let early_stop = Some(10_500_000);
     // let early_stop = Some(1_000_000);

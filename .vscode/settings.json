@@ -6,6 +6,19 @@
         "spacelines",
         "wekyb"
     ],
+    // Force the intended nightly toolchain for this workspace
     "rust-analyzer.rustup.toolchain": "nightly-2025-08-13",
-    "rust-analyzer.cargo.useRustcWrapper": false
+    "rust-analyzer.cargo.useRustcWrapper": false,
+    "rust-analyzer.procMacro.enable": true,
+    // Use plain cargo check here for faster / simpler metadata (you can switch back to clippy later)
+    "rust-analyzer.check.command": "check",
+    // IMPORTANT: Correct the (mis-typed) global setting "rust-analyzer.rustc.source": "rustup".
+    // The correct key is rust-analyzer.rustcSource; setting it here overrides the broken user value
+    // that caused RA to probe a bogus manifest path named 'rustup'.
+    "rust-analyzer.rustcSource": "discover",
+    // (Optional) If your user settings hard-pin a stable rust-analyzer server, override with nightly's path.
+    // Comment this out if you want RA to manage its own binary.
+    // "rust-analyzer.server.path": "C:/Users/carlk/.rustup/toolchains/nightly-2025-08-13-x86_64-pc-windows-msvc/bin/rust-analyzer.exe"
+    // Re-enable clippy automatically on save after things are stable:
+    // "rust-analyzer.check.command": "clippy"
 }

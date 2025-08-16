@@ -3,7 +3,7 @@ use aligned_vec::AVec;
 use instant::Instant;
 use wasm_bindgen::prelude::*;
 
-use crate::{Machine, PixelPolicy, space_by_time::SpaceByTime};
+use crate::{space_by_time::SpaceByTime, Machine, PixelPolicy, SELECT_CMK};
 
 #[wasm_bindgen]
 pub struct SpaceByTimeMachine {
@@ -42,7 +42,7 @@ impl SpaceByTimeMachine {
                 return Err("Machine halted while skipping".to_owned());
             }
         }
-        let space_by_time = SpaceByTime::new_skipped(
+        let space_by_time = SpaceByTime::new_skipped(SELECT_CMK,
             machine.tape(),
             skip,
             goal_x,

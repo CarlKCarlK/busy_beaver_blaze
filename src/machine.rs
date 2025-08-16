@@ -166,7 +166,7 @@ impl Program {
     fn parse_state(input: impl AsRef<str>) -> Result<char, Error> {
         let mut chars = input.as_ref().chars();
         match (chars.next(), chars.next()) {
-            (Some(char @ 'A'..='Z'), None) => Ok(char), // Ensure single uppercase letter
+            (Some(char @ 'A'..='Z'), Option::None) => Ok(char), // Ensure single uppercase letter
             _ => Err(Error::UnexpectedState),
         }
     }

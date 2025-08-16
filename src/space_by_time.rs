@@ -2,11 +2,12 @@ use aligned_vec::AVec;
 use itertools::Itertools;
 
 use crate::{
-    compress_packed_data_if_one_too_big, encode_png, find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline, spacelines::Spacelines, Error, Machine, PixelPolicy, Tape, ALIGN, SELECT_CMK
+    compress_packed_data_if_one_too_big, encode_png, find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline, spacelines::Spacelines, Error, Machine, PixelPolicy, Tape, ALIGN,
 };
 
 #[derive(Clone)]
 pub struct SpaceByTime {
+    pub(crate) select: u8, 
     pub(crate) skip: u64,
     pub(crate) vis_step: u64,             // TODO make private
     pub(crate) x_goal: u32,               // TODO make private
@@ -23,14 +24,15 @@ pub struct SpaceByTime {
 impl SpaceByTime {
     #[inline]
     #[must_use]
-    pub fn new0(x_goal: u32, y_goal: u32, pixel_policy: PixelPolicy) -> Self {
+    pub fn new0(select: u8, x_goal: u32, y_goal: u32, pixel_policy: PixelPolicy) -> Self {
         Self {
+            select,
             skip: 0,
             vis_step: 0,
             x_goal,
             y_goal,
             y_stride: PowerOfTwo::ONE,
-            spacelines: Spacelines::new0(SELECT_CMK, pixel_policy),
+            spacelines: Spacelines::new0(select, pixel_policy),
             pixel_policy,
             previous_space_line: None,
         }
@@ -39,6 +41,7 @@ impl SpaceByTime {
     #[inline]
     #[must_use]
     pub fn new_skipped(
+        select: u8,
         tape: &Tape,
         skip: u64,
         x_goal: u32,
@@ -46,12 +49,13 @@ impl SpaceByTime {
         pixel_policy: PixelPolicy,
     ) -> Self {
         Self {
+            select,
             skip,
             vis_step: 0,
             x_goal,
             y_goal,
             y_stride: PowerOfTwo::ONE,
-            spacelines: Spacelines::new_skipped(SELECT_CMK, tape, x_goal, skip, pixel_policy),
+            spacelines: Spacelines::new_skipped(select, tape, x_goal, skip, pixel_policy),
             pixel_policy,
             previous_space_line: None,
         }
@@ -85,7 +89,7 @@ impl SpaceByTime {
                     ) {
                         previous
                     } else {
-                        Spaceline::new(SELECT_CMK,
+                        Spaceline::new(self.select,
                             machine.tape(),
                             self.x_goal,
                             self.step_index(),
@@ -93,7 +97,7 @@ impl SpaceByTime {
                         )
                     }
                 } else {
-                    Spaceline::new(SELECT_CMK,
+                    Spaceline::new(self.select,
                         machine.tape(),
                         self.x_goal,
                         self.step_index(),
@@ -111,7 +115,7 @@ impl SpaceByTime {
                 // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                 self.flush_buffer0_and_compress();
                 self.spacelines.push(
-                    Spaceline::new(SELECT_CMK,
+                    Spaceline::new(self.select,
                         machine.tape(),
                         self.x_goal,
                         self.step_index(),
