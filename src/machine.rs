@@ -8,7 +8,7 @@ pub struct Machine {
     state: u8,
     tape_index: i64,
     pub(crate) tape: Tape, // TODO make private
-    program: Program,
+    pub(crate) program: Program,
 }
 
 #[wasm_bindgen]
@@ -127,7 +127,7 @@ type StateToSymbolToAction = ArrayVec<Action, { Program::MAX_STATE_COUNT }>;
 #[derive(Debug)]
 pub struct Program {
     state_count: u8,
-    symbol_count: u8,
+    pub(crate) symbol_count: u8,
     state_to_symbol_to_action: StateToSymbolToAction, // Changed from SmallVec
 }
 

@@ -222,7 +222,8 @@ impl PngDataIterator {
                         } else {
                             let space_by_time_first =
                                 space_by_time_first_outer.as_ref().unwrap().clone();
-                            snapshot = snapshot.prepend(space_by_time_first);
+                            // snapshot = snapshot.prepend(space_by_time_first);
+                            snapshot.space_by_time = space_by_time_first.append(snapshot.space_by_time);
                             let png_data = snapshot
                                 .to_png(x_goal, y_goal, zero_color, one_color)
                                 .unwrap(); // TODO need to handle

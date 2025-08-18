@@ -39,8 +39,8 @@ impl Snapshot {
         )
     }
 
-    pub(crate) fn prepend(mut self, before: SpaceByTime) -> Self {
-        self.space_by_time = before.append(self.space_by_time);
-        self
-    }
+    // pub(crate) fn prepend(mut self, before: SpaceByTime) -> Self {
+    //     self.space_by_time = before.append(self.space_by_time);
+    //     self
+    // }
 }
