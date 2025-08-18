@@ -202,7 +202,6 @@ impl From<&u8> for Pixel {
     }
 }
 
-// cmk0000000
 impl From<u32> for Pixel {
     #[inline]
     fn from(value: u32) -> Self {
@@ -219,12 +218,3 @@ impl From<&u32> for Pixel {
         Self(*value as u8)
     }
 }
-
-// // cmk000000000
-// impl From<SymbolU8> for Pixel {
-//     fn from(symbol_u8: SymbolU8) -> Self {
-//         let value = u8::from(symbol_u8);
-//         assert!(value <= 1, "need code for 2+");
-//         Self(value * 255) // Maps 0 → 0, 1 → 255
-//     }
-// }

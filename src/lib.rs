@@ -240,7 +240,7 @@ pub fn average_with_iterators(select: u8, values: &AVec<Symbol>, step: PowerOfTw
 
     for chunk in chunk_iter {
         let sum: u32 = chunk.iter().map(|symbol| symbol.select_to_u32(select)).sum();
-        let average = step.divide_into(sum * 255).into(); // cmk0000000000
+        let average = step.divide_into(sum * 255).into();
         result.push(average);
     }
 
@@ -248,7 +248,7 @@ pub fn average_with_iterators(select: u8, values: &AVec<Symbol>, step: PowerOfTw
     if !remainder.is_empty() {
         let sum: u32 = remainder.iter().map(|symbol| symbol.select_to_u32(select)).sum();
         // We need to divide by step size, not remainder.len()
-        let average = step.divide_into(sum * 255).into(); // cmk0000000000
+        let average = step.divide_into(sum * 255).into();
         result.push(average);
     }
 
