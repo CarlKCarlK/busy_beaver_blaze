@@ -22,6 +22,7 @@ mod tape;
 
 use aligned_vec::AVec;
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
+use std::num::NonZeroU8;
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
 use snapshot::Snapshot;
@@ -40,7 +41,7 @@ pub use space_by_time_machine::SpaceByTimeMachine;
 pub use spaceline::Spaceline;
 pub use tape::Tape;
 
-pub const SELECT_CMK: u8 = 1; // cmk00000000000
+pub const SELECT_CMK: NonZeroU8 = NonZeroU8::new(1).unwrap(); // cmk00000000000
 
 pub const ALIGN: usize = 64;
 
@@ -231,7 +232,7 @@ fn encode_png(
     Ok(buf)
 }
 #[must_use]
-pub fn average_with_iterators(select: u8, values: &AVec<Symbol>, step: PowerOfTwo) -> AVec<Pixel> {
+pub fn average_with_iterators(select: NonZeroU8, values: &AVec<Symbol>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks
@@ -256,7 +257,7 @@ pub fn average_with_iterators(select: u8, values: &AVec<Symbol>, step: PowerOfTw
 }
 
 #[must_use]
-pub fn sample_with_iterators(select: u8, values: &AVec<Symbol>, step: PowerOfTwo) -> AVec<Pixel> {
+pub fn sample_with_iterators(select: NonZeroU8, values: &AVec<Symbol>, step: PowerOfTwo) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks
@@ -278,7 +279,7 @@ pub fn sample_with_iterators(select: u8, values: &AVec<Symbol>, step: PowerOfTwo
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_with_simd<const LANES: usize>(
-    select: u8,
+    select: NonZeroU8,
     values: &AVec<Symbol>,
     step: PowerOfTwo,
 ) -> AVec<Pixel>
@@ -304,7 +305,7 @@ where
     debug_assert!(prefix.is_empty(), "Expected empty prefix due to alignment");
     let lanes_per_chunk = step.saturating_div(lanes);
 
-    let select_vec = Simd::splat(select);
+    let select_vec = Simd::splat(select.get());
 
     // ✅ Process chunks using `zip()`, no `push()`
     if lanes_per_chunk == PowerOfTwo::ONE {
@@ -341,7 +342,7 @@ where
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_chunk_with_simd<const LANES: usize>(
-    select: u8,
+    select: NonZeroU8,
     chunk: &[Symbol],
     step: PowerOfTwo,
 ) -> Pixel
@@ -368,7 +369,7 @@ where
     let lanes_per_chunk = step.saturating_div(lanes);
     debug_assert!(step.divides_usize(chunk.len()));
 
-    let select_vec = Simd::splat(select);
+    let select_vec = Simd::splat(select.get());
 
     // ✅ Process chunks using `zip()`, no `push()`
     if lanes_per_chunk == PowerOfTwo::ONE {

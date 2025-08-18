@@ -1,4 +1,5 @@
 use core::simd::Simd;
+use std::num::NonZeroU8;
 
 use crate::pixel::Pixel;
 use crate::tape::Tape;
@@ -10,7 +11,7 @@ use zerocopy::IntoBytes;
 
 #[derive(Clone)]
 pub struct Spaceline {
-    pub select: u8,
+    pub select: NonZeroU8,
     pub x_stride: PowerOfTwo,
     pub negative: AVec<Pixel>,
     pub nonnegative: AVec<Pixel>,
@@ -47,7 +48,7 @@ impl core::fmt::Debug for Spaceline {
 impl Spaceline {
     #[must_use]
     #[inline]
-    pub fn new0(select: u8, pixel_policy: PixelPolicy) -> Self {
+    pub fn new0(select: NonZeroU8, pixel_policy: PixelPolicy) -> Self {
         let mut nonnegative = AVec::new(ALIGN);
         nonnegative.push(Pixel::WHITE);
         Self {
@@ -255,7 +256,7 @@ impl Spaceline {
     #[inline]
     #[must_use]
     pub fn new(
-        select: u8,
+        select: NonZeroU8,
         tape: &Tape,
         x_goal: u32,
         step_index: u64,

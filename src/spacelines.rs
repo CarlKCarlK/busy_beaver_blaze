@@ -1,3 +1,5 @@
+use std::num::NonZeroU8;
+
 use itertools::Itertools;
 
 use crate::{PixelPolicy, Tape, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline};
@@ -27,7 +29,7 @@ impl core::fmt::Debug for Spacelines {
 }
 
 impl Spacelines {
-    pub(crate) fn new0(select: u8, pixel_policy: PixelPolicy) -> Self {
+    pub(crate) fn new0(select: NonZeroU8, pixel_policy: PixelPolicy) -> Self {
         Self {
             main: vec![Spaceline::new0(select, pixel_policy)],
             buffer0: Vec::new(),
@@ -35,7 +37,7 @@ impl Spacelines {
     }
 
     pub(crate) fn new_skipped(
-        select: u8,
+        select: NonZeroU8,
         tape: &Tape,
         x_goal: u32,
         step_index: u64,

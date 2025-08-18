@@ -1,3 +1,5 @@
+use std::num::NonZeroU8;
+
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -26,8 +28,8 @@ impl Symbol {
     // cmk what if more than 5 states?
 
     #[inline]
-    pub const fn select_to_u32(self, select: u8) -> u32 {
-        (self.0 == select) as u32 // Maps 0 → 0, select → 1
+    pub const fn select_to_u32(self, select: NonZeroU8) -> u32 {
+        (self.0 == select.get()) as u32 // Maps 0 → 0, select → 1
     }
 }
 

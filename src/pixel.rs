@@ -2,6 +2,7 @@ use crate::{ALIGN, symbol::Symbol};
 use aligned_vec::AVec;
 use core::ops::{Add, AddAssign};
 use core::simd::{self, prelude::*};
+use std::num::NonZeroU8;
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -43,9 +44,9 @@ impl Pixel {
 
     #[must_use]
     #[inline]
-    pub fn from_symbol(symbol: Symbol, select: u8) -> Self {
+    pub fn from_symbol(symbol: Symbol, select: NonZeroU8) -> Self {
         let value = u8::from(symbol);
-        Self((value == select) as u8 * 255) // Maps 0 → 0, select → 255
+        Self((value == select.get()) as u8 * 255) // Maps 0 → 0, select → 255
     }
 
     #[must_use]

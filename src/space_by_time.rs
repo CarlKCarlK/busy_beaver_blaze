@@ -1,3 +1,5 @@
+use std::num::NonZeroU8;
+
 use aligned_vec::AVec;
 use itertools::Itertools;
 
@@ -7,7 +9,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct SpaceByTime {
-    pub(crate) select: u8, 
+    pub(crate) select: NonZeroU8, 
     pub(crate) skip: u64,
     pub(crate) vis_step: u64,             // TODO make private
     pub(crate) x_goal: u32,               // TODO make private
@@ -24,7 +26,7 @@ pub struct SpaceByTime {
 impl SpaceByTime {
     #[inline]
     #[must_use]
-    pub fn new0(select: u8, x_goal: u32, y_goal: u32, pixel_policy: PixelPolicy) -> Self {
+    pub fn new0(select: NonZeroU8, x_goal: u32, y_goal: u32, pixel_policy: PixelPolicy) -> Self {
         Self {
             select,
             skip: 0,
@@ -41,7 +43,7 @@ impl SpaceByTime {
     #[inline]
     #[must_use]
     pub fn new_skipped(
-        select: u8,
+        select: NonZeroU8,
         tape: &Tape,
         skip: u64,
         x_goal: u32,

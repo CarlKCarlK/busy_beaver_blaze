@@ -9,9 +9,7 @@ use core::simd::Simd;
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use std::{
-    collections::{HashMap, HashSet},
-    env, fs,
-    path::PathBuf,
+    collections::{HashMap, HashSet}, env, fs, num::NonZeroU8, path::PathBuf
 };
 use thousands::Separable;
 
@@ -84,7 +82,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
 )]
 #[test]
 fn test_average() {
-    let select = 1u8;
+    let select = NonZeroU8::new(1).unwrap();
     let values = AVec::from_iter(
         ALIGN,
         [
