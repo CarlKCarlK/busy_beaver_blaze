@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{space_by_time::SpaceByTime, Machine, PixelPolicy, SELECT_CMK};
 
-#[wasm_bindgen]
+//cmk0#[wasm_bindgen]
 pub struct SpaceByTimeMachine {
     pub(crate) machine: Machine,
     pub(crate) space_by_time: SpaceByTime,
@@ -25,10 +25,10 @@ impl Iterator for SpaceByTimeMachine {
     }
 }
 
-#[wasm_bindgen]
+//cmk0 #[wasm_bindgen]
 #[allow(clippy::min_ident_chars)]
 impl SpaceByTimeMachine {
-    #[wasm_bindgen(constructor)]
+//cmk0    #[wasm_bindgen(constructor)]
     pub fn from_str(
         program: &str,
         goal_x: u32,
@@ -59,7 +59,7 @@ impl SpaceByTimeMachine {
         })
     }
 
-    #[wasm_bindgen(js_name = "nth")]
+//cmk0    #[wasm_bindgen(js_name = "nth")]
     pub fn nth_js(&mut self, n: u64) -> bool {
         for _ in 0..=n {
             if self.next().is_none() {
@@ -69,7 +69,7 @@ impl SpaceByTimeMachine {
         true
     }
 
-    #[wasm_bindgen(js_name = "step_for_secs")]
+//cmk0    #[wasm_bindgen(js_name = "step_for_secs")]
     #[allow(clippy::shadow_reuse)]
     pub fn step_for_secs_js(
         &mut self,
@@ -136,7 +136,7 @@ impl SpaceByTimeMachine {
         true
     }
 
-    #[wasm_bindgen]
+    //cmk0 #[wasm_bindgen]
     #[inline]
     pub fn to_png(&mut self, zero_color: &str, one_color: &str) -> Result<Vec<u8>, String> {
         self.space_by_time
@@ -162,7 +162,7 @@ impl SpaceByTimeMachine {
     }
 
     // TODO why is it step_count and count_ones. That doesn't make sense.
-    #[wasm_bindgen]
+    //cmk0#[wasm_bindgen]
     #[inline]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
@@ -170,14 +170,14 @@ impl SpaceByTimeMachine {
         self.space_by_time.step_index() + 1
     }
 
-    #[wasm_bindgen]
+    //cmk0#[wasm_bindgen]
     #[inline]
     #[must_use]
     pub fn count_nonblanks(&self) -> u32 {
         self.machine.count_nonblanks()
     }
 
-    #[wasm_bindgen]
+    //cmk0#[wasm_bindgen]
     #[inline]
     #[must_use]
     pub fn is_halted(&self) -> bool {
