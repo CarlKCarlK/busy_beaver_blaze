@@ -167,7 +167,7 @@ impl Pixel {
     }
 }
 
-// cmk0000000
+// cmk0
 impl From<bool> for Pixel {
     #[inline]
     fn from(value: bool) -> Self {
@@ -211,11 +211,11 @@ impl From<u32> for Pixel {
     }
 }
 
-// cmk0000000
-impl From<&u32> for Pixel {
-    #[inline]
-    fn from(value: &u32) -> Self {
-        debug_assert!(*value <= 255, "Value must be less than or equal to 255");
-        Self(*value as u8)
-    }
-}
+// // cmk0
+// impl From<&u32> for Pixel {
+//     #[inline]
+//     fn from(value: &u32) -> Self {
+//         debug_assert!(*value <= 255, "Value must be less than or equal to 255");
+//         Self(*value as u8)
+//     }
+// }

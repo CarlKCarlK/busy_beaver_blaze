@@ -33,34 +33,24 @@ impl Symbol {
     }
 }
 
-// cmk00000000 all these
 impl From<Symbol> for u8 {
     #[inline]
-    fn from(Symbol(symbol_u8): Symbol) -> Self {
-        symbol_u8
+    fn from(Symbol(symbol): Symbol) -> Self {
+        symbol
     }
 }
 
 impl From<Symbol> for usize {
-    fn from(Symbol(symbol_u8): Symbol) -> Self {
-        symbol_u8 as Self
+    fn from(Symbol(symbol): Symbol) -> Self {
+        symbol as Self
     }
 }
 
 impl From<Symbol> for u32 {
-    fn from(Symbol(symbol_u8): Symbol) -> Self {
-        symbol_u8 as Self
+    fn from(Symbol(symbol): Symbol) -> Self {
+        symbol as Self
     }
 }
 
-impl From<bool> for Symbol {
-    fn from(bool_: bool) -> Self {
-        Self(bool_ as u8) // Maps `false -> FALSE`, `true -> TRUE`
-    }
-}
 
-impl From<&Symbol> for usize {
-    fn from(Symbol(symbol): &Symbol) -> Self {
-        *symbol as Self
-    }
-}
+

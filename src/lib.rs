@@ -41,7 +41,7 @@ pub use space_by_time_machine::SpaceByTimeMachine;
 pub use spaceline::Spaceline;
 pub use tape::Tape;
 
-pub const SELECT_CMK: NonZeroU8 = NonZeroU8::new(1).unwrap(); // cmk00000000000
+pub const SELECT_CMK: NonZeroU8 = NonZeroU8::new(1).unwrap(); // cmk00
 
 pub const ALIGN: usize = 64;
 
