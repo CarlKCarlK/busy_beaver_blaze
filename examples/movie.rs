@@ -1,5 +1,7 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PngDataIterator, SELECT_CMK};
+use busy_beaver_blaze::{
+    BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PngDataIterator, SELECT_CMK,
+};
 use core::str::FromStr;
 use image::Rgba;
 use image::{DynamicImage, imageops::FilterType};
@@ -100,6 +102,10 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
                 1000,
                 dir_info,
             )
+        }
+        "BB_3_3_355317" => {
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\BB_3_3_355317")?;
+            (BB_3_3_355317, 1_000_000_000u64, 1000, dir_info)
         }
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
