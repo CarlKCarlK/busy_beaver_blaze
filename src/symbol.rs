@@ -54,7 +54,11 @@ impl From<Symbol> for u32 {
 
 // cmk00 remove support for this because they may be more than two states
 impl From<bool> for Symbol {
-    fn from(b: bool) -> Self {
-        if b { Self::STATE_ONE } else { Self::STATE_ZERO }
+    fn from(value: bool) -> Self {
+        if value {
+            Self::STATE_ONE
+        } else {
+            Self::STATE_ZERO
+        }
     }
 }

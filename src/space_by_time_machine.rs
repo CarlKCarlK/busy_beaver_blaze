@@ -30,6 +30,7 @@ impl Iterator for SpaceByTimeMachine {
 
 //cmk0 #[wasm_bindgen]
 #[allow(clippy::min_ident_chars)]
+#[allow(clippy::missing_panics_doc)] // cmk00
 impl SpaceByTimeMachine {
     //cmk0    #[wasm_bindgen(constructor)]
     pub fn from_str(

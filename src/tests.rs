@@ -476,10 +476,10 @@ fn frames() {
     );
 
     let folder = test_output_dir("bb/frames_test2");
-    for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
+    for (frame_index, (step_index, png_data_layers)) in png_data_iterator.enumerate() {
         let cmk_file = folder.join(format!("cmk{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
-        fs::write(cmk_file, &png_data[&SELECT_CMK]).unwrap();
+        fs::write(cmk_file, &png_data_layers[SELECT_CMK]).unwrap();
     }
 }
 
@@ -514,10 +514,10 @@ fn stop_early() {
 
     let output_dir = test_output_dir("bb/stop_early");
 
-    for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
+    for (frame_index, (step_index, png_data_layers)) in png_data_iterator.enumerate() {
         let cmk_file = output_dir.join(format!("cmk{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
-        fs::write(cmk_file, &png_data[&SELECT_CMK]).unwrap();
+        fs::write(cmk_file, &png_data_layers[SELECT_CMK]).unwrap();
     }
 }
 

@@ -6,7 +6,7 @@ use crate::SpaceByTime;
 
 /// Layers is an anonymous wrapper around `HashMap`<`NonZeroU8`, `SpaceByTime`>
 #[derive(Clone, Default)]
-pub(crate) struct SpaceTimeLayers(HashMap<NonZeroU8, SpaceByTime>);
+pub struct SpaceTimeLayers(HashMap<NonZeroU8, SpaceByTime>);
 
 impl SpaceTimeLayers {
     #[inline]
@@ -44,7 +44,11 @@ impl SpaceTimeLayers {
     #[inline]
     #[must_use]
     pub fn equal_keys(&self, other: &Self) -> bool {
-        self.0.len() == other.0.len() && self.0.keys().all(|k| other.0.contains_key(k))
+        self.0.len() == other.0.len()
+            && self
+                .0
+                .keys()
+                .all(|key: &core::num::NonZero<u8>| other.0.contains_key(key))
     }
 
     #[inline]
@@ -54,10 +58,10 @@ impl SpaceTimeLayers {
             "cmk SpaceTimeLayers have different keys"
         );
 
-        for (k, mine) in self.iter_mut() {
+        for (key, mine) in self.iter_mut() {
             let theirs = other
                 .0
-                .remove(k)
+                .remove(key)
                 .expect("cmk SpaceTimeLayers have different keys");
             mine.merge(theirs);
         }

@@ -7,17 +7,16 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterato
 
 use crate::{
     Snapshot, SpaceByTimeMachine, find_y_stride, message0::Message0,
-    space_time_layers::SpaceTimeLayers,
+    png_data_layers::PngDataLayers, space_time_layers::SpaceTimeLayers,
 };
 use alloc::collections::BinaryHeap;
-use core::num::NonZeroU8;
 use std::{
     collections::HashMap,
     thread::{self, JoinHandle},
 };
 
 pub struct PngDataIterator {
-    receiver1: Receiver<(usize, u64, HashMap<NonZeroU8, Vec<u8>>)>, // frame_index, step_index, png_data
+    receiver1: Receiver<(usize, u64, PngDataLayers)>, // frame_index, step_index, png_data
     // Optionally hold the join handles so that threads are joined when the iterator is dropped.
     run_handle: Option<JoinHandle<()>>,
     combine_handle: Option<JoinHandle<SpaceByTimeMachine>>,
@@ -59,8 +58,7 @@ impl PngDataIterator {
 
         // Set up channels for inter-thread communication.
         let (sender0, receiver0) = channel::unbounded::<Message0>();
-        let (sender1, receiver1) =
-            channel::unbounded::<(usize, u64, HashMap<NonZeroU8, Vec<u8>>)>();
+        let (sender1, receiver1) = channel::unbounded::<(usize, u64, PngDataLayers)>();
 
         // Clone any data needed by the spawned threads.
         let frame_index_to_step_index_clone = frame_index_to_step_index.to_vec();
@@ -167,7 +165,7 @@ impl PngDataIterator {
 
         part_count: usize,
         receiver0: &Receiver<Message0>,
-        sender1: &Sender<(usize, u64, HashMap<NonZeroU8, Vec<u8>>)>, // frame_index, step_index, png_data
+        sender1: &Sender<(usize, u64, PngDataLayers)>, // frame_index, step_index, png_data
     ) -> SpaceByTimeMachine {
         assert!(part_count > 0);
         let mut buffer: BinaryHeap<Message0> = BinaryHeap::new();
@@ -406,7 +404,7 @@ impl PngDataIterator {
 #[allow(clippy::missing_trait_methods)]
 impl Iterator for PngDataIterator {
     // cmk0000 make a struct
-    type Item = (u64, HashMap<NonZeroU8, Vec<u8>>); // step_index, png_data
+    type Item = (u64, PngDataLayers); // step_index, png_data
 
     fn next(&mut self) -> Option<Self::Item> {
         // This will block until a new frame is available or the channel is closed.

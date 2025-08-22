@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         &log_iter,
     );
 
-    for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
+    for (frame_index, (step_index, png_data_layers)) in png_data_iterator.enumerate() {
         println!(
             "run_id: {}, Frame {}, Step {}, time so far {:?}",
             run_id,
@@ -134,7 +134,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         );
 
         save_frame(
-            &png_data[&SELECT_CMK],
+            &png_data_layers[SELECT_CMK],
             &output_dir,
             run_id,
             frame_index as u32,

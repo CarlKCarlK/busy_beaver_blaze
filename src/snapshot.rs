@@ -1,7 +1,6 @@
-use core::num::NonZeroU8;
-use std::collections::HashMap;
-
-use crate::{Error, SpaceByTimeMachine, space_time_layers::SpaceTimeLayers};
+use crate::{
+    Error, SpaceByTimeMachine, png_data_layers::PngDataLayers, space_time_layers::SpaceTimeLayers,
+};
 
 pub struct Snapshot {
     pub(crate) frame_indexes: Vec<usize>, // TODO make private
@@ -29,12 +28,8 @@ impl Snapshot {
     }
 
     #[allow(clippy::wrong_self_convention)]
-    pub(crate) fn to_png(
-        &mut self,
-        x_goal: u32,
-        y_goal: u32,
-    ) -> Result<HashMap<NonZeroU8, Vec<u8>>, Error> {
-        let mut select_to_png: HashMap<NonZeroU8, Vec<u8>> = HashMap::new();
+    pub(crate) fn to_png(&mut self, x_goal: u32, y_goal: u32) -> Result<PngDataLayers, Error> {
+        let mut png_data_layers: PngDataLayers = PngDataLayers::new();
         for (select, space_by_time) in &mut self.space_time_layers {
             let png = space_by_time.to_png(
                 self.tape_negative_len,
@@ -42,9 +37,9 @@ impl Snapshot {
                 x_goal as usize,
                 y_goal as usize,
             )?;
-            select_to_png.insert(*select, png);
+            png_data_layers.insert(*select, png);
         }
-        Ok(select_to_png)
+        Ok(png_data_layers)
     }
 
     // pub(crate) fn prepend(mut self, before: SpaceByTime) -> Self {

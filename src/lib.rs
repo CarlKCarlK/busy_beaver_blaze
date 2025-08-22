@@ -11,6 +11,7 @@ mod message0;
 mod pixel;
 mod pixel_policy;
 mod png_data_iterator;
+mod png_data_layers;
 mod power_of_two;
 mod snapshot;
 mod space_by_time;
