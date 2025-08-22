@@ -1,14 +1,16 @@
 extern crate alloc;
+use std::num::NonZeroU8;
+
 use aligned_vec::AVec;
 use instant::Instant;
-use wasm_bindgen::prelude::*;
+// cmk00 use wasm_bindgen::prelude::*;
 
-use crate::{space_by_time::SpaceByTime, Machine, PixelPolicy, SELECT_CMK};
+use crate::{Machine, PixelPolicy, space_by_time::SpaceByTime, space_time_layers::SpaceTimeLayers};
 
 //cmk0#[wasm_bindgen]
 pub struct SpaceByTimeMachine {
     pub(crate) machine: Machine,
-    pub(crate) space_by_time: SpaceByTime,
+    pub(crate) space_time_layers: SpaceTimeLayers,
 }
 
 // impl iterator for spacetime machine
@@ -19,8 +21,9 @@ impl Iterator for SpaceByTimeMachine {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let previous_tape_index = self.machine.next()?;
-        self.space_by_time
-            .snapshot(&self.machine, previous_tape_index);
+        for space_by_time in self.space_time_layers.values_mut() {
+            space_by_time.snapshot(&self.machine, previous_tape_index);
+        }
         Some(())
     }
 }
@@ -28,7 +31,7 @@ impl Iterator for SpaceByTimeMachine {
 //cmk0 #[wasm_bindgen]
 #[allow(clippy::min_ident_chars)]
 impl SpaceByTimeMachine {
-//cmk0    #[wasm_bindgen(constructor)]
+    //cmk0    #[wasm_bindgen(constructor)]
     pub fn from_str(
         program: &str,
         goal_x: u32,
@@ -42,24 +45,31 @@ impl SpaceByTimeMachine {
                 return Err("Machine halted while skipping".to_owned());
             }
         }
-        let space_by_time = SpaceByTime::new_skipped(SELECT_CMK,
-            machine.tape(),
-            skip,
-            goal_x,
-            goal_y,
-            if binning {
-                PixelPolicy::Binning
-            } else {
-                PixelPolicy::Sampling
-            },
-        );
+        let symbol_count = machine.program.symbol_count;
+        let mut space_time_layers = SpaceTimeLayers::default();
+        for select in 1u8..symbol_count {
+            let select = NonZeroU8::new(select).unwrap();
+            let space_by_time = SpaceByTime::new_skipped(
+                select,
+                machine.tape(),
+                skip,
+                goal_x,
+                goal_y,
+                if binning {
+                    PixelPolicy::Binning
+                } else {
+                    PixelPolicy::Sampling
+                },
+            );
+            space_time_layers.insert(select, space_by_time);
+        }
         Ok(Self {
             machine,
-            space_by_time,
+            space_time_layers,
         })
     }
 
-//cmk0    #[wasm_bindgen(js_name = "nth")]
+    //cmk0    #[wasm_bindgen(js_name = "nth")]
     pub fn nth_js(&mut self, n: u64) -> bool {
         for _ in 0..=n {
             if self.next().is_none() {
@@ -69,7 +79,7 @@ impl SpaceByTimeMachine {
         true
     }
 
-//cmk0    #[wasm_bindgen(js_name = "step_for_secs")]
+    //cmk0    #[wasm_bindgen(js_name = "step_for_secs")]
     #[allow(clippy::shadow_reuse)]
     pub fn step_for_secs_js(
         &mut self,
@@ -137,16 +147,19 @@ impl SpaceByTimeMachine {
     }
 
     //cmk0 #[wasm_bindgen]
+    // cmk00 should this instead return layers of png?
     #[inline]
-    pub fn to_png(&mut self, zero_color: &str, one_color: &str) -> Result<Vec<u8>, String> {
-        self.space_by_time
+    pub fn to_png(&mut self, select: NonZeroU8) -> Result<Vec<u8>, String> {
+        let space_by_time = self
+            .space_time_layers
+            .get_mut(select)
+            .ok_or_else(|| format!("No SpaceByTime for select {select}"))?;
+        space_by_time
             .to_png(
                 self.machine.tape.negative.len(),
                 self.machine.tape.nonnegative.len(),
-                self.space_by_time.x_goal as usize,
-                self.space_by_time.y_goal as usize,
-                Self::parse_color(zero_color)?,
-                Self::parse_color(one_color)?,
+                space_by_time.x_goal as usize,
+                space_by_time.y_goal as usize,
             )
             .map_err(|e| format!("Error creating PNG: {e}"))
     }
@@ -167,7 +180,7 @@ impl SpaceByTimeMachine {
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn step_count(&self) -> u64 {
-        self.space_by_time.step_index() + 1
+        self.step_index() + 1
     }
 
     //cmk0#[wasm_bindgen]
@@ -193,19 +206,17 @@ impl SpaceByTimeMachine {
 impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
-    pub fn png_data_and_packed_data(
-        &mut self,
-        zero_color: [u8; 3],
-        one_color: [u8; 3],
-    ) -> (Vec<u8>, u32, u32, AVec<u8>) {
-        self.space_by_time
+    pub fn png_data_and_packed_data(&mut self, select: NonZeroU8) -> (Vec<u8>, u32, u32, AVec<u8>) {
+        let space_by_time = self
+            .space_time_layers
+            .get_mut(select)
+            .expect("No SpaceByTime for select");
+        space_by_time
             .to_png_and_packed_data(
                 self.machine.tape.negative.len(),
                 self.machine.tape.nonnegative.len(),
-                self.space_by_time.x_goal as usize,
-                self.space_by_time.y_goal as usize,
-                zero_color,
-                one_color,
+                space_by_time.x_goal as usize,
+                space_by_time.y_goal as usize,
             )
             .unwrap()
     }
@@ -218,9 +229,9 @@ impl SpaceByTimeMachine {
 
     #[inline]
     #[must_use]
-    pub const fn step_index(&self) -> u64 {
-        self.space_by_time.step_index()
-    }
+    pub fn step_index(&self) -> u64 {
+        self.space_time_layers.step_index()
+    } // cmk make const?
 
     #[inline]
     #[must_use]

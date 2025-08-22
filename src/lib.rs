@@ -15,6 +15,7 @@ mod power_of_two;
 mod snapshot;
 mod space_by_time;
 mod space_by_time_machine;
+mod space_time_layers;
 mod spaceline;
 mod spacelines;
 mod symbol;
@@ -22,10 +23,10 @@ mod tape;
 
 use aligned_vec::AVec;
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
-use std::num::NonZeroU8;
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
 use snapshot::Snapshot;
+use std::num::NonZeroU8;
 use symbol::Symbol;
 use thousands::Separable;
 use zerocopy::IntoBytes;
@@ -195,34 +196,15 @@ pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
     PowerOfTwo::from_exp(exponent as u8)
 }
 
-#[allow(clippy::integer_division_remainder_used)]
-fn encode_png(
-    width: u32,
-    height: u32,
-    [zero_red, zero_green, zero_blue]: [u8; 3],
-    [one_red, one_green, one_blue]: [u8; 3],
-    image_data: &[u8],
-) -> Result<Vec<u8>, Error> {
+fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
     let mut buf = Vec::new();
     {
         if image_data.len() != (width * height) as usize {
             return Err(Error::EncodingError);
         }
         let mut encoder = Encoder::new(&mut buf, width, height);
-        encoder.set_color(ColorType::Indexed);
+        encoder.set_color(ColorType::Grayscale);
         encoder.set_depth(BitDepth::Eight);
-
-        // Generate a palette with 256 shades interpolating between zero_color and one_color
-        let mut palette = Vec::with_capacity(256 * 3);
-        for i in 0..=255 {
-            let red = zero_red as i32 + ((one_red as i32 - zero_red as i32) * i / 255);
-            let green = zero_green as i32 + ((one_green as i32 - zero_green as i32) * i / 255);
-            let blue = zero_blue as i32 + ((one_blue as i32 - zero_blue as i32) * i / 255);
-            palette.extend_from_slice(&[red as u8, green as u8, blue as u8]);
-        }
-
-        // Set the palette before writing the header
-        encoder.set_palette(palette);
 
         let mut writer = encoder.write_header().map_err(|_| Error::EncodingError)?;
         writer
@@ -232,7 +214,11 @@ fn encode_png(
     Ok(buf)
 }
 #[must_use]
-pub fn average_with_iterators(select: NonZeroU8, values: &AVec<Symbol>, step: PowerOfTwo) -> AVec<Pixel> {
+pub fn average_with_iterators(
+    select: NonZeroU8,
+    values: &AVec<Symbol>,
+    step: PowerOfTwo,
+) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks
@@ -240,14 +226,20 @@ pub fn average_with_iterators(select: NonZeroU8, values: &AVec<Symbol>, step: Po
     let remainder = chunk_iter.remainder();
 
     for chunk in chunk_iter {
-        let sum: u32 = chunk.iter().map(|symbol| symbol.select_to_u32(select)).sum();
+        let sum: u32 = chunk
+            .iter()
+            .map(|symbol| symbol.select_to_u32(select))
+            .sum();
         let average = step.divide_into(sum * 255).into();
         result.push(average);
     }
 
     // Handle the remainder - pad with zeros
     if !remainder.is_empty() {
-        let sum: u32 = remainder.iter().map(|symbol| symbol.select_to_u32(select)).sum();
+        let sum: u32 = remainder
+            .iter()
+            .map(|symbol| symbol.select_to_u32(select))
+            .sum();
         // We need to divide by step size, not remainder.len()
         let average = step.divide_into(sum * 255).into();
         result.push(average);
@@ -257,7 +249,11 @@ pub fn average_with_iterators(select: NonZeroU8, values: &AVec<Symbol>, step: Po
 }
 
 #[must_use]
-pub fn sample_with_iterators(select: NonZeroU8, values: &AVec<Symbol>, step: PowerOfTwo) -> AVec<Pixel> {
+pub fn sample_with_iterators(
+    select: NonZeroU8,
+    values: &AVec<Symbol>,
+    step: PowerOfTwo,
+) -> AVec<Pixel> {
     let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, step.div_ceil_into(values.len()));
 
     // Process complete chunks

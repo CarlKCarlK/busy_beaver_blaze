@@ -5,15 +5,19 @@ use core::ops::Range;
 use crossbeam::channel::{self, Receiver, Sender};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
-use crate::{Snapshot, SpaceByTime, SpaceByTimeMachine, find_y_stride, message0::Message0};
+use crate::{
+    Snapshot, SpaceByTimeMachine, find_y_stride, message0::Message0,
+    space_time_layers::SpaceTimeLayers,
+};
 use alloc::collections::BinaryHeap;
 use std::{
     collections::HashMap,
+    num::NonZeroU8,
     thread::{self, JoinHandle},
 };
 
 pub struct PngDataIterator {
-    receiver1: Receiver<(usize, u64, Vec<u8>)>,
+    receiver1: Receiver<(usize, u64, HashMap<NonZeroU8, Vec<u8>>)>, // frame_index, step_index, png_data
     // Optionally hold the join handles so that threads are joined when the iterator is dropped.
     run_handle: Option<JoinHandle<()>>,
     combine_handle: Option<JoinHandle<SpaceByTimeMachine>>,
@@ -29,8 +33,6 @@ impl PngDataIterator {
         program_string: &str,
         goal_x: u32,
         goal_y: u32,
-        zero_color: [u8; 3],
-        one_color: [u8; 3],
         binning: bool,
         frame_index_to_step_index: &[u64],
     ) -> Self {
@@ -57,7 +59,8 @@ impl PngDataIterator {
 
         // Set up channels for inter-thread communication.
         let (sender0, receiver0) = channel::unbounded::<Message0>();
-        let (sender1, receiver1) = channel::unbounded::<(usize, u64, Vec<u8>)>();
+        let (sender1, receiver1) =
+            channel::unbounded::<(usize, u64, HashMap<NonZeroU8, Vec<u8>>)>();
 
         // Clone any data needed by the spawned threads.
         let frame_index_to_step_index_clone = frame_index_to_step_index.to_vec();
@@ -79,9 +82,7 @@ impl PngDataIterator {
 
         // Spawn the thread that combines the results into PNG data.
         let combine_handle = thread::spawn(move || {
-            Self::combine_results(
-                goal_x, goal_y, zero_color, one_color, part_count, &receiver0, &sender1,
-            )
+            Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
         });
 
         Self {
@@ -133,19 +134,21 @@ impl PngDataIterator {
             println!("Part {part_index}/{part_count}, have snapshotted desired steps from {step_start} to {step_end}.");
 
 
-            let space_by_time = &mut space_by_time_machine.space_by_time;
-            let inside_index = space_by_time
-                .y_stride
-                .rem_into_u64(space_by_time.vis_step + 1);
-            // This should be 0 on all but the last part
-            // println!(
-            //     "part {part_index}/{part_count} inside_index: {inside_index}, y_stride: {:?}, step_index: {:?}",
-            //     space_by_time.y_stride, space_by_time.step_index()
-            // );
-            assert!(inside_index == 0 || part_index == part_count - 1);
-            if inside_index == 0 {
-                // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
-                space_by_time.flush_buffer0_and_compress();
+            for space_by_time in space_by_time_machine.space_time_layers.values_mut() {
+                // let space_by_time = &mut space_by_time_machine.space_by_time;
+                let inside_index = space_by_time
+                    .y_stride
+                    .rem_into_u64(space_by_time.vis_step + 1);
+                // This should be 0 on all but the last part
+                // println!(
+                //     "part {part_index}/{part_count} inside_index: {inside_index}, y_stride: {:?}, step_index: {:?}",
+                //     space_by_time.y_stride, space_by_time.step_index()
+                // );
+                assert!(inside_index == 0 || part_index == part_count - 1);
+                if inside_index == 0 {
+                    // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
+                    space_by_time.flush_buffer0_and_compress();
+                }
             }
 
             let message = Message0::SpaceByTimeMachine { part_index , space_by_time_machine };
@@ -161,17 +164,15 @@ impl PngDataIterator {
     fn combine_results(
         x_goal: u32,
         y_goal: u32,
-        zero_color: [u8; 3],
-        one_color: [u8; 3],
 
         part_count: usize,
         receiver0: &Receiver<Message0>,
-        sender1: &Sender<(usize, u64, Vec<u8>)>,
+        sender1: &Sender<(usize, u64, HashMap<NonZeroU8, Vec<u8>>)>, // frame_index, step_index, png_data
     ) -> SpaceByTimeMachine {
         assert!(part_count > 0);
         let mut buffer: BinaryHeap<Message0> = BinaryHeap::new();
 
-        let mut space_by_time_first_outer: Option<SpaceByTime> = None;
+        let mut space_time_layers_outer: Option<SpaceTimeLayers> = None;
         let mut machine_first = None;
         for next_part_index in 0..part_count {
             println!("Waiting for: {next_part_index}");
@@ -205,10 +206,8 @@ impl PngDataIterator {
                         );
 
                         if next_part_index == 0 {
-                            let step_index = snapshot.space_by_time.step_index();
-                            let png_data = snapshot
-                                .to_png(x_goal, y_goal, zero_color, one_color)
-                                .unwrap(); // TODO need to handle
+                            let step_index = snapshot.step_index();
+                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); // TODO need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
                             // The same step can be rendered to multiple places
                             for index in all_but_last {
@@ -220,15 +219,13 @@ impl PngDataIterator {
                                 .send((*last, step_index, png_data))
                                 .expect("Failed to send PNG data");
                         } else {
-                            let space_by_time_first =
-                                space_by_time_first_outer.as_ref().unwrap().clone();
-                            // snapshot = snapshot.prepend(space_by_time_first);
-                            snapshot.space_by_time = space_by_time_first.append(snapshot.space_by_time);
-                            let png_data = snapshot
-                                .to_png(x_goal, y_goal, zero_color, one_color)
-                                .unwrap(); // TODO need to handle
+                            let mut space_time_layers_first =
+                                space_time_layers_outer.as_ref().unwrap().clone();
+                            space_time_layers_first.merge(snapshot.space_time_layers);
+                            snapshot.space_time_layers = space_time_layers_first;
+                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); // TODO need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
-                            let step_index = snapshot.space_by_time.step_index();
+                            let step_index = snapshot.step_index();
                             for index in all_but_last {
                                 sender1
                                     .send((*index, step_index, png_data.clone()))
@@ -264,25 +261,28 @@ impl PngDataIterator {
 
                         if next_part_index == 0 {
                             assert!(
-                                space_by_time_machine
-                                    .space_by_time
-                                    .spacelines
-                                    .buffer0
-                                    .is_empty()
-                                    || part_count == 1
+                                part_count == 1
+                                    || space_by_time_machine.space_time_layers.values().all(
+                                        |space_by_time0| space_by_time0
+                                            .spacelines
+                                            .buffer0
+                                            .is_empty()
+                                    ),
+                                "Expected all layer buffers empty for non-last parts"
                             );
-                            assert!(space_by_time_first_outer.is_none());
-                            space_by_time_first_outer = Some(space_by_time_machine.space_by_time);
+                            assert!(space_time_layers_outer.is_none());
+                            space_time_layers_outer = Some(space_by_time_machine.space_time_layers);
                         } else {
-                            let space_by_time_first = space_by_time_first_outer.unwrap();
-                            let space_by_time_other = space_by_time_machine.space_by_time;
+                            let mut space_time_layers_first = space_time_layers_outer.unwrap();
+                            let space_time_layers_other = space_by_time_machine.space_time_layers;
                             Self::assert_empty_buffer_if_not_last_part(
-                                &space_by_time_other,
+                                &space_time_layers_other,
                                 next_part_index,
                                 part_count,
                             );
-                            space_by_time_first_outer =
-                                Some(space_by_time_first.append(space_by_time_other));
+
+                            space_time_layers_first.merge(space_time_layers_other);
+                            space_time_layers_outer = Some(space_time_layers_first);
                         }
                         // TODO ??? we don't need the whole space_by_time_machine, just the machine
                         machine_first = Some(space_by_time_machine.machine);
@@ -296,19 +296,19 @@ impl PngDataIterator {
 
         SpaceByTimeMachine {
             machine: machine_first.unwrap(),
-            space_by_time: space_by_time_first_outer.unwrap(),
+            space_time_layers: space_time_layers_outer.unwrap(),
         }
     }
 
     #[inline]
     fn assert_empty_buffer_if_not_last_part(
-        space_by_time_other: &SpaceByTime,
+        space_time_layer_other: &SpaceTimeLayers,
         index: usize,
         part_count: usize,
     ) {
         if index < part_count - 1 {
             assert!(
-                space_by_time_other.spacelines.buffer0.is_empty(),
+                space_time_layer_other.first().spacelines.buffer0.is_empty(),
                 "real assert 2"
             );
         }
@@ -405,7 +405,8 @@ impl PngDataIterator {
 
 #[allow(clippy::missing_trait_methods)]
 impl Iterator for PngDataIterator {
-    type Item = (u64, Vec<u8>);
+    // cmk0000 make a struct
+    type Item = (u64, HashMap<NonZeroU8, Vec<u8>>); // step_index, png_data
 
     fn next(&mut self) -> Option<Self::Item> {
         // This will block until a new frame is available or the channel is closed.

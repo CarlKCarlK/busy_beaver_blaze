@@ -24,13 +24,13 @@ impl Message0 {
         }
     }
 
-    pub const fn step_index(&self) -> u64 {
+    pub fn step_index(&self) -> u64 {
         match self {
             Self::SpaceByTimeMachine {
                 space_by_time_machine,
                 ..
             } => space_by_time_machine.step_index(),
-            Self::Snapshot { snapshot, .. } => snapshot.space_by_time.step_index(),
+            Self::Snapshot { snapshot, .. } => snapshot.space_time_layers.step_index(),
         }
     }
 }
@@ -50,7 +50,7 @@ impl PartialEq for Message0 {
                     part_index: p2,
                     snapshot: s2,
                 },
-            ) => p1 == p2 && s1.space_by_time.step_index() == s2.space_by_time.step_index(),
+            ) => p1 == p2 && s1.space_time_layers.step_index() == s2.space_time_layers.step_index(),
 
             // Two SpaceByTimeMachine variants are equal if their part_index matches
             (
@@ -82,9 +82,9 @@ impl Ord for Message0 {
                 (Self::SpaceByTimeMachine { .. }, Self::Snapshot { .. }) => Ordering::Less,
                 // If both are Snapshot, compare step_index()
                 (Self::Snapshot { snapshot: s1, .. }, Self::Snapshot { snapshot: s2, .. }) => {
-                    s2.space_by_time
+                    s2.space_time_layers
                         .step_index()
-                        .cmp(&s1.space_by_time.step_index()) // Lower step_index is higher priority
+                        .cmp(&s1.space_time_layers.step_index()) // Lower step_index is higher priority
                 }
                 // If both are SpaceByTimeMachine, they must have different part_index (asserted)
                 (Self::SpaceByTimeMachine { .. }, Self::SpaceByTimeMachine { .. }) => {

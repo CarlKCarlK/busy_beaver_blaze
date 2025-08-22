@@ -1,7 +1,7 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
-    PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
-    find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol::Symbol,SELECT_CMK,
+    PowerOfTwo, SELECT_CMK, SpaceByTime, SpaceByTimeMachine, average_with_iterators,
+    average_with_simd, find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol::Symbol,
     test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
@@ -9,7 +9,10 @@ use core::simd::Simd;
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use std::{
-    collections::{HashMap, HashSet}, env, fs, num::NonZeroU8, path::PathBuf
+    collections::{HashMap, HashSet},
+    env, fs,
+    num::NonZeroU8,
+    path::PathBuf,
 };
 use thousands::Separable;
 
@@ -21,7 +24,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     let goal_x: u32 = 1000;
     let goal_y: u32 = 1000;
     let pixel_policy: PixelPolicy = PixelPolicy::Sampling;
-    let mut sample_space_by_time = SpaceByTime::new0(SELECT_CMK,goal_x, goal_y, pixel_policy);
+    let mut sample_space_by_time = SpaceByTime::new0(SELECT_CMK, goal_x, goal_y, pixel_policy);
 
     let early_stop = Some(10_500_000);
     // let early_stop = Some(1_000_000);
@@ -53,8 +56,6 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
         machine.tape.nonnegative.len(),
         goal_x as usize,
         goal_y as usize,
-        [255, 255, 255], // white
-        [255, 165, 0],   // orange
     )?;
     fs::write("tests/expected/test.png", &png_data).unwrap(); // TODO handle error
 
@@ -270,8 +271,7 @@ fn combo() {
                         //     reference_machine.space_by_time.spacelines
                         // );
                         let (reference_png_data, ref_x, ref_y, reference_packed_data) =
-                            reference_machine
-                                .png_data_and_packed_data([255, 255, 255], [255, 165, 0]);
+                            reference_machine.png_data_and_packed_data(SELECT_CMK);
                         // println!("---------------");
                         for part_count in [1, 2, 5, 16] {
                             let key = format!(
@@ -285,24 +285,27 @@ fn combo() {
                                 program_string,
                                 goal_x,
                                 goal_y,
-                                [255, 255, 255], // white
-                                [255, 165, 0],   // orange
                                 binning,
                                 &[0u64; 0],
                             );
                             let mut space_by_time_machine =
                                 png_data_iterator.into_space_by_time_machine();
-                            let (png_data, x, y, packed_data) = space_by_time_machine
-                                .png_data_and_packed_data([255, 255, 255], [255, 165, 0]);
+                            let (png_data, x, y, packed_data) =
+                                space_by_time_machine.png_data_and_packed_data(SELECT_CMK);
 
                             // Must be the same length and a given value can vary by no more than y_stride.log2() + x_stride.log2()
                             let last_spacetime = space_by_time_machine
-                                .space_by_time
+                                .space_time_layers
+                                .first() // cmk00
                                 .spacelines
                                 .main
                                 .last()
                                 .unwrap();
-                            let max_diff = space_by_time_machine.space_by_time.y_stride.log2()
+                            let max_diff = space_by_time_machine
+                                .space_time_layers
+                                .first() // cmk00
+                                .y_stride
+                                .log2()
                                 + last_spacetime.x_stride.log2();
                             // println!("max_diff: {max_diff}");
 
@@ -355,17 +358,12 @@ fn one() {
     let mut reference_machine =
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0).unwrap();
     reference_machine.nth_js(early_stop - 2);
-    let (reference_png_data, ..) = reference_machine.png_data_and_packed_data(
-        [255, 255, 255], // white
-        [255, 165, 0],   // orange
-    );
+    let (reference_png_data, ..) = reference_machine.png_data_and_packed_data(SELECT_CMK);
 
     let key = format!(
         "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
     );
     println!("{key}");
-
-    let (zero_color, one_color) = ([255, 255, 255], [255, 165, 0]); // white, orange
 
     let png_data_iterator = PngDataIterator::new(
         early_stop,
@@ -373,13 +371,11 @@ fn one() {
         program_string,
         goal_x,
         goal_y,
-        zero_color,
-        one_color,
         binning,
         &[0u64; 0],
     );
     let mut space_by_time_machine = png_data_iterator.into_space_by_time_machine();
-    let (png_data, ..) = space_by_time_machine.png_data_and_packed_data(zero_color, one_color);
+    let (png_data, ..) = space_by_time_machine.png_data_and_packed_data(SELECT_CMK);
 
     // println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
     // println!("ref_packed: {ref_packed:?}");
@@ -475,8 +471,6 @@ fn frames() {
         BB6_CONTENDER,
         goal_x,
         goal_y,
-        [255, 255, 255], // white
-        [255, 165, 0],   // orange
         binning,
         frame_index_to_step_index.as_slice(),
     );
@@ -485,7 +479,7 @@ fn frames() {
     for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
         let cmk_file = folder.join(format!("cmk{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
-        fs::write(cmk_file, &png_data).unwrap();
+        fs::write(cmk_file, &png_data[&SELECT_CMK]).unwrap();
     }
 }
 
@@ -505,8 +499,6 @@ fn stop_early() {
     let part_count = 5;
     let goal_x: u32 = 1920;
     let goal_y: u32 = 1080;
-    let zero_color = [0, 0, 0]; // black
-    let one_color = [255, 255, 255]; // white
     let binning = true;
 
     let frame_index_to_step_index = LogStepIterator::new(early_stop, frame_count).collect_vec();
@@ -516,8 +508,6 @@ fn stop_early() {
         BB5_CHAMP,
         goal_x,
         goal_y,
-        zero_color,
-        one_color,
         binning,
         &frame_index_to_step_index,
     );
@@ -527,7 +517,7 @@ fn stop_early() {
     for (frame_index, (step_index, png_data)) in png_data_iterator.enumerate() {
         let cmk_file = output_dir.join(format!("cmk{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
-        fs::write(cmk_file, &png_data).unwrap();
+        fs::write(cmk_file, &png_data[&SELECT_CMK]).unwrap();
     }
 }
 

@@ -1,5 +1,5 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PngDataIterator};
+use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PngDataIterator, SELECT_CMK};
 use core::str::FromStr;
 use image::Rgba;
 use image::{DynamicImage, imageops::FilterType};
@@ -120,8 +120,6 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         program_string,
         goal_x,
         goal_y,
-        [255, 255, 255], // white
-        [255, 165, 0],   // orange
         binning,
         &log_iter,
     );
@@ -136,7 +134,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         );
 
         save_frame(
-            &png_data,
+            &png_data[&SELECT_CMK],
             &output_dir,
             run_id,
             frame_index as u32,

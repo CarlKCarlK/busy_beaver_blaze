@@ -2,7 +2,7 @@ use std::fs;
 
 use busy_beaver_blaze::{
     BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, DebuggableIterator, Error, MACHINE_7_135_505_A,
-    MACHINE_7_135_505_B, Machine, SpaceByTimeMachine,
+    MACHINE_7_135_505_B, Machine, SELECT_CMK, SpaceByTimeMachine,
 };
 use thousands::Separable;
 use wasm_bindgen_test::wasm_bindgen_test;
@@ -55,7 +55,7 @@ fn bb5_champ_js() -> Result<(), String> {
     Ok(())
 }
 
-#[wasm_bindgen_test]
+// cmk #[wasm_bindgen_test]
 #[test]
 fn bb5_champ_space_by_time_js() -> Result<(), String> {
     let program_string = BB5_CHAMP;
@@ -82,7 +82,7 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png("white", "orange")?;
+    let png_data = space_by_time_machine.to_png(SELECT_CMK)?;
     fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
@@ -120,7 +120,7 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png("white", "orange")?;
+    let png_data = space_by_time_machine.to_png(SELECT_CMK)?;
     fs::write("tests/expected/test2_js.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
@@ -186,7 +186,7 @@ fn benchmark1() -> Result<(), String> {
 
     // TODO LATER what is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
-    let png_data = space_by_time_machine.to_png("white", "orange")?;
+    let png_data = space_by_time_machine.to_png(SELECT_CMK)?;
     fs::write("tests/expected/bench.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start2.elapsed());
     Ok(())
@@ -288,7 +288,7 @@ fn benchmark3() -> Result<(), String> {
         );
 
         // Generate PNG for first and last iteration
-        let png_data = space_by_time_machine.to_png("white", "orange")?;
+        let png_data = space_by_time_machine.to_png(SELECT_CMK)?;
         fs::write(
             format!("tests/expected/bench3_smooth{binning}.png"),
             &png_data,
@@ -376,7 +376,7 @@ fn benchmark63() -> Result<(), String> {
 
     // TODO LATER what is one method png_data and another to to_png?
     let start = std::time::Instant::now();
-    let png_data = space_by_time_machine.to_png("white", "orange").unwrap();
+    let png_data = space_by_time_machine.to_png(SELECT_CMK).unwrap();
     // let png_data = space_by_time_machine.to_png();
     fs::write("tests/expected/bench63.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start.elapsed());
