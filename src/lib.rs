@@ -70,6 +70,13 @@ pub const BB5_CHAMP: &str = "
 1	1LC	1RB	0LE	1LD	0LA
 ";
 
+pub const BB5_CHAMP_SHIFT_2: &str = "
+    A	B	C	D	E
+0	2RB	2RC	2RD	2LA	2RH
+1	--- --- --- --- ---
+2	2LC	2RB	0LE	2LD	0LA
+";
+
 pub const BB6_CONTENDER: &str = "
     	A	B	C	D	E	F
 0	1RB	1RC	1LC	0LE	1LF	0RC

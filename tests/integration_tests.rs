@@ -1,8 +1,9 @@
+use core::num::NonZeroU8;
 use std::fs;
 
 use busy_beaver_blaze::{
-    BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, DebuggableIterator, Error, MACHINE_7_135_505_A,
-    MACHINE_7_135_505_B, Machine, SELECT_CMK, SpaceByTimeMachine,
+    BB_3_3_355317, BB5_CHAMP, BB5_CHAMP_SHIFT_2, BB6_CONTENDER, DebuggableIterator, Error,
+    MACHINE_7_135_505_A, MACHINE_7_135_505_B, Machine, SELECT_CMK, SpaceByTimeMachine,
 };
 use thousands::Separable;
 // cmk00 use wasm_bindgen_test::wasm_bindgen_test;
@@ -122,6 +123,45 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
 
     let png_data = space_by_time_machine.to_png(SELECT_CMK)?;
     fs::write("tests/expected/test2_js.png", &png_data)
+        .map_err(|error: std::io::Error| error.to_string())?;
+
+    assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
+    assert_eq!(space_by_time_machine.count_nonblanks(), 4098);
+    assert_eq!(space_by_time_machine.state(), 7);
+    assert_eq!(space_by_time_machine.tape_index(), -12242);
+
+    Ok(())
+}
+
+//cmk #[wasm_bindgen_test]
+#[test]
+fn shift_to_symbol_2() -> Result<(), String> {
+    let program_string = BB5_CHAMP_SHIFT_2;
+    let goal_x: u32 = 1000;
+    let goal_y: u32 = 1000;
+    let binning = false;
+    let seconds = 0.25;
+    let mut space_by_time_machine =
+        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
+
+    while space_by_time_machine.step_for_secs_js(seconds, None, 100_000) {
+        println!(
+            "Index {}: {:?}, #non0's {}",
+            space_by_time_machine.step_index().separate_with_commas(),
+            space_by_time_machine.machine(),
+            space_by_time_machine.count_nonblanks()
+        );
+    }
+
+    println!(
+        "Final: Steps {}: {:?}, #non0's {}",
+        space_by_time_machine.step_index().separate_with_commas(),
+        space_by_time_machine.machine(),
+        space_by_time_machine.count_nonblanks()
+    );
+
+    let png_data = space_by_time_machine.to_png(NonZeroU8::new(2).unwrap())?;
+    fs::write("tests/expected/shift2.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);

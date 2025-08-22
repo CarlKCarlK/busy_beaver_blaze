@@ -19,9 +19,18 @@
     "rust-analyzer.rustcSource": "discover",
     // Ensure RA writes to the default 'target' directory to avoid reusing stale 'target-nightly' artifacts
     "rust-analyzer.cargo.targetDir": "target",
-    // TEMP: disable proc-macro expansion to clear spurious diagnostics after toolchain/target changes
-    // Re-enable later if needed
-    "rust-analyzer.procMacro.enable": false,
+    "rust-analyzer.diagnostics.disabled": [
+        "unresolved-proc-macro",
+        "macro-error"
+    ],
+    // Proc-macro expansion re-enabled after cache cleanup
+    "rust-analyzer.procMacro.enable": true,
+    // Pin RA to the host target triple to avoid mismatched target analysis
+    "rust-analyzer.cargo.target": "x86_64-pc-windows-msvc",
+    // Force the toolchain inside RA-initiated cargo invocations
+    "rust-analyzer.cargo.extraEnv": {
+        "RUSTUP_TOOLCHAIN": "nightly-2025-08-13"
+    },
     // (Optional) If your user settings hard-pin a stable rust-analyzer server, override with nightly's path.
     // Comment this out if you want RA to manage its own binary.
     // "rust-analyzer.server.path": "C:/Users/carlk/.rustup/toolchains/nightly-2025-08-13-x86_64-pc-windows-msvc/bin/rust-analyzer.exe"
