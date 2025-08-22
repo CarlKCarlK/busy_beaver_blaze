@@ -83,6 +83,13 @@ pub const BB6_CONTENDER: &str = "
 1	0LD	0RF	1LA	1RH	0RB	0RE
 ";
 
+pub const BB6_CONTENDER_SHIFT2: &str = "
+    	A	B	C	D	E	F
+0	2RB	2RC	2LC	0LE	2LF	0RC
+1	--- --- --- --- --- ---
+2	0LD	0RF	2LA	2RH	0RB	0RE
+";
+
 pub const MACHINE_7_135_505_A: &str = "   
 0	1
 A	1RB	0LD
