@@ -1,5 +1,5 @@
 extern crate alloc;
-use std::num::NonZeroU8;
+use core::num::NonZeroU8;
 
 use aligned_vec::AVec;
 use instant::Instant;
@@ -48,6 +48,7 @@ impl SpaceByTimeMachine {
         let symbol_count = machine.program.symbol_count;
         let mut space_time_layers = SpaceTimeLayers::default();
         for select in 1u8..symbol_count {
+            #[allow(clippy::shadow_reuse)]
             let select = NonZeroU8::new(select).unwrap();
             let space_by_time = SpaceByTime::new_skipped(
                 select,

@@ -5,13 +5,13 @@ use crate::{
     test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
+use core::num::NonZeroU8;
 use core::simd::Simd;
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use std::{
     collections::{HashMap, HashSet},
     env, fs,
-    num::NonZeroU8,
     path::PathBuf,
 };
 use thousands::Separable;

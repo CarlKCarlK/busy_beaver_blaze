@@ -9,13 +9,19 @@
     // Force the intended nightly toolchain for this workspace
     "rust-analyzer.rustup.toolchain": "nightly-2025-08-13",
     "rust-analyzer.cargo.useRustcWrapper": false,
-    "rust-analyzer.procMacro.enable": true,
+    // NOTE: temporarily disabled below to avoid stale proc-macro diagnostics
+    // "rust-analyzer.procMacro.enable": true,
     // Use plain cargo check here for faster / simpler metadata (you can switch back to clippy later)
-    "rust-analyzer.check.command": "check",
+    // "rust-analyzer.check.command": "check",
     // IMPORTANT: Correct the (mis-typed) global setting "rust-analyzer.rustc.source": "rustup".
     // The correct key is rust-analyzer.rustcSource; setting it here overrides the broken user value
     // that caused RA to probe a bogus manifest path named 'rustup'.
     "rust-analyzer.rustcSource": "discover",
+    // Ensure RA writes to the default 'target' directory to avoid reusing stale 'target-nightly' artifacts
+    "rust-analyzer.cargo.targetDir": "target",
+    // TEMP: disable proc-macro expansion to clear spurious diagnostics after toolchain/target changes
+    // Re-enable later if needed
+    "rust-analyzer.procMacro.enable": false,
     // (Optional) If your user settings hard-pin a stable rust-analyzer server, override with nightly's path.
     // Comment this out if you want RA to manage its own binary.
     // "rust-analyzer.server.path": "C:/Users/carlk/.rustup/toolchains/nightly-2025-08-13-x86_64-pc-windows-msvc/bin/rust-analyzer.exe"

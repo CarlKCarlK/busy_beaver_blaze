@@ -1,4 +1,4 @@
-use std::num::NonZeroU8;
+use core::num::NonZeroU8;
 
 use aligned_vec::AVec;
 use itertools::Itertools;

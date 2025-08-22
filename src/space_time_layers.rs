@@ -1,8 +1,10 @@
-use std::{collections::HashMap, num::NonZeroU8};
+// cmk00 should this be space_by_time_layers???
+use core::num::NonZeroU8;
+use std::collections::HashMap;
 
 use crate::SpaceByTime;
 
-/// Layers is an anonymous wrapper around HashMap<NonZeroU8, SpaceByTime>
+/// Layers is an anonymous wrapper around `HashMap`<`NonZeroU8`, `SpaceByTime`>
 #[derive(Clone, Default)]
 pub(crate) struct SpaceTimeLayers(HashMap<NonZeroU8, SpaceByTime>);
 
@@ -41,18 +43,18 @@ impl SpaceTimeLayers {
 
     #[inline]
     #[must_use]
-    pub fn equal_keys(&self, other: &SpaceTimeLayers) -> bool {
+    pub fn equal_keys(&self, other: &Self) -> bool {
         self.0.len() == other.0.len() && self.0.keys().all(|k| other.0.contains_key(k))
     }
 
     #[inline]
-    pub fn merge(&mut self, mut other: SpaceTimeLayers) {
+    pub fn merge(&mut self, mut other: Self) {
         assert!(
             self.equal_keys(&other),
             "cmk SpaceTimeLayers have different keys"
         );
 
-        for (k, mine) in self.0.iter_mut() {
+        for (k, mine) in self.iter_mut() {
             let theirs = other
                 .0
                 .remove(k)
@@ -62,7 +64,7 @@ impl SpaceTimeLayers {
     }
 }
 
-impl std::ops::Index<NonZeroU8> for SpaceTimeLayers {
+impl core::ops::Index<NonZeroU8> for SpaceTimeLayers {
     type Output = SpaceByTime;
     #[inline]
     fn index(&self, index: NonZeroU8) -> &Self::Output {

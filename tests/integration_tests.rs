@@ -5,7 +5,7 @@ use busy_beaver_blaze::{
     MACHINE_7_135_505_B, Machine, SELECT_CMK, SpaceByTimeMachine,
 };
 use thousands::Separable;
-use wasm_bindgen_test::wasm_bindgen_test;
+// cmk00 use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -31,7 +31,7 @@ fn bb5_champ() -> Result<(), Error> {
     Ok(())
 }
 
-#[wasm_bindgen_test]
+//cmk #[wasm_bindgen_test]
 #[test]
 fn bb5_champ_js() -> Result<(), String> {
     let mut machine: Machine = Machine::from_string(BB5_CHAMP)?;
@@ -93,7 +93,7 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
     Ok(())
 }
 
-#[wasm_bindgen_test]
+//cmk #[wasm_bindgen_test]
 #[test]
 fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
     let program_string = BB5_CHAMP;
@@ -132,7 +132,7 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
     Ok(())
 }
 
-#[wasm_bindgen_test]
+// cmk00 #[wasm_bindgen_test]
 #[test]
 fn machine_7_135_505() -> Result<(), Error> {
     let _machine_a: Machine = MACHINE_7_135_505_A.parse()?;
@@ -143,7 +143,7 @@ fn machine_7_135_505() -> Result<(), Error> {
 // Create a test that runs bb5 champ to halting and then prints the time it took
 // to run the test
 // TODO which of these should be bindgen tests?
-#[wasm_bindgen_test]
+// cmk00 #[wasm_bindgen_test]
 #[test]
 fn bb5_champ_time() {
     let start = std::time::Instant::now();
@@ -194,7 +194,7 @@ fn benchmark1() -> Result<(), String> {
 
 #[allow(clippy::shadow_reuse)]
 #[test]
-#[wasm_bindgen_test]
+// cmk00 #[wasm_bindgen_test]
 fn benchmark2() -> Result<(), String> {
     // let start = std::time::Instant::now();
     let early_stop = Some(1_000_000_000);
@@ -301,7 +301,7 @@ fn benchmark3() -> Result<(), String> {
 
 #[allow(clippy::shadow_reuse)]
 #[test]
-#[wasm_bindgen_test]
+// cmk00 #[wasm_bindgen_test]
 fn benchmark63() -> Result<(), String> {
     // let start = std::time::Instant::now();
 

@@ -10,9 +10,9 @@ use crate::{
     space_time_layers::SpaceTimeLayers,
 };
 use alloc::collections::BinaryHeap;
+use core::num::NonZeroU8;
 use std::{
     collections::HashMap,
-    num::NonZeroU8,
     thread::{self, JoinHandle},
 };
 

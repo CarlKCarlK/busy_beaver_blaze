@@ -1,5 +1,5 @@
 use core::simd::Simd;
-use std::num::NonZeroU8;
+use core::num::NonZeroU8;
 
 use crate::pixel::Pixel;
 use crate::tape::Tape;

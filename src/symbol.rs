@@ -1,4 +1,4 @@
-use std::num::NonZeroU8;
+use core::num::NonZeroU8;
 
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -52,5 +52,9 @@ impl From<Symbol> for u32 {
     }
 }
 
-
-
+// cmk00 remove support for this because they may be more than two states
+impl From<bool> for Symbol {
+    fn from(b: bool) -> Self {
+        if b { Self::STATE_ONE } else { Self::STATE_ZERO }
+    }
+}

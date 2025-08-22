@@ -2,7 +2,7 @@ use crate::{ALIGN, symbol::Symbol};
 use aligned_vec::AVec;
 use core::ops::{Add, AddAssign};
 use core::simd::{self, prelude::*};
-use std::num::NonZeroU8;
+use core::num::NonZeroU8;
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 

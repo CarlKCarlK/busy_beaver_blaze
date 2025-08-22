@@ -22,11 +22,11 @@ mod symbol;
 mod tape;
 
 use aligned_vec::AVec;
+use core::num::NonZeroU8;
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
 use snapshot::Snapshot;
-use std::num::NonZeroU8;
 use symbol::Symbol;
 use thousands::Separable;
 use zerocopy::IntoBytes;
