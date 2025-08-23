@@ -211,7 +211,76 @@ pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
     PowerOfTwo::from_exp(exponent as u8)
 }
 
+// cmk0 later consider mixing with gamma
+// cmk0 consider special cases 2 symbols (1 layer) and 3 symbols (2 layers)
+//       with a palette.
+#[allow(clippy::integer_division_remainder_used)]
+fn encode_png_colors(
+    width: u32,
+    height: u32,
+    colors: &[&[u8; 3]],
+    image_data_layers: &[&[u8]],
+) -> Result<Vec<u8>, Error> {
+    let mut buf = Vec::new();
+    {
+        let pixel_count = (width as usize) * (height as usize);
+        if image_data_layers.is_empty()
+            || colors.len() != image_data_layers.len() + 1
+            || image_data_layers
+                .iter()
+                .any(|image_data| image_data.len() != pixel_count)
+        {
+            return Err(Error::EncodingError);
+        }
+
+        let mut image_data = Vec::with_capacity(pixel_count * 3);
+
+        for pixel_index in 0..pixel_count {
+            // Accumulator for RGB channels; use wider type to avoid wrap. u16
+            // would likely be enough but there would be a chance of rounding error
+            // causing overflow.
+            let mut channels = [0u32; 3];
+            // Remaining weight for the base color
+            let mut weight0 = 255u8;
+            for (layer_data, &color) in image_data_layers.iter().zip(&colors[1..]) {
+                let weight_nonzero = layer_data[pixel_index];
+                weight0 = weight0.saturating_sub(weight_nonzero);
+                for (acc, &ch) in channels.iter_mut().zip(color) {
+                    *acc += (ch as u32) * (weight_nonzero as u32);
+                }
+            }
+
+            // Base color soaks up the remainder (branchless)
+            for (acc, &ch0) in channels.iter_mut().zip(colors[0]) {
+                *acc += (ch0 as u32) * (weight0 as u32);
+            }
+
+            // Divide once per channel and clamp to u8
+            let out = channels.map(|x| ((x / 255).min(255)) as u8);
+            image_data.extend_from_slice(&out);
+        }
+
+        let mut encoder = Encoder::new(&mut buf, width, height);
+        encoder.set_color(ColorType::Rgb);
+        encoder.set_depth(BitDepth::Eight);
+        let mut writer = encoder.write_header().map_err(|_| Error::EncodingError)?;
+        writer
+            .write_image_data(image_data.as_ref())
+            .map_err(|_| Error::EncodingError)?;
+    };
+    Ok(buf)
+}
+
 fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
+    encode_png_colors(
+        width,
+        height,
+        &[&[255, 255, 255], &[255, 165, 0]],
+        &[image_data],
+    )
+}
+
+fn encode_png_mono(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
     let mut buf = Vec::new();
     {
         if image_data.len() != (width * height) as usize {
