@@ -72,6 +72,12 @@ impl Machine {
     pub const fn tape(&self) -> &Tape {
         &self.tape
     }
+
+    #[inline]
+    #[must_use]
+    pub const fn symbol_count(&self) -> u8 {
+        self.program.symbol_count
+    }
 }
 
 impl FromStr for Machine {

@@ -101,6 +101,10 @@ pub const MACHINE_7_135_505_B: &str = "1RB0LD_1RC---_1LD1RA_1RE1LC_0LA0RE";
 
 // https://github.com/sligocki/busy-beaver/blob/main/Machines/bb/3x3
 pub const BB_3_3_355317: &str = "1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB";
+pub const BIGFOOT33: &str = "1RB2RA1LC_2LC1RB2RB_---2LA1LA";
+pub const BIGFOOT72: &str = "0RB1RB_1LC0RA_1RE1LF_1LF1RE_0RD1RD_1LG0LG_---1LB";
+pub const BRADY: &str = "1RB2LB1LC_1LA2RB1RB_1RZ2LA0LC";
+pub const BB_2_5_CHAMP_AUG25: &str = "1RB3LA4RB0RB2LA_1LB2LA3LA1RA1RZ";
 
 /// A trait for iterators that can print debug output at intervals.
 pub trait DebuggableIterator: Iterator {

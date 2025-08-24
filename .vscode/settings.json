@@ -1,10 +1,7 @@
 {
     "cSpell.words": [
-        "bbwe",
-        "expecteds",
         "Spaceline",
         "spacelines",
-        "wekyb"
     ],
     // Force the intended nightly toolchain for this workspace
     "rust-analyzer.rustup.toolchain": "nightly-2025-08-13",

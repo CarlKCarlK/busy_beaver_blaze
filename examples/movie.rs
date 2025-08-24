@@ -1,6 +1,7 @@
 use ab_glyph::{FontArc, PxScale};
 use busy_beaver_blaze::{
-    BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PngDataIterator,
+    BB_2_5_CHAMP_AUG25, BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, BIGFOOT33, BIGFOOT72, BRADY,
+    LogStepIterator, Machine, PngDataIterator,
 };
 use core::str::FromStr;
 use image::Rgba;
@@ -67,6 +68,9 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         .and_then(|arg| arg.parse().ok())
         .unwrap_or(true);
 
+    // Optional 4th argument: comma-separated list of colors (CSS names or #hex)
+    let colors_arg = std::env::args().nth(4);
+
     // let (up_x, up_y) = (goal_x, goal_y);
     let (program_string, end_step, num_frames, (output_dir, run_id)) = match machine_name.as_str() {
         "bb5_champ" => {
@@ -107,10 +111,79 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             let dir_info = create_sequential_subdir(r"m:\deldir\bb\BB_3_3_355317")?;
             (BB_3_3_355317, 1_000_000_000u64, 1000, dir_info)
         }
+        "Bigfoot33" => {
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\Bigfoot33")?;
+            (BIGFOOT33, 1_000_000_000u64, 1000, dir_info)
+        }
+        "Bigfoot72" => {
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\Bigfoot72")?;
+            (BIGFOOT72, 1_000_000_000u64, 1000, dir_info)
+        }
+        "Brady" => {
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\Brady")?;
+            (BRADY, 1_000_000_000u64, 1000, dir_info)
+        }
+
+        "BB_2_5_CHAMP_AUG25" => {
+            let dir_info = create_sequential_subdir(r"m:\deldir\bb\BB_2_5_CHAMP_AUG25")?;
+            (BB_2_5_CHAMP_AUG25, 1_000_000_000u64, 1000, dir_info)
+        }
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
 
-    let colors = &[[255, 255, 255], [255, 165, 0], [255, 255, 0]]; // cmk0000000 make cli
+    // cmk000 review this code
+    // Determine symbol count by parsing the machine once (cheap) to validate colors length
+    let machine_tmp = Machine::from_string(program_string)?;
+    let symbol_count = machine_tmp.symbol_count() as usize;
+
+    let colors_vec: Vec<[u8; 3]> = if let Some(colors_csv) = colors_arg {
+        let parsed_colors_res: Result<Vec<[u8; 3]>, String> = colors_csv
+            .split(',')
+            .map(str::trim)
+            .filter(|segment| !segment.is_empty())
+            .map(|name| {
+                csscolorparser::parse(name)
+                    .map(|color| {
+                        let rgba = color.to_rgba8();
+                        [rgba[0], rgba[1], rgba[2]]
+                    })
+                    .map_err(|err| format!("Invalid color '{name}': {err}"))
+            })
+            .collect();
+        let parsed_colors = parsed_colors_res.map_err(|err| format!("Color parse error: {err}"))?;
+        if parsed_colors.len() != symbol_count {
+            return Err(format!(
+                "Number of colors ({}) must equal number of symbols ({symbol_count})",
+                parsed_colors.len()
+            )
+            .into());
+        }
+        parsed_colors
+    } else {
+        // Default palette starting with white, yellow, orange; repeat to fill
+        let default_palette: &[[u8; 3]] = &[
+            [255, 255, 255], // white
+            [255, 165, 0],   // orange
+            [255, 255, 0],   // yellow
+            [255, 0, 255],   // magenta
+            [0, 255, 255],   // cyan
+            [0, 128, 0],     // green
+            [0, 0, 255],     // blue
+            [75, 0, 130],    // indigo
+            [238, 130, 238], // violet
+            [255, 0, 0],     // red
+            [0, 0, 0],       // black
+            [128, 128, 128], // gray
+        ];
+        default_palette
+            .iter()
+            .copied()
+            .cycle()
+            .take(symbol_count)
+            .collect()
+    };
+
+    let colors: Vec<[u8; 3]> = colors_vec;
     println!(
         "Using machine: {} with output in {}",
         machine_name,
@@ -125,7 +198,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         end_step,
         part_count,
         program_string,
-        colors,
+        &colors,
         goal_x,
         goal_y,
         binning,
