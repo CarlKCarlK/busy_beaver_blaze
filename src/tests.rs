@@ -243,6 +243,7 @@ fn test_find_stride() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn combo() {
+    let colors = &[&[255, 255, 255], &[255, 165, 0]];
     // make a HashMap from the strings "BB5_CHAMP", "BB6_CONTENDER" to the string constants
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
@@ -271,7 +272,7 @@ fn combo() {
                         //     reference_machine.space_by_time.spacelines
                         // );
                         let (reference_png_data, ref_x, ref_y, reference_packed_data) =
-                            reference_machine.png_data_and_packed_data(SELECT_CMK);
+                            reference_machine.png_data_and_packed_data(colors);
                         // println!("---------------");
                         for part_count in [1, 2, 5, 16] {
                             let key = format!(
@@ -291,7 +292,7 @@ fn combo() {
                             let mut space_by_time_machine =
                                 png_data_iterator.into_space_by_time_machine();
                             let (png_data, x, y, packed_data) =
-                                space_by_time_machine.png_data_and_packed_data(SELECT_CMK);
+                                space_by_time_machine.png_data_and_packed_data(colors);
 
                             // Must be the same length and a given value can vary by no more than y_stride.log2() + x_stride.log2()
                             let last_spacetime = space_by_time_machine
@@ -311,10 +312,12 @@ fn combo() {
 
                             let mut ok = true;
                             ok = ok && packed_data.len() == reference_packed_data.len();
-                            for (ref_val, val) in
+                            for (ref_val_list, val_list) in
                                 reference_packed_data.iter().zip(packed_data.iter())
                             {
-                                ok = ok && ref_val.abs_diff(*val) <= max_diff;
+                                for (ref_val, val) in ref_val_list.iter().zip(val_list.iter()) {
+                                    ok = ok && ref_val.abs_diff(*val) <= max_diff;
+                                }
                             }
 
                             if !ok {
@@ -342,6 +345,7 @@ fn combo() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn one() {
+    let colors = &[&[255, 255, 255], &[255, 165, 0]];
     // make a HashMap from the strings "BB5_CHAMP", "BB6_CONTENDER" to the string constants
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
@@ -358,7 +362,7 @@ fn one() {
     let mut reference_machine =
         SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0).unwrap();
     reference_machine.nth_js(early_stop - 2);
-    let (reference_png_data, ..) = reference_machine.png_data_and_packed_data(SELECT_CMK);
+    let (reference_png_data, ..) = reference_machine.png_data_and_packed_data(colors);
 
     let key = format!(
         "early_stop: {early_stop}, goal_x: {goal_x}, goal_y: {goal_y}, program_name: {program_name}, binning: {binning}, part_count: {part_count}"
@@ -375,7 +379,7 @@ fn one() {
         &[0u64; 0],
     );
     let mut space_by_time_machine = png_data_iterator.into_space_by_time_machine();
-    let (png_data, ..) = space_by_time_machine.png_data_and_packed_data(SELECT_CMK);
+    let (png_data, ..) = space_by_time_machine.png_data_and_packed_data(colors);
 
     // println!("goal_x {goal_x}, goal_y {goal_y}, ref_x, {ref_x}, ref_y: {ref_y}, x, {x}, y: {y}");
     // println!("ref_packed: {ref_packed:?}");

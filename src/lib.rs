@@ -219,7 +219,7 @@ fn encode_png_colors(
     width: u32,
     height: u32,
     colors: &[&[u8; 3]],
-    image_data_layers: &[&[u8]],
+    image_data_layers: &[AVec<u8>],
 ) -> Result<Vec<u8>, Error> {
     let mut buf = Vec::new();
     {
@@ -269,15 +269,6 @@ fn encode_png_colors(
             .map_err(|_| Error::EncodingError)?;
     };
     Ok(buf)
-}
-
-fn encode_png(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
-    encode_png_colors(
-        width,
-        height,
-        &[&[255, 255, 255], &[255, 165, 0]],
-        &[image_data],
-    )
 }
 
 fn encode_png_mono(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {

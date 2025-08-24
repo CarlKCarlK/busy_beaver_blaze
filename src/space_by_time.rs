@@ -4,9 +4,9 @@ use aligned_vec::AVec;
 use itertools::Itertools;
 
 use crate::{
-    ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
-    find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline,
-    spacelines::Spacelines,
+    ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big,
+    encode_png_colors, find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo,
+    spaceline::Spaceline, spacelines::Spacelines,
 };
 
 #[derive(Clone)]
@@ -142,8 +142,10 @@ impl SpaceByTime {
         x_goal: usize,
         y_goal: usize,
     ) -> Result<Vec<u8>, Error> {
-        let (png, _x, _y, _packed_data) =
-            self.to_png_and_packed_data(tape_negative_len, tape_nonnegative_len, x_goal, y_goal)?;
+        let (x, y, packed_data) =
+            self.to_packed_data(tape_negative_len, tape_nonnegative_len, x_goal, y_goal)?;
+
+        let png = encode_png_colors(x, y, &[&[255, 255, 255], &[255, 165, 0]], &[packed_data])?;
         Ok(png)
     }
 
@@ -153,13 +155,13 @@ impl SpaceByTime {
         clippy::too_many_lines,
         clippy::shadow_reuse // TODO turn this off globally
     )]
-    pub fn to_png_and_packed_data(
+    pub fn to_packed_data(
         &mut self,
         tape_negative_len: usize,
         tape_nonnegative_len: usize,
         x_goal: usize,
         y_goal: usize,
-    ) -> Result<(Vec<u8>, u32, u32, AVec<u8>), Error> {
+    ) -> Result<(u32, u32, AVec<u8>), Error> {
         assert!(tape_nonnegative_len > 0);
         assert!(x_goal >= 2);
         // println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
@@ -221,9 +223,9 @@ impl SpaceByTime {
             y_actual as u32,
         );
 
-        let png = encode_png(x_actual as u32, y_actual, &packed_data)?;
+        // cmk 00 let png = encode_png(x_actual as u32, y_actual, &packed_data)?;
 
-        Ok((png, x_actual as u32, y_actual, packed_data))
+        Ok((/*png,*/ x_actual as u32, y_actual, packed_data))
     }
 
     pub(crate) fn merge(&mut self, other: Self) {

@@ -5,7 +5,10 @@ use aligned_vec::AVec;
 use instant::Instant;
 // cmk00 use wasm_bindgen::prelude::*;
 
-use crate::{Machine, PixelPolicy, space_by_time::SpaceByTime, space_time_layers::SpaceTimeLayers};
+use crate::{
+    Machine, PixelPolicy, encode_png_colors, space_by_time::SpaceByTime,
+    space_time_layers::SpaceTimeLayers,
+};
 
 //cmk0#[wasm_bindgen]
 pub struct SpaceByTimeMachine {
@@ -208,19 +211,32 @@ impl SpaceByTimeMachine {
 impl SpaceByTimeMachine {
     #[inline]
     #[must_use]
-    pub fn png_data_and_packed_data(&mut self, select: NonZeroU8) -> (Vec<u8>, u32, u32, AVec<u8>) {
-        let space_by_time = self
-            .space_time_layers
-            .get_mut(select)
-            .expect("No SpaceByTime for select");
-        space_by_time
-            .to_png_and_packed_data(
-                self.machine.tape.negative.len(),
-                self.machine.tape.nonnegative.len(),
-                space_by_time.x_goal as usize,
-                space_by_time.y_goal as usize,
-            )
-            .unwrap()
+    pub fn png_data_and_packed_data(
+        &mut self,
+        colors: &[&[u8; 3]],
+    ) -> (Vec<u8>, u32, u32, Vec<AVec<u8>>) {
+        let mut x_y: Option<(u32, u32)> = None;
+        let mut image_data_layers: Vec<AVec<u8>> = Vec::new();
+        for (_, space_by_time) in self.space_time_layers.iter_mut() {
+            let (x_actual, y_actual, packed_data) = space_by_time
+                .to_packed_data(
+                    self.machine.tape.negative.len(),
+                    self.machine.tape.nonnegative.len(),
+                    space_by_time.x_goal as usize,
+                    space_by_time.y_goal as usize,
+                )
+                .unwrap(); // cmk00
+            if let Some(x_y) = x_y {
+                assert!(x_y == (x_actual, y_actual));
+            } else {
+                x_y = Some((x_actual, y_actual));
+            }
+            image_data_layers.push(packed_data);
+        }
+        let (width, height) = x_y.expect("No SpaceByTime layers in SpaceByTimeMachine");
+        let packed_data =
+            encode_png_colors(width, height, colors, image_data_layers.as_slice()).unwrap();
+        (packed_data, width, height, image_data_layers)
     }
 
     #[inline]
