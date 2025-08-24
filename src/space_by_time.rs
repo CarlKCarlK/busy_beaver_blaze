@@ -145,7 +145,7 @@ impl SpaceByTime {
         let (x, y, packed_data) =
             self.to_packed_data(tape_negative_len, tape_nonnegative_len, x_goal, y_goal)?;
 
-        let png = encode_png_colors(x, y, &[&[255, 255, 255], &[255, 165, 0]], &[packed_data])?;
+        let png = encode_png_colors(x, y, &[[255, 255, 255], [255, 165, 0]], &[packed_data])?;
         Ok(png)
     }
 

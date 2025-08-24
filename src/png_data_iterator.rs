@@ -7,7 +7,7 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterato
 
 use crate::{
     Snapshot, SpaceByTimeMachine, find_y_stride, message0::Message0,
-    png_data_layers::PngDataLayers, space_time_layers::SpaceTimeLayers,
+    space_time_layers::SpaceTimeLayers,
 };
 use alloc::collections::BinaryHeap;
 use std::{
@@ -16,7 +16,7 @@ use std::{
 };
 
 pub struct PngDataIterator {
-    receiver1: Receiver<(usize, u64, PngDataLayers)>, // frame_index, step_index, png_data
+    receiver1: Receiver<(usize, u64, Vec<u8>)>, // frame_index, step_index, png_data
     // Optionally hold the join handles so that threads are joined when the iterator is dropped.
     run_handle: Option<JoinHandle<()>>,
     combine_handle: Option<JoinHandle<SpaceByTimeMachine>>,
@@ -30,6 +30,7 @@ impl PngDataIterator {
         early_stop: u64,
         part_count_goal: usize,
         program_string: &str,
+        colors: &[[u8; 3]],
         goal_x: u32,
         goal_y: u32,
         binning: bool,
@@ -37,6 +38,9 @@ impl PngDataIterator {
     ) -> Self {
         assert!(part_count_goal > 0, "part_count_goal must be > 0");
         assert!(early_stop > 0); // panic if early_stop is 0
+
+        // cmk000 for multithreading reasons???? this must be a Vec
+        let colors_owned: Vec<[u8; 3]> = colors.to_vec();
 
         // TODO for now require that values in frame_index_to_step_index be increasing and in range. This could be removed later.
         assert!(
@@ -58,7 +62,7 @@ impl PngDataIterator {
 
         // Set up channels for inter-thread communication.
         let (sender0, receiver0) = channel::unbounded::<Message0>();
-        let (sender1, receiver1) = channel::unbounded::<(usize, u64, PngDataLayers)>();
+        let (sender1, receiver1) = channel::unbounded::<(usize, u64, Vec<u8>)>();
 
         // Clone any data needed by the spawned threads.
         let frame_index_to_step_index_clone = frame_index_to_step_index.to_vec();
@@ -80,7 +84,14 @@ impl PngDataIterator {
 
         // Spawn the thread that combines the results into PNG data.
         let combine_handle = thread::spawn(move || {
-            Self::combine_results(goal_x, goal_y, part_count, &receiver0, &sender1)
+            Self::combine_results(
+                colors_owned.as_slice(),
+                goal_x,
+                goal_y,
+                part_count,
+                &receiver0,
+                &sender1,
+            )
         });
 
         Self {
@@ -160,12 +171,13 @@ impl PngDataIterator {
     // TODO is it sometimes x_goal and sometimes goal_x????
     #[allow(clippy::too_many_lines)]
     fn combine_results(
+        colors: &[[u8; 3]],
         x_goal: u32,
         y_goal: u32,
 
         part_count: usize,
         receiver0: &Receiver<Message0>,
-        sender1: &Sender<(usize, u64, PngDataLayers)>, // frame_index, step_index, png_data
+        sender1: &Sender<(usize, u64, Vec<u8>)>, // frame_index, step_index, png_data
     ) -> SpaceByTimeMachine {
         assert!(part_count > 0);
         let mut buffer: BinaryHeap<Message0> = BinaryHeap::new();
@@ -205,7 +217,8 @@ impl PngDataIterator {
 
                         if next_part_index == 0 {
                             let step_index = snapshot.step_index();
-                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); // TODO need to handle
+                            let png_data =
+                                snapshot.to_png(colors.as_ref(), x_goal, y_goal).unwrap(); // TODO need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
                             // The same step can be rendered to multiple places
                             for index in all_but_last {
@@ -221,7 +234,8 @@ impl PngDataIterator {
                                 space_time_layers_outer.as_ref().unwrap().clone();
                             space_time_layers_first.merge(snapshot.space_time_layers);
                             snapshot.space_time_layers = space_time_layers_first;
-                            let png_data = snapshot.to_png(x_goal, y_goal).unwrap(); // TODO need to handle
+                            let png_data =
+                                snapshot.to_png(colors.as_ref(), x_goal, y_goal).unwrap(); // TODO need to handle
                             let (last, all_but_last) = snapshot.frame_indexes.split_last().unwrap();
                             let step_index = snapshot.step_index();
                             for index in all_but_last {
@@ -404,7 +418,7 @@ impl PngDataIterator {
 #[allow(clippy::missing_trait_methods)]
 impl Iterator for PngDataIterator {
     // cmk0000 make a struct
-    type Item = (u64, PngDataLayers); // step_index, png_data
+    type Item = (u64, Vec<u8>); // step_index, png_data
 
     fn next(&mut self) -> Option<Self::Item> {
         // This will block until a new frame is available or the channel is closed.

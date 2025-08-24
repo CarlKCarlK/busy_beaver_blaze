@@ -37,13 +37,12 @@ pub use machine::Machine;
 pub use pixel::Pixel;
 pub use pixel_policy::PixelPolicy;
 pub use png_data_iterator::PngDataIterator;
+pub use png_data_layers::PngDataLayers;
 pub use power_of_two::PowerOfTwo;
 pub use space_by_time::SpaceByTime;
 pub use space_by_time_machine::SpaceByTimeMachine;
 pub use spaceline::Spaceline;
 pub use tape::Tape;
-
-pub const SELECT_CMK: NonZeroU8 = NonZeroU8::new(1).unwrap(); // cmk00000s
 
 pub const ALIGN: usize = 64;
 
@@ -218,7 +217,7 @@ pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
 fn encode_png_colors(
     width: u32,
     height: u32,
-    colors: &[&[u8; 3]],
+    colors: &[[u8; 3]],
     image_data_layers: &[AVec<u8>],
 ) -> Result<Vec<u8>, Error> {
     let mut buf = Vec::new();
@@ -245,13 +244,13 @@ fn encode_png_colors(
             for (layer_data, &color) in image_data_layers.iter().zip(&colors[1..]) {
                 let weight_nonzero = layer_data[pixel_index];
                 weight0 = weight0.saturating_sub(weight_nonzero);
-                for (acc, &ch) in channels.iter_mut().zip(color) {
+                for (acc, ch) in channels.iter_mut().zip(color) {
                     *acc += (ch as u32) * (weight_nonzero as u32);
                 }
             }
 
             // Base color soaks up the remainder (branchless)
-            for (acc, &ch0) in channels.iter_mut().zip(colors[0]) {
+            for (acc, ch0) in channels.iter_mut().zip(colors[0]) {
                 *acc += (ch0 as u32) * (weight0 as u32);
             }
 

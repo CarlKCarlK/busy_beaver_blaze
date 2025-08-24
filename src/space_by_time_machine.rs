@@ -213,7 +213,7 @@ impl SpaceByTimeMachine {
     #[must_use]
     pub fn png_data_and_packed_data(
         &mut self,
-        colors: &[&[u8; 3]],
+        colors: &[[u8; 3]],
     ) -> (Vec<u8>, u32, u32, Vec<AVec<u8>>) {
         let mut x_y: Option<(u32, u32)> = None;
         let mut image_data_layers: Vec<AVec<u8>> = Vec::new();

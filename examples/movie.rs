@@ -1,6 +1,6 @@
 use ab_glyph::{FontArc, PxScale};
 use busy_beaver_blaze::{
-    BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PngDataIterator, SELECT_CMK,
+    BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PngDataIterator,
 };
 use core::str::FromStr;
 use image::Rgba;
@@ -110,6 +110,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
 
+    let colors = &[[255, 255, 255], [255, 165, 0], [255, 255, 0]]; // cmk0000000 make cli
     println!(
         "Using machine: {} with output in {}",
         machine_name,
@@ -124,6 +125,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         end_step,
         part_count,
         program_string,
+        colors,
         goal_x,
         goal_y,
         binning,
@@ -140,7 +142,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         );
 
         save_frame(
-            &png_data_layers[SELECT_CMK],
+            &png_data_layers,
             &output_dir,
             run_id,
             frame_index as u32,

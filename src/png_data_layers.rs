@@ -6,16 +6,19 @@ pub struct PngDataLayers(pub HashMap<NonZeroU8, Vec<u8>>);
 
 impl PngDataLayers {
     #[inline]
+    #[must_use]
     pub fn new() -> Self {
         Self(HashMap::new())
     }
 
     #[inline]
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self(HashMap::with_capacity(capacity))
     }
 
     #[inline]
+    #[must_use]
     pub fn into_inner(self) -> HashMap<NonZeroU8, Vec<u8>> {
         self.0
     }

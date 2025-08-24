@@ -1,7 +1,7 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
-    PowerOfTwo, SELECT_CMK, SpaceByTime, SpaceByTimeMachine, average_with_iterators,
-    average_with_simd, find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol::Symbol,
+    PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
+    find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol::Symbol,
     test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
@@ -15,6 +15,8 @@ use std::{
     path::PathBuf,
 };
 use thousands::Separable;
+
+const SELECT_CMK: NonZeroU8 = NonZeroU8::new(1).unwrap(); // cmk00000s
 
 #[allow(clippy::shadow_reuse, clippy::integer_division_remainder_used)]
 #[test]
@@ -243,7 +245,7 @@ fn test_find_stride() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn combo() {
-    let colors = &[&[255, 255, 255], &[255, 165, 0]];
+    let colors = &[[255, 255, 255], [255, 165, 0]];
     // make a HashMap from the strings "BB5_CHAMP", "BB6_CONTENDER" to the string constants
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
@@ -284,6 +286,7 @@ fn combo() {
                                 early_stop,
                                 part_count,
                                 program_string,
+                                colors,
                                 goal_x,
                                 goal_y,
                                 binning,
@@ -345,7 +348,7 @@ fn combo() {
 #[allow(clippy::shadow_reuse, clippy::too_many_lines)]
 #[test]
 fn one() {
-    let colors = &[&[255, 255, 255], &[255, 165, 0]];
+    let colors = &[[255, 255, 255], [255, 165, 0]];
     // make a HashMap from the strings "BB5_CHAMP", "BB6_CONTENDER" to the string constants
     let program_name_to_string =
         HashMap::from([("BB5_CHAMP", BB5_CHAMP), ("BB6_CONTENDER", BB6_CONTENDER)]);
@@ -373,6 +376,7 @@ fn one() {
         early_stop,
         part_count,
         program_string,
+        colors,
         goal_x,
         goal_y,
         binning,
@@ -409,6 +413,7 @@ fn test_log_step() {
 
 #[test]
 fn frames() {
+    let colors = &[[255, 255, 255], [255, 165, 0]];
     // let early_stop = 1_000_000_000;
     // let frame_count = 4;
     // let part_count = 16;
@@ -473,6 +478,7 @@ fn frames() {
         early_stop,
         part_count,
         BB6_CONTENDER,
+        colors,
         goal_x,
         goal_y,
         binning,
@@ -483,7 +489,7 @@ fn frames() {
     for (frame_index, (step_index, png_data_layers)) in png_data_iterator.enumerate() {
         let cmk_file = folder.join(format!("cmk{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
-        fs::write(cmk_file, &png_data_layers[SELECT_CMK]).unwrap();
+        fs::write(cmk_file, &png_data_layers).unwrap();
     }
 }
 
@@ -504,12 +510,14 @@ fn stop_early() {
     let goal_x: u32 = 1920;
     let goal_y: u32 = 1080;
     let binning = true;
+    let colors = &[[255, 255, 255], [255, 165, 0]];
 
     let frame_index_to_step_index = LogStepIterator::new(early_stop, frame_count).collect_vec();
     let png_data_iterator = PngDataIterator::new(
         early_stop,
         part_count,
         BB5_CHAMP,
+        colors,
         goal_x,
         goal_y,
         binning,
@@ -521,7 +529,7 @@ fn stop_early() {
     for (frame_index, (step_index, png_data_layers)) in png_data_iterator.enumerate() {
         let cmk_file = output_dir.join(format!("cmk{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
-        fs::write(cmk_file, &png_data_layers[SELECT_CMK]).unwrap();
+        fs::write(cmk_file, png_data_layers).unwrap();
     }
 }
 
