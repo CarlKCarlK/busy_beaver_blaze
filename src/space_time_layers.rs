@@ -2,7 +2,8 @@
 use core::num::NonZeroU8;
 use std::collections::HashMap;
 
-use crate::SpaceByTime;
+use crate::{Error, SpaceByTime};
+use aligned_vec::AVec;
 
 /// Layers is an anonymous wrapper around `HashMap`<`NonZeroU8`, `SpaceByTime`>
 #[derive(Clone, Default)]
@@ -103,5 +104,45 @@ impl SpaceTimeLayers {
     #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&NonZeroU8, &mut SpaceByTime)> {
         self.0.iter_mut()
+    }
+}
+
+impl SpaceTimeLayers {
+    #[inline]
+    pub fn collect_packed_data_with_dims<F>(
+        &mut self,
+        tape_negative_len: usize,
+        tape_nonnegative_len: usize,
+        mut goals: F,
+    ) -> Result<(u32, u32, Vec<AVec<u8>>), Error>
+    where
+        F: FnMut(&SpaceByTime) -> (usize, usize),
+    {
+        let mut dims: Option<(u32, u32)> = None;
+        let mut layers: Vec<AVec<u8>> = Vec::new();
+
+        for (_, space_by_time) in self.iter_mut() {
+            let (x_goal, y_goal) = goals(space_by_time);
+            let (x_actual, y_actual, packed_data) = space_by_time.to_packed_data(
+                tape_negative_len,
+                tape_nonnegative_len,
+                x_goal,
+                y_goal,
+            )?;
+
+            if let Some((width, height)) = dims {
+                assert!(
+                    width == x_actual && height == y_actual,
+                    "Layer dimensions must match"
+                );
+            } else {
+                dims = Some((x_actual, y_actual));
+            }
+            layers.push(packed_data);
+        }
+
+        let (width, height) =
+            dims.expect("No SpaceByTime layers in SpaceTimeLayers::collect_packed_data_with_dims");
+        Ok((width, height, layers))
     }
 }

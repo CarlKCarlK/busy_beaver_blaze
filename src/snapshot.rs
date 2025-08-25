@@ -1,7 +1,4 @@
-use crate::{
-    Error, SpaceByTimeMachine, encode_png_colors, png_data_layers::PngDataLayers,
-    space_time_layers::SpaceTimeLayers,
-};
+use crate::{Error, SpaceByTimeMachine, encode_png_colors, space_time_layers::SpaceTimeLayers};
 
 pub struct Snapshot {
     pub(crate) frame_indexes: Vec<usize>, // TODO make private
@@ -35,29 +32,14 @@ impl Snapshot {
         x_goal: u32,
         y_goal: u32,
     ) -> Result<Vec<u8>, Error> {
-        // cmk00000 somewhere else there is a similar x_y look for it option<(u32, u32)>
-        let mut packed_data_list = Vec::new();
-        let mut x1: Option<u32> = None;
-        let mut y1: Option<u32> = None;
-        for (_select, space_by_time) in &mut self.space_time_layers {
-            let (x, y, packed_data) = space_by_time.to_packed_data(
+        let (width, height, packed_data_list) = self
+            .space_time_layers
+            .collect_packed_data_with_dims(
                 self.tape_negative_len,
                 self.tape_nonnegative_len,
-                x_goal as usize,
-                y_goal as usize,
+                |_sbt| (x_goal as usize, y_goal as usize),
             )?;
-            x1 = Some(x);
-            y1 = Some(y);
-            packed_data_list.push(packed_data);
-        }
-        let png = encode_png_colors(
-            x1.unwrap(),
-            y1.unwrap(),
-            colors,
-            packed_data_list.as_slice(),
-        )?;
-
-        Ok(png)
+        encode_png_colors(width, height, colors, packed_data_list.as_slice())
     }
 
     // pub(crate) fn prepend(mut self, before: SpaceByTime) -> Self {

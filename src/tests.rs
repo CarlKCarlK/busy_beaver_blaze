@@ -16,8 +16,6 @@ use std::{
 };
 use thousands::Separable;
 
-const SELECT_CMK: NonZeroU8 = NonZeroU8::new(1).unwrap(); // cmk00000s
-
 #[allow(clippy::shadow_reuse, clippy::integer_division_remainder_used)]
 #[test]
 fn bb5_champ_space_by_time_native() -> Result<(), Error> {
@@ -26,7 +24,8 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     let goal_x: u32 = 1000;
     let goal_y: u32 = 1000;
     let pixel_policy: PixelPolicy = PixelPolicy::Sampling;
-    let mut sample_space_by_time = SpaceByTime::new0(SELECT_CMK, goal_x, goal_y, pixel_policy);
+    let mut sample_space_by_time =
+        SpaceByTime::new0(NonZeroU8::new(1).unwrap(), goal_x, goal_y, pixel_policy);
 
     let early_stop = Some(10_500_000);
     // let early_stop = Some(1_000_000);

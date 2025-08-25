@@ -215,28 +215,19 @@ impl SpaceByTimeMachine {
         &mut self,
         colors: &[[u8; 3]],
     ) -> (Vec<u8>, u32, u32, Vec<AVec<u8>>) {
-        let mut x_y: Option<(u32, u32)> = None;
-        let mut image_data_layers: Vec<AVec<u8>> = Vec::new();
-        for (_, space_by_time) in self.space_time_layers.iter_mut() {
-            let (x_actual, y_actual, packed_data) = space_by_time
-                .to_packed_data(
-                    self.machine.tape.negative.len(),
-                    self.machine.tape.nonnegative.len(),
-                    space_by_time.x_goal as usize,
-                    space_by_time.y_goal as usize,
-                )
-                .unwrap(); // cmk00
-            if let Some(x_y) = x_y {
-                assert!(x_y == (x_actual, y_actual));
-            } else {
-                x_y = Some((x_actual, y_actual));
-            }
-            image_data_layers.push(packed_data);
-        }
-        let (width, height) = x_y.expect("No SpaceByTime layers in SpaceByTimeMachine");
-        let packed_data =
-            encode_png_colors(width, height, colors, image_data_layers.as_slice()).unwrap();
-        (packed_data, width, height, image_data_layers)
+        let (width, height, image_data_layers) = self
+            .space_time_layers
+            .collect_packed_data_with_dims(
+                self.machine.tape.negative.len(),
+                self.machine.tape.nonnegative.len(),
+                |sbt| (sbt.x_goal as usize, sbt.y_goal as usize),
+            )
+            .expect("Failed to collect packed data");
+
+        let png = encode_png_colors(width, height, colors, image_data_layers.as_slice())
+            .expect("Failed to encode PNG");
+
+        (png, width, height, image_data_layers)
     }
 
     #[inline]

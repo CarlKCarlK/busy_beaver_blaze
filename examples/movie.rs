@@ -131,7 +131,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
 
-    // cmk000 review this code
+    // cmk0 review this code
     // Determine symbol count by parsing the machine once (cheap) to validate colors length
     let machine_tmp = Machine::from_string(program_string)?;
     let symbol_count = machine_tmp.symbol_count() as usize;
