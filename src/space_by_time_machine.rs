@@ -4,7 +4,6 @@ use core::num::NonZeroU8;
 use aligned_vec::AVec;
 use instant::Instant;
 use wasm_bindgen::prelude::wasm_bindgen;
-// cmk00 use wasm_bindgen::prelude::*;
 
 use crate::{
     DEFAULT_COLORS, Machine, PixelPolicy, space_by_time::SpaceByTime,
@@ -34,7 +33,7 @@ impl Iterator for SpaceByTimeMachine {
 
 #[wasm_bindgen]
 #[allow(clippy::min_ident_chars)]
-#[allow(clippy::missing_panics_doc)] // cmk00
+#[allow(clippy::missing_panics_doc)]
 impl SpaceByTimeMachine {
     #[wasm_bindgen(constructor)]
     pub fn from_str(

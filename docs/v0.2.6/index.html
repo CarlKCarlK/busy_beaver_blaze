@@ -96,13 +96,18 @@
             <label for="programInput">Turing Machine Program:</label>
             <select id="programSelect">
                 <option value="custom">Custom Program</option>
-                <option value="bb2">2-State Champion</option>
-                <option value="bb3">3-State Champion</option>
-                <option value="bb4">4-State Champion</option>
-                <option value="bb5">5-State Champion</option>
-                <option value="bb5_69_420_121">5-State #69,420,121</option>
-                <option value="bb6" selected>6-State Contender</option>
-                <option value="bb6_no_name1">6-State no name</option>
+                <option value="bb2">BB(2,2) Champion</option>
+                <option value="bb3">BB(3,2) Champion</option>
+                <option value="bb4">BB(4,2) Champion</option>
+                <option value="bb5">BB(5,2) Champion</option>
+                <option value="bb5_69_420_121">BB(5,2) #69,420,121</option>
+                <option value="bb6" selected>BB(6,2) Contender</option>
+                <option value="bb6_no_name1">BB(6,2) no name</option>
+                <!-- New program choices -->
+                <option value="bb_3_3_355317">BB(3,3) Runs 355,317 Steps </option>
+                <option value="bigfoot33">BB(3,3) Bigfoot</option>
+                <option value="brady">BB(3,3) Brady's Surprise</option>
+                <option value="bb_2_5_champ_aug25">BB(2,5) Contender (as Aug 25)</option>
             </select>
             <a href="https://bbchallenge.org/#zoology" target="_blank" rel="noopener" style="margin-left: 1em;">Visit the BB Challenge Zoo</a>
         </div>
@@ -142,7 +147,7 @@
         <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
             Time: <span id="runTime">not run yet</span>
             • Steps: <span id="stepCount">-</span>
-            • Ones: <span id="onesCount">-</span>
+            • NonZeros: <span id="onesCount">-</span>
             • <span id="haltedStatus">-</span>
         </div>
         <div id="imageContainer" class="image-container">No diagram yet
@@ -277,6 +282,12 @@
 1	0LD	0RF	1LA	1RH	0RB	0RE`,
 bb5_69_420_121: `1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---`,
 bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
+
+                // New program strings
+                bb_3_3_355317: `1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB`,
+                bigfoot33: `1RB2RA1LC_2LC1RB2RB_---2LA1LA`,
+                brady: `1RB2LB1LC_1LA2RB1RB_1RZ2LA0LC`,
+                bb_2_5_champ_aug25: `1RB3LA4RB0RB2LA_1LB2LA3LA1RA1RZ`,
 
             };
 

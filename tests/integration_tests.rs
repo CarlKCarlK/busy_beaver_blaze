@@ -7,7 +7,6 @@ use busy_beaver_blaze::{
 };
 use thousands::Separable;
 use wasm_bindgen_test::wasm_bindgen_test;
-// cmk00 use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
