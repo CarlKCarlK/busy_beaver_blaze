@@ -84,7 +84,7 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let colors = &[255, 255, 255, 255, 165, 0];
+    let colors = &[];
     let png_data = space_by_time_machine.to_png(colors)?;
     fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
 
@@ -204,7 +204,7 @@ fn shift_to_symbol_2() -> Result<(), String> {
 
     let colors = &[255, 255, 255, 255, 165, 0, 255, 255, 0];
     let png_data = space_by_time_machine.to_png(colors)?;
-    fs::write("tests/expected/shift2.png", &png_data)
+    fs::write("tests/expected/shift2b.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
@@ -269,7 +269,7 @@ fn benchmark1() -> Result<(), String> {
 
     // TODO LATER what is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
-    let colors = &[255, 255, 255, 255, 165, 0];
+    let colors = &[255, 255, 255, 255, 165, 0, 255, 255, 0]; // extra will be ignored
     let png_data = space_by_time_machine.to_png(colors)?;
     fs::write("tests/expected/bench.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start2.elapsed());

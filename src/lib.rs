@@ -106,6 +106,20 @@ pub const BIGFOOT72: &str = "0RB1RB_1LC0RA_1RE1LF_1LF1RE_0RD1RD_1LG0LG_---1LB";
 pub const BRADY: &str = "1RB2LB1LC_1LA2RB1RB_1RZ2LA0LC";
 pub const BB_2_5_CHAMP_AUG25: &str = "1RB3LA4RB0RB2LA_1LB2LA3LA1RA1RZ";
 
+pub const DEFAULT_COLORS: &[[u8; 3]] = &[
+    [255, 255, 255], // white
+    [255, 165, 0],   // orange
+    [255, 255, 0],   // yellow
+    [255, 0, 255],   // magenta
+    [0, 255, 255],   // cyan
+    [0, 128, 0],     // green
+    [0, 0, 255],     // blue
+    [75, 0, 130],    // indigo
+    [238, 130, 238], // violet
+    [255, 0, 0],     // red
+    [0, 0, 0],       // black
+];
+
 /// A trait for iterators that can print debug output at intervals.
 pub trait DebuggableIterator: Iterator {
     /// Runs the iterator while printing debug output at intervals.

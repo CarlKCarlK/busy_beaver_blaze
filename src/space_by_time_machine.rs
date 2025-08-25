@@ -6,7 +6,10 @@ use instant::Instant;
 use wasm_bindgen::prelude::wasm_bindgen;
 // cmk00 use wasm_bindgen::prelude::*;
 
-use crate::{Machine, PixelPolicy, space_by_time::SpaceByTime, space_time_layers::SpaceTimeLayers};
+use crate::{
+    DEFAULT_COLORS, Machine, PixelPolicy, space_by_time::SpaceByTime,
+    space_time_layers::SpaceTimeLayers,
+};
 
 #[wasm_bindgen]
 pub struct SpaceByTimeMachine {
@@ -152,20 +155,28 @@ impl SpaceByTimeMachine {
     #[wasm_bindgen]
     #[inline]
     pub fn to_png(&mut self, colors: &[u8]) -> Result<Vec<u8>, String> {
-        let expected_colors = self.machine.program.symbol_count as usize;
-        let expected_bytes = expected_colors * 3;
-        if colors.len() != expected_bytes {
+        let colors = if colors.is_empty() {
+            DEFAULT_COLORS
+        } else {
+            let (colors, remainder) = colors.as_chunks::<3>();
+            if !remainder.is_empty() {
+                return Err(format!(
+                    "Colors length must be a multiple of 3, got {}",
+                    colors.len() * 3 + remainder.len()
+                ));
+            }
+            colors
+        };
+        if colors.len() < 2 {
             return Err(format!(
-                "Expected {} bytes (3 per color for {} colors), got {}",
-                expected_bytes,
-                expected_colors,
+                "Colors length must be at least 2, got {}",
                 colors.len()
             ));
         }
-
-        // Borrow bytes and reinterpret as &[[u8; 3]] safely and zero-copy
-        let (colors, remainder) = colors.as_chunks::<3>();
-        debug_assert!(remainder.is_empty());
+        let colors: Vec<_> = core::iter::once(colors[0])
+            .chain(colors[1..].iter().copied().cycle())
+            .take(self.machine.program.symbol_count as usize)
+            .collect();
         // x/y goals pulled from the first layer
         let (x_goal, y_goal) = {
             let space_by_time = self.space_time_layers.first();

@@ -160,6 +160,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         }
         parsed_colors
     } else {
+        // cmk000 shouldn't reuse the 0th color. See lib.rs's list of default colors
         // Default palette starting with white, yellow, orange; repeat to fill
         let default_palette: &[[u8; 3]] = &[
             [255, 255, 255], // white
@@ -173,7 +174,6 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             [238, 130, 238], // violet
             [255, 0, 0],     // red
             [0, 0, 0],       // black
-            [128, 128, 128], // gray
         ];
         default_palette
             .iter()
