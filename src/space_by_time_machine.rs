@@ -150,23 +150,40 @@ impl SpaceByTimeMachine {
     }
 
     #[wasm_bindgen]
-    // cmk00 should this instead return layers of png?
     #[inline]
-    pub fn to_png(&mut self, select: u8) -> Result<Vec<u8>, String> {
-        let select =
-            NonZeroU8::new(select).ok_or_else(|| "cmk000 Select must be non-zero".to_owned())?;
-        let space_by_time = self
+    pub fn to_png(&mut self, colors: &[u8]) -> Result<Vec<u8>, String> {
+        let expected_colors = self.machine.program.symbol_count as usize;
+        let expected_bytes = expected_colors * 3;
+        if colors.len() != expected_bytes {
+            return Err(format!(
+                "Expected {} bytes (3 per color for {} colors), got {}",
+                expected_bytes,
+                expected_colors,
+                colors.len()
+            ));
+        }
+
+        // Borrow bytes and reinterpret as &[[u8; 3]] safely and zero-copy
+        let (colors, remainder) = colors.as_chunks::<3>();
+        debug_assert!(remainder.is_empty());
+        // x/y goals pulled from the first layer
+        let (x_goal, y_goal) = {
+            let space_by_time = self.space_time_layers.first();
+            (space_by_time.x_goal, space_by_time.y_goal)
+        };
+
+        // 3) Call through and propagate errors instead of unwrap
+        let (png_data, _width, _height, _packed_data_list) = self
             .space_time_layers
-            .get_mut(select)
-            .ok_or_else(|| format!("No SpaceByTime for select {select}"))?;
-        space_by_time
-            .to_png(
+            .png_data_and_packed_data(
+                &colors,
                 self.machine.tape.negative.len(),
                 self.machine.tape.nonnegative.len(),
-                space_by_time.x_goal as usize,
-                space_by_time.y_goal as usize,
+                (x_goal as usize, y_goal as usize),
             )
-            .map_err(|e| format!("Error creating PNG: {e}"))
+            .map_err(|e| e.to_string())?;
+
+        Ok(png_data)
     }
 
     // Helper function to parse CSS color strings into RGB arrays

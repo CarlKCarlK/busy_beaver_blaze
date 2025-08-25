@@ -54,6 +54,7 @@ debug = true
 
 
 [lints.clippy]
+shadow_reuse = "allow"
 # Safety-critical application lints
 # arithmetic_side_effects = "deny"
 float_cmp_const = "deny"
@@ -96,7 +97,6 @@ question_mark_used = "allow"
 self_named_module_files = "warn"
 semicolon_outside_block = "warn"
 separated_literal_suffix = "warn"
-shadow_reuse = "warn"
 shadow_unrelated = "warn"
 similar_names = "warn"
 single_call_fn = "allow"

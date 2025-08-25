@@ -84,7 +84,8 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png(1)?;
+    let colors = &[255, 255, 255, 255, 165, 0];
+    let png_data = space_by_time_machine.to_png(colors)?;
     fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
@@ -122,7 +123,8 @@ fn bb5_champ_space_by_time_js_shift2() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png(2)?;
+    let colors = &[255, 255, 255, 255, 165, 0, 255, 255, 0];
+    let png_data = space_by_time_machine.to_png(colors)?;
     fs::write("tests/expected/test_js_shift2.png", &png_data).map_err(|error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
@@ -160,7 +162,8 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png(1)?;
+    let colors = &[255, 255, 255, 255, 165, 0];
+    let png_data = space_by_time_machine.to_png(colors)?;
     fs::write("tests/expected/test2_js.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
@@ -199,7 +202,8 @@ fn shift_to_symbol_2() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png(2)?;
+    let colors = &[255, 255, 255, 255, 165, 0, 255, 255, 0];
+    let png_data = space_by_time_machine.to_png(colors)?;
     fs::write("tests/expected/shift2.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
@@ -265,7 +269,8 @@ fn benchmark1() -> Result<(), String> {
 
     // TODO LATER what is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
-    let png_data = space_by_time_machine.to_png(1)?;
+    let colors = &[255, 255, 255, 255, 165, 0];
+    let png_data = space_by_time_machine.to_png(colors)?;
     fs::write("tests/expected/bench.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start2.elapsed());
     Ok(())
@@ -298,9 +303,10 @@ fn benchmark1_shift2() -> Result<(), String> {
     assert_eq!(space_by_time_machine.state(), 1);
     assert_eq!(space_by_time_machine.tape_index(), 34054);
 
-    // TODO LATER what is one method png_data and another to to_png?
+    // TODO LATER why is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
-    let png_data = space_by_time_machine.to_png(2)?;
+    let colors = &[255, 255, 255, 255, 165, 0, 255, 255, 0];
+    let png_data = space_by_time_machine.to_png(colors)?;
     fs::write("tests/expected/bench_shift2.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start2.elapsed());
     Ok(())
@@ -402,7 +408,8 @@ fn benchmark3() -> Result<(), String> {
         );
 
         // Generate PNG for first and last iteration
-        let png_data = space_by_time_machine.to_png(1)?;
+        let colors = &[255, 255, 255, 255, 165];
+        let png_data = space_by_time_machine.to_png(colors)?;
         fs::write(
             format!("tests/expected/bench3_smooth{binning}.png"),
             &png_data,
@@ -432,7 +439,7 @@ fn benchmark63() -> Result<(), String> {
     // let goal_x: u32 = 1920;
     // let goal_y: u32 = 1080;
     let binning = false;
-    let select = 1;
+    let colors = &[255, 255, 255, 255, 165, 0];
 
     let program_string = BB6_CONTENDER;
     let mut space_by_time_machine =
@@ -491,7 +498,7 @@ fn benchmark63() -> Result<(), String> {
 
     // TODO LATER what is one method png_data and another to to_png?
     let start = std::time::Instant::now();
-    let png_data = space_by_time_machine.to_png(select).unwrap();
+    let png_data = space_by_time_machine.to_png(colors).unwrap();
     // let png_data = space_by_time_machine.to_png();
     fs::write("tests/expected/bench63.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start.elapsed());
@@ -590,12 +597,11 @@ fn benchmark_3_3() -> Result<(), String> {
     );
 
     // TODO LATER what is one method png_data and another to to_png?
-    for select in 1..=2 {
-        let start = std::time::Instant::now();
-        let png_data = space_by_time_machine.to_png(select).unwrap();
-        // let png_data = space_by_time_machine.to_png();
-        fs::write(format!("tests/expected/bench_3_{select}.png"), &png_data).unwrap(); // TODO handle error
-        println!("Elapsed png: {:?}", start.elapsed());
-    }
+    let colors = &[255, 255, 255, 255, 165, 0, 255, 255, 0];
+    let start = std::time::Instant::now();
+    let png_data = space_by_time_machine.to_png(colors).unwrap();
+    // let png_data = space_by_time_machine.to_png();
+    fs::write("tests/expected/bench_3_3.png", &png_data).unwrap(); // TODO handle error
+    println!("Elapsed png: {:?}", start.elapsed());
     Ok(())
 }
