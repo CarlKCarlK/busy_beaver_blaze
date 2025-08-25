@@ -2,7 +2,7 @@
 use core::num::NonZeroU8;
 use std::collections::HashMap;
 
-use crate::{Error, SpaceByTime};
+use crate::{Error, SpaceByTime, encode_png_colors};
 use aligned_vec::AVec;
 
 /// Layers is an anonymous wrapper around `HashMap`<`NonZeroU8`, `SpaceByTime`>
@@ -109,40 +109,41 @@ impl SpaceTimeLayers {
 
 impl SpaceTimeLayers {
     #[inline]
-    pub fn collect_packed_data_with_dims<F>(
+    pub fn png_data_and_packed_data(
         &mut self,
+        colors: &[[u8; 3]],
         tape_negative_len: usize,
         tape_nonnegative_len: usize,
-        mut goals: F,
-    ) -> Result<(u32, u32, Vec<AVec<u8>>), Error>
-    where
-        F: FnMut(&SpaceByTime) -> (usize, usize),
-    {
-        let mut dims: Option<(u32, u32)> = None;
-        let mut layers: Vec<AVec<u8>> = Vec::new();
+        (goal_width, goal_height): (usize, usize),
+    ) -> Result<(Vec<u8>, u32, u32, Vec<AVec<u8>>), Error> {
+        let mut actual_width_height: Option<(u32, u32)> = None;
+        let mut image_data_layers: Vec<AVec<u8>> = Vec::new();
 
         for (_, space_by_time) in self.iter_mut() {
-            let (x_goal, y_goal) = goals(space_by_time);
             let (x_actual, y_actual, packed_data) = space_by_time.to_packed_data(
                 tape_negative_len,
                 tape_nonnegative_len,
-                x_goal,
-                y_goal,
+                goal_width,
+                goal_height,
             )?;
 
-            if let Some((width, height)) = dims {
+            if let Some((width, height)) = actual_width_height {
                 assert!(
                     width == x_actual && height == y_actual,
                     "Layer dimensions must match"
                 );
             } else {
-                dims = Some((x_actual, y_actual));
+                actual_width_height = Some((x_actual, y_actual));
             }
-            layers.push(packed_data);
+            image_data_layers.push(packed_data);
         }
 
-        let (width, height) =
-            dims.expect("No SpaceByTime layers in SpaceTimeLayers::collect_packed_data_with_dims");
-        Ok((width, height, layers))
+        let (width, height) = actual_width_height
+            .expect("No SpaceByTime layers in SpaceTimeLayers::collect_packed_data_with_dims");
+
+        let png = encode_png_colors(width, height, colors, image_data_layers.as_slice())
+            .expect("Failed to encode PNG");
+
+        Ok((png, width, height, image_data_layers))
     }
 }

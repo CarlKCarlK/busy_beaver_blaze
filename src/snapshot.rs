@@ -1,4 +1,4 @@
-use crate::{Error, SpaceByTimeMachine, encode_png_colors, space_time_layers::SpaceTimeLayers};
+use crate::{Error, SpaceByTimeMachine, space_time_layers::SpaceTimeLayers};
 
 pub struct Snapshot {
     pub(crate) frame_indexes: Vec<usize>, // TODO make private
@@ -29,21 +29,16 @@ impl Snapshot {
     pub(crate) fn to_png(
         &mut self,
         colors: &[[u8; 3]],
-        x_goal: u32,
-        y_goal: u32,
+        goal_width: u32,
+        goal_height: u32,
     ) -> Result<Vec<u8>, Error> {
-        let (width, height, packed_data_list) = self
-            .space_time_layers
-            .collect_packed_data_with_dims(
+        let (png_data, _width, _height, _packed_data_list) =
+            self.space_time_layers.png_data_and_packed_data(
+                colors,
                 self.tape_negative_len,
                 self.tape_nonnegative_len,
-                |_sbt| (x_goal as usize, y_goal as usize),
+                (goal_width as usize, goal_height as usize),
             )?;
-        encode_png_colors(width, height, colors, packed_data_list.as_slice())
+        Ok(png_data)
     }
-
-    // pub(crate) fn prepend(mut self, before: SpaceByTime) -> Self {
-    //     self.space_by_time = before.append(self.space_by_time);
-    //     self
-    // }
 }

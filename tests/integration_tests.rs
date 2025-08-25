@@ -1,4 +1,3 @@
-use core::num::NonZeroU8;
 use std::fs;
 
 use busy_beaver_blaze::{
@@ -7,12 +6,10 @@ use busy_beaver_blaze::{
     SpaceByTimeMachine,
 };
 use thousands::Separable;
+use wasm_bindgen_test::wasm_bindgen_test;
 // cmk00 use wasm_bindgen_test::wasm_bindgen_test;
 
 wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-const SELECT_ONE: NonZeroU8 = NonZeroU8::new(1).unwrap();
-const SELECT_TWO: NonZeroU8 = NonZeroU8::new(2).unwrap();
 
 #[test]
 fn bb5_champ() -> Result<(), Error> {
@@ -36,7 +33,7 @@ fn bb5_champ() -> Result<(), Error> {
     Ok(())
 }
 
-//cmk #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 #[test]
 fn bb5_champ_js() -> Result<(), String> {
     let mut machine: Machine = Machine::from_string(BB5_CHAMP)?;
@@ -60,7 +57,7 @@ fn bb5_champ_js() -> Result<(), String> {
     Ok(())
 }
 
-// cmk #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 #[test]
 fn bb5_champ_space_by_time_js() -> Result<(), String> {
     let program_string = BB5_CHAMP;
@@ -87,7 +84,7 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png(SELECT_ONE)?;
+    let png_data = space_by_time_machine.to_png(1)?;
     fs::write("tests/expected/test_js.png", &png_data).map_err(|error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
@@ -98,7 +95,7 @@ fn bb5_champ_space_by_time_js() -> Result<(), String> {
     Ok(())
 }
 
-// cmk #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 #[test]
 fn bb5_champ_space_by_time_js_shift2() -> Result<(), String> {
     let program_string = BB5_CHAMP_SHIFT_2;
@@ -125,7 +122,7 @@ fn bb5_champ_space_by_time_js_shift2() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png(NonZeroU8::new(2).unwrap())?;
+    let png_data = space_by_time_machine.to_png(2)?;
     fs::write("tests/expected/test_js_shift2.png", &png_data).map_err(|error| error.to_string())?;
 
     assert_eq!(space_by_time_machine.step_index() + 1, 47_176_870);
@@ -136,7 +133,7 @@ fn bb5_champ_space_by_time_js_shift2() -> Result<(), String> {
     Ok(())
 }
 
-//cmk #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 #[test]
 fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
     let program_string = BB5_CHAMP;
@@ -163,7 +160,7 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png(SELECT_ONE)?;
+    let png_data = space_by_time_machine.to_png(1)?;
     fs::write("tests/expected/test2_js.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
@@ -175,7 +172,7 @@ fn seconds_bb5_champ_space_by_time_js() -> Result<(), String> {
     Ok(())
 }
 
-//cmk #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 #[test]
 fn shift_to_symbol_2() -> Result<(), String> {
     let program_string = BB5_CHAMP_SHIFT_2;
@@ -202,7 +199,7 @@ fn shift_to_symbol_2() -> Result<(), String> {
         space_by_time_machine.count_nonblanks()
     );
 
-    let png_data = space_by_time_machine.to_png(SELECT_TWO)?;
+    let png_data = space_by_time_machine.to_png(2)?;
     fs::write("tests/expected/shift2.png", &png_data)
         .map_err(|error: std::io::Error| error.to_string())?;
 
@@ -214,7 +211,7 @@ fn shift_to_symbol_2() -> Result<(), String> {
     Ok(())
 }
 
-// cmk00 #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 #[test]
 fn machine_7_135_505() -> Result<(), Error> {
     let _machine_a: Machine = MACHINE_7_135_505_A.parse()?;
@@ -225,7 +222,7 @@ fn machine_7_135_505() -> Result<(), Error> {
 // Create a test that runs bb5 champ to halting and then prints the time it took
 // to run the test
 // TODO which of these should be bindgen tests?
-// cmk00 #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 #[test]
 fn bb5_champ_time() {
     let start = std::time::Instant::now();
@@ -268,7 +265,7 @@ fn benchmark1() -> Result<(), String> {
 
     // TODO LATER what is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
-    let png_data = space_by_time_machine.to_png(SELECT_ONE)?;
+    let png_data = space_by_time_machine.to_png(1)?;
     fs::write("tests/expected/bench.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start2.elapsed());
     Ok(())
@@ -303,7 +300,7 @@ fn benchmark1_shift2() -> Result<(), String> {
 
     // TODO LATER what is one method png_data and another to to_png?
     let start2 = std::time::Instant::now();
-    let png_data = space_by_time_machine.to_png(SELECT_TWO)?;
+    let png_data = space_by_time_machine.to_png(2)?;
     fs::write("tests/expected/bench_shift2.png", &png_data).unwrap(); // TODO handle error
     println!("Elapsed png: {:?}", start2.elapsed());
     Ok(())
@@ -311,7 +308,7 @@ fn benchmark1_shift2() -> Result<(), String> {
 
 #[allow(clippy::shadow_reuse)]
 #[test]
-// cmk00 #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 fn benchmark2() -> Result<(), String> {
     // let start = std::time::Instant::now();
     let early_stop = Some(1_000_000_000);
@@ -405,7 +402,7 @@ fn benchmark3() -> Result<(), String> {
         );
 
         // Generate PNG for first and last iteration
-        let png_data = space_by_time_machine.to_png(SELECT_ONE)?;
+        let png_data = space_by_time_machine.to_png(1)?;
         fs::write(
             format!("tests/expected/bench3_smooth{binning}.png"),
             &png_data,
@@ -418,7 +415,7 @@ fn benchmark3() -> Result<(), String> {
 
 #[allow(clippy::shadow_reuse)]
 #[test]
-// cmk00 #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 fn benchmark63() -> Result<(), String> {
     // let start = std::time::Instant::now();
 
@@ -435,7 +432,7 @@ fn benchmark63() -> Result<(), String> {
     // let goal_x: u32 = 1920;
     // let goal_y: u32 = 1080;
     let binning = false;
-    let select = NonZeroU8::new(1).unwrap();
+    let select = 1;
 
     let program_string = BB6_CONTENDER;
     let mut space_by_time_machine =
@@ -501,7 +498,7 @@ fn benchmark63() -> Result<(), String> {
     Ok(())
 }
 
-// cmk000 #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 #[test]
 fn bb_3_3_355317_time() {
     let start = std::time::Instant::now();
@@ -519,7 +516,7 @@ fn bb_3_3_355317_time() {
 
 #[allow(clippy::shadow_reuse)]
 #[test]
-// cmk00 #[wasm_bindgen_test]
+#[wasm_bindgen_test]
 fn benchmark_3_3() -> Result<(), String> {
     // let start = std::time::Instant::now();
 
@@ -593,7 +590,7 @@ fn benchmark_3_3() -> Result<(), String> {
     );
 
     // TODO LATER what is one method png_data and another to to_png?
-    for select in [SELECT_ONE, SELECT_TWO] {
+    for select in 1..=2 {
         let start = std::time::Instant::now();
         let png_data = space_by_time_machine.to_png(select).unwrap();
         // let png_data = space_by_time_machine.to_png();

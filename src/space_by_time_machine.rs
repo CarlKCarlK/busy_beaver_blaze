@@ -3,14 +3,12 @@ use core::num::NonZeroU8;
 
 use aligned_vec::AVec;
 use instant::Instant;
+use wasm_bindgen::prelude::wasm_bindgen;
 // cmk00 use wasm_bindgen::prelude::*;
 
-use crate::{
-    Machine, PixelPolicy, encode_png_colors, space_by_time::SpaceByTime,
-    space_time_layers::SpaceTimeLayers,
-};
+use crate::{Machine, PixelPolicy, space_by_time::SpaceByTime, space_time_layers::SpaceTimeLayers};
 
-//cmk0#[wasm_bindgen]
+#[wasm_bindgen]
 pub struct SpaceByTimeMachine {
     pub(crate) machine: Machine,
     pub(crate) space_time_layers: SpaceTimeLayers,
@@ -31,11 +29,11 @@ impl Iterator for SpaceByTimeMachine {
     }
 }
 
-//cmk0 #[wasm_bindgen]
+#[wasm_bindgen]
 #[allow(clippy::min_ident_chars)]
 #[allow(clippy::missing_panics_doc)] // cmk00
 impl SpaceByTimeMachine {
-    //cmk0    #[wasm_bindgen(constructor)]
+    #[wasm_bindgen(constructor)]
     pub fn from_str(
         program: &str,
         goal_x: u32,
@@ -74,7 +72,7 @@ impl SpaceByTimeMachine {
         })
     }
 
-    //cmk0    #[wasm_bindgen(js_name = "nth")]
+    #[wasm_bindgen(js_name = "nth")]
     pub fn nth_js(&mut self, n: u64) -> bool {
         for _ in 0..=n {
             if self.next().is_none() {
@@ -84,7 +82,7 @@ impl SpaceByTimeMachine {
         true
     }
 
-    //cmk0    #[wasm_bindgen(js_name = "step_for_secs")]
+    #[wasm_bindgen(js_name = "step_for_secs")]
     #[allow(clippy::shadow_reuse)]
     pub fn step_for_secs_js(
         &mut self,
@@ -151,10 +149,12 @@ impl SpaceByTimeMachine {
         true
     }
 
-    //cmk0 #[wasm_bindgen]
+    #[wasm_bindgen]
     // cmk00 should this instead return layers of png?
     #[inline]
-    pub fn to_png(&mut self, select: NonZeroU8) -> Result<Vec<u8>, String> {
+    pub fn to_png(&mut self, select: u8) -> Result<Vec<u8>, String> {
+        let select =
+            NonZeroU8::new(select).ok_or_else(|| "cmk000 Select must be non-zero".to_owned())?;
         let space_by_time = self
             .space_time_layers
             .get_mut(select)
@@ -180,7 +180,7 @@ impl SpaceByTimeMachine {
     }
 
     // TODO why is it step_count and count_ones. That doesn't make sense.
-    //cmk0#[wasm_bindgen]
+    #[wasm_bindgen]
     #[inline]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
@@ -188,14 +188,14 @@ impl SpaceByTimeMachine {
         self.step_index() + 1
     }
 
-    //cmk0#[wasm_bindgen]
+    #[wasm_bindgen]
     #[inline]
     #[must_use]
     pub fn count_nonblanks(&self) -> u32 {
         self.machine.count_nonblanks()
     }
 
-    //cmk0#[wasm_bindgen]
+    #[wasm_bindgen]
     #[inline]
     #[must_use]
     pub fn is_halted(&self) -> bool {
@@ -215,19 +215,19 @@ impl SpaceByTimeMachine {
         &mut self,
         colors: &[[u8; 3]],
     ) -> (Vec<u8>, u32, u32, Vec<AVec<u8>>) {
-        let (width, height, image_data_layers) = self
-            .space_time_layers
-            .collect_packed_data_with_dims(
+        let space_time_layers = &mut self.space_time_layers;
+        let (goal_width, goal_height) = {
+            let space_by_time = space_time_layers.first();
+            (space_by_time.x_goal as usize, space_by_time.y_goal as usize)
+        };
+        space_time_layers
+            .png_data_and_packed_data(
+                colors,
                 self.machine.tape.negative.len(),
                 self.machine.tape.nonnegative.len(),
-                |sbt| (sbt.x_goal as usize, sbt.y_goal as usize),
+                (goal_width, goal_height),
             )
-            .expect("Failed to collect packed data");
-
-        let png = encode_png_colors(width, height, colors, image_data_layers.as_slice())
-            .expect("Failed to encode PNG");
-
-        (png, width, height, image_data_layers)
+            .expect("Failed to collect packed data")
     }
 
     #[inline]

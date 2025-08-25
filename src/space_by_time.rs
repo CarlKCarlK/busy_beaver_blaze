@@ -139,13 +139,22 @@ impl SpaceByTime {
         &mut self,
         tape_negative_len: usize,
         tape_nonnegative_len: usize,
-        x_goal: usize,
-        y_goal: usize,
+        goal_width: usize,
+        goal_height: usize,
     ) -> Result<Vec<u8>, Error> {
-        let (x, y, packed_data) =
-            self.to_packed_data(tape_negative_len, tape_nonnegative_len, x_goal, y_goal)?;
+        let (width, height, packed_data) = self.to_packed_data(
+            tape_negative_len,
+            tape_nonnegative_len,
+            goal_width,
+            goal_height,
+        )?;
 
-        let png = encode_png_colors(x, y, &[[255, 255, 255], [255, 165, 0]], &[packed_data])?;
+        let png = encode_png_colors(
+            width,
+            height,
+            &[[255, 255, 255], [255, 165, 0]],
+            &[packed_data],
+        )?;
         Ok(png)
     }
 
@@ -159,14 +168,14 @@ impl SpaceByTime {
         &mut self,
         tape_negative_len: usize,
         tape_nonnegative_len: usize,
-        x_goal: usize,
-        y_goal: usize,
+        goal_width: usize,
+        goal_height: usize,
     ) -> Result<(u32, u32, AVec<u8>), Error> {
         assert!(tape_nonnegative_len > 0);
-        assert!(x_goal >= 2);
+        assert!(goal_width >= 2);
         // println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
 
-        let x_stride = find_x_stride(tape_negative_len, tape_nonnegative_len, x_goal);
+        let x_stride = find_x_stride(tape_negative_len, tape_nonnegative_len, goal_width);
         let x_zero = x_stride.div_ceil_into(tape_negative_len);
         let x_actual = x_zero + x_stride.div_ceil_into(tape_nonnegative_len);
 
@@ -214,11 +223,11 @@ impl SpaceByTime {
             }
         }
 
-        assert!(y_actual <= 2 * y_goal);
+        assert!(y_actual <= 2 * goal_height);
         let (packed_data, y_actual) = compress_packed_data_if_one_too_big(
             packed_data,
             self.pixel_policy,
-            y_goal as u32,
+            goal_height as u32,
             x_actual as u32,
             y_actual as u32,
         );

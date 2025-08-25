@@ -28,6 +28,8 @@
     "rust-analyzer.cargo.extraEnv": {
         "RUSTUP_TOOLCHAIN": "nightly-2025-08-13"
     },
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python-envs.pythonProjects": [],
     // (Optional) If your user settings hard-pin a stable rust-analyzer server, override with nightly's path.
     // Comment this out if you want RA to manage its own binary.
     // "rust-analyzer.server.path": "C:/Users/carlk/.rustup/toolchains/nightly-2025-08-13-x86_64-pc-windows-msvc/bin/rust-analyzer.exe"
