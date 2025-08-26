@@ -70,6 +70,17 @@
         input:checked + .slider:before {
             transform: translateX(24px); /* Adjusted for narrower width */
         }
+        /* Make color boxes narrower while keeping height */
+        #colorPickers label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        #colorPickers input[type="color"] {
+            width: 26px; /* narrower; height remains default */
+            padding: 0;
+            border: none;
+        }
     </style>
 </head>
 <body>
@@ -144,7 +155,7 @@
             </label>
             <label style="margin-left: 0.5em;">
                 <input type="checkbox" id="showColorKey">
-                Color Key
+                Edit Colors
             </label>
         </div>
         <div id="colorPickers" class="controls" style="display: none; gap: 0.5em; flex-wrap: wrap;">
@@ -220,6 +231,44 @@
             const darkMode = document.getElementById('darkMode');
             if (darkMode.checked) params.set('dark', 'true');
 
+            // Colors: include only if non-default for current mode
+            (function addColorsIfNonDefault() {
+                const isDark = darkMode.checked;
+                const defaultBytes = isDark
+                    ? [255,255,255, 0,0,0, 128,128,128, 64,64,64, 192,192,192]
+                    : [255,255,255, 255,165,0, 255,255,0, 255,0,255, 0,255,255];
+
+                let activeBytes = null;
+                const showColorKey = document.getElementById('showColorKey');
+                if (showColorKey && showColorKey.checked) {
+                    // Read directly from pickers
+                    const ids = ['color0','color1','color2','color3','color4'];
+                    const arr = [];
+                    for (const id of ids) {
+                        const el = document.getElementById(id);
+                        if (!el) continue;
+                        const h = el.value.startsWith('#') ? el.value.slice(1) : el.value;
+                        arr.push(parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16));
+                    }
+                    activeBytes = arr;
+                } else if (currentColorsBytes && currentColorsBytes.length === 15) {
+                    activeBytes = Array.from(currentColorsBytes);
+                } else {
+                    activeBytes = defaultBytes.slice();
+                }
+
+                const isDefault = activeBytes.length === 15 && activeBytes.every((v,i) => v === defaultBytes[i]);
+                if (!isDefault) {
+                    const hexes = [];
+                    for (let i = 0; i < 5; i++) {
+                        const r = activeBytes[i*3], g = activeBytes[i*3+1], b = activeBytes[i*3+2];
+                        const toHex = (v) => v.toString(16).padStart(2,'0');
+                        hexes.push(`${toHex(r)}${toHex(g)}${toHex(b)}`);
+                    }
+                    params.set('colors', hexes.join(','));
+                }
+            })();
+
             // Update URL without reloading
             window.location.hash = params.toString();
         }
@@ -263,6 +312,22 @@
             
             if (params.has('dark')) {
                 document.getElementById('darkMode').checked = params.get('dark') === 'true';
+            }
+
+            // Apply custom colors if provided: store in currentColorsBytes
+            if (params.has('colors')) {
+                const raw = params.get('colors');
+                const parts = raw.split(',');
+                if (parts.length === 5 && parts.every(p => /^[0-9a-fA-F]{6}$/.test(p))) {
+                    const bytes = new Uint8Array(15);
+                    for (let i = 0; i < 5; i++) {
+                        const h = parts[i];
+                        bytes[i*3] = parseInt(h.slice(0,2),16);
+                        bytes[i*3+1] = parseInt(h.slice(2,4),16);
+                        bytes[i*3+2] = parseInt(h.slice(4,6),16);
+                    }
+                    currentColorsBytes = bytes;
+                }
             }
 
             // Return whether we should auto-run
@@ -551,13 +616,17 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         pendingRunReject = reject;
 
                         const colorsBytes = (() => {
-                            // If color key is enabled, use the pickers
+                            // If editing colors, use pickers
                             if (showColorKey && showColorKey.checked) {
                                 const bytes = getBytesFromPickers();
                                 currentColorsBytes = bytes;
                                 return bytes;
                             }
-                            // Otherwise, send the defaults for the current mode
+                            // Prefer any active custom palette from URL or prior changes
+                            if (currentColorsBytes && currentColorsBytes.length === 15) {
+                                return currentColorsBytes;
+                            }
+                            // Fallback to mode defaults
                             const isDark = document.getElementById('darkMode').checked;
                             const bytes = new Uint8Array(defaultPaletteBytes(isDark));
                             currentColorsBytes = bytes;
@@ -703,6 +772,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                             setPickersFromBytes(defaultPaletteBytes(isDark));
                         }
                     }
+                    // Update URL to reflect current colors (if non-default)
+                    updateHashFromUI();
                 });
             }
 
@@ -718,12 +789,26 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     currentColorsBytes = bytes;
                     worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
                 }
+                // Keep URL in sync during live edits where supported
+                updateHashFromUI();
             }, 75);
+                const sendPickerColorsImmediate = () => {
+                    const isDark = document.getElementById('darkMode').checked;
+                    if (showColorKey && showColorKey.checked) {
+                        const bytes = getBytesFromPickers();
+                        currentColorsBytes = bytes;
+                        if (worker) {
+                            worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
+                        }
+                    }
+                    // Update URL immediately when the picker closes
+                    updateHashFromUI();
+                };
             ['color0','color1','color2','color3','color4'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
                     el.addEventListener('input', sendPickerColors);
-                    el.addEventListener('change', sendPickerColors);
+                        el.addEventListener('change', sendPickerColorsImmediate);
                 }
             });
 
