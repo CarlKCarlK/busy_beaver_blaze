@@ -342,6 +342,7 @@
             
             // Palette mode: prefer new 'palette', fallback to legacy 'dark'; map old custom->edit
             const paletteSel = document.getElementById('paletteMode');
+            let convertedLegacyDark = false;
             if (params.has('palette')) {
                 let pal = params.get('palette');
                 if (pal === 'custom') pal = 'edit';
@@ -349,6 +350,11 @@
                 paletteSel.value = pal;
             } else if (params.has('dark') && params.get('dark') === 'true') {
                 paletteSel.value = 'dark';
+                convertedLegacyDark = true;
+            } else if (params.has('dark') && params.get('dark') === 'false') {
+                // Explicitly map to light when legacy dark=false provided
+                paletteSel.value = 'light';
+                convertedLegacyDark = true;
             } else {
                 paletteSel.value = 'light';
             }
@@ -376,6 +382,11 @@
                 }
             } else {
                 currentColorsBytes = paletteBytesForMode(mode);
+            }
+
+            // If we consumed legacy dark=true/false, reflect it in the URL using the new format
+            if (convertedLegacyDark) {
+                updateHashFromUI();
             }
 
             // Return whether we should auto-run
