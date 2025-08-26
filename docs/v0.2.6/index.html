@@ -451,16 +451,39 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         worker.onerror = reject;
                         
                         const colorsBytes = (() => {
-                            if (!useCustomColors || !useCustomColors.checked) return new Uint8Array();
-                            const ids = ['color0','color1','color2','color3','color4'];
-                            const arr = [];
-                            for (const id of ids) {
-                                const el = document.getElementById(id);
-                                if (!el) continue;
-                                const [r,g,b] = hexToRgb(el.value);
-                                arr.push(r,g,b);
+                            // If custom colors are enabled, use them
+                            if (useCustomColors && useCustomColors.checked) {
+                                const ids = ['color0','color1','color2','color3','color4'];
+                                const arr = [];
+                                for (const id of ids) {
+                                    const el = document.getElementById(id);
+                                    if (!el) continue;
+                                    const [r,g,b] = hexToRgb(el.value);
+                                    arr.push(r,g,b);
+                                }
+                                return new Uint8Array(arr);
                             }
-                            return new Uint8Array(arr);
+
+                            // Otherwise choose defaults based on dark mode
+                            if (document.getElementById('darkMode').checked) {
+                                // Dark mode defaults: white, black, 50% gray, 25% gray, 75% gray
+                                return new Uint8Array([
+                                    255, 255, 255, // white (background)
+                                    0, 0, 0,       // black
+                                    128, 128, 128, // 50% gray
+                                    64, 64, 64,    // 25% gray
+                                    192, 192, 192  // 75% gray
+                                ]);
+                            }
+
+                            // Light mode defaults: white, orange, yellow, magenta, cyan
+                            return new Uint8Array([
+                                255, 255, 255, // white
+                                255, 165, 0,   // orange
+                                255, 255, 0,   // yellow
+                                255, 0, 255,   // magenta
+                                0, 255, 255    // cyan
+                            ]);
                         })();
 
                         worker.postMessage({

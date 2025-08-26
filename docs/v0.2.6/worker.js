@@ -15,16 +15,16 @@ self.onmessage = async function (e) {
             // Set colors: prefer provided bytes; else use dark mode preset; else default (empty)
             const colors = (colorsBytes && colorsBytes.length > 0) ? colorsBytes : (darkMode
                 ? new Uint8Array([
-                    // black
-                    0, 0, 0,
                     // white
                     255, 255, 255,
+                    // black
+                    0, 0, 0,
                     // 50% grey
                     128, 128, 128,
-                    // light grey
-                    192, 192, 192,
-                    // dark gray
-                    64, 64, 64
+                    // 25% gray (darker)
+                    64, 64, 64,
+                    // 75% gray (lighter)
+                    192, 192, 192
                 ])
                 : new Uint8Array());
 
