@@ -161,8 +161,9 @@
                 Colors:
                 <select id="paletteMode" aria-label="Color palette mode">
                     <option value="light">Light</option>
+                    <option value="light2">Light 2 (WYCOM)</option>
                     <option value="dark">Dark</option>
-                    <option value="custom">Custom</option>
+                    <option value="edit">Edit</option>
                 </select>
             </label>
         </div>
@@ -229,6 +230,27 @@
             ];
         }
 
+        // Resolve palette bytes for a given mode
+        function paletteBytesForMode(mode) {
+            switch ((mode || 'light')) {
+                case 'dark':
+                    return new Uint8Array(defaultPaletteBytes(true));
+                case 'light':
+                    return new Uint8Array(defaultPaletteBytes(false));
+                case 'light2': // WYCOM: white, yellow, cyan, orange, magenta
+                    return new Uint8Array([
+                        255, 255, 255, // white (symbol 0)
+                        255, 255, 0,   // yellow (symbol 1)
+                        0, 255, 255,   // cyan (symbol 2)
+                        255, 165, 0,   // orange (symbol 3)
+                        255, 0, 255    // magenta (symbol 4)
+                    ]);
+                case 'edit':
+                default:
+                    return new Uint8Array(defaultPaletteBytes(false));
+            }
+        }
+
         function updateHashFromUI() {
             const params = new URLSearchParams();
             
@@ -261,11 +283,11 @@
                 params.set('palette', paletteMode.value);
             }
 
-            // Colors: only persist for Custom mode
+            // Colors: only persist for Edit mode
             (function addColorsIfNonDefault() {
                 const mode = (document.getElementById('paletteMode')?.value) || 'light';
-                if (mode !== 'custom') return;
-                // Read directly from pickers for custom mode only
+                if (mode !== 'edit') return;
+                // Read directly from pickers for edit mode only
                 const ids = ['color0','color1','color2','color3','color4'];
                 const hexes = [];
                 for (const id of ids) {
@@ -318,10 +340,13 @@
                 document.getElementById('binning').checked = params.get('binning') === 'true';
             }
             
-            // Palette mode: prefer new 'palette', fallback to legacy 'dark'
+            // Palette mode: prefer new 'palette', fallback to legacy 'dark'; map old custom->edit
             const paletteSel = document.getElementById('paletteMode');
             if (params.has('palette')) {
-                paletteSel.value = params.get('palette');
+                let pal = params.get('palette');
+                if (pal === 'custom') pal = 'edit';
+                if (!['light','light2','dark','edit'].includes(pal)) pal = 'light';
+                paletteSel.value = pal;
             } else if (params.has('dark') && params.get('dark') === 'true') {
                 paletteSel.value = 'dark';
             } else {
@@ -330,7 +355,7 @@
 
             // Derive currentColorsBytes solely from palette mode on load
             const mode = paletteSel.value;
-            if (mode === 'custom') {
+            if (mode === 'edit') {
                 if (params.has('colors')) {
                     const raw = params.get('colors');
                     const parts = raw.split(',');
@@ -344,14 +369,13 @@
                         }
                         currentColorsBytes = bytes;
                     } else {
-                        currentColorsBytes = new Uint8Array(defaultPaletteBytes(false));
+                        currentColorsBytes = paletteBytesForMode('light');
                     }
                 } else {
-                    currentColorsBytes = new Uint8Array(defaultPaletteBytes(false));
+                    currentColorsBytes = paletteBytesForMode('light');
                 }
             } else {
-                const isDark = mode === 'dark';
-                currentColorsBytes = new Uint8Array(defaultPaletteBytes(isDark));
+                currentColorsBytes = paletteBytesForMode(mode);
             }
 
             // Return whether we should auto-run
@@ -646,13 +670,12 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                                 return currentColorsBytes;
                             }
                             const mode = document.getElementById('paletteMode')?.value || 'light';
-                            if (mode === 'custom') {
+                            if (mode === 'edit') {
                                 const bytes = getBytesFromPickers();
                                 currentColorsBytes = bytes;
                                 return bytes;
                             }
-                            const isDark = mode === 'dark';
-                            const bytes = new Uint8Array(defaultPaletteBytes(isDark));
+                            const bytes = paletteBytesForMode(mode);
                             currentColorsBytes = bytes;
                             return bytes;
                         })();
@@ -770,29 +793,28 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 resetImageContainer();
             });
 
-            // Palette mode change: show pickers only for custom; snap to defaults for light/dark
+            // Palette mode change: show pickers only for edit; snap to defaults for light/dark/light2
             if (paletteMode) {
                 paletteMode.addEventListener('change', () => {
                     const mode = paletteMode.value;
-                    if (mode === 'custom') {
+                    if (mode === 'edit') {
                         colorPickers.style.display = 'flex';
                         if (currentColorsBytes && currentColorsBytes.length === 15) {
                             setPickersFromBytes(currentColorsBytes);
                         } else {
-                            const bytes = new Uint8Array(defaultPaletteBytes(false));
+                            const bytes = paletteBytesForMode('light');
                             currentColorsBytes = bytes;
                             setPickersFromBytes(bytes);
                         }
                         updateHashFromUI();
                     } else {
                         colorPickers.style.display = 'none';
-                        const isDark = mode === 'dark';
-                        const colorsBytes = new Uint8Array(defaultPaletteBytes(isDark));
+                        const colorsBytes = paletteBytesForMode(mode);
                         currentColorsBytes = colorsBytes;
                         updateHashFromUI();
                         if (worker) {
                             console.log('[page] paletteMode=%s posting colors: %s', mode, formatPalette(colorsBytes));
-                            worker.postMessage({ type: 'colors', colorsBytes, darkMode: isDark });
+                            worker.postMessage({ type: 'colors', colorsBytes, darkMode: (mode === 'dark') });
                         }
                     }
                 });
@@ -806,10 +828,10 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             const sendPickerColors = debounced(() => {
                 const mode = document.getElementById('paletteMode')?.value || 'light';
                 const isDark = mode === 'dark';
-                if (mode === 'custom' && worker) {
+                if (mode === 'edit' && worker) {
                     const bytes = getBytesFromPickers();
                     currentColorsBytes = bytes;
-                    console.log('[page] custom input; posting colors: %s', formatPalette(bytes));
+                    console.log('[page] edit input; posting colors: %s', formatPalette(bytes));
                     worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
                 }
                 // Keep URL in sync during live edits where supported
@@ -818,11 +840,11 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 const sendPickerColorsImmediate = () => {
                     const mode = document.getElementById('paletteMode')?.value || 'light';
                     const isDark = mode === 'dark';
-            if (mode === 'custom') {
+            if (mode === 'edit') {
                         const bytes = getBytesFromPickers();
                         currentColorsBytes = bytes;
                         if (worker) {
-                console.log('[page] custom change; posting colors: %s', formatPalette(bytes));
+                console.log('[page] edit change; posting colors: %s', formatPalette(bytes));
                             worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
                         }
                     }
@@ -846,12 +868,12 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             // Ensure pickers visibility/state matches palette mode on load
             if (paletteMode) {
                 const mode = paletteMode.value;
-                if (mode === 'custom') {
+                if (mode === 'edit') {
                     colorPickers.style.display = 'flex';
                     if (currentColorsBytes && currentColorsBytes.length === 15) {
                         setPickersFromBytes(currentColorsBytes);
                     } else {
-                        const bytes = new Uint8Array(defaultPaletteBytes(false));
+                        const bytes = paletteBytesForMode('light');
                         currentColorsBytes = bytes;
                         setPickersFromBytes(bytes);
                     }
@@ -872,12 +894,12 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 // Update pickers visibility/state based on palette mode
                 if (paletteMode) {
                     const mode = paletteMode.value;
-                    if (mode === 'custom') {
+                    if (mode === 'edit') {
                         colorPickers.style.display = 'flex';
                         if (currentColorsBytes && currentColorsBytes.length === 15) {
                             setPickersFromBytes(currentColorsBytes);
                         } else {
-                            const bytes = new Uint8Array(defaultPaletteBytes(false));
+                            const bytes = paletteBytesForMode('light');
                             currentColorsBytes = bytes;
                             setPickersFromBytes(bytes);
                         }
