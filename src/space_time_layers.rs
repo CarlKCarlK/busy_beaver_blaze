@@ -1,13 +1,14 @@
 // cmk00 should this be space_by_time_layers???
+extern crate alloc;
+use alloc::collections::{BTreeMap, btree_map};
 use core::num::NonZeroU8;
-use std::collections::HashMap;
 
 use crate::{Error, SpaceByTime, encode_png};
 use aligned_vec::AVec;
 
-/// Layers is an anonymous wrapper around `HashMap`<`NonZeroU8`, `SpaceByTime`>
+/// Layers is an anonymous wrapper around `BTreeMap`<`NonZeroU8`, `SpaceByTime`>
 #[derive(Clone, Default)]
-pub struct SpaceTimeLayers(HashMap<NonZeroU8, SpaceByTime>);
+pub struct SpaceTimeLayers(BTreeMap<NonZeroU8, SpaceByTime>);
 
 impl SpaceTimeLayers {
     #[inline]
@@ -79,7 +80,7 @@ impl core::ops::Index<NonZeroU8> for SpaceTimeLayers {
 
 impl<'a> IntoIterator for &'a mut SpaceTimeLayers {
     type Item = (&'a NonZeroU8, &'a mut SpaceByTime);
-    type IntoIter = std::collections::hash_map::IterMut<'a, NonZeroU8, SpaceByTime>;
+    type IntoIter = btree_map::IterMut<'a, NonZeroU8, SpaceByTime>;
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter_mut()
@@ -88,7 +89,7 @@ impl<'a> IntoIterator for &'a mut SpaceTimeLayers {
 
 impl<'a> IntoIterator for &'a SpaceTimeLayers {
     type Item = (&'a NonZeroU8, &'a SpaceByTime);
-    type IntoIter = std::collections::hash_map::Iter<'a, NonZeroU8, SpaceByTime>;
+    type IntoIter = btree_map::Iter<'a, NonZeroU8, SpaceByTime>;
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()

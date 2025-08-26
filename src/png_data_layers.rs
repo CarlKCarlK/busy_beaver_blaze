@@ -1,25 +1,20 @@
+extern crate alloc;
+use alloc::collections::BTreeMap;
 use core::num::NonZeroU8;
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct PngDataLayers(pub HashMap<NonZeroU8, Vec<u8>>);
+pub struct PngDataLayers(pub BTreeMap<NonZeroU8, Vec<u8>>);
 
 impl PngDataLayers {
     #[inline]
     #[must_use]
-    pub fn new() -> Self {
-        Self(HashMap::new())
+    pub const fn new() -> Self {
+        Self(BTreeMap::new())
     }
 
     #[inline]
     #[must_use]
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self(HashMap::with_capacity(capacity))
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn into_inner(self) -> HashMap<NonZeroU8, Vec<u8>> {
+    pub fn into_inner(self) -> BTreeMap<NonZeroU8, Vec<u8>> {
         self.0
     }
 

@@ -158,12 +158,12 @@
                 <span>Quality</span>
             </div>
             <label style="margin-left: 0.5em;">
-                <input type="checkbox" id="darkMode">
-                Dark
-            </label>
-            <label style="margin-left: 0.5em;">
-                <input type="checkbox" id="showColorKey">
-                Edit Colors
+                Colors:
+                <select id="paletteMode" aria-label="Color palette mode">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="custom">Custom</option>
+                </select>
             </label>
         </div>
         <div id="colorPickers" class="controls" style="display: none; gap: 0.5em; flex-wrap: wrap;">
@@ -209,6 +209,26 @@
             return new URLSearchParams(hash);
         }
 
+        // Shared default palette helper (5 colors x 3 bytes = 15 bytes)
+        function defaultPaletteBytes(isDark) {
+            if (isDark) {
+                return [
+                    255, 255, 255, // white (symbol 0)
+                    0, 0, 0,       // black (symbol 1)
+                    128, 128, 128, // 50% gray (symbol 2)
+                    64, 64, 64,    // 25% gray (symbol 3)
+                    192, 192, 192  // 75% gray (symbol 4)
+                ];
+            }
+            return [
+                255, 255, 255, // white (symbol 0)
+                255, 165, 0,   // orange (symbol 1)
+                255, 255, 0,   // yellow (symbol 2)
+                255, 0, 255,   // magenta (symbol 3)
+                0, 255, 255    // cyan (symbol 4)
+            ];
+        }
+
         function updateHashFromUI() {
             const params = new URLSearchParams();
             
@@ -236,45 +256,25 @@
             const binning = document.getElementById('binning');
             if (!binning.checked) params.set('binning', 'false');
             
-            const darkMode = document.getElementById('darkMode');
-            if (darkMode.checked) params.set('dark', 'true');
+            const paletteMode = document.getElementById('paletteMode');
+            if (paletteMode && paletteMode.value !== 'light') {
+                params.set('palette', paletteMode.value);
+            }
 
-            // Colors: include only if non-default for current mode
+            // Colors: only persist for Custom mode
             (function addColorsIfNonDefault() {
-                const isDark = darkMode.checked;
-                const defaultBytes = isDark
-                    ? [255,255,255, 0,0,0, 128,128,128, 64,64,64, 192,192,192]
-                    : [255,255,255, 255,165,0, 255,255,0, 255,0,255, 0,255,255];
-
-                let activeBytes = null;
-                const showColorKey = document.getElementById('showColorKey');
-                if (showColorKey && showColorKey.checked) {
-                    // Read directly from pickers
-                    const ids = ['color0','color1','color2','color3','color4'];
-                    const arr = [];
-                    for (const id of ids) {
-                        const el = document.getElementById(id);
-                        if (!el) continue;
-                        const h = el.value.startsWith('#') ? el.value.slice(1) : el.value;
-                        arr.push(parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16));
-                    }
-                    activeBytes = arr;
-                } else if (currentColorsBytes && currentColorsBytes.length === 15) {
-                    activeBytes = Array.from(currentColorsBytes);
-                } else {
-                    activeBytes = defaultBytes.slice();
+                const mode = (document.getElementById('paletteMode')?.value) || 'light';
+                if (mode !== 'custom') return;
+                // Read directly from pickers for custom mode only
+                const ids = ['color0','color1','color2','color3','color4'];
+                const hexes = [];
+                for (const id of ids) {
+                    const el = document.getElementById(id);
+                    if (!el) continue;
+                    const h = el.value.startsWith('#') ? el.value.slice(1) : el.value;
+                    hexes.push(h.toLowerCase());
                 }
-
-                const isDefault = activeBytes.length === 15 && activeBytes.every((v,i) => v === defaultBytes[i]);
-                if (!isDefault) {
-                    const hexes = [];
-                    for (let i = 0; i < 5; i++) {
-                        const r = activeBytes[i*3], g = activeBytes[i*3+1], b = activeBytes[i*3+2];
-                        const toHex = (v) => v.toString(16).padStart(2,'0');
-                        hexes.push(`${toHex(r)}${toHex(g)}${toHex(b)}`);
-                    }
-                    params.set('colors', hexes.join(','));
-                }
+                params.set('colors', hexes.join(','));
             })();
 
             // Update URL without reloading
@@ -318,24 +318,40 @@
                 document.getElementById('binning').checked = params.get('binning') === 'true';
             }
             
-            if (params.has('dark')) {
-                document.getElementById('darkMode').checked = params.get('dark') === 'true';
+            // Palette mode: prefer new 'palette', fallback to legacy 'dark'
+            const paletteSel = document.getElementById('paletteMode');
+            if (params.has('palette')) {
+                paletteSel.value = params.get('palette');
+            } else if (params.has('dark') && params.get('dark') === 'true') {
+                paletteSel.value = 'dark';
+            } else {
+                paletteSel.value = 'light';
             }
 
-            // Apply custom colors if provided: store in currentColorsBytes
-            if (params.has('colors')) {
-                const raw = params.get('colors');
-                const parts = raw.split(',');
-                if (parts.length === 5 && parts.every(p => /^[0-9a-fA-F]{6}$/.test(p))) {
-                    const bytes = new Uint8Array(15);
-                    for (let i = 0; i < 5; i++) {
-                        const h = parts[i];
-                        bytes[i*3] = parseInt(h.slice(0,2),16);
-                        bytes[i*3+1] = parseInt(h.slice(2,4),16);
-                        bytes[i*3+2] = parseInt(h.slice(4,6),16);
+            // Derive currentColorsBytes solely from palette mode on load
+            const mode = paletteSel.value;
+            if (mode === 'custom') {
+                if (params.has('colors')) {
+                    const raw = params.get('colors');
+                    const parts = raw.split(',');
+                    if (parts.length === 5 && parts.every(p => /^[0-9a-fA-F]{6}$/.test(p))) {
+                        const bytes = new Uint8Array(15);
+                        for (let i = 0; i < 5; i++) {
+                            const h = parts[i];
+                            bytes[i*3] = parseInt(h.slice(0,2),16);
+                            bytes[i*3+1] = parseInt(h.slice(2,4),16);
+                            bytes[i*3+2] = parseInt(h.slice(4,6),16);
+                        }
+                        currentColorsBytes = bytes;
+                    } else {
+                        currentColorsBytes = new Uint8Array(defaultPaletteBytes(false));
                     }
-                    currentColorsBytes = bytes;
+                } else {
+                    currentColorsBytes = new Uint8Array(defaultPaletteBytes(false));
                 }
+            } else {
+                const isDark = mode === 'dark';
+                currentColorsBytes = new Uint8Array(defaultPaletteBytes(isDark));
             }
 
             // Return whether we should auto-run
@@ -412,7 +428,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             const customHeight = document.getElementById('customHeight');
             const container = document.getElementById('imageContainer');
             const stretchImage = document.getElementById('stretchImage');
-            const showColorKey = document.getElementById('showColorKey');
+            const paletteMode = document.getElementById('paletteMode');
             const colorPickers = document.getElementById('colorPickers');
 
             // Add handler for stretch toggle
@@ -452,24 +468,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
             }
 
-            function defaultPaletteBytes(isDark) {
-                if (isDark) {
-                    return [
-                        255, 255, 255, // white (symbol 0)
-                        0, 0, 0,       // black (symbol 1)
-                        128, 128, 128, // 50% gray (symbol 2)
-                        64, 64, 64,    // 25% gray (symbol 3)
-                        192, 192, 192  // 75% gray (symbol 4)
-                    ];
-                }
-                return [
-                    255, 255, 255, // white (symbol 0)
-                    255, 165, 0,   // orange (symbol 1)
-                    255, 255, 0,   // yellow (symbol 2)
-                    255, 0, 255,   // magenta (symbol 3)
-                    0, 255, 255    // cyan (symbol 4)
-                ];
-            }
+            // defaultPaletteBytes is now defined at module scope
 
             function setPickersFromBytes(bytes) {
                 const ids = ['color0','color1','color2','color3','color4'];
@@ -491,6 +490,17 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     arr.push(r,g,b);
                 }
                 return new Uint8Array(arr);
+            }
+
+            function formatPalette(bytes) {
+                if (!bytes || bytes.length !== 15) return '(invalid)';
+                const toHex = (v) => v.toString(16).padStart(2, '0');
+                const out = [];
+                for (let i = 0; i < 5; i++) {
+                    const r = bytes[i*3], g = bytes[i*3+1], b = bytes[i*3+2];
+                    out.push(`#${toHex(r)}${toHex(g)}${toHex(b)}`);
+                }
+                return out.join(', ');
             }
 
             // Persistent worker setup and message handling
@@ -612,7 +622,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     runButton.classList.add('loading');
                     container.textContent = 'Computing...';
                     const startTime = performance.now();
-                    const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : null;
+                    const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : undefined;
                     updateSize();
                     
                     const updateProgress = () => {
@@ -632,23 +642,22 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         pendingRunReject = reject;
 
                         const colorsBytes = (() => {
-                            // If editing colors, use pickers
-                            if (showColorKey && showColorKey.checked) {
+                            if (currentColorsBytes && currentColorsBytes.length === 15) {
+                                return currentColorsBytes;
+                            }
+                            const mode = document.getElementById('paletteMode')?.value || 'light';
+                            if (mode === 'custom') {
                                 const bytes = getBytesFromPickers();
                                 currentColorsBytes = bytes;
                                 return bytes;
                             }
-                            // Prefer any active custom palette from URL or prior changes
-                            if (currentColorsBytes && currentColorsBytes.length === 15) {
-                                return currentColorsBytes;
-                            }
-                            // Fallback to mode defaults
-                            const isDark = document.getElementById('darkMode').checked;
+                            const isDark = mode === 'dark';
                             const bytes = new Uint8Array(defaultPaletteBytes(isDark));
                             currentColorsBytes = bytes;
                             return bytes;
                         })();
 
+                        console.log('[page] start colors (mode=%s): %s', document.getElementById('paletteMode')?.value, formatPalette(colorsBytes));
                         worker.postMessage({
                             type: 'start',
                             programText: textarea.value,
@@ -656,8 +665,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                             goal_y: Number(container.style.height.replace('px','')) || undefined,
                             early_stop,
                             binning: document.getElementById('binning').checked,
-                            darkMode: document.getElementById('darkMode').checked,
-                            colorsBytes
+                            darkMode: (document.getElementById('paletteMode')?.value === 'dark'),
+                            colorsBytes: new Uint8Array(colorsBytes)
                         });
                     });
 
@@ -761,35 +770,31 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 resetImageContainer();
             });
 
-            // Add event listener for dark mode control; live recolor (and reset pickers if visible)
-        document.getElementById('darkMode').addEventListener('change', () => {
-                updateHashFromUI();
-                const isDark = document.getElementById('darkMode').checked;
-                const colorsBytes = new Uint8Array(defaultPaletteBytes(isDark));
-                currentColorsBytes = colorsBytes;
-                if (showColorKey && showColorKey.checked) {
-                    setPickersFromBytes(colorsBytes);
-                }
-                if (worker) {
-                    worker.postMessage({ type: 'colors', colorsBytes, darkMode: isDark });
-                }
-            });
-
-            // Toggle Color Key panel; when enabling, show current palette (no recolor)
-            if (showColorKey) {
-                showColorKey.addEventListener('change', () => {
-                    const isOn = showColorKey.checked;
-                    colorPickers.style.display = isOn ? 'flex' : 'none';
-                    if (isOn) {
+            // Palette mode change: show pickers only for custom; snap to defaults for light/dark
+            if (paletteMode) {
+                paletteMode.addEventListener('change', () => {
+                    const mode = paletteMode.value;
+                    if (mode === 'custom') {
+                        colorPickers.style.display = 'flex';
                         if (currentColorsBytes && currentColorsBytes.length === 15) {
                             setPickersFromBytes(currentColorsBytes);
                         } else {
-                            const isDark = document.getElementById('darkMode').checked;
-                            setPickersFromBytes(defaultPaletteBytes(isDark));
+                            const bytes = new Uint8Array(defaultPaletteBytes(false));
+                            currentColorsBytes = bytes;
+                            setPickersFromBytes(bytes);
+                        }
+                        updateHashFromUI();
+                    } else {
+                        colorPickers.style.display = 'none';
+                        const isDark = mode === 'dark';
+                        const colorsBytes = new Uint8Array(defaultPaletteBytes(isDark));
+                        currentColorsBytes = colorsBytes;
+                        updateHashFromUI();
+                        if (worker) {
+                            console.log('[page] paletteMode=%s posting colors: %s', mode, formatPalette(colorsBytes));
+                            worker.postMessage({ type: 'colors', colorsBytes, darkMode: isDark });
                         }
                     }
-                    // Update URL to reflect current colors (if non-default)
-                    updateHashFromUI();
                 });
             }
 
@@ -799,21 +804,25 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
             };
             const sendPickerColors = debounced(() => {
-                const isDark = document.getElementById('darkMode').checked;
-                if (showColorKey && showColorKey.checked && worker) {
+                const mode = document.getElementById('paletteMode')?.value || 'light';
+                const isDark = mode === 'dark';
+                if (mode === 'custom' && worker) {
                     const bytes = getBytesFromPickers();
                     currentColorsBytes = bytes;
+                    console.log('[page] custom input; posting colors: %s', formatPalette(bytes));
                     worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
                 }
                 // Keep URL in sync during live edits where supported
                 updateHashFromUI();
             }, 75);
                 const sendPickerColorsImmediate = () => {
-                    const isDark = document.getElementById('darkMode').checked;
-                    if (showColorKey && showColorKey.checked) {
+                    const mode = document.getElementById('paletteMode')?.value || 'light';
+                    const isDark = mode === 'dark';
+            if (mode === 'custom') {
                         const bytes = getBytesFromPickers();
                         currentColorsBytes = bytes;
                         if (worker) {
+                console.log('[page] custom change; posting colors: %s', formatPalette(bytes));
                             worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
                         }
                     }
@@ -834,6 +843,22 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             // Apply initial state from URL and check if we should auto-run
             const shouldAutoRun = applyHashToUI();
             updateSize();
+            // Ensure pickers visibility/state matches palette mode on load
+            if (paletteMode) {
+                const mode = paletteMode.value;
+                if (mode === 'custom') {
+                    colorPickers.style.display = 'flex';
+                    if (currentColorsBytes && currentColorsBytes.length === 15) {
+                        setPickersFromBytes(currentColorsBytes);
+                    } else {
+                        const bytes = new Uint8Array(defaultPaletteBytes(false));
+                        currentColorsBytes = bytes;
+                        setPickersFromBytes(bytes);
+                    }
+                } else {
+                    colorPickers.style.display = 'none';
+                }
+            }
             
             // Auto-run if specified in URL
             if (shouldAutoRun) {
@@ -844,6 +869,22 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             window.addEventListener('hashchange', () => {
                 applyHashToUI();
                 updateSize();
+                // Update pickers visibility/state based on palette mode
+                if (paletteMode) {
+                    const mode = paletteMode.value;
+                    if (mode === 'custom') {
+                        colorPickers.style.display = 'flex';
+                        if (currentColorsBytes && currentColorsBytes.length === 15) {
+                            setPickersFromBytes(currentColorsBytes);
+                        } else {
+                            const bytes = new Uint8Array(defaultPaletteBytes(false));
+                            currentColorsBytes = bytes;
+                            setPickersFromBytes(bytes);
+                        }
+                    } else {
+                        colorPickers.style.display = 'none';
+                    }
+                }
             });
 
             // Only run button triggers the machine

@@ -7,6 +7,18 @@ let wasmReady = init();
 let sbtm = null;              // SpaceByTimeMachine
 let currentColors = null;     // Uint8Array(15) - always 5 colors
 let stopRequested = false;    // flag to stop stepping but keep machine
+let runCounter = 0;           // increment per start to tag logs
+
+function formatPalette(bytes) {
+    if (!bytes || bytes.length !== 15) return '(invalid)';
+    const toHex = (v) => v.toString(16).padStart(2, '0');
+    const out = [];
+    for (let i = 0; i < 5; i++) {
+        const r = bytes[i * 3], g = bytes[i * 3 + 1], b = bytes[i * 3 + 2];
+        out.push(`#${toHex(r)}${toHex(g)}${toHex(b)}`);
+    }
+    return out.join(', ');
+}
 
 function defaultPaletteBytes(isDark) {
     if (isDark) {
@@ -52,11 +64,15 @@ self.onmessage = async function (e) {
     try {
         if (type === 'start') {
             const { programText, goal_x, goal_y, early_stop, binning, darkMode, colorsBytes } = msg;
+            const runId = ++runCounter;
 
-            // Normalize to fixed 5-color palette (15 bytes)
+            // Normalize to fixed 5-color palette (15 bytes) and clone to avoid aliasing
             currentColors = (colorsBytes && colorsBytes.length === 15)
-                ? colorsBytes
+                ? new Uint8Array(colorsBytes)
                 : defaultPaletteBytes(!!darkMode);
+
+            // Debug: log palette used for this run
+            console.log('[worker] run #%d start colors (dark=%s): %s', runId, !!darkMode, formatPalette(currentColors));
 
             // Create/replace the machine
             sbtm = new SpaceByTimeMachine(programText, goal_x, goal_y, binning, 0n);
@@ -74,15 +90,17 @@ self.onmessage = async function (e) {
 
             // Final frame
             await renderAndPost(false);
+            console.log('[worker] run #%d final frame posted', runId);
             return;
         }
 
         if (type === 'colors') {
             const { colorsBytes, darkMode } = msg;
-            // Update colors (keep 5-color size)
+            // Update colors (keep 5-color size) and clone to avoid aliasing
             currentColors = (colorsBytes && colorsBytes.length === 15)
-                ? colorsBytes
+                ? new Uint8Array(colorsBytes)
                 : (currentColors || defaultPaletteBytes(!!darkMode));
+            console.log('[worker] update colors (dark=%s): %s', !!darkMode, formatPalette(currentColors));
             // Re-render instantly
             await renderAndPost(true);
             return;
