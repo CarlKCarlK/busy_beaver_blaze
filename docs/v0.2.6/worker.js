@@ -6,14 +6,14 @@ let wasmReady = init();
 self.onmessage = async function (e) {
     try {
         await wasmReady;
-        const { programText, goal_x, goal_y, early_stop, binning, darkMode } = e.data;
+        const { programText, goal_x, goal_y, early_stop, binning, darkMode, colorsBytes } = e.data;
 
         try {
             const space_time_machine = new SpaceByTimeMachine(programText, goal_x, goal_y, binning, 0n);
             const run_for_seconds = 0.1;
 
-            // Set colors based on dark mode
-            const colors = darkMode
+            // Set colors: prefer provided bytes; else use dark mode preset; else default (empty)
+            const colors = (colorsBytes && colorsBytes.length > 0) ? colorsBytes : (darkMode
                 ? new Uint8Array([
                     // black
                     0, 0, 0,
@@ -26,7 +26,7 @@ self.onmessage = async function (e) {
                     // dark gray
                     64, 64, 64
                 ])
-                : new Uint8Array();
+                : new Uint8Array());
 
 
             while (true) {

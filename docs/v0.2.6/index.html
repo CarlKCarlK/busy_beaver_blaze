@@ -142,6 +142,17 @@
                 <input type="checkbox" id="darkMode">
                 Dark
             </label>
+            <label style="margin-left: 0.5em;">
+                <input type="checkbox" id="useCustomColors">
+                Custom colors
+            </label>
+        </div>
+        <div id="colorPickers" class="controls" style="display: none; gap: 0.5em; flex-wrap: wrap;">
+            <label><input type="color" id="color0" value="#000000" aria-label="Background color"> Background</label>
+            <label><input type="color" id="color1" value="#ff0000" aria-label="Layer 1 color"> Layer 1</label>
+            <label><input type="color" id="color2" value="#00ff00" aria-label="Layer 2 color"> Layer 2</label>
+            <label><input type="color" id="color3" value="#0000ff" aria-label="Layer 3 color"> Layer 3</label>
+            <label><input type="color" id="color4" value="#ffff00" aria-label="Layer 4 color"> Layer 4</label>
         </div>
         <button id="runButton">Run</button>
         <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
@@ -315,6 +326,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             const customHeight = document.getElementById('customHeight');
             const container = document.getElementById('imageContainer');
             const stretchImage = document.getElementById('stretchImage');
+            const useCustomColors = document.getElementById('useCustomColors');
+            const colorPickers = document.getElementById('colorPickers');
 
             // Add handler for stretch toggle
             stretchImage.addEventListener('change', () => {
@@ -340,6 +353,12 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 container.style.width = width + 'px';
                 container.style.height = height + 'px';
                 return [width, height];
+            }
+
+            function hexToRgb(hex) {
+                const h = hex.startsWith('#') ? hex.slice(1) : hex;
+                const int = parseInt(h, 16);
+                return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
             }
 
             async function runMachine() {
@@ -431,13 +450,27 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         };
                         worker.onerror = reject;
                         
+                        const colorsBytes = (() => {
+                            if (!useCustomColors || !useCustomColors.checked) return new Uint8Array();
+                            const ids = ['color0','color1','color2','color3','color4'];
+                            const arr = [];
+                            for (const id of ids) {
+                                const el = document.getElementById(id);
+                                if (!el) continue;
+                                const [r,g,b] = hexToRgb(el.value);
+                                arr.push(r,g,b);
+                            }
+                            return new Uint8Array(arr);
+                        })();
+
                         worker.postMessage({
                             programText: textarea.value,
                             goal_x,
                             goal_y,
                             early_stop,
                             binning: document.getElementById('binning').checked,
-                            darkMode: document.getElementById('darkMode').checked
+                            darkMode: document.getElementById('darkMode').checked,
+                            colorsBytes
                         });
                     });
 
@@ -551,6 +584,13 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 updateHashFromUI();
                 resetImageContainer();
             });
+
+            // Toggle custom color pickers
+            if (useCustomColors) {
+                useCustomColors.addEventListener('change', () => {
+                    colorPickers.style.display = useCustomColors.checked ? 'flex' : 'none';
+                });
+            }
 
             // Initial custom size visibility
             customSize.classList.toggle('visible', sizePreset.value === 'custom');

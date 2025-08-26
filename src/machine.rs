@@ -147,8 +147,7 @@ impl FromStr for Program {
     #[allow(clippy::assertions_on_constants, clippy::min_ident_chars)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let count_lines = s.lines().count();
-        let is_first_non_space_a_numeral =
-            s.trim().chars().next().is_some_and(|c| c.is_ascii_digit());
+        let is_first_non_space_a_numeral = s.trim().starts_with(|c: char| c.is_ascii_digit());
 
         match (count_lines, is_first_non_space_a_numeral) {
             (1, _) => Self::parse_standard_format(s),
