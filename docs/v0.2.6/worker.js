@@ -31,9 +31,6 @@ async function renderAndPost(intermediate) {
     if (!sbtm || !currentColors) return;
     try {
         const png = sbtm.to_png(currentColors);
-        // Debug: post frame info
-        // eslint-disable-next-line no-console
-        console.debug('[worker] post frame', { intermediate, step: Number(sbtm.step_count()), halted: sbtm.is_halted() });
         self.postMessage({
             success: true,
             intermediate,
@@ -55,8 +52,6 @@ self.onmessage = async function (e) {
     try {
         if (type === 'start') {
             const { programText, goal_x, goal_y, early_stop, binning, darkMode, colorsBytes } = msg;
-            // eslint-disable-next-line no-console
-            console.debug('[worker] start', { goal_x, goal_y, binning, darkMode, colorsLen: colorsBytes?.length });
 
             // Normalize to fixed 5-color palette (15 bytes)
             currentColors = (colorsBytes && colorsBytes.length === 15)
@@ -84,8 +79,6 @@ self.onmessage = async function (e) {
 
         if (type === 'colors') {
             const { colorsBytes, darkMode } = msg;
-            // eslint-disable-next-line no-console
-            console.debug('[worker] colors', { colorsLen: colorsBytes?.length, darkMode });
             // Update colors (keep 5-color size)
             currentColors = (colorsBytes && colorsBytes.length === 15)
                 ? colorsBytes
@@ -98,8 +91,6 @@ self.onmessage = async function (e) {
         if (type === 'stop') {
             // Stop stepping but keep machine for recoloring
             stopRequested = true;
-            // eslint-disable-next-line no-console
-            console.debug('[worker] stop requested');
             self.postMessage({ success: true, intermediate: false, stopped: true });
             return;
         }

@@ -344,7 +344,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             });
 
             function updateImageScaling(img, originalWidth, originalHeight, targetWidth, targetHeight) {
-                // console.log(`Scaling image: ${originalWidth}x${originalHeight} -> ${targetWidth}x${targetHeight}`);
+                
                 if (originalWidth <= targetWidth || originalHeight <= targetHeight || !stretchImage.checked) {
                     img.style.imageRendering = 'pixelated';
                 } else {
@@ -417,7 +417,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 const data = e.data;
                 if (!data || !data.success) {
                     const errorMessage = (data && data.error) ? data.error : 'Unknown worker error';
-                    console.error('Worker error:', errorMessage);
+                    
                     if (pendingRunReject) {
                         pendingRunReject(new Error(errorMessage));
                         pendingRunReject = null;
@@ -451,7 +451,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     updateImageScaling(img, img.naturalWidth, img.naturalHeight, goal_x, goal_y);
                 };
                 img.onerror = (err) => {
-                    console.error('Image failed to load:', err);
+                    
                 };
                 if (lastBlobUrl) {
                     URL.revokeObjectURL(lastBlobUrl);
@@ -481,7 +481,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 worker = new Worker('./worker.js', { type: 'module' });
                 worker.onmessage = handleWorkerMessage;
                 worker.onerror = (err) => {
-                    console.error('Worker error:', err);
+                    
                     const status = document.getElementById('status');
                     status.textContent = 'Worker status: error';
                     status.classList.add('visible');
@@ -564,9 +564,6 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                             return bytes;
                         })();
 
-                        // Debug
-                        console.debug('[page] start run', { colorsLen: colorsBytes.length, dark: document.getElementById('darkMode').checked });
-
                         worker.postMessage({
                             type: 'start',
                             programText: textarea.value,
@@ -599,7 +596,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     setTimeout(() => status.classList.remove('visible'), 2000);
                     clearTimeout(progressTimer);
                     const errorMessage = e.message || e.toString();
-                    console.error('Error:', errorMessage);
+                    
                     container.textContent = `Error: ${errorMessage}`;
                     document.getElementById('runTime').textContent = 'error';
                     document.getElementById('stepCount').textContent = '-';
@@ -689,8 +686,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     setPickersFromBytes(colorsBytes);
                 }
                 if (worker) {
-            console.debug('[page] darkMode change -> colors', { dark: isDark, colorsLen: colorsBytes.length });
-            worker.postMessage({ type: 'colors', colorsBytes, darkMode: isDark });
+                    worker.postMessage({ type: 'colors', colorsBytes, darkMode: isDark });
                 }
             });
 
@@ -720,7 +716,6 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 if (showColorKey && showColorKey.checked && worker) {
                     const bytes = getBytesFromPickers();
                     currentColorsBytes = bytes;
-                    console.debug('[page] picker change -> colors', { colorsLen: bytes.length, dark: isDark });
                     worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
                 }
             }, 75);
