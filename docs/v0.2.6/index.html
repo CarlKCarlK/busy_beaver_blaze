@@ -269,9 +269,14 @@
             return params.get('run') === 'true';
         }
 
-        let worker = null;
-        let isRunning = false;
-        let progressTimer = null;  // Move this to global scope
+    let worker = null;
+    let isRunning = false;
+    let progressTimer = null;  // Move this to global scope
+    let currentColorsBytes = null; // active 5-color palette
+    let pendingRunResolve = null; // resolve current run when final frame or stop
+    let pendingRunReject = null;  // reject on worker error
+    let wasStopped = false;       // track if last action was an explicit stop
+    let lastBlobUrl = null;       // track last image URL to revoke
 
         async function run() {
             // Remove init() call since it's now in the worker
@@ -407,12 +412,93 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 return new Uint8Array(arr);
             }
 
-            async function runMachine() {
-                if (isRunning) {
-                    if (worker) {
-                        worker.terminate();
-                        worker = null;
+            // Persistent worker setup and message handling
+            function handleWorkerMessage(e) {
+                const data = e.data;
+                if (!data || !data.success) {
+                    const errorMessage = (data && data.error) ? data.error : 'Unknown worker error';
+                    console.error('Worker error:', errorMessage);
+                    if (pendingRunReject) {
+                        pendingRunReject(new Error(errorMessage));
+                        pendingRunReject = null;
+                        pendingRunResolve = null;
                     }
+                    return;
+                }
+
+                const statusEl = document.getElementById('status');
+
+                // Stop acknowledgment
+                if (data.stopped) {
+                    statusEl.textContent = 'Worker status: stopped';
+                    statusEl.classList.add('visible');
+                    setTimeout(() => statusEl.classList.remove('visible'), 2000);
+                    wasStopped = true;
+                    if (pendingRunResolve) {
+                        pendingRunResolve({ stopped: true });
+                        pendingRunResolve = null;
+                        pendingRunReject = null;
+                    }
+                    return;
+                }
+
+                // Render image for both intermediate and final frames
+                const blob = new Blob([data.png_data], { type: 'image/png' });
+                container.innerHTML = '<img alt="Space-time diagram">';
+                const img = container.querySelector('img');
+                const [goal_x, goal_y] = updateSize();
+                img.onload = () => {
+                    updateImageScaling(img, img.naturalWidth, img.naturalHeight, goal_x, goal_y);
+                };
+                img.onerror = (err) => {
+                    console.error('Image failed to load:', err);
+                };
+                if (lastBlobUrl) {
+                    URL.revokeObjectURL(lastBlobUrl);
+                }
+                lastBlobUrl = URL.createObjectURL(blob);
+                img.src = lastBlobUrl;
+
+                document.getElementById('stepCount').textContent = data.step_count.toLocaleString();
+                document.getElementById('onesCount').textContent = data.ones_count.toLocaleString();
+                document.getElementById('haltedStatus').textContent = data.is_halted ? 'Halted' : (isRunning ? 'Running' : 'Not Halted');
+
+                if (!data.intermediate) {
+                    if (!wasStopped) {
+                        statusEl.textContent = 'Worker status: completed';
+                        setTimeout(() => statusEl.classList.remove('visible'), 2000);
+                    }
+                    if (pendingRunResolve) {
+                        pendingRunResolve(data);
+                        pendingRunResolve = null;
+                        pendingRunReject = null;
+                    }
+                }
+            }
+
+            function ensureWorker() {
+                if (worker) return;
+                worker = new Worker('./worker.js', { type: 'module' });
+                worker.onmessage = handleWorkerMessage;
+                worker.onerror = (err) => {
+                    console.error('Worker error:', err);
+                    const status = document.getElementById('status');
+                    status.textContent = 'Worker status: error';
+                    status.classList.add('visible');
+                    if (pendingRunReject) {
+                        pendingRunReject(err);
+                        pendingRunReject = null;
+                        pendingRunResolve = null;
+                    }
+                };
+            }
+
+            async function runMachine() {
+                // If already running, treat click as Cancel and send stop to worker
+                if (isRunning) {
+                    const status = document.getElementById('status');
+                    status.textContent = 'Worker status: stopping...';
+                    status.classList.add('visible');
                     if (progressTimer) {
                         clearTimeout(progressTimer);
                         progressTimer = null;
@@ -423,6 +509,9 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     runButton.classList.remove('loading');
                     const controls = document.querySelectorAll('.controls');
                     controls.forEach(c => c.classList.remove('disabled'));
+                    if (worker) {
+                        worker.postMessage({ type: 'stop' });
+                    }
                     return;
                 }
 
@@ -431,10 +520,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 status.classList.add('visible');
 
                 isRunning = true;
-                if (worker) {
-                    worker.terminate();
-                }
-                worker = new Worker('./worker.js', { type: 'module' });
+                ensureWorker();
+                wasStopped = false;
 
                 try {
                     const controls = document.querySelectorAll('.controls');
@@ -445,7 +532,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     container.textContent = 'Computing...';
                     const startTime = performance.now();
                     const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : null;
-                    const [goal_x, goal_y] = updateSize();
+                    updateSize();
                     
                     const updateProgress = () => {
                         if (!isRunning) {
@@ -460,56 +547,31 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
 
                     status.textContent = 'Worker status: computing...';
                     const result = await new Promise((resolve, reject) => {
-                        worker.onmessage = (e) => {
-                            if (!e.data.success) {
-                                reject(new Error(e.data.error));
-                                return;
-                            }
+                        pendingRunResolve = resolve;
+                        pendingRunReject = reject;
 
-                            // Handle intermediate updates
-                            if (e.data.intermediate) {
-                                // console.log('Received intermediate update with PNG data length:', e.data.png_data.length);
-                                const blob = new Blob([e.data.png_data], { type: 'image/png' });
-                                // console.log('Created blob:', blob);
-                                container.innerHTML = '<img alt="Space-time diagram">';
-                                const img = container.querySelector('img');
-                                img.onload = () => {
-                                    // console.log('Image loaded with dimensions:', img.naturalWidth, 'x', img.naturalHeight);
-                                    // Once image loads, we can access its original dimensions
-                                    updateImageScaling(img, img.naturalWidth, img.naturalHeight, goal_x, goal_y);
-                                };
-                                img.onerror = (err) => {
-                                    console.error('Image failed to load:', err);
-                                };
-                                const blobUrl = URL.createObjectURL(blob);
-                                // console.log('Created blob URL:', blobUrl);
-                                img.src = blobUrl;
-                                
-                                document.getElementById('stepCount').textContent = e.data.step_count.toLocaleString();
-                                document.getElementById('onesCount').textContent = e.data.ones_count.toLocaleString();
-                                document.getElementById('haltedStatus').textContent = e.data.is_halted ? 'Halted' : 'Running';
-                                return;
-                            }
-
-                            // Final result
-                            resolve(e.data);
-                        };
-                        worker.onerror = reject;
-                        
                         const colorsBytes = (() => {
                             // If color key is enabled, use the pickers
                             if (showColorKey && showColorKey.checked) {
-                                return getBytesFromPickers();
+                                const bytes = getBytesFromPickers();
+                                currentColorsBytes = bytes;
+                                return bytes;
                             }
                             // Otherwise, send the defaults for the current mode
                             const isDark = document.getElementById('darkMode').checked;
-                            return new Uint8Array(defaultPaletteBytes(isDark));
+                            const bytes = new Uint8Array(defaultPaletteBytes(isDark));
+                            currentColorsBytes = bytes;
+                            return bytes;
                         })();
 
+                        // Debug
+                        console.debug('[page] start run', { colorsLen: colorsBytes.length, dark: document.getElementById('darkMode').checked });
+
                         worker.postMessage({
+                            type: 'start',
                             programText: textarea.value,
-                            goal_x,
-                            goal_y,
+                            goal_x: Number(container.style.width.replace('px','')) || undefined,
+                            goal_y: Number(container.style.height.replace('px','')) || undefined,
                             early_stop,
                             binning: document.getElementById('binning').checked,
                             darkMode: document.getElementById('darkMode').checked,
@@ -517,23 +579,21 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         });
                     });
 
-                    status.textContent = 'Worker status: completed';
-                    setTimeout(() => status.classList.remove('visible'), 2000);
                     clearTimeout(progressTimer);
-                    
-                    const blob = new Blob([result.png_data], { type: 'image/png' });
-                    container.innerHTML = '<img alt="Space-time diagram">';
-                    const img = container.querySelector('img');
-                    img.onload = () => {
-                        updateImageScaling(img, img.naturalWidth, img.naturalHeight, goal_x, goal_y);
-                    };
-                    img.src = URL.createObjectURL(blob);
-                    
                     const endTime = performance.now();
                     document.getElementById('runTime').textContent = `${((endTime - startTime) / 1000).toFixed(2)}s`;
-                    document.getElementById('stepCount').textContent = result.step_count.toLocaleString();
-                    document.getElementById('onesCount').textContent = result.ones_count.toLocaleString();
-                    document.getElementById('haltedStatus').textContent = result.is_halted ? 'Halted' : 'Not Halted';
+                    if (result && result.stopped) {
+                        status.textContent = 'Worker status: stopped';
+                    } else {
+                        status.textContent = 'Worker status: completed';
+                    }
+                    setTimeout(() => status.classList.remove('visible'), 2000);
+                    
+                    if (result && !result.stopped) {
+                        document.getElementById('stepCount').textContent = result.step_count.toLocaleString();
+                        document.getElementById('onesCount').textContent = result.ones_count.toLocaleString();
+                        document.getElementById('haltedStatus').textContent = result.is_halted ? 'Halted' : 'Not Halted';
+                    }
                 } catch (e) {
                     status.textContent = 'Worker status: error';
                     setTimeout(() => status.classList.remove('visible'), 2000);
@@ -548,10 +608,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 } finally {
                     isRunning = false;
                     setTimeout(() => status.classList.remove('visible'), 2000);
-                    if (worker) {
-                        worker.terminate();
-                        worker = null;
-                    }
+                    // Keep worker alive for live recoloring
                     const controls = document.querySelectorAll('.controls');
                     controls.forEach(c => c.classList.remove('disabled'));
                     const runButton = document.getElementById('runButton');
@@ -622,28 +679,58 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 resetImageContainer();
             });
 
-            // Add event listener for dark mode control; reset Color Key to defaults on toggle
-            document.getElementById('darkMode').addEventListener('change', () => {
+            // Add event listener for dark mode control; live recolor (and reset pickers if visible)
+        document.getElementById('darkMode').addEventListener('change', () => {
                 updateHashFromUI();
-                // If showing Color Key, reset pickers to the new defaults
+                const isDark = document.getElementById('darkMode').checked;
+                const colorsBytes = new Uint8Array(defaultPaletteBytes(isDark));
+                currentColorsBytes = colorsBytes;
                 if (showColorKey && showColorKey.checked) {
-                    const isDark = document.getElementById('darkMode').checked;
-                    setPickersFromBytes(defaultPaletteBytes(isDark));
+                    setPickersFromBytes(colorsBytes);
                 }
-                resetImageContainer();
+                if (worker) {
+            console.debug('[page] darkMode change -> colors', { dark: isDark, colorsLen: colorsBytes.length });
+            worker.postMessage({ type: 'colors', colorsBytes, darkMode: isDark });
+                }
             });
 
-            // Toggle Color Key panel; when enabling, show current palette
+            // Toggle Color Key panel; when enabling, show current palette (no recolor)
             if (showColorKey) {
                 showColorKey.addEventListener('change', () => {
                     const isOn = showColorKey.checked;
                     colorPickers.style.display = isOn ? 'flex' : 'none';
                     if (isOn) {
-                        const isDark = document.getElementById('darkMode').checked;
-                        setPickersFromBytes(defaultPaletteBytes(isDark));
+                        if (currentColorsBytes && currentColorsBytes.length === 15) {
+                            setPickersFromBytes(currentColorsBytes);
+                        } else {
+                            const isDark = document.getElementById('darkMode').checked;
+                            setPickersFromBytes(defaultPaletteBytes(isDark));
+                        }
                     }
                 });
             }
+
+            // Live recoloring when adjusting pickers
+            const debounced = (fn, delay) => {
+                let t = null;
+                return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+            };
+            const sendPickerColors = debounced(() => {
+                const isDark = document.getElementById('darkMode').checked;
+                if (showColorKey && showColorKey.checked && worker) {
+                    const bytes = getBytesFromPickers();
+                    currentColorsBytes = bytes;
+                    console.debug('[page] picker change -> colors', { colorsLen: bytes.length, dark: isDark });
+                    worker.postMessage({ type: 'colors', colorsBytes: bytes, darkMode: isDark });
+                }
+            }, 75);
+            ['color0','color1','color2','color3','color4'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', sendPickerColors);
+                    el.addEventListener('change', sendPickerColors);
+                }
+            });
 
             // Initial custom size visibility
             customSize.classList.toggle('visible', sizePreset.value === 'custom');

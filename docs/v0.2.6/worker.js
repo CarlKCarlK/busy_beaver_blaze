@@ -1,65 +1,111 @@
 import init, { Machine, SpaceByTimeMachine } from './pkg/busy_beaver_blaze.js';
 
-// console.log('[Worker] Starting initialization');
+// Initialize WASM once
 let wasmReady = init();
 
-self.onmessage = async function (e) {
+// Persistent state for live recoloring
+let sbtm = null;              // SpaceByTimeMachine
+let currentColors = null;     // Uint8Array(15) - always 5 colors
+let stopRequested = false;    // flag to stop stepping but keep machine
+
+function defaultPaletteBytes(isDark) {
+    if (isDark) {
+        return new Uint8Array([
+            255, 255, 255, // white (symbol 0)
+            0, 0, 0,       // black (symbol 1)
+            128, 128, 128, // 50% gray (symbol 2)
+            64, 64, 64,    // 25% gray (symbol 3)
+            192, 192, 192  // 75% gray (symbol 4)
+        ]);
+    }
+    return new Uint8Array([
+        255, 255, 255, // white (symbol 0)
+        255, 165, 0,   // orange (symbol 1)
+        255, 255, 0,   // yellow (symbol 2)
+        255, 0, 255,   // magenta (symbol 3)
+        0, 255, 255    // cyan (symbol 4)
+    ]);
+}
+
+async function renderAndPost(intermediate) {
+    if (!sbtm || !currentColors) return;
     try {
-        await wasmReady;
-        const { programText, goal_x, goal_y, early_stop, binning, darkMode, colorsBytes } = e.data;
+        const png = sbtm.to_png(currentColors);
+        // Debug: post frame info
+        // eslint-disable-next-line no-console
+        console.debug('[worker] post frame', { intermediate, step: Number(sbtm.step_count()), halted: sbtm.is_halted() });
+        self.postMessage({
+            success: true,
+            intermediate,
+            png_data: png,
+            step_count: sbtm.step_count(),
+            ones_count: sbtm.count_nonblanks(),
+            is_halted: sbtm.is_halted()
+        });
+    } catch (e) {
+        self.postMessage({ success: false, error: e.toString() });
+    }
+}
 
-        try {
-            const space_time_machine = new SpaceByTimeMachine(programText, goal_x, goal_y, binning, 0n);
+self.onmessage = async function (e) {
+    await wasmReady;
+    const msg = e.data || {};
+    const type = msg.type || 'start';
+
+    try {
+        if (type === 'start') {
+            const { programText, goal_x, goal_y, early_stop, binning, darkMode, colorsBytes } = msg;
+            // eslint-disable-next-line no-console
+            console.debug('[worker] start', { goal_x, goal_y, binning, darkMode, colorsLen: colorsBytes?.length });
+
+            // Normalize to fixed 5-color palette (15 bytes)
+            currentColors = (colorsBytes && colorsBytes.length === 15)
+                ? colorsBytes
+                : defaultPaletteBytes(!!darkMode);
+
+            // Create/replace the machine
+            sbtm = new SpaceByTimeMachine(programText, goal_x, goal_y, binning, 0n);
+            stopRequested = false;
+
             const run_for_seconds = 0.1;
-
-            // Set colors: prefer provided bytes; else use dark mode preset; else default (empty)
-            const colors = (colorsBytes && colorsBytes.length > 0) ? colorsBytes : (darkMode
-                ? new Uint8Array([
-                    // white
-                    255, 255, 255,
-                    // black
-                    0, 0, 0,
-                    // 50% grey
-                    128, 128, 128,
-                    // 25% gray (darker)
-                    64, 64, 64,
-                    // 75% gray (lighter)
-                    192, 192, 192
-                ])
-                : new Uint8Array());
-
-
             while (true) {
-                if (!space_time_machine.step_for_secs(run_for_seconds, early_stop, 10_000n))
+                if (stopRequested || !sbtm.step_for_secs(run_for_seconds, early_stop, 10_000n)) {
                     break;
-
-                self.postMessage({
-                    success: true,
-                    intermediate: true,
-                    png_data: space_time_machine.to_png(colors),
-                    step_count: space_time_machine.step_count(),
-                    ones_count: space_time_machine.count_nonblanks(),
-                    is_halted: space_time_machine.is_halted()
-                });
-
+                }
+                await renderAndPost(true);
+                // Yield to event loop so we can process incoming 'colors' messages
+                await new Promise((resolve) => setTimeout(resolve, 0));
             }
 
-            // Send final result
-            self.postMessage({
-                success: true,
-                intermediate: false,
-                png_data: space_time_machine.to_png(colors),
-                step_count: space_time_machine.step_count(),
-                ones_count: space_time_machine.count_nonblanks(),
-                is_halted: space_time_machine.is_halted()
-            });
-        } catch (wasmError) {
-            throw new Error(wasmError.toString());
+            // Final frame
+            await renderAndPost(false);
+            return;
         }
-    } catch (error) {
-        self.postMessage({
-            success: false,
-            error: error.toString()
-        });
+
+        if (type === 'colors') {
+            const { colorsBytes, darkMode } = msg;
+            // eslint-disable-next-line no-console
+            console.debug('[worker] colors', { colorsLen: colorsBytes?.length, darkMode });
+            // Update colors (keep 5-color size)
+            currentColors = (colorsBytes && colorsBytes.length === 15)
+                ? colorsBytes
+                : (currentColors || defaultPaletteBytes(!!darkMode));
+            // Re-render instantly
+            await renderAndPost(true);
+            return;
+        }
+
+        if (type === 'stop') {
+            // Stop stepping but keep machine for recoloring
+            stopRequested = true;
+            // eslint-disable-next-line no-console
+            console.debug('[worker] stop requested');
+            self.postMessage({ success: true, intermediate: false, stopped: true });
+            return;
+        }
+
+        self.postMessage({ success: false, error: `Unknown message type: ${type}` });
+    } catch (err) {
+        self.postMessage({ success: false, error: err.toString() });
     }
 };
