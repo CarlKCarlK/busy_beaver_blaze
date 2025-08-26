@@ -410,7 +410,6 @@
 // }
 
 // // cmk!!!! BUG BUG can't run tests in parallel because of Global
-// #[allow(clippy::shadow_reuse)]
 // #[allow(clippy::shadow_unrelated)]
 // fn main() {
 //     let mut b = BigUint::ZERO;
@@ -554,8 +553,8 @@
 //     #[test]
 //     fn test_tetration() {
 //         let base: u32 = 2;
-//         let expecteds: [u64; 5] = [1, 2, 4, 16, 65536];
-//         for (x, expected) in (0u32..=4).zip(expecteds.iter()) {
+//         let expected: [u64; 5] = [1, 2, 4, 16, 65536];
+//         for (x, expected) in (0u32..=4).zip(expected.iter()) {
 //             RESULT.store(0, Ordering::Relaxed);
 //             let result = tetration(base, x, work_item_a).to_u64().unwrap();
 //             assert_eq!(result, *expected);

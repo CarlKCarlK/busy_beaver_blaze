@@ -2,7 +2,7 @@
 use core::num::NonZeroU8;
 use std::collections::HashMap;
 
-use crate::{Error, SpaceByTime, encode_png_colors};
+use crate::{Error, SpaceByTime, encode_png};
 use aligned_vec::AVec;
 
 /// Layers is an anonymous wrapper around `HashMap`<`NonZeroU8`, `SpaceByTime`>
@@ -108,6 +108,7 @@ impl SpaceTimeLayers {
 }
 
 impl SpaceTimeLayers {
+    #[allow(clippy::type_complexity)]
     #[inline]
     pub fn png_data_and_packed_data(
         &mut self,
@@ -141,7 +142,7 @@ impl SpaceTimeLayers {
         let (width, height) = actual_width_height
             .expect("No SpaceByTime layers in SpaceTimeLayers::collect_packed_data_with_dims");
 
-        let png = encode_png_colors(width, height, colors, image_data_layers.as_slice())
+        let png = encode_png(width, height, colors, image_data_layers.as_slice())
             .expect("Failed to encode PNG");
 
         Ok((png, width, height, image_data_layers))

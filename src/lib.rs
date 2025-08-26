@@ -232,7 +232,7 @@ pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
 // cmk0 consider special cases 2 symbols (1 layer) and 3 symbols (2 layers)
 //       with a palette.
 #[allow(clippy::integer_division_remainder_used)]
-fn encode_png_colors(
+fn encode_png(
     width: u32,
     height: u32,
     colors: &[[u8; 3]],
@@ -288,23 +288,6 @@ fn encode_png_colors(
     Ok(buf)
 }
 
-fn encode_png_mono(width: u32, height: u32, image_data: &[u8]) -> Result<Vec<u8>, Error> {
-    let mut buf = Vec::new();
-    {
-        if image_data.len() != (width * height) as usize {
-            return Err(Error::EncodingError);
-        }
-        let mut encoder = Encoder::new(&mut buf, width, height);
-        encoder.set_color(ColorType::Grayscale);
-        encoder.set_depth(BitDepth::Eight);
-
-        let mut writer = encoder.write_header().map_err(|_| Error::EncodingError)?;
-        writer
-            .write_image_data(image_data)
-            .map_err(|_| Error::EncodingError)?;
-    };
-    Ok(buf)
-}
 #[must_use]
 pub fn average_with_iterators(
     select: NonZeroU8,

@@ -102,8 +102,6 @@ fn tetrate(a: u32, tetrate_acc: &mut BigUint) {
     }
     *tetrate_acc = exponentiate_acc;
 }
-
-#[allow(clippy::shadow_reuse)]
 #[allow(clippy::shadow_unrelated)]
 fn main() {
     let mut b = BigUint::from(4u32);

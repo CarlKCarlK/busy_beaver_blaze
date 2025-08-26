@@ -4,9 +4,9 @@ use aligned_vec::AVec;
 use itertools::Itertools;
 
 use crate::{
-    ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big,
-    encode_png_colors, find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo,
-    spaceline::Spaceline, spacelines::Spacelines,
+    ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
+    find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline,
+    spacelines::Spacelines,
 };
 
 #[derive(Clone)]
@@ -135,7 +135,7 @@ impl SpaceByTime {
         }
     }
 
-    pub fn to_png(
+    pub fn to_png_internal(
         &mut self,
         tape_negative_len: usize,
         tape_nonnegative_len: usize,
@@ -149,7 +149,7 @@ impl SpaceByTime {
             goal_height,
         )?;
 
-        let png = encode_png_colors(
+        let png = encode_png(
             width,
             height,
             &[[255, 255, 255], [255, 165, 0]],

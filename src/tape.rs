@@ -37,7 +37,6 @@ impl Tape {
     }
 
     #[inline]
-    #[allow(clippy::shadow_reuse)]
     pub fn write(&mut self, index: i64, value: Symbol) {
         let (index, vec) = if index >= 0 {
             (index as usize, &mut self.nonnegative)

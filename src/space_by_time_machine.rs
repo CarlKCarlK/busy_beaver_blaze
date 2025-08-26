@@ -52,7 +52,6 @@ impl SpaceByTimeMachine {
         let symbol_count = machine.program.symbol_count;
         let mut space_time_layers = SpaceTimeLayers::default();
         for select in 1u8..symbol_count {
-            #[allow(clippy::shadow_reuse)]
             let select = NonZeroU8::new(select).unwrap();
             let space_by_time = SpaceByTime::new_skipped(
                 select,
@@ -85,7 +84,6 @@ impl SpaceByTimeMachine {
     }
 
     #[wasm_bindgen(js_name = "step_for_secs")]
-    #[allow(clippy::shadow_reuse)]
     pub fn step_for_secs_js(
         &mut self,
         seconds: f32,
@@ -194,16 +192,6 @@ impl SpaceByTimeMachine {
             .map_err(|e| e.to_string())?;
 
         Ok(png_data)
-    }
-
-    // Helper function to parse CSS color strings into RGB arrays
-    fn parse_color(color_str: &str) -> Result<[u8; 3], String> {
-        csscolorparser::parse(color_str)
-            .map(|c| {
-                let rgba = c.to_rgba8();
-                [rgba[0], rgba[1], rgba[2]]
-            })
-            .map_err(|e| format!("Invalid color: {e}"))
     }
 
     // TODO why is it step_count and count_ones. That doesn't make sense.

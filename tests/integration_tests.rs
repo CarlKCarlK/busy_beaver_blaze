@@ -311,7 +311,6 @@ fn benchmark1_shift2() -> Result<(), String> {
     Ok(())
 }
 
-#[allow(clippy::shadow_reuse)]
 #[test]
 #[wasm_bindgen_test]
 fn benchmark2() -> Result<(), String> {
@@ -419,7 +418,6 @@ fn benchmark3() -> Result<(), String> {
     Ok(())
 }
 
-#[allow(clippy::shadow_reuse)]
 #[test]
 #[wasm_bindgen_test]
 fn benchmark63() -> Result<(), String> {
@@ -520,7 +518,6 @@ fn bb_3_3_355317_time() {
     assert_eq!(step_count, 355_317);
 }
 
-#[allow(clippy::shadow_reuse)]
 #[test]
 #[wasm_bindgen_test]
 fn benchmark_3_3() -> Result<(), String> {

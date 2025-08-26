@@ -52,7 +52,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
         // let _ = sample_space_by_time.to_png();
     }
 
-    let png_data = sample_space_by_time.to_png(
+    let png_data = sample_space_by_time.to_png_internal(
         machine.tape.negative.len(),
         machine.tape.nonnegative.len(),
         goal_x as usize,
@@ -533,7 +533,6 @@ fn stop_early() {
 }
 
 #[test]
-#[allow(clippy::shadow_reuse)]
 fn interleave() {
     let left = Simd::from_array([0, 1, 2, 3]);
     let right = Simd::from_array([4, 5, 6, 7]);

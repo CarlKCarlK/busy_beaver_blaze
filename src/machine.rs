@@ -177,7 +177,6 @@ impl Program {
         }
     }
 
-    #[allow(clippy::shadow_reuse)]
     fn parse_action(part: impl AsRef<str>) -> Result<Action, Error> {
         let part = part.as_ref();
         let asciis = part.as_bytes();
