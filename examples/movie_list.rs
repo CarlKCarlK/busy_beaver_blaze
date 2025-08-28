@@ -1,10 +1,9 @@
 use ab_glyph::{FontArc, PxScale};
 use busy_beaver_blaze::{BB5_CHAMP, LogStepIterator, PixelPolicy, PngDataIterator};
-use image::Rgba;
 use image::{DynamicImage, imageops::FilterType};
+use image::{Rgba, RgbaImage};
 use imageproc::drawing::draw_text_mut;
 use itertools::Itertools;
-use sanitize_filename::sanitize;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -31,7 +30,7 @@ const DEFAULT_MOVIE: Movie = Movie {
     program: BB5_CHAMP,
     pixel_policy: PixelPolicy::Binning,
     colors: Vec::new(),
-    early_stop: 500_000_000,
+    early_stop: 100_000_000,
     frame_start: 250,
     frame_end: 500,
 };
@@ -44,25 +43,95 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 
     let movie_list = vec![
         Movie {
-            title: "Zig Zag",
-            program: "1RB---0LC_2LC2RC1LB_0RA2RB0LB",
+            title: "Neon Hill",
+            program: "1RB1LA1RB2RB2LA_2LB3RB4RB---0LA",
             ..DEFAULT_MOVIE
         },
         Movie {
-            title: "Mud Piles",
-            program: "1RB0LB0RC_2LC2LA1RA_1RA1LC---",
+            title: "Waterfall",
+            program: "1RB4LA1LB2LA0RB_2LB3RB4LA---1RA",
             ..DEFAULT_MOVIE
         },
         Movie {
-            title: "Receding Hills To The Left",
-            program: "1RB1LC---_0LC2RB1LB_2LA0RC1RC",
+            title: "Jagged Mountain",
+            program: "1RB---4LB1RA4RA_2LB2LA3RA4LB0RB",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Hills of Color",
+            program: "1RB3LA3LA2RA3RA_2LB2RA---4RB1LB",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Stairs without Railings",
+            program: "1RB3RA3LB0LA3RB_2LA3RB4RA1LA---",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Infinite Hawaiian Ice",
+            program: "1RB2LA1RA2LB---_0LA4RB3RB1LA2RA",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Stairs with Railing",
+            program: "1RB3LA2LB0RA---_2LA4LA3RB0LB0RB",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Two Face",
+            program: "1RB3LA0LB1RA0RB_2LB2LA1RB4RA---",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Lumpy",
+            program: "1RB3LB4LA0LB---_2LA0LA1RB0RA3RA",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Monochrome Wings",
+            program: "1RB3RB---3LA1RA_2LA3RA4LB0LB1LB",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Yellow Brick Road",
+            program: "1RB3RB1LB2RA---_2LA2RB1LA4LB0RA",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Tents",
+            program: "1RB2RB---0LB3LA_2LA2LB3RB4RB1LB",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Rotating Wheel",
+            program: "1RB0LB2LA4LB3LA_2LA---3RA4RB2RB",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Closing Shells",
+            program: "1RB3LA---4RB0LB_2LA3LB4LA1RB3RA",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Patched Tower",
+            program: "1RB2LA3LA4RA0LA_1LA3RB1RB1LB---",
+            ..DEFAULT_MOVIE
+        },
+        Movie {
+            title: "Fish Scales",
+            program: "1RB2LA1LA4RA2LA_0LA3RB3LB2RB---",
             ..DEFAULT_MOVIE
         },
     ];
 
     println!("Using resolution: ({goal_x}x{goal_y})");
-    let (run_dir, run_id) = create_sequential_subdir(&top_directory)?;
+    let (output_dir, run_id) = create_sequential_subdir(&top_directory)?;
+    let _ = fs::create_dir_all(&output_dir);
+    let file_prefix = run_id.to_string();
 
+    let mut last_frame: Option<DynamicImage> = None;
+
+    let mut frame_index_range = 0u32..;
     for Movie {
         title,
         program,
@@ -73,13 +142,10 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         frame_end,
     } in movie_list
     {
-        let sanitized_title = sanitize(title);
-        let output_dir = run_dir.join(sanitized_title.as_str());
-
         println!(
             "Using machine: {} with output in {}",
             title,
-            output_dir.display()
+            &output_dir.display()
         );
 
         let part_count = 32;
@@ -96,27 +162,46 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             &log_iter,
         );
 
-        for (frame_index, (step_index, png_data_layers)) in
+        for (inner_frame_index, (step_index, png_data_layers)) in
             png_data_iterator.skip(frame_start as usize).enumerate()
         {
             println!(
                 "run_id: {}, Frame {}, Step {}, time so far {:?}",
                 run_id,
-                frame_index,
+                inner_frame_index,
                 step_index + 1,
                 start.elapsed()
             );
 
-            save_frame(
+            let resized = create_frame(
                 &png_data_layers,
-                &output_dir,
                 &format!("{title} {program}"),
-                sanitized_title.as_str(),
-                frame_index as u32,
                 step_index + 1,
                 goal_x,
                 goal_y,
             )?;
+
+            if let Some(last_frame) = last_frame
+                && inner_frame_index == 0
+            {
+                const TRANSITION_DURATION: usize = 10;
+                // create TRANSITION_DURATION png frames that interpolate between last_frame and resized
+                for i in 0..TRANSITION_DURATION {
+                    let fraction = (i + 1) as f32 / (TRANSITION_DURATION + 1) as f32;
+                    let interpolated = blend_images(&last_frame, &resized, fraction);
+                    let frame_index = frame_index_range.next().unwrap();
+                    let interpolated_file_name =
+                        output_dir.join(format!("{file_prefix}_{frame_index:07}.png").as_str());
+                    interpolated.save(&interpolated_file_name)?;
+                }
+            }
+
+            let frame_index = frame_index_range.next().unwrap();
+            let resized_file_name =
+                output_dir.join(format!("{file_prefix}_{frame_index:07}.png").as_str());
+            resized.save(&resized_file_name)?;
+
+            last_frame = Some(resized);
         }
         println!(
             "Elapsed: {:?}, output_dir: {}",
@@ -128,25 +213,13 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn save_frame(
+fn create_frame(
     png_data: &[u8],
-    output_dir: &Path,
     caption: &str,
-    file_prefix: &str,
-    frame: u32,
     step: u64,
     goal_x: u32,
     goal_y: u32,
-) -> Result<(), Box<dyn core::error::Error>> {
-    let base_file_name = output_dir.join(format!("base/{file_prefix}_{frame:07}.png"));
-    let resized_file_name = output_dir.join(format!("resized/{file_prefix}_{frame:07}.png"));
-    let metadata_file_name = output_dir.join(format!("metadata/{file_prefix}_{frame:07}.txt"));
-    // Create the 3 subdirectories if they don't exist
-    fs::create_dir_all(base_file_name.parent().unwrap())?;
-    fs::create_dir_all(resized_file_name.parent().unwrap())?;
-    fs::create_dir_all(metadata_file_name.parent().unwrap())?;
-
+) -> Result<DynamicImage, Box<dyn core::error::Error>> {
     #[cfg(target_os = "linux")]
     let font_data = include_bytes!(r"/mnt/c/Windows/Fonts/CascadiaMono.ttf"); // cmk000 not portable
     #[cfg(target_os = "windows")]
@@ -166,7 +239,6 @@ fn save_frame(
 
     // Load the base image from memory and save it
     let base = image::load_from_memory(png_data)?;
-    base.save(&base_file_name)?;
 
     // Resize and anti-alias the image
     let x_fraction = base.width() as f32 / goal_x as f32;
@@ -187,8 +259,6 @@ fn save_frame(
 
     // Prepare the text. Here we assume `step.separate_with_commas()` returns a String.
     let text = format!("{} {}", step.separate_with_commas(), caption);
-    // Save the metadata
-    fs::write(&metadata_file_name, &text)?;
 
     // Calculate text dimensions using imageproc's text_size helper.
     let (text_width, text_height) = imageproc::drawing::text_size(scale, &font, &text);
@@ -209,9 +279,8 @@ fn save_frame(
         &font,
         &text,
     );
-    resized.save(&resized_file_name)?;
 
-    Ok(())
+    Ok(resized)
 }
 
 // cmk appears elsewhere
@@ -242,4 +311,32 @@ fn create_sequential_subdir(top_dir: &Path) -> std::io::Result<(PathBuf, u32)> {
     fs::create_dir_all(&new_dir_path)?; // Handle error appropriately
 
     Ok((new_dir_path, new_dir_num))
+}
+
+#[must_use]
+fn blend_images(img1: &DynamicImage, img2: &DynamicImage, fraction: f32) -> DynamicImage {
+    let img1 = img1.to_rgba8();
+    let img2 = img2.to_rgba8();
+    assert_eq!(
+        img1.dimensions(),
+        img2.dimensions(),
+        "Images must be the same size"
+    );
+
+    let (width, height) = img1.dimensions();
+    let mut blended = RgbaImage::new(width, height);
+
+    for (x, y, pixel) in blended.enumerate_pixels_mut() {
+        let p1 = img1.get_pixel(x, y).0;
+        let p2 = img2.get_pixel(x, y).0;
+        let blended_pixel = [
+            (1.0 - fraction).mul_add(p1[0] as f32, fraction * p2[0] as f32) as u8,
+            (1.0 - fraction).mul_add(p1[1] as f32, fraction * p2[1] as f32) as u8,
+            (1.0 - fraction).mul_add(p1[2] as f32, fraction * p2[2] as f32) as u8,
+            (1.0 - fraction).mul_add(p1[3] as f32, fraction * p2[3] as f32) as u8,
+        ];
+        *pixel = image::Rgba(blended_pixel);
+    }
+
+    DynamicImage::ImageRgba8(blended)
 }
