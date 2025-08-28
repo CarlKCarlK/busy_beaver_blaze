@@ -255,7 +255,8 @@ fn combo() {
         for goal_x in [2, 30, 360] {
             for goal_y in [2, 3, 4, 30, 432] {
                 for program_name in ["BB5_CHAMP", "BB6_CONTENDER"] {
-                    for binning in [false, true] {
+                    for pixel_policy in [PixelPolicy::Sampling, PixelPolicy::Binning] {
+                        let binning: bool = bool::from(pixel_policy);
                         let program_string = program_name_to_string[program_name];
                         // println!("program_string: {program_string}");
                         let mut reference_machine = SpaceByTimeMachine::from_str(
@@ -288,7 +289,7 @@ fn combo() {
                                 colors,
                                 goal_x,
                                 goal_y,
-                                binning,
+                                pixel_policy,
                                 &[0u64; 0],
                             );
                             let mut space_by_time_machine =
@@ -356,7 +357,8 @@ fn one() {
     let goal_x = 2;
     let goal_y = 2;
     let program_name = "BB5_CHAMP";
-    let binning = false;
+    let pixel_policy = PixelPolicy::Sampling;
+    let binning: bool = bool::from(pixel_policy);
     let part_count = 2;
 
     let program_string = program_name_to_string[program_name];
@@ -378,7 +380,7 @@ fn one() {
         colors,
         goal_x,
         goal_y,
-        binning,
+        pixel_policy,
         &[0u64; 0],
     );
     let mut space_by_time_machine = png_data_iterator.into_space_by_time_machine();
@@ -425,7 +427,7 @@ fn frames() {
     let part_count = 2;
     let goal_x: u32 = 360;
     let goal_y: u32 = 30;
-    let binning = true;
+    let pixel_policy = PixelPolicy::Binning;
 
     // let early_stop = 250_000_000;
     // let frame_count = 1000;
@@ -480,7 +482,7 @@ fn frames() {
         colors,
         goal_x,
         goal_y,
-        binning,
+        pixel_policy,
         frame_index_to_step_index.as_slice(),
     );
 
@@ -508,7 +510,7 @@ fn stop_early() {
     let part_count = 5;
     let goal_x: u32 = 1920;
     let goal_y: u32 = 1080;
-    let binning = true;
+    let pixel_policy = PixelPolicy::Binning;
     let colors = &[[255, 255, 255], [255, 165, 0]];
 
     let frame_index_to_step_index = LogStepIterator::new(early_stop, frame_count).collect_vec();
@@ -519,7 +521,7 @@ fn stop_early() {
         colors,
         goal_x,
         goal_y,
-        binning,
+        pixel_policy,
         &frame_index_to_step_index,
     );
 

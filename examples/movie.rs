@@ -1,7 +1,7 @@
 use ab_glyph::{FontArc, PxScale};
 use busy_beaver_blaze::{
     BB_2_5_CHAMP_AUG25, BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, BIGFOOT33, BIGFOOT72, BRADY,
-    LogStepIterator, Machine, PngDataIterator,
+    LogStepIterator, Machine, PixelPolicy, PngDataIterator,
 };
 use core::str::FromStr;
 use image::Rgba;
@@ -201,7 +201,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         &colors,
         goal_x,
         goal_y,
-        binning,
+        PixelPolicy::from(binning),
         &log_iter,
     );
 

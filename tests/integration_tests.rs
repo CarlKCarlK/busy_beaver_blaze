@@ -276,7 +276,7 @@ fn benchmark1() -> Result<(), String> {
 }
 
 #[test]
-fn benchmark1_shift2() -> Result<(), String> {
+fn benchmark_shift2_1() -> Result<(), String> {
     let start = std::time::Instant::now();
     let program_string = BB6_CONTENDER_SHIFT2;
     let goal_x: u32 = 360;

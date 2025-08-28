@@ -6,7 +6,7 @@ use crossbeam::channel::{self, Receiver, Sender};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 use crate::{
-    Snapshot, SpaceByTimeMachine, find_y_stride, message0::Message0,
+    PixelPolicy, Snapshot, SpaceByTimeMachine, find_y_stride, message0::Message0,
     space_time_layers::SpaceTimeLayers,
 };
 use alloc::collections::BinaryHeap;
@@ -33,7 +33,7 @@ impl PngDataIterator {
         colors: &[[u8; 3]],
         goal_x: u32,
         goal_y: u32,
-        binning: bool,
+        pixel_policy: PixelPolicy,
         frame_index_to_step_index: &[u64],
     ) -> Self {
         assert!(part_count_goal > 0, "part_count_goal must be > 0");
@@ -76,7 +76,7 @@ impl PngDataIterator {
                 program_string_clone,
                 goal_x,
                 goal_y,
-                binning,
+                pixel_policy,
                 frame_index_to_step_index_clone,
                 sender0,
             );
@@ -108,7 +108,7 @@ impl PngDataIterator {
         program_string: String,
         goal_x: u32,
         goal_y: u32,
-        binning: bool,
+        pixel_policy: PixelPolicy,
         frame_index_to_step_index: Vec<u64>,
         sender0: Sender<Message0>,
     ) {
@@ -127,7 +127,7 @@ impl PngDataIterator {
             );
 
             let mut space_by_time_machine =
-                SpaceByTimeMachine::from_str(&program_string, goal_x, goal_y, binning, step_start)
+                SpaceByTimeMachine::from_str(&program_string, goal_x, goal_y, pixel_policy.into(), step_start)
                     .expect("Failed to create machine");
 
             println!("Part {part_index}/{part_count}, have fast-forwarded {step_start} steps before visualization.");

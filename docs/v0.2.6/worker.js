@@ -4,7 +4,7 @@ import init, { Machine, SpaceByTimeMachine } from './pkg/busy_beaver_blaze.js';
 let wasmReady = init();
 
 // Persistent state for live recoloring
-let sbtm = null;              // SpaceByTimeMachine
+let space_by_time_machine = null;              // SpaceByTimeMachine
 let currentColors = null;     // Uint8Array(15) - always 5 colors
 let stopRequested = false;    // flag to stop stepping but keep machine
 let runCounter = 0;           // increment per start to tag logs
@@ -40,16 +40,16 @@ function defaultPaletteBytes(isDark) {
 }
 
 async function renderAndPost(intermediate) {
-    if (!sbtm || !currentColors) return;
+    if (!space_by_time_machine || !currentColors) return;
     try {
-        const png = sbtm.to_png(currentColors);
+        const png = space_by_time_machine.to_png(currentColors);
         self.postMessage({
             success: true,
             intermediate,
             png_data: png,
-            step_count: sbtm.step_count(),
-            ones_count: sbtm.count_nonblanks(),
-            is_halted: sbtm.is_halted()
+            step_count: space_by_time_machine.step_count(),
+            ones_count: space_by_time_machine.count_nonblanks(),
+            is_halted: space_by_time_machine.is_halted()
         });
     } catch (e) {
         self.postMessage({ success: false, error: e.toString() });
@@ -75,12 +75,12 @@ self.onmessage = async function (e) {
             console.log('[worker] run #%d start colors (dark=%s): %s', runId, !!darkMode, formatPalette(currentColors));
 
             // Create/replace the machine
-            sbtm = new SpaceByTimeMachine(programText, goal_x, goal_y, binning, 0n);
+            space_by_time_machine = new SpaceByTimeMachine(programText, goal_x, goal_y, binning, 0n);
             stopRequested = false;
 
             const run_for_seconds = 0.1;
             while (true) {
-                if (stopRequested || !sbtm.step_for_secs(run_for_seconds, early_stop, 10_000n)) {
+                if (stopRequested || !space_by_time_machine.step_for_secs(run_for_seconds, early_stop, 10_000n)) {
                     break;
                 }
                 await renderAndPost(true);
