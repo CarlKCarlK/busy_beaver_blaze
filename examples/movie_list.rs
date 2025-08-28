@@ -21,8 +21,9 @@ struct Movie<'a> {
     program: &'a str,
     pixel_policy: PixelPolicy,
     colors: Vec<[u8; 3]>,
-    end_step: u64,
-    frame_count: u32,
+    early_stop: u64,
+    frame_start: u32,
+    frame_end: u32,
 }
 
 const DEFAULT_MOVIE: Movie = Movie {
@@ -30,8 +31,9 @@ const DEFAULT_MOVIE: Movie = Movie {
     program: BB5_CHAMP,
     pixel_policy: PixelPolicy::Binning,
     colors: Vec::new(),
-    end_step: 50_000_000,
-    frame_count: 500,
+    early_stop: 500_000_000,
+    frame_start: 250,
+    frame_end: 500,
 };
 
 #[allow(clippy::shadow_unrelated, clippy::too_many_lines)]
@@ -52,28 +54,8 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             ..DEFAULT_MOVIE
         },
         Movie {
-            title: "Screen Door",
-            program: "1RB2RB1LC_1LA2RB0RB_2LB---0LA",
-            ..DEFAULT_MOVIE
-        },
-        Movie {
             title: "Receding Hills To The Left",
             program: "1RB1LC---_0LC2RB1LB_2LA0RC1RC",
-            ..DEFAULT_MOVIE
-        },
-        Movie {
-            title: "Receding Hills To The Right",
-            program: "1RB2LA0LA_2LC---2RA_0RA2RC1LC",
-            ..DEFAULT_MOVIE
-        },
-        Movie {
-            title: "Hill With Left Shading",
-            program: "1RB2LA2RA_1LC1LB0RA_2RA0LB---",
-            ..DEFAULT_MOVIE
-        },
-        Movie {
-            title: "Hill With Zig-Zag",
-            program: "1RB2LB---_1RC2RB1LC_0LA0RB1LB",
             ..DEFAULT_MOVIE
         },
     ];
@@ -86,8 +68,9 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         program,
         pixel_policy,
         colors,
-        end_step,
-        frame_count,
+        early_stop,
+        frame_start,
+        frame_end,
     } in movie_list
     {
         let sanitized_title = sanitize(title);
@@ -101,9 +84,9 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 
         let part_count = 32;
 
-        let log_iter = LogStepIterator::new(end_step, frame_count).collect_vec();
+        let log_iter = LogStepIterator::new(early_stop, frame_end).collect_vec();
         let png_data_iterator = PngDataIterator::new(
-            end_step,
+            early_stop,
             part_count,
             program,
             &colors,
@@ -113,7 +96,9 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             &log_iter,
         );
 
-        for (frame_index, (step_index, png_data_layers)) in png_data_iterator.enumerate() {
+        for (frame_index, (step_index, png_data_layers)) in
+            png_data_iterator.skip(frame_start as usize).enumerate()
+        {
             println!(
                 "run_id: {}, Frame {}, Step {}, time so far {:?}",
                 run_id,
@@ -125,6 +110,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             save_frame(
                 &png_data_layers,
                 &output_dir,
+                &format!("{title} {program}"),
                 sanitized_title.as_str(),
                 frame_index as u32,
                 step_index + 1,
@@ -142,25 +128,27 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn save_frame(
     png_data: &[u8],
     output_dir: &Path,
-    prefix: &str,
+    caption: &str,
+    file_prefix: &str,
     frame: u32,
     step: u64,
     goal_x: u32,
     goal_y: u32,
 ) -> Result<(), Box<dyn core::error::Error>> {
-    let base_file_name = output_dir.join(format!("base/{prefix}_{frame:07}.png"));
-    let resized_file_name = output_dir.join(format!("resized/{prefix}_{frame:07}.png"));
-    let metadata_file_name = output_dir.join(format!("metadata/{prefix}_{frame:07}.txt"));
+    let base_file_name = output_dir.join(format!("base/{file_prefix}_{frame:07}.png"));
+    let resized_file_name = output_dir.join(format!("resized/{file_prefix}_{frame:07}.png"));
+    let metadata_file_name = output_dir.join(format!("metadata/{file_prefix}_{frame:07}.txt"));
     // Create the 3 subdirectories if they don't exist
     fs::create_dir_all(base_file_name.parent().unwrap())?;
     fs::create_dir_all(resized_file_name.parent().unwrap())?;
     fs::create_dir_all(metadata_file_name.parent().unwrap())?;
 
     #[cfg(target_os = "linux")]
-    let font_data = include_bytes!(r"/mnt/c/Windows/Fonts/CascadiaMono.ttf");
+    let font_data = include_bytes!(r"/mnt/c/Windows/Fonts/CascadiaMono.ttf"); // cmk000 not portable
     #[cfg(target_os = "windows")]
     let font_data = include_bytes!(r"C:\Windows\Fonts\CascadiaMono.ttf");
 
@@ -198,7 +186,7 @@ fn save_frame(
     };
 
     // Prepare the text. Here we assume `step.separate_with_commas()` returns a String.
-    let text = step.separate_with_commas();
+    let text = format!("{} {}", step.separate_with_commas(), caption);
     // Save the metadata
     fs::write(&metadata_file_name, &text)?;
 
