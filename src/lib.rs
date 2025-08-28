@@ -24,6 +24,7 @@ mod tape;
 
 use aligned_vec::AVec;
 use core::num::NonZeroU8;
+use core::panic;
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
@@ -120,6 +121,23 @@ pub const DEFAULT_COLORS: &[[u8; 3]] = &[
     [0, 0, 0],       // black
 ];
 
+/// Normalize a color palette for a given symbol count, cycling as needed.
+/// Returns an error if fewer than 2 colors are provided.
+pub fn normalize_colors(input: &[[u8; 3]], symbol_count: usize) -> Result<Vec<[u8; 3]>, Error> {
+    let colors = if input.is_empty() {
+        DEFAULT_COLORS
+    } else {
+        input
+    };
+    if colors.len() < 2 {
+        return Err(Error::UnexpectedColorCount { got: colors.len() });
+    }
+    Ok(core::iter::once(colors[0])
+        .chain(colors[1..].iter().copied().cycle())
+        .take(symbol_count)
+        .collect())
+}
+
 /// A trait for iterators that can print debug output at intervals.
 pub trait DebuggableIterator: Iterator {
     /// Runs the iterator while printing debug output at intervals.
@@ -164,13 +182,20 @@ pub enum Error {
     MissingField,
 
     #[display("Unexpected symbols count. and got {}", got)]
-    InvalidSymbolsCount { got: usize },
+    UnexpectedSymbolCount { got: usize },
+
+    #[display("Unexpected colors count. Got {}", got)]
+    UnexpectedColorCount { got: usize },
 
     #[display("Unexpected states count. Expected {} and got {}", expected, got)]
     InvalidStatesCount { expected: usize, got: usize },
 
-    #[display("Failed to convert to array")]
-    ArrayConversionError,
+    #[display(
+        "Image data layers with bad pixel count. Expected {} and got {}",
+        expected,
+        got
+    )]
+    ImageDataWithBadPixelCount { expected: usize, got: usize },
 
     #[display("Unexpected symbol encountered")]
     UnexpectedSymbol,
@@ -181,8 +206,11 @@ pub enum Error {
     #[display("Invalid encoding encountered")]
     EncodingError,
 
-    #[display("Unexpected format")]
-    UnexpectedFormat,
+    #[display("Image data layers are empty")]
+    EmptyImageDataLayers,
+
+    #[display("Unknown program format")]
+    UnknownProgramFormat,
 }
 
 // Implement conversions manually where needed
@@ -241,14 +269,19 @@ fn encode_png(
     let mut buf = Vec::new();
     {
         let pixel_count = (width as usize) * (height as usize);
-        if image_data_layers.is_empty()
-            || colors.len() != image_data_layers.len() + 1
-            || image_data_layers
-                .iter()
-                .any(|image_data| image_data.len() != pixel_count)
-        {
-            return Err(Error::EncodingError);
+        if image_data_layers.is_empty() {
+            return Err(Error::EmptyImageDataLayers);
         }
+        for image_data in image_data_layers {
+            if image_data.len() != pixel_count {
+                return Err(Error::ImageDataWithBadPixelCount {
+                    expected: pixel_count,
+                    got: image_data.len(),
+                });
+            }
+        }
+
+        let colors = normalize_colors(colors, image_data_layers.len() + 1)?;
 
         let mut image_data = Vec::with_capacity(pixel_count * 3);
 

@@ -43,6 +43,7 @@ num-bigint = "0.4.6"
 num-traits = "0.2.14"
 glob = "0.3.2"
 criterion = "0.5.1"
+sanitize-filename = "0.6.0"
 
 
 [[bench]]
