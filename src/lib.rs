@@ -176,7 +176,7 @@ pub enum Error {
     ParseIntError(core::num::ParseIntError),
 
     #[display("Invalid character encountered in part")]
-    InvalidChar,
+    InvalidChar { got: char },
 
     #[display("Unexpected empty field in input")]
     MissingField,

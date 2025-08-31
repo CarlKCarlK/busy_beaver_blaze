@@ -195,17 +195,34 @@ impl Program {
             b'2' => Symbol::STATE_TWO,
             b'3' => Symbol::STATE_THREE,
             b'4' => Symbol::STATE_FOUR,
+            b'5' => Symbol::STATE_FIVE,
+            b'6' => Symbol::STATE_SIX,
+            b'7' => Symbol::STATE_SEVEN,
+            b'8' => Symbol::STATE_EIGHT,
+            b'9' => Symbol::STATE_NINE,
             // cmk catch at compile time?
-            _ => return Err(Error::InvalidChar),
+            _ => {
+                return Err(Error::InvalidChar {
+                    got: asciis[0] as char,
+                });
+            }
         };
         let direction = match asciis[1] {
             b'L' => -1,
             b'R' => 1,
-            _ => return Err(Error::InvalidChar),
+            _ => {
+                return Err(Error::InvalidChar {
+                    got: asciis[1] as char,
+                });
+            }
         };
         let next_state = match asciis[2] {
             b'A'..=b'Z' => asciis[2] - b'A',
-            _ => return Err(Error::InvalidChar),
+            _ => {
+                return Err(Error::InvalidChar {
+                    got: asciis[2] as char,
+                });
+            }
         };
 
         Ok(Action {

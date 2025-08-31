@@ -25,6 +25,11 @@ impl Symbol {
     pub const STATE_TWO: Self = Self(2);
     pub const STATE_THREE: Self = Self(3);
     pub const STATE_FOUR: Self = Self(4);
+    pub const STATE_FIVE: Self = Self(5);
+    pub const STATE_SIX: Self = Self(6);
+    pub const STATE_SEVEN: Self = Self(7);
+    pub const STATE_EIGHT: Self = Self(8);
+    pub const STATE_NINE: Self = Self(9);
     // cmk what if more than 5 states?
 
     #[inline]
