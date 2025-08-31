@@ -1,5 +1,9 @@
 #![feature(portable_simd)]
 
+// cmk00 Test 9 symbols
+// cmk00 generalize parser to support multinumeral symbols and multiletter states
+// cmk00 should we support L/R/S
+
 // Add the tests module
 #[cfg(test)]
 mod tests;
