@@ -2,7 +2,7 @@ use std::fs;
 
 use busy_beaver_blaze::{
     BB_3_3_355317, BB5_CHAMP, BB5_CHAMP_SHIFT_2, BB6_CONTENDER, BB6_CONTENDER_SHIFT2,
-    DebuggableIterator, Error, MACHINE_7_135_505_A, MACHINE_7_135_505_B, Machine,
+    DebuggableIterator, Error, MACHINE_7_135_505_A, MACHINE_7_135_505_B, Machine, PixelPolicy,
     SpaceByTimeMachine,
 };
 use thousands::Separable;
@@ -435,12 +435,12 @@ fn benchmark63() -> Result<(), String> {
     let goal_y: u32 = 432;
     // let goal_x: u32 = 1920;
     // let goal_y: u32 = 1080;
-    let binning = false;
+    let pixel_policy = PixelPolicy::Sampling;
     let colors = &[255, 255, 255, 255, 165, 0];
 
     let program_string = BB6_CONTENDER;
     let mut space_by_time_machine =
-        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, binning, 0)?;
+        SpaceByTimeMachine::from_str(program_string, goal_x, goal_y, pixel_policy.into(), 0)?;
 
     let mut total_steps = 1; // Start at 1 since first step is already taken
 

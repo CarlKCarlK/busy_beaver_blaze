@@ -1,5 +1,5 @@
 use ab_glyph::{FontArc, PxScale};
-use busy_beaver_blaze::{BB5_CHAMP, LogStepIterator, PixelPolicy, PngDataIterator};
+use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PixelPolicy, PngDataIterator};
 use image::{DynamicImage, imageops::FilterType};
 use image::{Rgba, RgbaImage};
 use imageproc::drawing::draw_text_mut;
@@ -126,22 +126,36 @@ fn bb_2_5_list<'a>() -> Vec<Movie<'a>> {
 #[allow(clippy::shadow_unrelated, clippy::too_many_lines)]
 fn main() -> Result<(), Box<dyn core::error::Error>> {
     let start = std::time::Instant::now();
+
+    let top_directory = PathBuf::from(r"m:\deldir\bb\movie_list\bb6_contender");
+    let (goal_x, goal_y) = RESOLUTION_4K;
+    let movie_list = vec![Movie {
+        title: "",
+        colors: Vec::new(),
+        program: BB6_CONTENDER,
+        caption: |_title, _program| String::new(),
+        pixel_policy: PixelPolicy::Binning,
+        early_stop: 1_000_000_000_000,
+        frame_start: 0,
+        frame_end: 1000,
+    }];
+
     // let top_directory = PathBuf::from(r"m:\deldir\bb\movie_list\bb_2_5");
     // let (goal_x, goal_y) = RESOLUTION_2K;
     // let movie_list = bb_2_5_list();
 
-    let top_directory = PathBuf::from(r"m:\deldir\bb\movie_list\bb5_champ");
-    let (goal_x, goal_y) = RESOLUTION_2K;
-    let movie_list = vec![Movie {
-        title: "",
-        colors: Vec::new(),
-        program: BB5_CHAMP,
-        caption: |_title, _program| String::new(),
-        pixel_policy: PixelPolicy::Binning,
-        early_stop: 47_176_870,
-        frame_start: 0,
-        frame_end: 1000,
-    }];
+    // let top_directory = PathBuf::from(r"m:\deldir\bb\movie_list\bb5_champ");
+    // let (goal_x, goal_y) = RESOLUTION_2K;
+    // let movie_list = vec![Movie {
+    //     title: "",
+    //     colors: Vec::new(),
+    //     program: BB5_CHAMP,
+    //     caption: |_title, _program| String::new(),
+    //     pixel_policy: PixelPolicy::Binning,
+    //     early_stop: 47_176_870,
+    //     frame_start: 0,
+    //     frame_end: 1000,
+    // }];
 
     println!("Using resolution: ({goal_x}x{goal_y})");
     let (output_dir, run_id) = create_sequential_subdir(&top_directory)?;
