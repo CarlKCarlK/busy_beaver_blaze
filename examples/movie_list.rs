@@ -18,6 +18,7 @@ pub const RESOLUTION_8K: (u32, u32) = (7680, 4320); // 8K (7680x4320, Ultra HD)
 struct Movie<'a> {
     title: &'a str,
     program: &'a str,
+    caption: fn(&str, &str) -> String,
     pixel_policy: PixelPolicy,
     colors: Vec<[u8; 3]>,
     early_stop: u64,
@@ -28,6 +29,7 @@ struct Movie<'a> {
 const DEFAULT_MOVIE: Movie = Movie {
     title: "DEFAULT MOVIE",
     program: BB5_CHAMP,
+    caption: |title, program| format!("{title} {program}"),
     pixel_policy: PixelPolicy::Binning,
     colors: Vec::new(),
     early_stop: 100_000_000,
@@ -35,13 +37,9 @@ const DEFAULT_MOVIE: Movie = Movie {
     frame_end: 500,
 };
 
-#[allow(clippy::shadow_unrelated, clippy::too_many_lines)]
-fn main() -> Result<(), Box<dyn core::error::Error>> {
-    let start = std::time::Instant::now();
-    let top_directory = PathBuf::from(r"m:\deldir\bb\movie_list\");
-    let (goal_x, goal_y) = RESOLUTION_2K;
-
-    let movie_list = vec![
+#[allow(unused)]
+fn bb_2_5_list<'a>() -> Vec<Movie<'a>> {
+    vec![
         Movie {
             title: "Neon Hill",
             program: "1RB1LA1RB2RB2LA_2LB3RB4RB---0LA",
@@ -122,7 +120,28 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             program: "1RB2LA1LA4RA2LA_0LA3RB3LB2RB---",
             ..DEFAULT_MOVIE
         },
-    ];
+    ]
+}
+
+#[allow(clippy::shadow_unrelated, clippy::too_many_lines)]
+fn main() -> Result<(), Box<dyn core::error::Error>> {
+    let start = std::time::Instant::now();
+    // let top_directory = PathBuf::from(r"m:\deldir\bb\movie_list\bb_2_5");
+    // let (goal_x, goal_y) = RESOLUTION_2K;
+    // let movie_list = bb_2_5_list();
+
+    let top_directory = PathBuf::from(r"m:\deldir\bb\movie_list\bb5_champ");
+    let (goal_x, goal_y) = RESOLUTION_2K;
+    let movie_list = vec![Movie {
+        title: "",
+        colors: Vec::new(),
+        program: BB5_CHAMP,
+        caption: |_title, _program| String::new(),
+        pixel_policy: PixelPolicy::Binning,
+        early_stop: 47_176_870,
+        frame_start: 0,
+        frame_end: 1000,
+    }];
 
     println!("Using resolution: ({goal_x}x{goal_y})");
     let (output_dir, run_id) = create_sequential_subdir(&top_directory)?;
@@ -135,6 +154,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     for Movie {
         title,
         program,
+        caption,
         pixel_policy,
         colors,
         early_stop,
@@ -175,7 +195,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
 
             let resized = create_frame(
                 &png_data_layers,
-                &format!("{title} {program}"),
+                caption(title, program).as_str(),
                 step_index + 1,
                 goal_x,
                 goal_y,

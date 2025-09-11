@@ -4,3 +4,4 @@ src/busy_beaver_blaze.egg-info/*
 **/__pycache__/*
 
 /target-nightly
+examples/delme.rs
