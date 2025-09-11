@@ -24,6 +24,7 @@ struct Movie<'a> {
     early_stop: u64,
     frame_start: u32,
     frame_end: u32,
+    part_count: usize,
 }
 
 const DEFAULT_MOVIE: Movie = Movie {
@@ -35,6 +36,7 @@ const DEFAULT_MOVIE: Movie = Movie {
     early_stop: 100_000_000,
     frame_start: 250,
     frame_end: 500,
+    part_count: 32,
 };
 
 #[allow(unused)]
@@ -138,6 +140,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         early_stop: 1_000_000_000_000,
         frame_start: 0,
         frame_end: 1000,
+        part_count: 32,
     }];
 
     // let top_directory = PathBuf::from(r"m:\deldir\bb\movie_list\bb_2_5");
@@ -174,6 +177,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         early_stop,
         frame_start,
         frame_end,
+        part_count,
     } in movie_list
     {
         println!(
@@ -181,8 +185,6 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             title,
             &output_dir.display()
         );
-
-        let part_count = 32;
 
         let log_iter = LogStepIterator::new(early_stop, frame_end).collect_vec();
         let png_data_iterator = PngDataIterator::new(
