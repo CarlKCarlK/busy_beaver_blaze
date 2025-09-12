@@ -498,7 +498,7 @@ where
     }
 }
 
-#[inline(always)]
+#[inline]
 #[must_use]
 pub fn average_chunk_with_iterator(
     select: core::num::NonZeroU8,
@@ -572,8 +572,8 @@ fn compress_packed_data_if_one_too_big(
 
 pub mod test_utils {
     use crate::{Pixel, is_even};
-    use aligned_vec::AVec;
     use ab_glyph::FontArc;
+    use aligned_vec::AVec;
 
     /// Portable font data for use in testing and examples.
     /// This is a simple monospace font that works on any platform.
@@ -582,7 +582,7 @@ pub mod test_utils {
 
     /// Returns a portable monospace font that works on any platform.
     /// This is a replacement for platform-specific font loading code.
-    /// 
+    ///
     /// # Errors
     /// Returns an error if the embedded font data cannot be parsed.
     pub fn get_portable_font() -> Result<FontArc, &'static str> {
@@ -592,36 +592,37 @@ pub mod test_utils {
     #[inline]
     pub fn compress_x_no_simd_binning(pixels: &mut AVec<Pixel>) {
         let len = pixels.len();
-        let mut w = 0;
-        let mut i = 0;
+        let mut write_index = 0;
+        let mut read_index = 0;
 
-        // Combine pairs with floor((a + b)/2) without overflow/carry
-        while i + 1 < len {
-            let a = pixels[i].as_u8();
-            let b = pixels[i + 1].as_u8();
-            pixels[w] = ((a & b) + ((a ^ b) >> 1)).into();
-            w += 1;
-            i += 2;
+        // Combine pairs with floor((first_pixel + second_pixel)/2) without overflow/carry
+        while read_index + 1 < len {
+            let first_pixel = pixels[read_index].as_u8();
+            let second_pixel = pixels[read_index + 1].as_u8();
+            pixels[write_index] =
+                ((first_pixel & second_pixel) + ((first_pixel ^ second_pixel) >> 1)).into();
+            write_index += 1;
+            read_index += 2;
         }
 
         // If odd, match SIMD tail policy: halve the last sample
         if (len & 1) != 0 {
-            pixels[w] = (pixels[len - 1].as_u8() >> 1).into();
-            w += 1;
+            pixels[write_index] = (pixels[len - 1].as_u8() >> 1).into();
+            write_index += 1;
         }
 
-        pixels.truncate(w);
+        pixels.truncate(write_index);
     }
 
     pub fn compress_x_no_simd_sampling(pixels: &mut AVec<Pixel>) {
         let len = pixels.len();
         let mut write_index = 0;
 
-        let mut i = 0;
-        while i + 1 < len {
-            pixels[write_index] = pixels[i]; // Overlapping write
+        let mut read_index = 0;
+        while read_index + 1 < len {
+            pixels[write_index] = pixels[read_index]; // Overlapping write
             write_index += 1;
-            i += 2;
+            read_index += 2;
         }
         if !is_even(len) {
             pixels[write_index] = pixels[len - 1]; // Handle last odd element

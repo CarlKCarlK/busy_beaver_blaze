@@ -79,9 +79,7 @@ impl Spacelines {
                     a.merge_no_simd(&b);
                 }
                 #[cfg(feature = "simd")]
-                {
-                    a.merge_simd(&b); // cmk000
-                }
+                a.merge_simd(&b);
                 a
             })
             .collect();
@@ -122,13 +120,9 @@ impl Spacelines {
                     // Otherwise, we half it's color and double the weight
 
                     #[cfg(not(feature = "simd"))] // cmk OK
-                    {
-                        spaceline_last.merge_with_white_no_simd();
-                    }
+                    spaceline_last.merge_with_white_no_simd();
                     #[cfg(feature = "simd")]
-                    {
-                        spaceline_last.merge_with_white_simd();
-                    }
+                    spaceline_last.merge_with_white_simd();
 
                     Self::push_internal(
                         &mut buffer0,
@@ -172,13 +166,9 @@ impl Spacelines {
                 PixelPolicy::Binning => {
                     // Merge spacelines and double weight
                     #[cfg(not(feature = "simd"))] // cmk000 OK
-                    {
-                        last_spaceline.merge_no_simd(&spaceline);
-                    }
+                    last_spaceline.merge_no_simd(&spaceline);
                     #[cfg(feature = "simd")]
-                    {
-                        last_spaceline.merge_simd(&spaceline);
-                    }
+                    last_spaceline.merge_simd(&spaceline);
                     // Continue with the merged spaceline
                     spaceline = last_spaceline;
                 }
