@@ -1,8 +1,9 @@
 use crate::{ALIGN, symbol::Symbol};
 use aligned_vec::AVec;
-use core::ops::{Add, AddAssign};
-use core::simd::{self, prelude::*};
 use core::num::NonZeroU8;
+use core::ops::{Add, AddAssign};
+#[cfg(feature = "simd")]
+use core::simd::{self, prelude::*};
 use derive_more::Display;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
@@ -40,6 +41,7 @@ impl core::fmt::Debug for Pixel {
 
 impl Pixel {
     pub const WHITE: Self = Self(0);
+    #[cfg(feature = "simd")]
     const SPLAT_1: Simd<u8, ALIGN> = Simd::<u8, ALIGN>::splat(1);
 
     #[must_use]
@@ -71,6 +73,7 @@ impl Pixel {
         value
     }
 
+    #[cfg(feature = "simd")]
     #[inline]
     pub(crate) fn avec_merge_simd(left: &mut AVec<Self>, right: &AVec<Self>) {
         assert!(
@@ -82,6 +85,17 @@ impl Pixel {
     }
 
     #[inline]
+    pub(crate) fn avec_merge_no_simd(left: &mut AVec<Self>, right: &AVec<Self>) {
+        assert!(
+            left.len() <= right.len(),
+            "Left slice must be smaller than or equal to right slice"
+        );
+        left.resize(right.len(), Self::WHITE);
+        Self::slice_merge_no_simd(left, right);
+    }
+
+    #[cfg(feature = "simd")]
+    #[inline]
     pub(crate) fn slice_merge_simd(left: &mut [Self], right: &[Self]) {
         assert!(left.len() == right.len());
 
@@ -91,6 +105,17 @@ impl Pixel {
         Self::slice_merge_bytes_simd(left_bytes, right_bytes);
     }
 
+    #[inline]
+    pub(crate) fn slice_merge_no_simd(left: &mut [Self], right: &[Self]) {
+        assert!(left.len() == right.len());
+
+        let left_bytes: &mut [u8] = left.as_mut_bytes();
+        let right_bytes: &[u8] = right.as_bytes();
+
+        Self::slice_merge_bytes_no_simd(left_bytes, right_bytes);
+    }
+
+    #[cfg(feature = "simd")]
     #[inline]
     fn simd_precondition<T, const LANES: usize>(left: &[T], right: &[T]) -> bool
     where
@@ -108,9 +133,11 @@ impl Pixel {
         left_align == right_align
     }
 
+    #[cfg(feature = "simd")]
     #[inline]
     pub(crate) fn slice_merge_bytes_simd(left_bytes: &mut [u8], right_bytes: &[u8]) {
         // TODO Look at all asserts and think if some should be debug_assert.
+        #[cfg(feature = "simd")]
         assert!(
             Self::simd_precondition::<u8, ALIGN>(left_bytes, right_bytes),
             "SIMD precondition failed"
@@ -145,6 +172,18 @@ impl Pixel {
         }
     }
 
+    #[inline]
+    pub(crate) fn slice_merge_with_white_no_simd(left: &mut [Self]) {
+        let left_bytes: &mut [u8] = left.as_mut_bytes();
+
+        // Process remaining elements in suffix
+        for left_byte in left_bytes.iter_mut() {
+            // divide by 2
+            *left_byte >>= 1;
+        }
+    }
+
+    #[cfg(feature = "simd")]
     #[inline]
     pub(crate) fn slice_merge_with_white_simd(left: &mut [Self]) {
         let left_bytes: &mut [u8] = left.as_mut_bytes();

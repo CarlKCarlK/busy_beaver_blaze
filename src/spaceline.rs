@@ -1,13 +1,18 @@
-use core::simd::Simd;
 use core::num::NonZeroU8;
+#[cfg(feature = "simd")]
+use core::simd::Simd;
 
 use crate::pixel::Pixel;
 use crate::tape::Tape;
+use crate::test_utils::{compress_x_no_simd_binning, compress_x_no_simd_sampling};
 use crate::{
-    average_chunk_with_simd, average_with_iterators, average_with_simd, find_x_stride, sample_with_iterators, PixelPolicy, PowerOfTwo, ALIGN
+    ALIGN, PixelPolicy, PowerOfTwo, average_with_iterators, find_x_stride, sample_with_iterators,
 };
+#[cfg(feature = "simd")]
+use crate::{average_chunk_with_simd, average_with_simd};
 use aligned_vec::AVec;
 use zerocopy::IntoBytes;
+use crate::average_chunk_with_iterator;
 
 #[derive(Clone)]
 pub struct Spaceline {
@@ -106,6 +111,7 @@ impl Spaceline {
         -((self.x_stride * self.negative.len()) as i64)
     }
 
+    #[cfg(feature = "simd")]
     #[allow(clippy::missing_panics_doc, clippy::shadow_reuse)]
     pub fn compress_x_simd_binning(pixels: &mut AVec<Pixel>) {
         // Constant used for the right shift in our average formula.
@@ -164,6 +170,7 @@ impl Spaceline {
         pixels.truncate(write_index);
     }
 
+    #[cfg(feature = "simd")]
     #[allow(clippy::shadow_reuse, clippy::missing_panics_doc)]
     pub fn compress_x_simd_sampling(pixels: &mut AVec<Pixel>) {
         let pixels_len = pixels.len();
@@ -202,6 +209,7 @@ impl Spaceline {
         pixels.truncate(write_index);
     }
 
+    #[cfg(feature = "simd")]
     #[allow(clippy::missing_panics_doc)]
     #[inline]
     pub fn compress_x_if_needed_simd(&mut self, new_x_stride: PowerOfTwo) {
@@ -213,6 +221,23 @@ impl Spaceline {
                 match self.pixel_policy {
                     PixelPolicy::Binning => Self::compress_x_simd_binning(pixels),
                     PixelPolicy::Sampling => Self::compress_x_simd_sampling(pixels),
+                }
+            }
+            self.x_stride = self.x_stride.double();
+        }
+    }
+
+    #[allow(clippy::missing_panics_doc)]
+    #[inline]
+    pub fn compress_x_if_needed_no_simd(&mut self, new_x_stride: PowerOfTwo) {
+        // Sampling & Averaging 2 --
+        assert!(self.x_stride <= new_x_stride);
+        while self.x_stride < new_x_stride {
+            for pixels in [&mut self.nonnegative, &mut self.negative] {
+                // TODO pull this out of the inner loop
+                match self.pixel_policy {
+                    PixelPolicy::Binning => compress_x_no_simd_binning(pixels),
+                    PixelPolicy::Sampling => compress_x_no_simd_sampling(pixels),
                 }
             }
             self.x_stride = self.x_stride.double();
@@ -233,6 +258,7 @@ impl Spaceline {
         result
     }
 
+    #[cfg(feature = "simd")]
     #[allow(clippy::missing_panics_doc)]
     #[inline]
     pub fn merge_simd(&mut self, other: &Self) {
@@ -246,6 +272,27 @@ impl Spaceline {
         Pixel::avec_merge_simd(&mut self.nonnegative, &other.nonnegative);
     }
 
+    #[allow(clippy::missing_panics_doc)]
+    #[inline]
+    pub fn merge_no_simd(&mut self, other: &Self) {
+        assert!(self.time < other.time,);
+        assert!(self.x_stride <= other.x_stride);
+
+        self.compress_x_if_needed_no_simd(other.x_stride);
+        assert!(self.x_stride == other.x_stride);
+
+        Pixel::avec_merge_no_simd(&mut self.negative, &other.negative);
+        Pixel::avec_merge_no_simd(&mut self.nonnegative, &other.nonnegative);
+    }
+
+    #[inline]
+    pub fn merge_with_white_no_simd(&mut self) {
+        Pixel::slice_merge_with_white_no_simd(&mut self.nonnegative);
+        Pixel::slice_merge_with_white_no_simd(&mut self.negative);
+    }
+
+
+    #[cfg(feature = "simd")]
     #[inline]
     pub fn merge_with_white_simd(&mut self) {
         Pixel::slice_merge_with_white_simd(&mut self.nonnegative);
@@ -266,6 +313,12 @@ impl Spaceline {
         let x_stride = find_x_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
         match pixel_policy {
             PixelPolicy::Binning => {
+                #[cfg(not(feature = "simd"))] // cmk000 OK
+                let (negative, nonnegative) = 
+                                        // TODO move this to tape and give a better name
+                                       (average_with_iterators(select, &tape.negative, x_stride),
+                                        average_with_iterators(select, &tape.nonnegative, x_stride));
+                #[cfg(feature = "simd")]
                 let (negative, nonnegative) = match x_stride {
                     PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => (
                         // TODO move this to tape and give a better name
@@ -359,9 +412,18 @@ impl Spaceline {
                 } else {
                     let slice = &part[tape_slice_start..tape_slice_end];
 
+                    #[cfg(not(feature = "simd"))] // cmk000 OK
+                    {                        
+                    *pixel = average_chunk_with_iterator(self.select, slice, x_stride);
+                    }
+                    #[cfg(feature = "simd")]
+                    {
                     *pixel = match x_stride {
                         PowerOfTwo::ONE | PowerOfTwo::TWO | PowerOfTwo::FOUR => {
-                            let sum: u32 = slice.iter().map(|symbol| symbol.select_to_u32(self.select)).sum();
+                            let sum: u32 = slice
+                                .iter()
+                                .map(|symbol| symbol.select_to_u32(self.select))
+                                .sum();
                             (x_stride.divide_into(sum * 255) as u8).into()
                         }
                         PowerOfTwo::EIGHT => {
@@ -376,6 +438,7 @@ impl Spaceline {
                         _ => average_chunk_with_simd::<64>(self.select, slice, x_stride),
                     };
                 }
+            }
             }
             PixelPolicy::Sampling => {
                 *pixel = Pixel::from_symbol(part[x_stride * pixel_index], self.select);

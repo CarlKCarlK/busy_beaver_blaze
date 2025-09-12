@@ -1,4 +1,4 @@
-#![feature(portable_simd)]
+#![cfg_attr(feature = "simd", feature(portable_simd))]
 
 // cmk00 make custom size details reflected in the URL
 // cmk00 Test 9 symbols
@@ -30,12 +30,14 @@ mod tape;
 use aligned_vec::AVec;
 use core::num::NonZeroU8;
 use core::panic;
+#[cfg(feature = "simd")]
 use core::simd::{LaneCount, SupportedLaneCount, prelude::*};
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
 use snapshot::Snapshot;
 use symbol::Symbol;
 use thousands::Separable;
+#[cfg(feature = "simd")]
 use zerocopy::IntoBytes;
 // Export types from modules
 pub use log_step_iterator::LogStepIterator;
@@ -385,6 +387,7 @@ pub fn sample_with_iterators(
 }
 
 // TODO move this to tape and give a better name
+#[cfg(feature = "simd")]
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_with_simd<const LANES: usize>(
@@ -448,6 +451,7 @@ where
     result
 }
 
+#[cfg(feature = "simd")]
 #[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn average_chunk_with_simd<const LANES: usize>(
@@ -492,6 +496,27 @@ where
             .sum();
         (step.divide_into(sum * 255) as u8).into()
     }
+}
+
+#[inline(always)]
+#[must_use]
+pub fn average_chunk_with_iterator(
+    select: core::num::NonZeroU8,
+    slice: &[Symbol],
+    x_stride: PowerOfTwo,
+) -> Pixel {
+    debug_assert!(
+        slice.len() == x_stride.as_usize(),
+        "Chunk must be {} bytes",
+        x_stride.as_usize()
+    );
+
+    let sum: u32 = slice
+        .iter()
+        .map(|symbol| symbol.select_to_u32(select))
+        .sum();
+
+    (x_stride.divide_into(sum * 255) as u8).into()
 }
 
 #[inline]
@@ -549,18 +574,42 @@ pub mod test_utils {
     use crate::{Pixel, is_even};
     use aligned_vec::AVec;
 
+    #[inline]
     pub fn compress_x_no_simd_binning(pixels: &mut AVec<Pixel>) {
+        let len = pixels.len();
+        let mut w = 0;
+        let mut i = 0;
+
+        // Combine pairs with floor((a + b)/2) without overflow/carry
+        while i + 1 < len {
+            let a = pixels[i].as_u8();
+            let b = pixels[i + 1].as_u8();
+            pixels[w] = ((a & b) + ((a ^ b) >> 1)).into();
+            w += 1;
+            i += 2;
+        }
+
+        // If odd, match SIMD tail policy: halve the last sample
+        if (len & 1) != 0 {
+            pixels[w] = (pixels[len - 1].as_u8() >> 1).into();
+            w += 1;
+        }
+
+        pixels.truncate(w);
+    }
+
+    pub fn compress_x_no_simd_sampling(pixels: &mut AVec<Pixel>) {
         let len = pixels.len();
         let mut write_index = 0;
 
         let mut i = 0;
         while i + 1 < len {
-            pixels[write_index] = pixels[i] + pixels[i + 1]; // Overlapping write
+            pixels[write_index] = pixels[i]; // Overlapping write
             write_index += 1;
             i += 2;
         }
         if !is_even(len) {
-            pixels[write_index] = pixels[len - 1] + Pixel::WHITE; // Handle last odd element
+            pixels[write_index] = pixels[len - 1]; // Handle last odd element
             write_index += 1;
         }
 

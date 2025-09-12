@@ -74,7 +74,14 @@ impl Spacelines {
             .tuples()
             .map(|(mut a, b)| {
                 assert!(a.tape_start() >= b.tape_start());
-                a.merge_simd(&b);
+                #[cfg(not(feature = "simd"))] // cmk000 OK
+                {
+                    a.merge_no_simd(&b);
+                }
+                #[cfg(feature = "simd")]
+                {
+                    a.merge_simd(&b); // cmk000
+                }
                 a
             })
             .collect();
@@ -114,7 +121,14 @@ impl Spacelines {
                     assert!(weight_last < y_stride, "real assert");
                     // Otherwise, we half it's color and double the weight
 
-                    spaceline_last.merge_with_white_simd();
+                    #[cfg(not(feature = "simd"))] // cmk OK
+                    {
+                        spaceline_last.merge_with_white_no_simd();
+                    }
+                    #[cfg(feature = "simd")]
+                    {
+                        spaceline_last.merge_with_white_simd();
+                    }
 
                     Self::push_internal(
                         &mut buffer0,
@@ -157,7 +171,14 @@ impl Spacelines {
                 }
                 PixelPolicy::Binning => {
                     // Merge spacelines and double weight
-                    last_spaceline.merge_simd(&spaceline);
+                    #[cfg(not(feature = "simd"))] // cmk000 OK
+                    {
+                        last_spaceline.merge_no_simd(&spaceline);
+                    }
+                    #[cfg(feature = "simd")]
+                    {
+                        last_spaceline.merge_simd(&spaceline);
+                    }
                     // Continue with the merged spaceline
                     spaceline = last_spaceline;
                 }

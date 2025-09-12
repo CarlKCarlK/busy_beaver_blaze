@@ -3,6 +3,10 @@ use core::num::NonZeroU8;
 use aligned_vec::AVec;
 use itertools::Itertools;
 
+#[cfg(feature = "simd")]
+use crate::test_utils::compress_x_no_simd_binning;
+#[cfg(not(feature = "simd"))]
+use crate::test_utils::compress_x_no_simd_binning;
 use crate::{
     ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
     find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline,
@@ -189,12 +193,18 @@ impl SpaceByTime {
             if spaceline.x_stride == x_stride {
                 break;
             }
+            #[cfg(not(feature = "simd"))]
+            spaceline.compress_x_if_needed_no_simd(x_stride);
+            #[cfg(feature = "simd")] // cmk000 ok
             spaceline.compress_x_if_needed_simd(x_stride);
         }
         for spaceline in &mut self.spacelines.main {
             if spaceline.x_stride == x_stride {
                 break;
             }
+            #[cfg(not(feature = "simd"))]
+            spaceline.compress_x_if_needed_no_simd(x_stride);
+            #[cfg(feature = "simd")]
             spaceline.compress_x_if_needed_simd(x_stride);
         }
 
@@ -312,9 +322,20 @@ impl SpaceByTime {
                     assert!(first.tape_start() >= second.tape_start());
 
                     // TODO remove from loop?
-                    match self.pixel_policy {
-                        PixelPolicy::Binning => first.merge_simd(&second),
-                        PixelPolicy::Sampling => (),
+                    #[cfg(not(feature = "simd"))] // cmk000 OK
+                    {
+                        match self.pixel_policy {
+                            PixelPolicy::Binning => first.merge_no_simd(&second),
+                            PixelPolicy::Sampling => (),
+                        }
+                    }
+
+                    #[cfg(feature = "simd")]
+                    {
+                        match self.pixel_policy {
+                            PixelPolicy::Binning => first.merge_simd(&second),
+                            PixelPolicy::Sampling => (),
+                        }
                     }
                     first
                 })

@@ -1,11 +1,13 @@
+#[cfg(feature = "simd")]
+use crate::average_with_simd;
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
-    PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, average_with_simd,
-    find_x_stride, pixel::Pixel, spaceline::Spaceline, symbol::Symbol,
-    test_utils::compress_x_no_simd_binning,
+    PowerOfTwo, SpaceByTime, SpaceByTimeMachine, average_with_iterators, find_x_stride,
+    pixel::Pixel, spaceline::Spaceline, symbol::Symbol, test_utils::compress_x_no_simd_binning,
 };
 use aligned_vec::AVec;
 use core::num::NonZeroU8;
+#[cfg(feature = "simd")]
 use core::simd::Simd;
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
@@ -82,6 +84,7 @@ fn bb5_champ_space_by_time_native() -> Result<(), Error> {
     clippy::cognitive_complexity,
     clippy::too_many_lines
 )]
+#[cfg(feature = "simd")]
 #[test]
 fn test_average() {
     let select = NonZeroU8::new(1).unwrap();
@@ -206,6 +209,7 @@ fn test_average() {
     assert_eq!(result, expected);
 }
 
+#[cfg(feature = "simd")]
 #[test]
 fn resample_simd() {
     for len in [0, 1, 2, 3, 5, 101, 111, 4001] {
@@ -534,6 +538,7 @@ fn stop_early() {
     }
 }
 
+#[cfg(feature = "simd")]
 #[test]
 fn interleave() {
     let left = Simd::from_array([0, 1, 2, 3]);
@@ -543,6 +548,7 @@ fn interleave() {
     assert_eq!(right.to_array(), [1, 3, 5, 7]);
 }
 
+#[cfg(feature = "simd")]
 #[test]
 fn compress_x_simd_binning() {
     let mut pixels = AVec::from_iter(ALIGN, (0u8..201).map(Pixel::from));
@@ -555,6 +561,7 @@ fn compress_x_simd_binning() {
     assert_eq!(pixels, reference);
 }
 
+#[cfg(feature = "simd")]
 #[test]
 fn compress_x_simd_sampling() {
     let mut pixels = AVec::from_iter(ALIGN, (0u8..201).map(Pixel::from));
