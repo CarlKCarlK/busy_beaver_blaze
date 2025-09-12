@@ -1,4 +1,4 @@
-use ab_glyph::{FontArc, PxScale};
+use ab_glyph::PxScale;
 use busy_beaver_blaze::{
     BB_2_5_CHAMP_AUG25, BB_3_3_355317, BB5_CHAMP, BB6_CONTENDER, BIGFOOT33, BIGFOOT72, BRADY,
     LogStepIterator, Machine, PixelPolicy, PngDataIterator,
@@ -250,12 +250,7 @@ fn save_frame(
     fs::create_dir_all(resized_file_name.parent().unwrap())?;
     fs::create_dir_all(metadata_file_name.parent().unwrap())?;
 
-    #[cfg(target_os = "linux")]
-    let font_data = include_bytes!(r"/mnt/c/Windows/Fonts/CascadiaMono.ttf");
-    #[cfg(target_os = "windows")]
-    let font_data = include_bytes!(r"C:\Windows\Fonts\CascadiaMono.ttf");
-
-    let font = FontArc::try_from_slice(font_data).map_err(|_| "Failed to load font")?;
+    let font = busy_beaver_blaze::test_utils::get_portable_font()?;
 
     // Compute a scale factor based on a base resolution of 1920x1080.
     // Here, we use the vertical dimension (1080) as the reference.

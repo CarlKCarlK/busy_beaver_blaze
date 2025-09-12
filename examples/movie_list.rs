@@ -1,4 +1,4 @@
-use ab_glyph::{FontArc, PxScale};
+use ab_glyph::PxScale;
 use busy_beaver_blaze::{BB5_CHAMP, BB6_CONTENDER, LogStepIterator, PixelPolicy, PngDataIterator};
 use image::{DynamicImage, imageops::FilterType};
 use image::{Rgba, RgbaImage};
@@ -257,12 +257,7 @@ fn create_frame(
     goal_x: u32,
     goal_y: u32,
 ) -> Result<DynamicImage, Box<dyn core::error::Error>> {
-    #[cfg(target_os = "linux")]
-    let font_data = include_bytes!(r"/mnt/c/Windows/Fonts/CascadiaMono.ttf"); // cmk000 not portable
-    #[cfg(target_os = "windows")]
-    let font_data = include_bytes!(r"C:\Windows\Fonts\CascadiaMono.ttf");
-
-    let font = FontArc::try_from_slice(font_data).map_err(|_| "Failed to load font")?;
+    let font = busy_beaver_blaze::test_utils::get_portable_font()?;
 
     // Compute a scale factor based on a base resolution of 1920x1080.
     // Here, we use the vertical dimension (1080) as the reference.

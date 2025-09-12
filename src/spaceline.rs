@@ -11,7 +11,9 @@ use crate::{
 #[cfg(feature = "simd")]
 use crate::{average_chunk_with_simd, average_with_simd};
 use aligned_vec::AVec;
+#[cfg(feature = "simd")]
 use zerocopy::IntoBytes;
+#[cfg(not(feature = "simd"))]
 use crate::average_chunk_with_iterator;
 
 #[derive(Clone)]

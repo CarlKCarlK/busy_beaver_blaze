@@ -3,10 +3,6 @@ use core::num::NonZeroU8;
 use aligned_vec::AVec;
 use itertools::Itertools;
 
-#[cfg(feature = "simd")]
-use crate::test_utils::compress_x_no_simd_binning;
-#[cfg(not(feature = "simd"))]
-use crate::test_utils::compress_x_no_simd_binning;
 use crate::{
     ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
     find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline,

@@ -1,4 +1,6 @@
-use crate::{ALIGN, symbol::Symbol};
+use crate::{ symbol::Symbol};
+#[cfg(feature = "simd")]
+use crate::{ALIGN};
 use aligned_vec::AVec;
 use core::num::NonZeroU8;
 use core::ops::{Add, AddAssign};
