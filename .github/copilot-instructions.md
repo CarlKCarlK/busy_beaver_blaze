@@ -25,6 +25,16 @@ This is a high-performance Turing machine interpreter and space-time visualizer 
 - Falls back to iterator-based implementations when SIMD unavailable
 - Memory alignment via `ALIGN: usize = 64` constant
 
+**Diff Row Optimization**: Controlled by `diff_row` feature flag (default ON)
+- Optimizes frame generation by copying the previous spaceline and recomputing only the single pixel that can change per machine step.
+- Gate is in `src/space_by_time.rs: snapshot()`; recompute-from-scratch fallback is used when `--no-default-features` or when `diff_row` is disabled.
+- Pixel recompute is implemented in `src/spaceline.rs: redo_pixel()`.
+- Build examples:
+  - Default (SIMD + Diff Row): `cargo check`
+  - Disable both: `cargo check --no-default-features`
+  - SIMD only: `cargo check --no-default-features --features simd`
+  - Diff Row only: `cargo check --no-default-features --features diff_row`
+
 ## Variable Naming Conventions
 
 **Avoid single-character variables** - use descriptive names:
@@ -46,6 +56,8 @@ Use `cmk00`/`cmk0` prefix for TODO items (author's initials + priority):
 // cmk0 lower priority consideration
 // TODO standard todo for general items
 ```
+
+**Preserving Comments**: When changing code, generally don't remove TODO's and cmk's in comments. Just move the comments if needed. If you think they no longer apply, add `(may no longer apply)` to the comment rather than deleting it.
 
 ## Build & Test Workflows
 
@@ -105,3 +117,23 @@ pub fn step_count(&self) -> u64 { /* return step count */ }
 - **URL State**: Web app supports hash fragments like `#program=bb5&earlyStop=false&run=true`
 
 Reference `src/code_notes.md` for sampling vs binning implementation locations across the codebase.
+
+## AI Agent Guidelines
+
+- Action-first workflow: read relevant modules before editing (`machine.rs`, `spaceline.rs`, `spacelines.rs`, `space_by_time.rs`, `space_time_layers.rs`). Prefer surgical diffs over large refactors.
+- Preserve comments: keep `cmk00`/`cmk0`/`TODO` comments. If they seem obsolete, append `(may no longer apply)` rather than deleting.
+- Feature flags: always provide a clear fallback path. Use `#[cfg(feature = "..."))]` and `#[cfg(not(feature = "..."))]` blocks with identical control flow where possible.
+- New optimizations: hide behind a feature flag defaulting appropriately. Update this guide and `Cargo.toml` features list.
+- Naming/style: avoid single-letter names; use project patterns (`x_goal`, `y_stride`, `step_index`, `tape_index`, `select`). Use `PowerOfTwo` helpers instead of raw shifts/divs.
+- Memory/perf: use `AVec` with `ALIGN` for hot paths; avoid extra allocations and unnecessary `clone()`; prefer slice views and in-place ops.
+- SIMD usage: guard with `simd` feature; keep safe fallbacks. Document any `unsafe` with a clear safety comment and alignment guarantees.
+- WASM constraints: avoid OS/thread-only APIs in shared code. Keep public APIs annotated with `#[wasm_bindgen]` where they are exposed.
+- Test matrix: run checks across features before submitting changes:
+  - `cargo check`
+  - `cargo check --no-default-features`
+  - `cargo check --no-default-features --features simd`
+  - `cargo check --no-default-features --features diff_row`
+  - `cargo test --release` (native), and optionally `cargo test --target wasm32-unknown-unknown`
+- Benchmarks: validate perf-sensitive changes with `cargo bench` and compare to prior runs; ensure functional equivalence across feature variants.
+- Public API stability: avoid renaming exported types/functions without coordination. Add doc comments for any new public items.
+- Documentation: when adding a feature or toggling behavior, update this guide and any relevant docs/examples.

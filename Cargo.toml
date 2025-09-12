@@ -7,8 +7,9 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["simd"]
+default = ["simd", "diff_row"]
 simd = []
+diff_row = []
 
 [dependencies]
 ab_glyph = "0.2.29"

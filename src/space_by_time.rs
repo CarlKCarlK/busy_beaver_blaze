@@ -19,6 +19,7 @@ pub struct SpaceByTime {
     pub(crate) y_stride: PowerOfTwo,      // TODO make private
     pub(crate) spacelines: Spacelines,    // TODO consider making this private
     pub(crate) pixel_policy: PixelPolicy, // TODO consider making this private
+    #[cfg(feature = "diff_row")]
     previous_space_line: Option<Spaceline>,
 }
 
@@ -38,6 +39,7 @@ impl SpaceByTime {
             y_stride: PowerOfTwo::ONE,
             spacelines: Spacelines::new0(select, pixel_policy),
             pixel_policy,
+            #[cfg(feature = "diff_row")]
             previous_space_line: None,
         }
     }
@@ -61,6 +63,7 @@ impl SpaceByTime {
             y_stride: PowerOfTwo::ONE,
             spacelines: Spacelines::new_skipped(select, tape, x_goal, skip, pixel_policy),
             pixel_policy,
+            #[cfg(feature = "diff_row")]
             previous_space_line: None,
         }
     }
@@ -82,16 +85,28 @@ impl SpaceByTime {
                     // We're starting a new set of spacelines, so flush the buffer and compress (if needed)
                     self.flush_buffer0_and_compress();
                 }
-                let spaceline = if let Some(mut previous) = self.previous_space_line.take() {
-                    // TODO messy code
-                    if previous.redo_pixel(
-                        previous_tape_index,
-                        machine.tape(),
-                        self.x_goal,
-                        self.step_index(),
-                        self.pixel_policy,
-                    ) {
-                        previous
+                #[cfg(feature = "diff_row")]
+                {
+                    let spaceline = if let Some(mut previous) = self.previous_space_line.take() {
+                        // TODO messy code
+                        // Try to only recompute the one pixel that changed; fallback to full recompute on stride change
+                        if previous.redo_pixel(
+                            previous_tape_index,
+                            machine.tape(),
+                            self.x_goal,
+                            self.step_index(),
+                            self.pixel_policy,
+                        ) {
+                            previous
+                        } else {
+                            Spaceline::new(
+                                self.select,
+                                machine.tape(),
+                                self.x_goal,
+                                self.step_index(),
+                                self.pixel_policy,
+                            )
+                        }
                     } else {
                         Spaceline::new(
                             self.select,
@@ -100,19 +115,24 @@ impl SpaceByTime {
                             self.step_index(),
                             self.pixel_policy,
                         )
-                    }
-                } else {
-                    Spaceline::new(
+                    };
+                    self.previous_space_line = Some(spaceline.clone());
+                    self.spacelines
+                        .push(spaceline, self.pixel_policy, PowerOfTwo::ONE);
+                }
+                #[cfg(not(feature = "diff_row"))]
+                {
+                    // Full recompute of the pixel row from scratch
+                    let spaceline = Spaceline::new(
                         self.select,
                         machine.tape(),
                         self.x_goal,
                         self.step_index(),
                         self.pixel_policy,
-                    )
-                };
-                self.previous_space_line = Some(spaceline.clone());
-                self.spacelines
-                    .push(spaceline, self.pixel_policy, PowerOfTwo::ONE);
+                    );
+                    self.spacelines
+                        .push(spaceline, self.pixel_policy, PowerOfTwo::ONE);
+                }
             }
             PixelPolicy::Sampling => {
                 if inside_index != 0 {
