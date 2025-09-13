@@ -28,22 +28,11 @@ mod symbol;
 mod tape;
 
 use aligned_vec::AVec;
-use core::num::NonZeroU8;
-use core::panic;
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
 use snapshot::Snapshot;
 use symbol::Symbol;
 use thousands::Separable;
-mod spaceline_binning;
-pub use spaceline_binning::{
-    average_chunk_with_iterator,
-    average_with_iterators,
-    sample_with_iterators,
-    find_x_stride,
-};
-#[cfg(feature = "simd")]
-pub use spaceline_binning::{average_chunk_with_simd, average_with_simd};
 // Export types from modules
 pub use log_step_iterator::LogStepIterator;
 pub use machine::Machine;
@@ -232,9 +221,6 @@ impl From<core::num::ParseIntError> for Error {
     }
 }
 
-// This is complicated because the tape is in two parts and we always start at 0.
-// moved to spaceline_binning::find_x_stride
-
 #[inline]
 #[must_use]
 #[allow(clippy::integer_division_remainder_used)]
@@ -313,16 +299,6 @@ fn encode_png(
     };
     Ok(buf)
 }
-
-// moved to spaceline_binning::average_with_iterators
-
-// moved to spaceline_binning::sample_with_iterators
-
-// moved to spaceline_binning::average_with_simd
-
-// moved to spaceline_binning::average_chunk_with_simd
-
-// moved to spaceline_binning::average_chunk_with_iterator
 
 #[inline]
 pub fn is_even<T>(x: T) -> bool

@@ -5,9 +5,7 @@ use core::num::NonZeroU8;
 
 use aligned_vec::AVec;
 use busy_beaver_blaze::test_utils::compress_x_no_simd_binning;
-use busy_beaver_blaze::{
-    ALIGN, Pixel, PowerOfTwo, Spaceline, average_with_iterators, average_with_simd,
-};
+use busy_beaver_blaze::{ALIGN, Pixel, PowerOfTwo, Spaceline};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
@@ -28,7 +26,11 @@ fn small(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| {
-                average_with_iterators(SELECT_ONE, black_box(&values_clone), black_box(step))
+                Spaceline::average_with_iterators(
+                    SELECT_ONE,
+                    black_box(&values_clone),
+                    black_box(step),
+                )
             },
         );
     });
@@ -49,7 +51,11 @@ fn large(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| {
-                average_with_iterators(SELECT_ONE, black_box(&values_clone), black_box(step))
+                Spaceline::average_with_iterators(
+                    SELECT_ONE,
+                    black_box(&values_clone),
+                    black_box(step),
+                )
             },
         );
     });
@@ -58,7 +64,11 @@ fn large(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| {
-                average_with_simd::<32>(SELECT_ONE, black_box(&values_clone), black_box(step))
+                Spaceline::average_with_simd::<32>(
+                    SELECT_ONE,
+                    black_box(&values_clone),
+                    black_box(step),
+                )
             },
         );
     });
@@ -67,7 +77,11 @@ fn large(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| {
-                average_with_simd::<64>(SELECT_ONE, black_box(&values_clone), black_box(step))
+                Spaceline::average_with_simd::<64>(
+                    SELECT_ONE,
+                    black_box(&values_clone),
+                    black_box(step),
+                )
             },
         );
     });
@@ -88,7 +102,11 @@ fn len_100m(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| {
-                average_with_iterators(SELECT_ONE, black_box(&values_clone), black_box(step))
+                Spaceline::average_with_iterators(
+                    SELECT_ONE,
+                    black_box(&values_clone),
+                    black_box(step),
+                )
             },
         );
     });
@@ -97,7 +115,11 @@ fn len_100m(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| {
-                average_with_simd::<32>(SELECT_ONE, black_box(&values_clone), black_box(step))
+                Spaceline::average_with_simd::<32>(
+                    SELECT_ONE,
+                    black_box(&values_clone),
+                    black_box(step),
+                )
             },
         );
     });
@@ -106,7 +128,11 @@ fn len_100m(criterion: &mut Criterion) {
         bencher.iter_with_setup(
             || values.clone(),
             |values_clone| {
-                average_with_simd::<64>(SELECT_ONE, black_box(&values_clone), black_box(step))
+                Spaceline::average_with_simd::<64>(
+                    SELECT_ONE,
+                    black_box(&values_clone),
+                    black_box(step),
+                )
             },
         );
     });

@@ -5,8 +5,7 @@ use itertools::Itertools;
 
 use crate::{
     ALIGN, Error, Machine, PixelPolicy, Tape, compress_packed_data_if_one_too_big, encode_png,
-    find_x_stride, find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline,
-    spacelines::Spacelines,
+    find_y_stride, is_even, power_of_two::PowerOfTwo, spaceline::Spaceline, spacelines::Spacelines,
 };
 
 #[derive(Clone)]
@@ -195,7 +194,8 @@ impl SpaceByTime {
         assert!(goal_width >= 2);
         // println!("to_png y_stride {:?}--{:?}", self.y_stride, self.spacelines);
 
-        let x_stride = find_x_stride(tape_negative_len, tape_nonnegative_len, goal_width);
+        let x_stride =
+            Spaceline::find_x_stride(tape_negative_len, tape_nonnegative_len, goal_width);
         let x_zero = x_stride.div_ceil_into(tape_negative_len);
         let x_actual = x_zero + x_stride.div_ceil_into(tape_nonnegative_len);
 
