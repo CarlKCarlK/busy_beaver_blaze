@@ -1,5 +1,10 @@
 # Useful Commands
 
+## Run Turing Compiler
+
+```bash
+cargo run --example bb5_champ_fast --release
+
 ## Python Dev mode
 
 ```bash
