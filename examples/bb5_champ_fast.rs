@@ -6,11 +6,12 @@ fn main() {
     let mut tape_length: usize = env::args()
         .nth(1)
         .and_then(|value| value.parse().ok())
-        .unwrap_or(1024);
+        .unwrap_or(1 << 21);
     let status_interval: u64 = env::args()
         .nth(2)
         .and_then(|value| value.parse().ok())
         .unwrap_or(1_000);
+    let mut next_report: u64 = if status_interval == 0 { u64::MAX } else { status_interval };
 
     // tape with sentinel cells (value 2) at both ends
     let mut tape: Vec<u8> = vec![0; tape_length + 2];
@@ -27,8 +28,10 @@ fn main() {
         step_count += steps_taken_this_chunk;
 
         if status_code == 0 {
-            if step_count.is_multiple_of(status_interval) {
+            if step_count >= next_report {
                 println!("{step_count} steps");
+                // advance to the next multiple; avoid overflow if interval huge
+                next_report = next_report.saturating_add(status_interval);
             }
             continue;
         }
@@ -41,8 +44,8 @@ fn main() {
         // status_code == 2 => boundary reached; reallocate and continue
         let left_sentinel_ptr = tape.as_ptr();
         let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_length + 1) };
-        let hit_left = head_pointer as *const u8 == left_sentinel_ptr;
-        let hit_right = head_pointer as *const u8 == right_sentinel_ptr;
+        let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
+        let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
 
         if hit_left {
             head_pointer = extend_tape_left(&mut tape, &mut tape_length);
@@ -52,8 +55,9 @@ fn main() {
             panic!("unexpected boundary pointer returned from asm");
         }
 
-        if step_count.is_multiple_of(status_interval) {
+        if step_count >= next_report {
             println!("{step_count} steps");
+            next_report = next_report.saturating_add(status_interval);
         }
     }
 }
@@ -169,6 +173,7 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8) -> (*mut u8, u8, u64) {
             lateout("r8") steps_taken,        // steps taken this heartbeat
             lateout("al") status_code,        // status code in AL
             out("rdx") _,                     // clobber DL container
+            out("rcx") _,                     // clobber: RCX used as loop counter
             hb = const HEARTBEAT,
             options(nostack)
         );
