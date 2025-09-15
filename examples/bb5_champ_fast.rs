@@ -8,8 +8,8 @@ fn main() {
         .nth(1)
         .and_then(|value| value.parse().ok())
         .unwrap_or(1 << 21); // about 2 Million cells
-    if tape_length == 0 {
-        panic!("tape_length must be >= 2 (two sentinels)");
+    if tape_length < 3 {
+        panic!("tape_length must be >= 3 (two sentinels + at least one interior)");
     }
     let status_interval: u64 = env::args()
         .nth(2)
@@ -23,9 +23,7 @@ fn main() {
 
     // tape with sentinel cells (value 2) at both ends
     // Interpret `tape_length` as TOTAL length (including the two sentinel cells).
-    if tape_length < 2 {
-        panic!("tape_length must be >= 2 to place sentinels");
-    }
+    // (checked above) tape_length >= 3
     let mut tape: Vec<u8> = vec![0; tape_length];
     tape[0] = 2;
     tape[tape_length - 1] = 2;
@@ -94,7 +92,6 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
         core::arch::asm!(
             "xor eax, eax",                  // status_code = 0 (AL)
             "mov rcx, {hb}",                 // loop counter: HEARTBEAT steps
-            "xor r8d, r8d",                  // steps_taken = 0 (R8D)
             // Dispatch to current state based on BL (state_id)
             "cmp bl, 0",
             "je 2f",
@@ -110,7 +107,6 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State A
             "2:",                            // label: state A
             "dec rcx",                       // consume one step
-            "inc r8d",                       // steps_taken += 1
             "jnz 26f",                       // continue unless heartbeat exhausted
             "mov bl, 0",                     // exiting from state A
             "jmp 25f",                       // end
@@ -133,7 +129,6 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State B
             "4:",                            // label: state B
             "dec rcx",                       // consume one step
-            "inc r8d",                       // steps_taken += 1
             "jnz 28f",
             "mov bl, 1",                     // exiting from state B
             "jmp 25f",
@@ -156,7 +151,6 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State C
             "6:",                            // label: state C
             "dec rcx",                       // consume one step
-            "inc r8d",                       // steps_taken += 1
             "jnz 32f",
             "mov bl, 2",                     // exiting from state C
             "jmp 25f",
@@ -179,7 +173,6 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State D
             "8:",                            // label: state D
             "dec rcx",                       // consume one step
-            "inc r8d",                       // steps_taken += 1
             "jnz 34f",
             "mov bl, 3",                     // exiting from state D
             "jmp 25f",
@@ -202,7 +195,6 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State E
             "22:",                           // label: state E
             "dec rcx",                       // consume one step
-            "inc r8d",                       // steps_taken += 1
             "jnz 36f",
             "mov bl, 4",                     // exiting from state E
             "jmp 25f",
@@ -228,9 +220,17 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             "24:",                           // label: boundary sentinel
             "mov al, 2",                     // status_code = 2 (boundary)
             "inc rcx",                       // undo loop counter decrement
-            "dec r8d",                       // undo steps_taken increment for this partial step
             // End
             "25:",                           // label: end
+            // steps_taken = HEARTBEAT - remaining (rcx)
+            // Adjust for pre-decrement style: on full heartbeat exit (AL==0),
+            // we did not execute the last step that decremented RCX to 0.
+            "mov r8, {hb}",
+            "sub r8, rcx",
+            "test al, al",
+            "jnz 60f",
+            "dec r8",
+            "60:",
             inout("rsi") head,                // head pointer in/out
             lateout("r8") steps_taken,        // steps taken this heartbeat
             lateout("al") status_code,        // status code in AL

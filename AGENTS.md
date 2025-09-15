@@ -16,16 +16,19 @@ This is a high-performance Turing machine interpreter and space-time visualizer 
 ### Performance Architecture
 
 **Adaptive Sampling**: Memory scales with image size, NOT step count or tape width
+
 - Starts recording full tape at each step
 - If tape/steps exceed 2x image size → halves sampling rate
 - Uses `PowerOfTwo` types for stride calculations (`src/power_of_two.rs`)
 
 **SIMD Optimization**: Controlled by `simd` feature flag
+
 - Pixel binning uses SIMD lanes (8, 16, 32, 64) for averaging tape symbols
 - Falls back to iterator-based implementations when SIMD unavailable
 - Memory alignment via `ALIGN: usize = 64` constant
 
 **Diff Row Optimization**: Controlled by `diff_row` feature flag (default ON)
+
 - Optimizes frame generation by copying the previous spaceline and recomputing only the single pixel that can change per machine step.
 - Gate is in `src/space_by_time.rs: snapshot()`; recompute-from-scratch fallback is used when `--no-default-features` or when `diff_row` is disabled.
 - Pixel recompute is implemented in `src/spaceline.rs: redo_pixel()`.
@@ -38,10 +41,12 @@ This is a high-performance Turing machine interpreter and space-time visualizer 
 ## Variable Naming Conventions
 
 Avoid single-character variables; use descriptive names:
+
 - ❌ `i`, `j`, `x`, `y`, `a`, `b`
 - ✅ `read_index`, `write_index`, `first_pixel`, `second_pixel`
 
 Project patterns:
+
 - `x_goal`/`y_goal`: Target image dimensions
 - `x_stride`/`y_stride`: Sampling rates (must be `PowerOfTwo`)
 - `step_index`: Current machine step number
@@ -51,6 +56,7 @@ Project patterns:
 ## Comment Conventions
 
 Use `cmk00`/`cmk0` prefix for TODO items (author's initials + priority):
+
 ```rust
 // cmk00 high priority task
 // cmk0 lower priority consideration
@@ -62,6 +68,7 @@ Preserving comments: When changing code, generally don't remove TODO's and cmk's
 ## Build & Test Workflows
 
 ### Development Commands
+
 ```bash
 # Rust native (fastest)
 cargo test --release -- --nocapture
@@ -77,6 +84,7 @@ python -m pytest
 ```
 
 ### Key Test Patterns
+
 - Image comparison tests in `tests/expected/*.png`
 - SIMD vs non-SIMD equivalence testing
 - Cross-platform WASM target testing: `cargo test --target wasm32-unknown-unknown`
@@ -84,11 +92,13 @@ python -m pytest
 ## Common Pitfalls
 
 **Memory Alignment**: Use `AVec` with `ALIGN` constant, not `Vec`
+
 ```rust
 let mut pixels: AVec<Pixel> = AVec::with_capacity(ALIGN, capacity);
 ```
 
 **PowerOfTwo Arithmetic**: Use dedicated methods, not raw operations
+
 ```rust
 let stride = PowerOfTwo::from_exp(3); // Good
 let count = stride.div_ceil_into(values.len()); // Good
@@ -96,6 +106,7 @@ let bad = values.len() / stride.as_usize(); // May truncate
 ```
 
 **Feature Flag Patterns**: Always provide non-SIMD fallbacks
+
 ```rust
 #[cfg(feature = "simd")]
 let result = simd_function();
@@ -104,6 +115,7 @@ let result = iterator_function();
 ```
 
 **WASM Bindings**: Use `#[wasm_bindgen]` on public APIs, handle JS bigint conversions
+
 ```rust
 #[wasm_bindgen]
 pub fn step_count(&self) -> u64 { /* return step count */ }
@@ -138,3 +150,4 @@ Reference `src/code_notes.md` for sampling vs binning implementation locations a
 - Public API stability: avoid renaming exported types/functions without coordination. Add doc comments for any new public items.
 - Documentation: when adding a feature or toggling behavior, update this guide and any relevant docs/examples.
 
+- When you write assembly code (for example using `asm!` in Rust) include a comment explaining what that statement does.
