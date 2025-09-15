@@ -1,25 +1,103 @@
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
-use std::env;
+use clap::Parser;
 use thousands::Separable;
 
+fn parse_usize_like_str(input: &str) -> Result<usize, String> {
+    let s = input.replace('_', "");
+    if let Ok(v) = s.parse::<usize>() {
+        return Ok(v);
+    }
+    if let Some(exp) = s.strip_prefix("2^") {
+        return exp
+            .parse::<u32>()
+            .map(|p| 2usize.saturating_pow(p))
+            .map_err(|e| e.to_string());
+    }
+    if let Some(exp) = s.strip_prefix("1<<") {
+        return exp
+            .parse::<u32>()
+            .map(|shift| 1usize.checked_shl(shift).unwrap_or(0))
+            .map_err(|e| e.to_string());
+    }
+    Err(format!("invalid usize: {}", input))
+}
+
+fn parse_u64_like_str(input: &str) -> Result<u64, String> {
+    let s = input.replace('_', "");
+    if let Ok(v) = s.parse::<u64>() {
+        return Ok(v);
+    }
+    if let Some(exp) = s.strip_prefix("2^") {
+        return exp
+            .parse::<u32>()
+            .map(|p| 2u64.saturating_pow(p))
+            .map_err(|e| e.to_string());
+    }
+    if let Some(exp) = s.strip_prefix("1<<") {
+        return exp
+            .parse::<u32>()
+            .map(|shift| 1u64.checked_shl(shift).unwrap_or(0))
+            .map_err(|e| e.to_string());
+    }
+    Err(format!("invalid u64: {}", input))
+}
+
+fn compute_heartbeat(status_interval: u64, max_steps: Option<u64>) -> u64 {
+    let default_hb: u64 = 10_000;
+    if let Some(ms) = max_steps {
+        // Aim for ~2000 chunks, clamp to [1, default_hb]
+        let target = (ms / 2000).clamp(1, default_hb);
+        if status_interval > 0 {
+            return target.min(status_interval.max(1));
+        }
+        return target.max(1);
+    }
+    if status_interval > 0 {
+        // Keep chunk smaller than interval to get frequent updates
+        return (status_interval / 10).clamp(1, default_hb);
+    }
+    default_hb
+}
+#[derive(Debug, Parser, Clone)]
+#[command(name = "bb5_champ_fast", about = "Fast BB5 runner with inline asm")]
+struct Args {
+    #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], value_parser = parse_usize_like_str, default_value_t = (1usize << 21))]
+    tape_length: usize,
+
+    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], value_parser = parse_u64_like_str, default_value_t = 1_000u64)]
+    status_interval: u64,
+
+    #[arg(long = "heartbeat", aliases = ["hb"], value_parser = parse_u64_like_str)]
+    heartbeat: Option<u64>,
+
+    #[arg(long = "max-memory", aliases = ["max_memory", "max"], value_parser = parse_usize_like_str, default_value_t = (1usize << 21))]
+    max_total: usize,
+
+    #[arg(long = "max-steps", aliases = ["max_steps"], value_parser = parse_u64_like_str)]
+    max_steps: Option<u64>,
+}
+
 fn main() {
-    let mut tape_length: usize = env::args()
-        .nth(1)
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(1 << 21); // about 2 Million cells
+    let args = Args::parse();
+    let mut tape_length = args.tape_length;
+    let status_interval = args.status_interval;
+    let max_total = args.max_total;
+    let max_steps = args.max_steps;
+    let heartbeat: u64 = args
+        .heartbeat
+        .unwrap_or_else(|| compute_heartbeat(status_interval, max_steps));
     assert!(
         tape_length >= 3,
         "tape_length must be >= 3 (two sentinels + at least one interior)"
     );
-    let status_interval: u64 = env::args()
-        .nth(2)
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(1_000);
-    // Heartbeat (steps per asm chunk); allow CLI override, default 10_000
-    let heartbeat: u64 = env::args()
-        .nth(3)
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(10_000);
+    if tape_length > max_total {
+        eprintln!(
+            "requested tape_length {} exceeds max {}, clamping",
+            tape_length.separate_with_commas(),
+            max_total.separate_with_commas()
+        );
+        tape_length = max_total;
+    }
     let mut next_report: u64 = if status_interval == 0 {
         u64::MAX
     } else {
@@ -45,6 +123,16 @@ fn main() {
         step_count += steps_taken_this_chunk;
         state_id = new_state_id;
 
+        if let Some(limit) = max_steps {
+            if step_count >= limit {
+                println!(
+                    "reached max steps {}; stopping",
+                    step_count.separate_with_commas()
+                );
+                break;
+            }
+        }
+
         if status_code == 0 {
             if step_count >= next_report {
                 // Print the greatest multiple of status_interval not exceeding step_count
@@ -68,9 +156,29 @@ fn main() {
         let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
 
         if hit_left {
-            head_pointer = extend_tape_left(&mut tape, &mut tape_length);
+            match extend_tape_left(&mut tape, &mut tape_length, max_total) {
+                Some(ptr) => head_pointer = ptr,
+                None => {
+                    println!(
+                        "reached max memory {} cells; stopping at {} steps",
+                        (max_total - 2).separate_with_commas(),
+                        step_count.separate_with_commas()
+                    );
+                    break;
+                }
+            }
         } else if hit_right {
-            head_pointer = extend_tape_right(&mut tape, &mut tape_length);
+            match extend_tape_right(&mut tape, &mut tape_length, max_total) {
+                Some(ptr) => head_pointer = ptr,
+                None => {
+                    println!(
+                        "reached max memory {} cells; stopping at {} steps",
+                        (max_total - 2).separate_with_commas(),
+                        step_count.separate_with_commas()
+                    );
+                    break;
+                }
+            }
         } else {
             panic!("unexpected boundary pointer returned from asm");
         }
@@ -114,116 +222,126 @@ unsafe fn bb5_champ_heartbeat(
             "jmp A",                           // default to state A
             // State A
             "A:",                             // label: state A
-            "dec rcx",                        // consume one step
-            "jnz A_CONT",                     // continue unless heartbeat exhausted
-            "mov bl, 0",                      // exiting from state A
-            "jmp END",                        // end
+            "cmp rcx, 0",                     // any steps remaining?
+            "jne A_CONT",                     // continue unless heartbeat exhausted
+            "mov bl, 0",                      // out of credit: resume at A
+            "jmp END",                        // exit
             "A_CONT:",                        // continue A
             "mov dl, [rsi]",                  // load tape cell into DL
             "cmp dl, 2",                      // boundary sentinel check
-            "jne A_NONBOUND",                 // normal path if not boundary
-            "mov bl, 0",                      // boundary while in state A
-            "jmp BOUNDARY",                   // handle boundary
-            "A_NONBOUND:",                    // continue A (non-boundary)
+            "je BOUNDARY_A",                   // rare: boundary in A
             "test dl, dl",                    // cell == 0 ?
             "jnz A_ONE",                      // if 1, branch A(1)
             "mov byte ptr [rsi], 1",          // A(0): write 1
             "inc rsi",                        // A(0): move Right
+            "sub rcx, 1",                     // consume one step (post-decrement)
             "jmp B",                           // A(0): goto state B
             "A_ONE:",                          // label: A(1)
             "mov byte ptr [rsi], 1",          // A(1): write 1
             "dec rsi",                        // A(1): move Left
+            "sub rcx, 1",                     // consume one step (post-decrement)
             "jmp C",                           // A(1): goto state C
+            "BOUNDARY_A:",                    // boundary while in A
+            "mov bl, 0",                      // record state A
+            "jmp BOUNDARY",                   // handle boundary
             // State B
             "B:",                             // label: state B
-            "dec rcx",                        // consume one step
-            "jnz B_CONT",                     // continue B unless heartbeat exhausted
-            "mov bl, 1",                      // exiting from state B
-            "jmp END",                        // exit heartbeat (resume in B)
+            "cmp rcx, 0",                     // any steps remaining?
+            "jne B_CONT",                     // continue unless heartbeat exhausted
+            "mov bl, 1",                      // out of credit: resume at B
+            "jmp END",                        // exit
             "B_CONT:",                        // continue B
             "mov dl, [rsi]",                  // load tape cell
             "cmp dl, 2",                      // boundary sentinel?
-            "jne B_NONBOUND",                 // not boundary: continue B
-            "mov bl, 1",                      // boundary while in state B
-            "jmp BOUNDARY",                   // handle boundary
-            "B_NONBOUND:",                    // continue B (non-boundary)
+            "je BOUNDARY_B",                   // rare: boundary in B
             "test dl, dl",                    // cell == 0 ?
             "jnz B_ONE",                      // if 1, branch B(1)
             "mov byte ptr [rsi], 1",          // B(0): write 1
             "inc rsi",                        // B(0): move Right
+            "sub rcx, 1",                     // consume one step
             "jmp C",                           // B(0): goto state C
             "B_ONE:",                          // label: B(1)
             "mov byte ptr [rsi], 1",          // B(1): write 1
             "inc rsi",                        // B(1): move Right
+            "sub rcx, 1",                     // consume one step
             "jmp B",                           // B(1): goto state B (back)
+            "BOUNDARY_B:",                    // boundary while in B
+            "mov bl, 1",                      // record state B
+            "jmp BOUNDARY",                   // handle boundary
             // State C
             "C:",                             // label: state C
-            "dec rcx",                        // consume one step
-            "jnz C_CONT",                     // continue C unless heartbeat exhausted
-            "mov bl, 2",                      // exiting from state C
-            "jmp END",                        // exit heartbeat (resume in C)
+            "cmp rcx, 0",                     // any steps remaining?
+            "jne C_CONT",                     // continue unless heartbeat exhausted
+            "mov bl, 2",                      // out of credit: resume at C
+            "jmp END",                        // exit
             "C_CONT:",                        // continue C
             "mov dl, [rsi]",                  // load tape cell
             "cmp dl, 2",                      // boundary sentinel?
-            "jne C_NONBOUND",                 // not boundary: continue C
-            "mov bl, 2",                      // boundary while in state C
-            "jmp BOUNDARY",
-            "C_NONBOUND:",                    // continue C (non-boundary)
+            "je BOUNDARY_C",                   // rare: boundary in C
             "test dl, dl",                    // cell == 0 ?
             "jnz C_ONE",                      // if 1, branch C(1)
             "mov byte ptr [rsi], 1",          // C(0): write 1
             "inc rsi",                        // C(0): move Right
+            "sub rcx, 1",                     // consume one step
             "jmp D",                           // C(0): goto state D
             "C_ONE:",                          // label: C(1)
             "mov byte ptr [rsi], 0",          // C(1): write 0
             "dec rsi",                        // C(1): move Left
+            "sub rcx, 1",                     // consume one step
             "jmp E",                           // C(1): goto state E
+            "BOUNDARY_C:",                    // boundary while in C
+            "mov bl, 2",                      // record state C
+            "jmp BOUNDARY",                   // handle boundary
             // State D
             "D:",                             // label: state D
-            "dec rcx",                        // consume one step
-            "jnz D_CONT",                     // continue D unless heartbeat exhausted
-            "mov bl, 3",                      // exiting from state D
-            "jmp END",                        // exit heartbeat (resume in D)
+            "cmp rcx, 0",                     // any steps remaining?
+            "jne D_CONT",                     // continue unless heartbeat exhausted
+            "mov bl, 3",                      // out of credit: resume at D
+            "jmp END",                        // exit
             "D_CONT:",                        // continue D
             "mov dl, [rsi]",                  // load tape cell
             "cmp dl, 2",                      // boundary sentinel?
-            "jne D_NONBOUND",                 // not boundary: continue D
-            "mov bl, 3",                      // boundary while in state D
-            "jmp BOUNDARY",                   // handle boundary
-            "D_NONBOUND:",                    // continue D (non-boundary)
+            "je BOUNDARY_D",                   // rare: boundary in D
             "test dl, dl",                    // cell == 0 ?
             "jnz D_ONE",                      // if 1, branch D(1)
             "mov byte ptr [rsi], 1",          // D(0): write 1
             "dec rsi",                        // D(0): move Left
+            "sub rcx, 1",                     // consume one step
             "jmp A",                           // D(0): goto state A
             "D_ONE:",                          // label: D(1)
             "mov byte ptr [rsi], 1",          // D(1): write 1
             "dec rsi",                        // D(1): move Left
+            "sub rcx, 1",                     // consume one step
             "jmp D",                           // D(1): goto state D
+            "BOUNDARY_D:",                    // boundary while in D
+            "mov bl, 3",                      // record state D
+            "jmp BOUNDARY",                   // handle boundary
             // State E
             "E:",                             // label: state E
-            "dec rcx",                        // consume one step
-            "jnz E_CONT",                     // continue E unless heartbeat exhausted
-            "mov bl, 4",                      // exiting from state E
-            "jmp END",                        // exit heartbeat (resume in E)
+            "cmp rcx, 0",                     // any steps remaining?
+            "jne E_CONT",                     // continue unless heartbeat exhausted
+            "mov bl, 4",                      // out of credit: resume at E
+            "jmp END",                        // exit
             "E_CONT:",                        // continue E
             "mov dl, [rsi]",                  // load tape cell
             "cmp dl, 2",                      // boundary sentinel?
-            "jne E_NONBOUND",                 // not boundary: continue E
-            "mov bl, 4",                      // boundary while in state E
-            "jmp BOUNDARY",                   // handle boundary
-            "E_NONBOUND:",                    // continue E (non-boundary)
+            "je BOUNDARY_E",                   // rare: boundary in E
             "test dl, dl",                    // cell == 0 ?
             "jnz E_ONE",                      // if 1, branch E(1)
             "mov byte ptr [rsi], 1",          // E(0): write 1
             "inc rsi",                        // E(0): move Right
             "mov al, 1",                      // E(0): set status_code = 1 (halt)
+            "sub rcx, 1",                     // consume one step (post-decrement)
             "mov bl, 4",                      // halting from state E
             "jmp END",                         // E(0): end (halt)
             "E_ONE:",                          // label: E(1)
             "mov byte ptr [rsi], 0",          // E(1): write 0
             "dec rsi",                        // E(1): move Left
+            "sub rcx, 1",                     // consume one step
             "jmp A",                           // E(1): goto state A
+            "BOUNDARY_E:",                    // boundary while in E
+            "mov bl, 4",                      // record state E
+            "jmp BOUNDARY",                   // handle boundary
             // Boundary sentinel
             "BOUNDARY:",                      // label: boundary sentinel
             "mov al, 2",                      // status_code = 2 (boundary)
@@ -231,14 +349,8 @@ unsafe fn bb5_champ_heartbeat(
             // End
             "END:",                           // label: end
             // steps_taken = heartbeat - remaining (rcx)
-            // Adjust for pre-decrement style: on full heartbeat exit (AL==0),
-            // we did not execute the last step that decremented RCX to 0.
             "mov r8, {hb}",                  // R8 := heartbeat
-            "sub r8, rcx",                   // steps_taken = HEARTBEAT - remaining
-            "test al, al",                   // AL == 0? (full heartbeat)
-            "jnz ADJUST_DONE",               // if non-zero (halt/boundary), skip adjust
-            "dec r8",                        // adjust for pre-decrement on exact boundary
-            "ADJUST_DONE:",                   // label: done adjusting steps
+            "sub r8, rcx",                   // steps_taken = heartbeat - remaining
             inout("rsi") head,                // head pointer in/out
             lateout("r8") steps_taken,        // steps taken this heartbeat
             lateout("al") status_code,        // status code in AL
@@ -252,11 +364,18 @@ unsafe fn bb5_champ_heartbeat(
     (head, status_code, steps_taken, state_id)
 }
 
-fn extend_tape_left(tape: &mut Vec<u8>, total_len: &mut usize) -> *mut u8 {
+fn extend_tape_left(
+    tape: &mut Vec<u8>,
+    total_len: &mut usize,
+    max_total: usize,
+) -> Option<*mut u8> {
     let old_total = *total_len;
     let old_interior = old_total.saturating_sub(2);
     let growth = old_interior.max(1);
     let new_total = old_total + growth;
+    if new_total > max_total {
+        return None;
+    }
     let mut new_tape = vec![0u8; new_total];
     new_tape[0] = 2;
     new_tape[new_total - 1] = 2;
@@ -271,14 +390,21 @@ fn extend_tape_left(tape: &mut Vec<u8>, total_len: &mut usize) -> *mut u8 {
         (new_total - 2).separate_with_commas()
     );
     // Head should be at the first newly-added interior cell.
-    unsafe { tape.as_mut_ptr().add(growth) }
+    Some(unsafe { tape.as_mut_ptr().add(growth) })
 }
 
-fn extend_tape_right(tape: &mut Vec<u8>, total_len: &mut usize) -> *mut u8 {
+fn extend_tape_right(
+    tape: &mut Vec<u8>,
+    total_len: &mut usize,
+    max_total: usize,
+) -> Option<*mut u8> {
     let old_total = *total_len;
     let old_interior = old_total.saturating_sub(2);
     let growth = old_interior.max(1);
     let new_total = old_total + growth;
+    if new_total > max_total {
+        return None;
+    }
     let mut new_tape = vec![0u8; new_total];
     new_tape[0] = 2;
     new_tape[new_total - 1] = 2;
@@ -291,5 +417,5 @@ fn extend_tape_right(tape: &mut Vec<u8>, total_len: &mut usize) -> *mut u8 {
         (new_total - 2).separate_with_commas()
     );
     // Head should be the first newly-added interior cell to the right of the old end.
-    unsafe { tape.as_mut_ptr().add(old_total - 1) }
+    Some(unsafe { tape.as_mut_ptr().add(old_total - 1) })
 }
