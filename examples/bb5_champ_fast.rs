@@ -8,9 +8,10 @@ fn main() {
         .nth(1)
         .and_then(|value| value.parse().ok())
         .unwrap_or(1 << 21); // about 2 Million cells
-    if tape_length < 3 {
-        panic!("tape_length must be >= 3 (two sentinels + at least one interior)");
-    }
+    assert!(
+        tape_length >= 3,
+        "tape_length must be >= 3 (two sentinels + at least one interior)"
+    );
     let status_interval: u64 = env::args()
         .nth(2)
         .and_then(|value| value.parse().ok())
@@ -79,12 +80,11 @@ fn main() {
     }
 }
 
-// BUG: really want it to re-allocate. (handled by extend_tape_left/right)
-
 /// Executes up to HEARTBEAT steps starting at `head`.
 /// Returns (new_head, status_code, remaining_steps)
-/// - status_code: 0 = ran HEARTBEAT, 1 = halted, 2 = boundary encountered
+/// - `status_code`: 0 = ran HEARTBEAT, 1 = halted, 2 = boundary encountered
 /// - remaining_steps: RCX after exit; steps_taken = HEARTBEAT - remaining_steps
+#[allow(clippy::too_many_lines)]
 unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, u8, u64, u8) {
     let mut status_code: u8;
     let steps_taken: u64;
@@ -93,16 +93,16 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             "xor eax, eax",                  // status_code = 0 (AL)
             "mov rcx, {hb}",                 // loop counter: HEARTBEAT steps
             // Dispatch to current state based on BL (state_id)
-            "cmp bl, 0",
-            "je 2f",
-            "cmp bl, 1",
-            "je 4f",
-            "cmp bl, 2",
-            "je 6f",
-            "cmp bl, 3",
-            "je 8f",
-            "cmp bl, 4",
-            "je 22f",
+            "cmp bl, 0",                       // dispatch: BL == 0 (state A)?
+            "je 2f",                           // if A, jump to state A
+            "cmp bl, 1",                       // dispatch: BL == 1 (state B)?
+            "je 4f",                           // if B, jump to state B
+            "cmp bl, 2",                       // dispatch: BL == 2 (state C)?
+            "je 6f",                           // if C, jump to state C
+            "cmp bl, 3",                       // dispatch: BL == 3 (state D)?
+            "je 8f",                           // if D, jump to state D
+            "cmp bl, 4",                       // dispatch: BL == 4 (state E)?
+            "je 22f",                          // if E, jump to state E
             "jmp 2f",                        // default to state A
             // State A
             "2:",                            // label: state A
@@ -116,7 +116,7 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             "jne 27f",                       // normal path if not boundary
             "mov bl, 0",                     // boundary while in state A
             "jmp 24f",                        // handle boundary
-            "27:",
+            "27:",                            // continue A (non-boundary)
             "test dl, dl",                   // cell == 0 ?
             "jnz 3f",                        // if 1, branch A(1)
             "mov byte ptr [rsi], 1",         // A(0): write 1
@@ -129,16 +129,16 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State B
             "4:",                            // label: state B
             "dec rcx",                       // consume one step
-            "jnz 28f",
+            "jnz 28f",                        // continue B unless heartbeat exhausted
             "mov bl, 1",                     // exiting from state B
-            "jmp 25f",
+            "jmp 25f",                       // exit heartbeat (resume in B)
             "28:",                           // continue B
             "mov dl, [rsi]",                 // load tape cell
             "cmp dl, 2",                     // boundary sentinel?
-            "jne 29f",
+            "jne 29f",                        // not boundary: continue B
             "mov bl, 1",                     // boundary while in state B
-            "jmp 24f",
-            "29:",
+            "jmp 24f",                        // handle boundary
+            "29:",                            // continue B (non-boundary)
             "test dl, dl",                   // cell == 0 ?
             "jnz 5f",                        // if 1, branch B(1)
             "mov byte ptr [rsi], 1",         // B(0): write 1
@@ -151,16 +151,16 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State C
             "6:",                            // label: state C
             "dec rcx",                       // consume one step
-            "jnz 32f",
+            "jnz 32f",                        // continue C unless heartbeat exhausted
             "mov bl, 2",                     // exiting from state C
-            "jmp 25f",
+            "jmp 25f",                       // exit heartbeat (resume in C)
             "32:",                           // continue C
             "mov dl, [rsi]",                 // load tape cell
             "cmp dl, 2",                     // boundary sentinel?
-            "jne 33f",
+            "jne 33f",                        // not boundary: continue C
             "mov bl, 2",                     // boundary while in state C
             "jmp 24f",
-            "33:",
+            "33:",                            // continue C (non-boundary)
             "test dl, dl",                   // cell == 0 ?
             "jnz 7f",                        // if 1, branch C(1)
             "mov byte ptr [rsi], 1",         // C(0): write 1
@@ -173,16 +173,16 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State D
             "8:",                            // label: state D
             "dec rcx",                       // consume one step
-            "jnz 34f",
+            "jnz 34f",                        // continue D unless heartbeat exhausted
             "mov bl, 3",                     // exiting from state D
-            "jmp 25f",
+            "jmp 25f",                       // exit heartbeat (resume in D)
             "34:",                           // continue D
             "mov dl, [rsi]",                 // load tape cell
             "cmp dl, 2",                     // boundary sentinel?
-            "jne 35f",
+            "jne 35f",                        // not boundary: continue D
             "mov bl, 3",                     // boundary while in state D
-            "jmp 24f",
-            "35:",
+            "jmp 24f",                        // handle boundary
+            "35:",                            // continue D (non-boundary)
             "test dl, dl",                   // cell == 0 ?
             "jnz 9f",                        // if 1, branch D(1)
             "mov byte ptr [rsi], 1",         // D(0): write 1
@@ -195,16 +195,16 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // State E
             "22:",                           // label: state E
             "dec rcx",                       // consume one step
-            "jnz 36f",
+            "jnz 36f",                        // continue E unless heartbeat exhausted
             "mov bl, 4",                     // exiting from state E
-            "jmp 25f",
+            "jmp 25f",                       // exit heartbeat (resume in E)
             "36:",                           // continue E
             "mov dl, [rsi]",                 // load tape cell
             "cmp dl, 2",                     // boundary sentinel?
-            "jne 37f",
+            "jne 37f",                        // not boundary: continue E
             "mov bl, 4",                     // boundary while in state E
-            "jmp 24f",
-            "37:",
+            "jmp 24f",                        // handle boundary
+            "37:",                            // continue E (non-boundary)
             "test dl, dl",                   // cell == 0 ?
             "jnz 23f",                       // if 1, branch E(1)
             "mov byte ptr [rsi], 1",         // E(0): write 1
@@ -225,12 +225,12 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8, mut state_id: u8) -> (*mut u8, 
             // steps_taken = HEARTBEAT - remaining (rcx)
             // Adjust for pre-decrement style: on full heartbeat exit (AL==0),
             // we did not execute the last step that decremented RCX to 0.
-            "mov r8, {hb}",
-            "sub r8, rcx",
-            "test al, al",
-            "jnz 60f",
-            "dec r8",
-            "60:",
+            "mov r8, {hb}",                 // R8 := HEARTBEAT
+            "sub r8, rcx",                  // steps_taken = HEARTBEAT - remaining
+            "test al, al",                  // AL == 0? (full heartbeat)
+            "jnz 60f",                      // if non-zero (halt/boundary), skip adjust
+            "dec r8",                       // adjust for pre-decrement on exact boundary
+            "60:",                           // label: done adjusting steps
             inout("rsi") head,                // head pointer in/out
             lateout("r8") steps_taken,        // steps taken this heartbeat
             lateout("al") status_code,        // status code in AL
