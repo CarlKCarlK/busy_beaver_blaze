@@ -4,29 +4,14 @@ use thousands::Separable;
 
 // Note: we intentionally accept only plain numeric values for CLI args now.
 
-fn compute_heartbeat(status_interval: u64, max_steps: Option<u64>) -> u64 {
-    let default_hb: u64 = 10_000;
-    if let Some(ms) = max_steps {
-        // Aim for ~2000 chunks, clamp to [1, default_hb]
-        let target = (ms / 2000).clamp(1, default_hb);
-        if status_interval > 0 {
-            return target.min(status_interval.max(1));
-        }
-        return target.max(1);
-    }
-    if status_interval > 0 {
-        // Keep chunk smaller than interval to get frequent updates
-        return (status_interval / 10).clamp(1, default_hb);
-    }
-    default_hb
-}
+// Heartbeat is chosen per-iteration; no fixed default needed.
 #[derive(Debug, Parser, Clone)]
 #[command(name = "bb5_champ_fast", about = "Fast BB5 runner with inline asm")]
 struct Args {
     #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], default_value_t = 1usize << 21)]
     tape_length: usize,
 
-    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], default_value_t = 1_000u64)]
+    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], default_value_t = 10_000_000u64)]
     status_interval: u64,
 
     #[arg(long = "max-memory", aliases = ["max_memory", "max"], default_value_t = 1usize << 21)]
@@ -42,7 +27,6 @@ fn main() {
     let status_interval = args.status_interval;
     let max_total = args.max_total;
     let max_steps = args.max_steps;
-    let heartbeat: u64 = compute_heartbeat(status_interval, max_steps);
     assert!(
         tape_length >= 3,
         "tape_length must be >= 3 (two sentinels + at least one interior)"
@@ -74,8 +58,19 @@ fn main() {
     let mut state_id: u8 = 0; // 0=A, 1=B, 2=C, 3=D, 4=E
 
     loop {
+        // Choose heartbeat for this chunk: only yield when we have a reason
+        let hb_this_chunk: u64 = if let Some(limit) = max_steps {
+            let remaining = limit.saturating_sub(step_count);
+            remaining.max(1)
+        } else if status_interval > 0 {
+            let remaining_to_report = next_report.saturating_sub(step_count);
+            remaining_to_report.max(1)
+        } else {
+            u64::MAX
+        };
+
         let (new_head, status_code, steps_taken_this_chunk, new_state_id) =
-            unsafe { bb5_champ_heartbeat(head_pointer, state_id, heartbeat) };
+            unsafe { bb5_champ_heartbeat(head_pointer, state_id, hb_this_chunk) };
         head_pointer = new_head;
         step_count += steps_taken_this_chunk;
         state_id = new_state_id;
