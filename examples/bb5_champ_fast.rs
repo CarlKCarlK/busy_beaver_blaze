@@ -2,45 +2,7 @@
 use clap::Parser;
 use thousands::Separable;
 
-fn parse_usize_like_str(input: &str) -> Result<usize, String> {
-    let s = input.replace('_', "");
-    if let Ok(v) = s.parse::<usize>() {
-        return Ok(v);
-    }
-    if let Some(exp) = s.strip_prefix("2^") {
-        return exp
-            .parse::<u32>()
-            .map(|p| 2usize.saturating_pow(p))
-            .map_err(|e| e.to_string());
-    }
-    if let Some(exp) = s.strip_prefix("1<<") {
-        return exp
-            .parse::<u32>()
-            .map(|shift| 1usize.checked_shl(shift).unwrap_or(0))
-            .map_err(|e| e.to_string());
-    }
-    Err(format!("invalid usize: {}", input))
-}
-
-fn parse_u64_like_str(input: &str) -> Result<u64, String> {
-    let s = input.replace('_', "");
-    if let Ok(v) = s.parse::<u64>() {
-        return Ok(v);
-    }
-    if let Some(exp) = s.strip_prefix("2^") {
-        return exp
-            .parse::<u32>()
-            .map(|p| 2u64.saturating_pow(p))
-            .map_err(|e| e.to_string());
-    }
-    if let Some(exp) = s.strip_prefix("1<<") {
-        return exp
-            .parse::<u32>()
-            .map(|shift| 1u64.checked_shl(shift).unwrap_or(0))
-            .map_err(|e| e.to_string());
-    }
-    Err(format!("invalid u64: {}", input))
-}
+// Note: we intentionally accept only plain numeric values for CLI args now.
 
 fn compute_heartbeat(status_interval: u64, max_steps: Option<u64>) -> u64 {
     let default_hb: u64 = 10_000;
@@ -61,19 +23,16 @@ fn compute_heartbeat(status_interval: u64, max_steps: Option<u64>) -> u64 {
 #[derive(Debug, Parser, Clone)]
 #[command(name = "bb5_champ_fast", about = "Fast BB5 runner with inline asm")]
 struct Args {
-    #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], value_parser = parse_usize_like_str, default_value_t = (1usize << 21))]
+    #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], default_value_t = 1usize << 21)]
     tape_length: usize,
 
-    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], value_parser = parse_u64_like_str, default_value_t = 1_000u64)]
+    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], default_value_t = 1_000u64)]
     status_interval: u64,
 
-    #[arg(long = "heartbeat", aliases = ["hb"], value_parser = parse_u64_like_str)]
-    heartbeat: Option<u64>,
-
-    #[arg(long = "max-memory", aliases = ["max_memory", "max"], value_parser = parse_usize_like_str, default_value_t = (1usize << 21))]
+    #[arg(long = "max-memory", aliases = ["max_memory", "max"], default_value_t = 1usize << 21)]
     max_total: usize,
 
-    #[arg(long = "max-steps", aliases = ["max_steps"], value_parser = parse_u64_like_str)]
+    #[arg(long = "max-steps", aliases = ["max_steps"])]
     max_steps: Option<u64>,
 }
 
@@ -83,9 +42,7 @@ fn main() {
     let status_interval = args.status_interval;
     let max_total = args.max_total;
     let max_steps = args.max_steps;
-    let heartbeat: u64 = args
-        .heartbeat
-        .unwrap_or_else(|| compute_heartbeat(status_interval, max_steps));
+    let heartbeat: u64 = compute_heartbeat(status_interval, max_steps);
     assert!(
         tape_length >= 3,
         "tape_length must be >= 3 (two sentinels + at least one interior)"
