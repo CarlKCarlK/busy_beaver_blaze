@@ -1,4 +1,5 @@
 use std::env;
+use thousands::Separable;
 
 const HEARTBEAT: usize = 10_000;
 
@@ -29,15 +30,20 @@ fn main() {
 
         if status_code == 0 {
             if step_count >= next_report {
-                println!("{step_count} steps");
-                // advance to the next multiple; avoid overflow if interval huge
-                next_report = next_report.saturating_add(status_interval);
+                // Print the greatest multiple of status_interval not exceeding step_count
+                let crossed = (step_count - next_report) / status_interval + 1;
+                let last = next_report + (crossed - 1) * status_interval;
+                println!("{} steps", last.separate_with_commas());
+                next_report = last.saturating_add(status_interval);
             }
             continue;
         }
 
         if status_code == 1 {
-            println!("halted after {step_count} steps");
+            println!(
+                "halted after {} steps",
+                step_count.separate_with_commas()
+            );
             break;
         }
 
@@ -56,8 +62,10 @@ fn main() {
         }
 
         if step_count >= next_report {
-            println!("{step_count} steps");
-            next_report = next_report.saturating_add(status_interval);
+            let crossed = (step_count - next_report) / status_interval + 1;
+            let last = next_report + (crossed - 1) * status_interval;
+            println!("{} steps", last.separate_with_commas());
+            next_report = last.saturating_add(status_interval);
         }
     }
 }
@@ -166,7 +174,8 @@ unsafe fn bb5_champ_heartbeat(mut head: *mut u8) -> (*mut u8, u8, u64) {
             // Boundary sentinel
             "24:",                           // label: boundary sentinel
             "mov al, 2",                     // status_code = 2 (boundary)
-            "inc rcx",                       // undo step consumption; retry after grow
+            "inc rcx",                       // undo loop counter decrement
+            "dec r8d",                       // undo steps_taken increment for this partial step
             // End
             "25:",                           // label: end
             inout("rsi") head,                // head pointer in/out
@@ -194,6 +203,10 @@ fn extend_tape_left(tape: &mut Vec<u8>, tape_length: &mut usize) -> *mut u8 {
     new_tape[dst_start..dst_end].copy_from_slice(&tape[1..(1 + old_length)]);
     *tape = new_tape;
     *tape_length = new_length;
+    println!(
+        "tape grown LEFT to {} cells",
+        new_length.separate_with_commas()
+    );
     // Head should be at the first newly-added interior cell.
     unsafe { tape.as_mut_ptr().add(growth) }
 }
@@ -209,6 +222,10 @@ fn extend_tape_right(tape: &mut Vec<u8>, tape_length: &mut usize) -> *mut u8 {
     new_tape[1..(1 + old_length)].copy_from_slice(&tape[1..(1 + old_length)]);
     *tape = new_tape;
     *tape_length = new_length;
+    println!(
+        "tape grown RIGHT to {} cells",
+        new_length.separate_with_commas()
+    );
     // Head should be the first newly-added interior cell to the right of the old end.
     unsafe { tape.as_mut_ptr().add(old_length + 1) }
 }
