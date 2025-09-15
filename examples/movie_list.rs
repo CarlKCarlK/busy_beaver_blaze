@@ -137,7 +137,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         program: BB6_CONTENDER,
         caption: |_title, _program| String::new(),
         pixel_policy: PixelPolicy::Binning,
-        early_stop: 100_000_000_000,
+        early_stop: 10_000_000_000_001, // 10 trillion + 1
         frame_start: 0,
         frame_end: 1000,
         part_count: 32,

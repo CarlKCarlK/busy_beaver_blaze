@@ -48,6 +48,7 @@ wasm-pack build --out-dir docs/v0.2.6/pkg --target web && del docs\v0.2.6\pkg\.g
 ## Make movie frames
 
 ```bash
+sudo run PowerShell -Command "Stop-Service WSearch"
 cargo run --example movie --release bb5_champ 2K true
 cargo run --example movie --release bb6_contender 2K true
 cargo run --example movie --release BB_3_3_355317 2K true
