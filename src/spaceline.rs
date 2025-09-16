@@ -49,6 +49,7 @@ impl core::fmt::Debug for Spaceline {
 
 impl Spaceline {
     // This is complicated because the tape is in two parts and we always start at 0.
+    #[allow(clippy::missing_panics_doc)]
     #[inline]
     #[must_use]
     pub fn find_x_stride(

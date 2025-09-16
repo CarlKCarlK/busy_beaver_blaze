@@ -151,3 +151,9 @@ Reference `src/code_notes.md` for sampling vs binning implementation locations a
 - Documentation: when adding a feature or toggling behavior, update this guide and any relevant docs/examples.
 
 - When you write assembly code (for example using `asm!` in Rust) include a comment explaining what that statement does.
+
+- In Rust, generally custom Error enums should be named 'Error' rather than 'MyThingError'
+
+- In Rust, move deconstruction into the arguments were possible.
+
+- In Rust, I like using the same name when unwrapping, if let Some(max_steps) = max_steps {

@@ -1,6 +1,10 @@
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
 use clap::{Parser, ValueEnum};
-use std::time::{Duration, Instant};
+use derive_more::{Display, Error};
+use std::{
+    num::NonZeroU64,
+    time::{Duration, Instant},
+};
 use thousands::Separable;
 
 // Macro helpers to generate the full asm template from a TM spec
@@ -146,41 +150,33 @@ fn format_duration(total_secs: f64) -> String {
     humantime::format_duration(duration).to_string()
 }
 
-fn format_steps_per_sec(steps_per_sec: f64) -> String {
-    let value = if steps_per_sec.is_finite() {
-        steps_per_sec.max(0.0).round() as u64
-    } else {
-        0
-    };
-    value.separate_with_commas()
-}
 #[derive(Debug, Parser, Clone)]
 #[command(
     name = "bb5_champ_fast",
     about = "Fast Turing machine runner with inline asm"
 )]
 struct Args {
-    #[arg(value_enum, default_value_t = ProgramSelect::Bb5Champ)]
+    #[arg(long, value_enum, default_value_t = ProgramSelect::Bb5Champ)]
     program: ProgramSelect,
 
-    /// Status print interval in steps (0 disables updates)
-    #[arg(default_value = "10_000_000", value_parser = parse_clean::<u64>)]
+    /// Status print interval in steps. Omit to disable periodic reports.
+    #[arg(long, value_parser = parse_clean::<u64>, default_value_t = u64::MAX)]
     interval: u64,
 
     /// Stop after this many steps if provided
-    #[arg(value_parser = parse_clean::<u64>)]
-    max_steps: Option<u64>,
+    #[arg(long, value_parser = parse_clean::<u64>, default_value_t = u64::MAX)]
+    max_steps: u64,
 
-    /// Initial tape length (includes two sentinel cells)
-    #[arg(default_value = "2_097_152", value_parser = parse_clean::<usize>)]
-    tape_len: usize,
+    /// Minimum tape length (includes two sentinel cells)
+    #[arg(long, default_value = "2_097_152", value_parser = parse_clean::<usize>)]
+    min_tape: usize,
 
     /// Maximum allowed total tape length (cells incl. sentinels)
-    #[arg(default_value = "16_777_216", value_parser = parse_clean::<usize>)]
+    #[arg(long, default_value = "16_777_216", value_parser = parse_clean::<usize>)]
     max_tape: usize,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub enum ProgramSelect {
     Bb5Champ,
@@ -188,45 +184,52 @@ pub enum ProgramSelect {
 }
 
 #[derive(Debug, Clone)]
-pub struct ProgramRunConfig {
-    pub tape_len: usize,
-    pub interval: u64,
+pub struct CompiledMachine {
+    pub min_tape: usize,
+    pub interval: NonZeroU64,
     pub max_tape: usize,
-    pub max_steps: Option<u64>,
+    pub max_steps: u64,
     pub program: ProgramSelect,
 }
 
-impl TryFrom<Args> for ProgramRunConfig {
-    type Error = String;
+impl TryFrom<Args> for CompiledMachine {
+    type Error = Error;
 
-    fn try_from(args: Args) -> Result<Self, Self::Error> {
-        if args.tape_len < 3 {
-            return Err(String::from(
-                "tape_len must be >= 3 (two sentinels + at least one interior)",
-            ));
+    fn try_from(
+        Args {
+            program,
+            interval,
+            max_steps,
+            min_tape,
+            max_tape,
+        }: Args,
+    ) -> Result<Self, Self::Error> {
+        if min_tape < 3 {
+            return Err(Error::TapeTooShort { min_tape });
         }
-        if args.max_tape < 3 {
-            return Err(String::from(
-                "max_tape must be >= 3 (two sentinels + at least one interior)",
-            ));
+        if max_tape < min_tape {
+            return Err(Error::MaxTapeTooSmall { max_tape });
         }
-        let mut tape_len = args.tape_len;
-        if tape_len > args.max_tape {
-            eprintln!(
-                "requested tape_len {} exceeds max {}, clamping",
-                tape_len.separate_with_commas(),
-                args.max_tape.separate_with_commas()
-            );
-            tape_len = args.max_tape;
-        }
+        let interval = NonZeroU64::new(interval).ok_or(Error::IntervalTooSmall { interval })?;
+
         Ok(Self {
-            tape_len,
-            interval: args.interval,
-            max_tape: args.max_tape,
-            max_steps: args.max_steps,
-            program: args.program,
+            min_tape,
+            interval,
+            max_tape,
+            max_steps,
+            program,
         })
     }
+}
+
+#[derive(Debug, Display, Error)]
+pub enum Error {
+    #[display("min_tape must be >= 3 (two sentinels + at least one interior); got {min_tape}")]
+    TapeTooShort { min_tape: usize },
+    #[display("max_tape must be >= 3 (two sentinels + at least one interior); got {max_tape}")]
+    MaxTapeTooSmall { max_tape: usize },
+    #[display("interval must be > 0; got {interval}")]
+    IntervalTooSmall { interval: u64 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -238,10 +241,10 @@ pub enum RunTermination {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct RunSummary {
+pub struct Summary {
     pub step_count: u64,
     pub final_state_id: u8,
-    pub termination: RunTermination,
+    pub run_termination: RunTermination,
     pub elapsed_seconds: f64,
     pub tape_len: usize,
 }
@@ -257,98 +260,73 @@ where
 }
 
 fn main() {
-    let args = Args::parse();
-    let config = ProgramRunConfig::try_from(args).unwrap_or_else(|err| {
-        eprintln!("{err}");
-        std::process::exit(2);
+    let config: CompiledMachine = Args::parse().try_into().unwrap_or_else(|e| {
+        eprintln!("error: {e}");
+        std::process::exit(1);
     });
-    let _ = run_compiled_machine(config);
+    if let Err(error) = config.run() {
+        eprintln!("{error}");
+        std::process::exit(2);
+    }
 }
 
-pub fn run_compiled_machine(config: ProgramRunConfig) -> RunSummary {
-    let ProgramRunConfig {
-        tape_len: initial_tape_len,
-        interval,
-        max_tape,
-        max_steps,
-        program,
-    } = config;
-
-    debug_assert!(
-        initial_tape_len >= 3,
-        "tape_len must be >= 3 (two sentinels + at least one interior)"
-    );
-    debug_assert!(
-        max_tape >= 3,
-        "max_tape must be >= 3 (two sentinels + at least one interior)"
-    );
-    debug_assert!(
-        initial_tape_len <= max_tape,
-        "tape_len must be <= max_tape after configuration sanitization"
-    );
-
-    let mut tape_len = initial_tape_len;
-    let mut next_report: u64 = if interval == 0 { u64::MAX } else { interval };
-
-    let mut tape: Vec<u8> = vec![0; tape_len];
-    tape[0] = 2;
-    tape[tape_len - 1] = 2;
-
-    let mut head_pointer = unsafe { tape.as_mut_ptr().add(1 + ((tape_len - 2) >> 1)) };
-    let mut step_count: u64 = 0;
-    let mut state_id: u8 = 0;
-    let start_time: Instant = Instant::now();
-
-    type CompiledFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
-    let compiled_fn: CompiledFn = match program {
-        ProgramSelect::Bb5Champ => bb5_champ_compiled,
-        ProgramSelect::Bb6Contender => bb6_contender_compiled,
-    };
-
-    loop {
-        let hb_to_limit = max_steps
-            .map(|limit| limit.saturating_sub(step_count))
-            .unwrap_or(u64::MAX);
-        let hb_to_report = if interval > 0 {
-            next_report.saturating_sub(step_count)
-        } else {
-            u64::MAX
+impl CompiledMachine {
+    pub fn run(self) -> Result<Summary, Error> {
+        // cmk don't like that validation is here and not in the constructor
+        let CompiledMachine {
+            min_tape,
+            interval,
+            max_tape,
+            max_steps,
+            program,
+        } = self;
+        let mut tape_len = min_tape;
+        let mut next_report: u64 = interval.get();
+        let mut tape: Vec<u8> = vec![0; tape_len];
+        tape[0] = 2;
+        tape[tape_len - 1] = 2;
+        let mut head_pointer = unsafe { tape.as_mut_ptr().add(1 + ((tape_len - 2) >> 1)) };
+        let mut step_count: u64 = 0;
+        let mut state_id: u8 = 0;
+        let start_time: Instant = Instant::now();
+        type CompiledFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
+        let compiled_fn: CompiledFn = match program {
+            ProgramSelect::Bb5Champ => bb5_champ_compiled,
+            ProgramSelect::Bb6Contender => bb6_contender_compiled,
         };
-        let hb_this_chunk: u64 = hb_to_limit.min(hb_to_report).max(1);
-
-        let (new_head, status_code, steps_taken_this_chunk, new_state_id) =
-            unsafe { compiled_fn(head_pointer, state_id, hb_this_chunk) };
-        head_pointer = new_head;
-        step_count += steps_taken_this_chunk;
-        state_id = new_state_id;
-
-        if let Some(limit) = max_steps {
-            if step_count >= limit {
+        loop {
+            let hb_to_limit = max_steps.saturating_sub(step_count);
+            let hb_to_report = next_report.saturating_sub(step_count);
+            let hb_this_chunk: u64 = hb_to_limit.min(hb_to_report).max(1);
+            let (new_head, status_code, steps_taken_this_chunk, new_state_id) =
+                unsafe { compiled_fn(head_pointer, state_id, hb_this_chunk) };
+            head_pointer = new_head;
+            step_count += steps_taken_this_chunk;
+            state_id = new_state_id;
+            if step_count >= max_steps {
+                // cmk should this be a result?
                 println!(
                     "reached max steps {}; stopping",
                     step_count.separate_with_commas()
                 );
                 let elapsed_seconds = start_time.elapsed().as_secs_f64();
                 println!("{:.3} s", elapsed_seconds);
-                return RunSummary {
+                return Ok(Summary {
                     step_count,
                     final_state_id: state_id,
-                    termination: RunTermination::MaxSteps,
+                    run_termination: RunTermination::MaxSteps,
                     elapsed_seconds,
                     tape_len,
-                };
+                });
             }
-        }
-
-        if status_code == 0 {
-            if step_count >= next_report {
-                let crossed = (step_count - next_report) / interval + 1;
-                let last = next_report + (crossed - 1) * interval;
-                let elapsed = start_time.elapsed().as_secs_f64();
-                if let Some(limit) = max_steps {
-                    let done = last as f64;
+            if status_code == 0 {
+                if step_count >= next_report {
+                    let crossed = (step_count - next_report) / interval + 1;
+                    let last = next_report + (crossed - 1) * interval.get();
+                    let elapsed = start_time.elapsed().as_secs_f64();
+                    let done = last as f64; // Convert last to f64 directly
                     let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-                    let remaining = (limit.saturating_sub(last)) as f64;
+                    let remaining = (max_steps.saturating_sub(last)) as f64;
                     let eta = if steps_per_sec > 0.0 {
                         remaining / steps_per_sec
                     } else {
@@ -366,94 +344,76 @@ pub fn run_compiled_machine(config: ProgramRunConfig) -> RunSummary {
                         eta,
                         elapsed
                     );
-                } else {
-                    let steps_per_sec = if elapsed > 0.0 {
-                        (last as f64) / elapsed
-                    } else {
-                        0.0
-                    };
-                    println!(
-                        "{} steps ({} steps/s, elapsed {:.3} s)",
-                        last.separate_with_commas(),
-                        format_steps_per_sec(steps_per_sec),
-                        elapsed
-                    );
+                    next_report = last.saturating_add(interval.get());
                 }
-                next_report = last.saturating_add(interval);
+                continue;
             }
-            continue;
-        }
-
-        if status_code == 1 {
-            println!("halted after {} steps", step_count.separate_with_commas());
-            let elapsed_seconds = start_time.elapsed().as_secs_f64();
-            println!("{:.3} s", elapsed_seconds);
-            return RunSummary {
-                step_count,
-                final_state_id: state_id,
-                termination: RunTermination::Halted,
-                elapsed_seconds,
-                tape_len,
-            };
-        }
-
-        let left_sentinel_ptr = tape.as_ptr();
-        let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
-        let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
-        let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
-
-        if hit_left {
-            match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
-                Some(ptr) => head_pointer = ptr,
-                None => {
-                    println!(
-                        "reached max memory {} cells; stopping at {} steps",
-                        (max_tape - 2).separate_with_commas(),
-                        step_count.separate_with_commas()
-                    );
-                    let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                    println!("{:.3} s", elapsed_seconds);
-                    return RunSummary {
-                        step_count,
-                        final_state_id: state_id,
-                        termination: RunTermination::MaxMemoryLeft,
-                        elapsed_seconds,
-                        tape_len,
-                    };
+            if status_code == 1 {
+                println!("halted after {} steps", step_count.separate_with_commas());
+                let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                println!("{:.3} s", elapsed_seconds);
+                return Ok(Summary {
+                    step_count,
+                    final_state_id: state_id,
+                    run_termination: RunTermination::Halted,
+                    elapsed_seconds,
+                    tape_len,
+                });
+            }
+            let left_sentinel_ptr = tape.as_ptr();
+            let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
+            let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
+            let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
+            if hit_left {
+                match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
+                    Some(ptr) => head_pointer = ptr,
+                    None => {
+                        println!(
+                            "reached max memory {} cells; stopping at {} steps",
+                            (max_tape - 2).separate_with_commas(),
+                            step_count.separate_with_commas()
+                        );
+                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                        println!("{:.3} s", elapsed_seconds);
+                        return Ok(Summary {
+                            step_count,
+                            final_state_id: state_id,
+                            run_termination: RunTermination::MaxMemoryLeft,
+                            elapsed_seconds,
+                            tape_len,
+                        });
+                    }
                 }
-            }
-        } else if hit_right {
-            match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
-                Some(ptr) => head_pointer = ptr,
-                None => {
-                    println!(
-                        "reached max memory {} cells; stopping at {} steps",
-                        (max_tape - 2).separate_with_commas(),
-                        step_count.separate_with_commas()
-                    );
-                    let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                    println!("{:.3} s", elapsed_seconds);
-                    return RunSummary {
-                        step_count,
-                        final_state_id: state_id,
-                        termination: RunTermination::MaxMemoryRight,
-                        elapsed_seconds,
-                        tape_len,
-                    };
+            } else if hit_right {
+                match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
+                    Some(ptr) => head_pointer = ptr,
+                    None => {
+                        println!(
+                            "reached max memory {} cells; stopping at {} steps",
+                            (max_tape - 2).separate_with_commas(),
+                            step_count.separate_with_commas()
+                        );
+                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                        println!("{:.3} s", elapsed_seconds);
+                        return Ok(Summary {
+                            step_count,
+                            final_state_id: state_id,
+                            run_termination: RunTermination::MaxMemoryRight,
+                            elapsed_seconds,
+                            tape_len,
+                        });
+                    }
                 }
+            } else {
+                panic!("unexpected boundary pointer returned from asm");
             }
-        } else {
-            panic!("unexpected boundary pointer returned from asm");
-        }
-
-        if step_count >= next_report {
-            let crossed = (step_count - next_report) / interval + 1;
-            let last = next_report + (crossed - 1) * interval;
-            let elapsed = start_time.elapsed().as_secs_f64();
-            if let Some(limit) = max_steps {
+            if step_count >= next_report {
+                let crossed = (step_count - next_report) / interval + 1;
+                let last = next_report + (crossed - 1) * interval.get();
+                let elapsed = start_time.elapsed().as_secs_f64();
                 let done = step_count as f64;
                 let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-                let remaining = (limit.saturating_sub(step_count)) as f64;
+                let remaining = (max_steps.saturating_sub(step_count)) as f64;
                 let eta = if steps_per_sec > 0.0 {
                     remaining / steps_per_sec
                 } else {
@@ -471,24 +431,11 @@ pub fn run_compiled_machine(config: ProgramRunConfig) -> RunSummary {
                     eta,
                     elapsed
                 );
-            } else {
-                let steps_per_sec = if elapsed > 0.0 {
-                    (step_count as f64) / elapsed
-                } else {
-                    0.0
-                };
-                println!(
-                    "{} steps ({} steps/s, elapsed {:.3} s)",
-                    last.separate_with_commas(),
-                    format_steps_per_sec(steps_per_sec),
-                    elapsed
-                );
+                next_report = last.saturating_add(interval.get());
             }
-            next_report = last.saturating_add(interval);
         }
     }
 }
-
 /// Executes up to HEARTBEAT steps starting at `head`.
 /// Returns (new_head, status_code, remaining_steps)
 /// - `status_code`: 0 = ran HEARTBEAT, 1 = halted, 2 = boundary encountered
@@ -614,46 +561,103 @@ fn extend_tape_right(
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
+
     use super::*;
 
     #[test]
-    fn try_from_rejects_short_tape() {
+    fn args_into_config_copies_fields() {
         let args = Args {
-            program: ProgramSelect::Bb5Champ,
-            interval: 10,
-            max_steps: None,
-            tape_len: 2,
-            max_tape: 10,
+            program: ProgramSelect::Bb6Contender,
+            interval: NonZero::new(42).unwrap().get(),
+            max_steps: 7,
+            min_tape: 128,
+            max_tape: 256,
         };
-        let err = ProgramRunConfig::try_from(args).expect_err("expected validation failure");
-        assert!(err.contains("tape_len must be >= 3"));
+        let config: CompiledMachine = args.try_into().expect("conversion should succeed");
+        assert_eq!(config.program, ProgramSelect::Bb6Contender);
+        assert_eq!(config.interval, NonZero::new(42).unwrap());
+        assert_eq!(config.max_steps, 7);
+        assert_eq!(config.min_tape, 128);
+        assert_eq!(config.max_tape, 256);
     }
 
     #[test]
-    fn try_from_clamps_tape_len() {
-        let args = Args {
+    fn run_compiled_machine_errors_on_zero_status_interval() {
+        let config = CompiledMachine {
+            min_tape: 128,
+            interval: NonZero::new(0).unwrap(),
+            max_tape: 256,
+            max_steps: 1,
             program: ProgramSelect::Bb5Champ,
-            interval: 10,
-            max_steps: None,
-            tape_len: 1_000,
+        };
+        match config.run() {
+            Err(Error::IntervalTooSmall { interval }) => {
+                assert_eq!(interval, 0);
+            }
+            other => panic!("expected IntervalTooSmall error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn run_compiled_machine_errors_on_short_tape() {
+        let config = CompiledMachine {
+            min_tape: 2,
+            interval: NonZero::new(1_000).unwrap(),
             max_tape: 64,
+            max_steps: 1,
+            program: ProgramSelect::Bb5Champ,
         };
-        let config = ProgramRunConfig::try_from(args).expect("config should succeed");
-        assert_eq!(config.tape_len, 64);
+        match config.run() {
+            Err(Error::TapeTooShort { min_tape: tape_len }) => {
+                assert_eq!(tape_len, 2);
+            }
+            other => panic!("expected TapeTooShort error, got {:?}", other),
+        }
     }
 
     #[test]
-    fn test_run_compiled_machine_stops_at_max_steps() {
-        let config = ProgramRunConfig {
-            tape_len: 128,
-            interval: 1_000_000,
-            max_tape: 1usize << 16,
-            max_steps: Some(1_000),
+    fn run_compiled_machine_errors_on_small_max_tape() {
+        let config = CompiledMachine {
+            min_tape: 4,
+            interval: NonZero::new(1_000).unwrap(),
+            max_tape: 2,
+            max_steps: 1,
             program: ProgramSelect::Bb5Champ,
         };
-        let summary = run_compiled_machine(config);
+        match config.run() {
+            Err(Error::MaxTapeTooSmall { max_tape }) => assert_eq!(max_tape, 2),
+            other => panic!("expected MaxTapeTooSmall error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn run_compiled_machine_clamps_tape_len() {
+        let summary = CompiledMachine {
+            min_tape: 128,
+            interval: NonZero::new(1_000).unwrap(),
+            max_tape: 64,
+            max_steps: 1,
+            program: ProgramSelect::Bb5Champ,
+        }
+        .run()
+        .expect("config should clamp");
+        assert_eq!(summary.tape_len, 64);
+    }
+
+    #[test]
+    fn run_compiled_machine_stops_at_max_steps() {
+        let summary = CompiledMachine {
+            min_tape: 128,
+            interval: NonZero::new(1_000_000).unwrap(),
+            max_tape: 1usize << 16,
+            max_steps: 1_000,
+            program: ProgramSelect::Bb5Champ,
+        }
+        .run()
+        .expect("run should succeed");
         assert_eq!(summary.step_count, 1_000);
-        assert_eq!(summary.termination, RunTermination::MaxSteps);
+        assert_eq!(summary.run_termination, RunTermination::MaxSteps);
         assert!(summary.final_state_id <= 4);
         assert!(summary.elapsed_seconds >= 0.0);
         assert!(summary.tape_len >= 3);

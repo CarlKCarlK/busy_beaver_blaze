@@ -13,6 +13,7 @@ diff_row = []
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+humantime = "2.1"
 ab_glyph = "0.2.29"
 aligned-vec = "0.6.2"
 arrayvec = "0.7.6"
@@ -31,7 +32,6 @@ png = "0.17.16"
 rayon = "1.10.0"
 smallvec = "1.14.0"
 thousands = "0.2.0"
-humantime = "2.1"
 wasm-bindgen = "0.2.100"
 zerocopy = { version = "0.8.21", features = ["std", "derive"] }
 
@@ -50,9 +50,7 @@ num-bigint = "0.4.6"
 num-traits = "0.2.14"
 glob = "0.3.2"
 criterion = "0.5.1"
-sanitize-filename = "0.6.0"  # cmk00 is this still used?
-
-
+sanitize-filename = "0.6.0"                     # cmk00 is this still used?
 [[bench]]
 name = "benchmark"
 harness = false
@@ -136,4 +134,3 @@ missing_errors_doc = "allow"
 # blanket_clippy_restriction_lints = "warn"
 #cargo = "warn"
 # restriction = "warn"
-
