@@ -150,11 +150,27 @@ fn main() {
     let mut state_id: u8 = 0; // 0=A, 1=B, 2=C, 3=D, 4=E
     let start_time: Instant = Instant::now();
 
+    fn format_duration(total_secs: f64) -> String {
+        let mut secs = total_secs.max(0.0);
+        let days = (secs / 86_400.0).floor() as u64;
+        secs -= (days as f64) * 86_400.0;
+        let hours = (secs / 3_600.0).floor() as u64;
+        secs -= (hours as f64) * 3_600.0;
+        let minutes = (secs / 60.0).floor() as u64;
+        secs -= (minutes as f64) * 60.0;
+        // keep two decimals for seconds
+        if days > 0 {
+            format!("{}d {:02}:{:02}:{:05.2}", days, hours, minutes, secs)
+        } else {
+            format!("{:02}:{:02}:{:05.2}", hours, minutes, secs)
+        }
+    }
+
     // Select machine heartbeat outside the loop
-    type HbFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
-    let heartbeat_fn: HbFn = match args.machine {
-        MachineSelect::Bb5 => bb5_champ_heartbeat,
-        MachineSelect::Bb6 => bb6_contender_heartbeat,
+    type CompiledFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
+    let compiled_fn: CompiledFn = match args.machine {
+        MachineSelect::Bb5 => bb5_champ_compiled,
+        MachineSelect::Bb6 => bb6_contender_compiled,
     };
 
     loop {
@@ -174,7 +190,7 @@ fn main() {
         let hb_this_chunk: u64 = hb_to_limit.min(hb_to_report).max(1);
 
         let (new_head, status_code, steps_taken_this_chunk, new_state_id) =
-            unsafe { heartbeat_fn(head_pointer, state_id, hb_this_chunk) };
+            unsafe { compiled_fn(head_pointer, state_id, hb_this_chunk) };
         head_pointer = new_head;
         step_count += steps_taken_this_chunk;
         state_id = new_state_id;
@@ -185,6 +201,8 @@ fn main() {
                     "reached max steps {}; stopping",
                     step_count.separate_with_commas()
                 );
+                let elapsed = start_time.elapsed().as_secs_f64();
+                println!("{:.3} s", elapsed);
                 break;
             }
         }
@@ -200,9 +218,11 @@ fn main() {
                     let sps = if elapsed > 0.0 { done / elapsed } else { 0.0 };
                     let remaining = (limit.saturating_sub(last)) as f64;
                     let eta = if sps > 0.0 { remaining / sps } else { f64::INFINITY };
+                    let total = if eta.is_finite() { format_duration(elapsed + eta) } else { String::from("--:--:--") };
                     println!(
-                        "{} steps (ETA {:.3} s, elapsed {:.3} s)",
+                        "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
                         last.separate_with_commas(),
+                        total,
                         eta,
                         elapsed
                     );
@@ -274,9 +294,11 @@ fn main() {
                 let sps = if elapsed > 0.0 { done / elapsed } else { 0.0 };
                 let remaining = (limit.saturating_sub(step_count)) as f64;
                 let eta = if sps > 0.0 { remaining / sps } else { f64::INFINITY };
+                let total = if eta.is_finite() { format_duration(elapsed + eta) } else { String::from("--:--:--") };
                 println!(
-                    "{} steps (ETA {:.3} s, elapsed {:.3} s)",
+                    "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
                     last.separate_with_commas(),
+                    total,
                     eta,
                     elapsed
                 );
@@ -298,7 +320,7 @@ fn main() {
 /// Returns (new_head, status_code, remaining_steps)
 /// - `status_code`: 0 = ran HEARTBEAT, 1 = halted, 2 = boundary encountered
 /// - remaining_steps: RCX after exit; steps_taken = HEARTBEAT - remaining_steps
-unsafe fn bb5_champ_heartbeat(
+unsafe fn bb5_champ_compiled(
     mut head: *mut u8,
     mut state_id: u8,
     heartbeat: u64,
@@ -329,7 +351,7 @@ unsafe fn bb5_champ_heartbeat(
 
 /// BB6 Contender heartbeat using the macro-generated asm template
 #[allow(clippy::too_many_lines)]
-unsafe fn bb6_contender_heartbeat(
+unsafe fn bb6_contender_compiled(
     mut head: *mut u8,
     mut state_id: u8,
     heartbeat: u64,
