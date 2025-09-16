@@ -1,105 +1,81 @@
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use thousands::Separable;
+use std::time::Instant;
 
 // Macro helpers to generate the full asm template from a TM spec
 macro_rules! tm_move {
     (R) => {
-        "inc rsi\n"
+        "inc rsi\n" // move head Right
     };
     (L) => {
-        "dec rsi\n"
+        "dec rsi\n" // move head Left
     };
 }
 macro_rules! tm_next {
-    (HALT, $id:expr) => {
+    ( $P:ident, HALT, $id:expr ) => {
         concat!(
-            "mov al, 1\n",
-            "mov bl, ",
-            stringify!($id),
-            "\n",
-            "jmp END\n"
+            "mov al, 1\n", // set status = halt
+            "mov bl, ", stringify!($id), "\n", // record current state id
+            "jmp ", stringify!($P), "_END\n" // jump to end label
         )
     };
-    ($N:ident, $id:expr) => {
-        concat!("jmp ", stringify!($N), "\n")
+    ( $P:ident, $N:ident, $id:expr ) => {
+        concat!("jmp ", stringify!($P), "_", stringify!($N), "\n") // goto next state
     };
 }
 macro_rules! tm_dispatch {
-    ($S:ident, $id:expr) => {
+    ( $P:ident, $S:ident, $id:expr ) => {
         concat!(
-            "cmp bl, ",
-            stringify!($id),
-            "\n",
-            "je ",
-            stringify!($S),
-            "\n"
+            "cmp bl, ", stringify!($id), "\n", // compare BL with state id
+            "je ", stringify!($P), "_", stringify!($S), "\n" // if equal, jump to state
         )
     };
 }
 macro_rules! tm_state_block {
-    ( $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
+    ( $P:ident, $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
         concat!(
-            stringify!($S),
-            ":\n",
-            "cmp rcx, 0\n",
-            "jne ",
-            stringify!($S),
-            "_CONT\n",
-            "mov bl, ",
-            stringify!($id),
-            "\n",
-            "jmp END\n",
-            stringify!($S),
-            "_CONT:\n",
-            "mov dl, [rsi]\n",
-            "cmp dl, 2\n",
-            "je BOUNDARY_",
-            stringify!($S),
-            "\n",
-            "test dl, dl\n",
-            "jnz ",
-            stringify!($S),
-            "_ONE\n",
-            "mov byte ptr [rsi], ",
-            stringify!($w0),
-            "\n",
+            stringify!($P), "_", stringify!($S), ":\n", // state label
+            "cmp rcx, 0\n", // any credit left?
+            "jne ", stringify!($P), "_", stringify!($S), "_CONT\n", // continue if yes
+            "mov bl, ", stringify!($id), "\n", // record resume state
+            "jmp ", stringify!($P), "_END\n", // exit chunk
+            stringify!($P), "_", stringify!($S), "_CONT:\n", // continue label
+            "mov dl, [rsi]\n", // load cell
+            "cmp dl, 2\n", // boundary sentinel?
+            "je ", stringify!($P), "_BOUNDARY_", stringify!($S), "\n", // jump if boundary
+            "test dl, dl\n", // is cell == 0?
+            "jnz ", stringify!($P), "_", stringify!($S), "_ONE\n", // branch if 1
+            "mov byte ptr [rsi], ", stringify!($w0), "\n", // write on 0-branch
             tm_move!($d0),
-            "sub rcx, 1\n",
-            tm_next!($n0, $id),
-            stringify!($S),
-            "_ONE:\n",
-            "mov byte ptr [rsi], ",
-            stringify!($w1),
-            "\n",
+            "sub rcx, 1\n", // consume one step
+            tm_next!($P, $n0, $id), // jump to next state (0-branch)
+            stringify!($P), "_", stringify!($S), "_ONE:\n", // 1-branch label
+            "mov byte ptr [rsi], ", stringify!($w1), "\n", // write on 1-branch
             tm_move!($d1),
-            "sub rcx, 1\n",
-            tm_next!($n1, $id),
-            "BOUNDARY_",
-            stringify!($S),
-            ":\n",
-            "mov bl, ",
-            stringify!($id),
-            "\n",
-            "jmp BOUNDARY\n",
+            "sub rcx, 1\n", // consume one step
+            tm_next!($P, $n1, $id), // jump to next state (1-branch)
+            stringify!($P), "_BOUNDARY_", stringify!($S), ":\n", // boundary label
+            "mov bl, ", stringify!($id), "\n", // record state id
+            "jmp ", stringify!($P), "_BOUNDARY\n", // go to common boundary
         )
     };
 }
 macro_rules! tm_prog {
-    ( ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
+    ( $P:ident, ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
         concat!(
-            "xor eax, eax\n",
-            "mov rcx, {hb}\n",
-            tm_dispatch!($S0, $id0),
-            $( tm_dispatch!($S, $id), )*
-            "jmp ", stringify!($S0), "\n",
-            tm_state_block!($S0, $id0, $z0, $o0),
-            $( tm_state_block!($S, $id, $z, $o), )*
-            "BOUNDARY:\n",
-            "mov al, 2\n",
-            "END:\n",
-            "mov r8, {hb}\n",
-            "sub r8, rcx\n",
+            "xor eax, eax\n", // clear status (AL)
+            "mov rcx, {hb}\n", // set heartbeat (credit) in RCX
+            tm_dispatch!($P, $S0, $id0),
+            $( tm_dispatch!($P, $S, $id), )*
+            "jmp ", stringify!($P), "_", stringify!($S0), "\n", // jump to first state
+            tm_state_block!($P, $S0, $id0, $z0, $o0),
+            $( tm_state_block!($P, $S, $id, $z, $o), )*
+            stringify!($P), "_BOUNDARY:\n", // common boundary label
+            "mov al, 2\n", // set status = boundary
+            stringify!($P), "_END:\n", // chunk end
+            "mov r8, {hb}\n", // copy heartbeat to r8 (steps taken temp)
+            "sub r8, rcx\n", // steps_taken = hb - rcx
         )
     };
 }
@@ -110,17 +86,31 @@ macro_rules! tm_prog {
 #[derive(Debug, Parser, Clone)]
 #[command(name = "bb5_champ_fast", about = "Fast BB5 runner with inline asm")]
 struct Args {
-    #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], default_value_t = 1usize << 21)]
+    #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], value_parser = parse_clean_usize, default_value_t = 1usize << 21)]
     tape_length: usize,
 
-    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], default_value_t = 10_000_000u64)]
+    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], value_parser = parse_clean_u64, default_value_t = 10_000_000u64)]
     status_interval: u64,
 
-    #[arg(long = "max-memory", aliases = ["max_memory", "max"], default_value_t = 1usize << 21)]
+    #[arg(long = "max-memory", aliases = ["max_memory", "max"], value_parser = parse_clean_usize, default_value_t = 1usize << 21)]
     max_total: usize,
 
-    #[arg(long = "max-steps", aliases = ["max_steps"])]
+    #[arg(long = "max-steps", aliases = ["max_steps"], value_parser = parse_clean_u64)]
     max_steps: Option<u64>,
+
+    #[arg(long = "machine", value_enum, default_value_t = MachineSelect::Bb6)]
+    machine: MachineSelect,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum MachineSelect { Bb5, Bb6 }
+
+fn parse_clean_usize(s: &str) -> Result<usize, String> {
+    s.replace(['_', ','], "").parse::<usize>().map_err(|e| e.to_string())
+}
+
+fn parse_clean_u64(s: &str) -> Result<u64, String> {
+    s.replace(['_', ','], "").parse::<u64>().map_err(|e| e.to_string())
 }
 
 fn main() {
@@ -158,6 +148,14 @@ fn main() {
     let mut head_pointer = unsafe { tape.as_mut_ptr().add(1 + ((tape_length - 2) >> 1)) };
     let mut step_count: u64 = 0;
     let mut state_id: u8 = 0; // 0=A, 1=B, 2=C, 3=D, 4=E
+    let start_time: Instant = Instant::now();
+
+    // Select machine heartbeat outside the loop
+    type HbFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
+    let heartbeat_fn: HbFn = match args.machine {
+        MachineSelect::Bb5 => bb5_champ_heartbeat,
+        MachineSelect::Bb6 => bb6_contender_heartbeat,
+    };
 
     loop {
         // Choose heartbeat for this chunk: only yield when we have a reason
@@ -176,7 +174,7 @@ fn main() {
         let hb_this_chunk: u64 = hb_to_limit.min(hb_to_report).max(1);
 
         let (new_head, status_code, steps_taken_this_chunk, new_state_id) =
-            unsafe { bb6_contender_heartbeat(head_pointer, state_id, hb_this_chunk) };
+            unsafe { heartbeat_fn(head_pointer, state_id, hb_this_chunk) };
         head_pointer = new_head;
         step_count += steps_taken_this_chunk;
         state_id = new_state_id;
@@ -196,7 +194,27 @@ fn main() {
                 // Print the greatest multiple of status_interval not exceeding step_count
                 let crossed = (step_count - next_report) / status_interval + 1;
                 let last = next_report + (crossed - 1) * status_interval;
-                println!("{} steps", last.separate_with_commas());
+                let elapsed = start_time.elapsed().as_secs_f64();
+                if let Some(limit) = max_steps {
+                    let done = last as f64;
+                    let sps = if elapsed > 0.0 { done / elapsed } else { 0.0 };
+                    let remaining = (limit.saturating_sub(last)) as f64;
+                    let eta = if sps > 0.0 { remaining / sps } else { f64::INFINITY };
+                    println!(
+                        "{} steps (ETA {:.3} s, elapsed {:.3} s)",
+                        last.separate_with_commas(),
+                        eta,
+                        elapsed
+                    );
+                } else {
+                    let sps = if elapsed > 0.0 { (last as f64) / elapsed } else { 0.0 };
+                    println!(
+                        "{} steps ({:.0} steps/s, elapsed {:.3} s)",
+                        last.separate_with_commas(),
+                        sps,
+                        elapsed
+                    );
+                }
                 next_report = last.saturating_add(status_interval);
             }
             continue;
@@ -204,6 +222,8 @@ fn main() {
 
         if status_code == 1 {
             println!("halted after {} steps", step_count.separate_with_commas());
+            let elapsed = start_time.elapsed().as_secs_f64();
+            println!("{:.3} s", elapsed); // exact elapsed in seconds (space before 's')
             break;
         }
 
@@ -222,6 +242,8 @@ fn main() {
                         (max_total - 2).separate_with_commas(),
                         step_count.separate_with_commas()
                     );
+                    let elapsed = start_time.elapsed().as_secs_f64();
+                    println!("{:.3} s", elapsed);
                     break;
                 }
             }
@@ -234,6 +256,8 @@ fn main() {
                         (max_total - 2).separate_with_commas(),
                         step_count.separate_with_commas()
                     );
+                    let elapsed = start_time.elapsed().as_secs_f64();
+                    println!("{:.3} s", elapsed);
                     break;
                 }
             }
@@ -244,7 +268,27 @@ fn main() {
         if step_count >= next_report {
             let crossed = (step_count - next_report) / status_interval + 1;
             let last = next_report + (crossed - 1) * status_interval;
-            println!("{} steps", last.separate_with_commas());
+            let elapsed = start_time.elapsed().as_secs_f64();
+            if let Some(limit) = max_steps {
+                let done = step_count as f64;
+                let sps = if elapsed > 0.0 { done / elapsed } else { 0.0 };
+                let remaining = (limit.saturating_sub(step_count)) as f64;
+                let eta = if sps > 0.0 { remaining / sps } else { f64::INFINITY };
+                println!(
+                    "{} steps (ETA {:.3} s, elapsed {:.3} s)",
+                    last.separate_with_commas(),
+                    eta,
+                    elapsed
+                );
+            } else {
+                let sps = if elapsed > 0.0 { (step_count as f64) / elapsed } else { 0.0 };
+                println!(
+                    "{} steps ({:.0} steps/s, elapsed {:.3} s)",
+                    last.separate_with_commas(),
+                    sps,
+                    elapsed
+                );
+            }
             next_report = last.saturating_add(status_interval);
         }
     }
@@ -263,7 +307,7 @@ unsafe fn bb5_champ_heartbeat(
     let steps_taken: u64;
     unsafe {
         core::arch::asm!(
-            tm_prog!(
+            tm_prog!(BB5,
                 (A, 0, (1, R, B), (1, L, C)),
                 (B, 1, (1, R, C), (1, R, B)),
                 (C, 2, (1, R, D), (0, L, E)),
@@ -294,7 +338,7 @@ unsafe fn bb6_contender_heartbeat(
     let steps_taken: u64;
     unsafe {
         core::arch::asm!(
-            tm_prog!(
+            tm_prog!(BB6,
                 // 0: A 1RB, B 1RC, C 1LC, D 0LE, E 1LF, F 0RC
                 // 1: A 0LD, B 0RF, C 1LA, D 1RH, E 0RB, F 0RE
                 (A, 0, (1, R, B), (0, L, D)),
