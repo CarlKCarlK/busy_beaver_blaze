@@ -5,6 +5,15 @@ use std::{
     num::NonZeroU64,
     time::{Duration, Instant},
 };
+
+fn format_steps_per_sec(steps_per_sec: f64) -> String {
+    let value = if steps_per_sec.is_finite() {
+        steps_per_sec.max(0.0).round() as u64
+    } else {
+        0
+    };
+    value.separate_with_commas()
+}
 use thousands::Separable;
 
 // Macro helpers to generate the full asm template from a TM spec
@@ -160,7 +169,7 @@ struct Args {
     program: ProgramSelect,
 
     /// Status print interval in steps. Omit to disable periodic reports.
-    #[arg(long, value_parser = parse_clean::<u64>, default_value_t = u64::MAX)]
+    #[arg(long, value_parser = parse_clean::<u64>, default_value_t = 10_000_000)]
     interval: u64,
 
     /// Stop after this many steps if provided
@@ -280,6 +289,14 @@ impl CompiledMachine {
             max_steps,
             program,
         } = self;
+
+        if min_tape < 3 {
+            return Err(Error::TapeTooShort { min_tape });
+        }
+        if max_tape < min_tape {
+            return Err(Error::MaxTapeTooSmall { max_tape });
+        }
+
         let mut tape_len = min_tape;
         let mut next_report: u64 = interval.get();
         let mut tape: Vec<u8> = vec![0; tape_len];
@@ -342,6 +359,12 @@ impl CompiledMachine {
                         last.separate_with_commas(),
                         total,
                         eta,
+                        elapsed
+                    );
+                    println!(
+                        "{} steps ({} steps/s, elapsed {:.3} s)",
+                        last.separate_with_commas(),
+                        format_steps_per_sec(steps_per_sec),
                         elapsed
                     );
                     next_report = last.saturating_add(interval.get());
@@ -429,6 +452,12 @@ impl CompiledMachine {
                     last.separate_with_commas(),
                     total,
                     eta,
+                    elapsed
+                );
+                println!(
+                    "{} steps ({} steps/s, elapsed {:.3} s)",
+                    last.separate_with_commas(),
+                    format_steps_per_sec(steps_per_sec),
                     elapsed
                 );
                 next_report = last.saturating_add(interval.get());
@@ -561,101 +590,83 @@ fn extend_tape_right(
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZero;
-
     use super::*;
 
     #[test]
-    fn args_into_config_copies_fields() {
+    fn args_try_from_copies_fields() {
         let args = Args {
             program: ProgramSelect::Bb6Contender,
-            interval: NonZero::new(42).unwrap().get(),
+            interval: 42,
             max_steps: 7,
             min_tape: 128,
             max_tape: 256,
         };
         let config: CompiledMachine = args.try_into().expect("conversion should succeed");
         assert_eq!(config.program, ProgramSelect::Bb6Contender);
-        assert_eq!(config.interval, NonZero::new(42).unwrap());
+        assert_eq!(config.interval.get(), 42);
         assert_eq!(config.max_steps, 7);
         assert_eq!(config.min_tape, 128);
         assert_eq!(config.max_tape, 256);
     }
 
     #[test]
-    fn run_compiled_machine_errors_on_zero_status_interval() {
-        let config = CompiledMachine {
-            min_tape: 128,
-            interval: NonZero::new(0).unwrap(),
-            max_tape: 256,
-            max_steps: 1,
+    fn args_try_from_rejects_zero_interval() {
+        let args = Args {
             program: ProgramSelect::Bb5Champ,
+            interval: 0,
+            max_steps: 1,
+            min_tape: 128,
+            max_tape: 256,
         };
-        match config.run() {
-            Err(Error::IntervalTooSmall { interval }) => {
-                assert_eq!(interval, 0);
-            }
+        match CompiledMachine::try_from(args) {
+            Err(Error::IntervalTooSmall { interval }) => assert_eq!(interval, 0),
             other => panic!("expected IntervalTooSmall error, got {:?}", other),
         }
     }
 
     #[test]
-    fn run_compiled_machine_errors_on_short_tape() {
-        let config = CompiledMachine {
-            min_tape: 2,
-            interval: NonZero::new(1_000).unwrap(),
-            max_tape: 64,
-            max_steps: 1,
+    fn args_try_from_rejects_short_tape() {
+        let args = Args {
             program: ProgramSelect::Bb5Champ,
+            interval: 1_000,
+            max_steps: 1,
+            min_tape: 2,
+            max_tape: 64,
         };
-        match config.run() {
-            Err(Error::TapeTooShort { min_tape: tape_len }) => {
-                assert_eq!(tape_len, 2);
-            }
+        match CompiledMachine::try_from(args) {
+            Err(Error::TapeTooShort { min_tape }) => assert_eq!(min_tape, 2),
             other => panic!("expected TapeTooShort error, got {:?}", other),
         }
     }
 
     #[test]
-    fn run_compiled_machine_errors_on_small_max_tape() {
-        let config = CompiledMachine {
-            min_tape: 4,
-            interval: NonZero::new(1_000).unwrap(),
-            max_tape: 2,
-            max_steps: 1,
+    fn args_try_from_rejects_small_max_tape() {
+        let args = Args {
             program: ProgramSelect::Bb5Champ,
+            interval: 1_000,
+            max_steps: 1,
+            min_tape: 4,
+            max_tape: 2,
         };
-        match config.run() {
+        match CompiledMachine::try_from(args) {
             Err(Error::MaxTapeTooSmall { max_tape }) => assert_eq!(max_tape, 2),
             other => panic!("expected MaxTapeTooSmall error, got {:?}", other),
         }
     }
 
     #[test]
-    fn run_compiled_machine_clamps_tape_len() {
-        let summary = CompiledMachine {
-            min_tape: 128,
-            interval: NonZero::new(1_000).unwrap(),
-            max_tape: 64,
-            max_steps: 1,
+    fn run_stops_at_max_steps() {
+        let config: CompiledMachine = Args {
             program: ProgramSelect::Bb5Champ,
-        }
-        .run()
-        .expect("config should clamp");
-        assert_eq!(summary.tape_len, 64);
-    }
-
-    #[test]
-    fn run_compiled_machine_stops_at_max_steps() {
-        let summary = CompiledMachine {
-            min_tape: 128,
-            interval: NonZero::new(1_000_000).unwrap(),
-            max_tape: 1usize << 16,
+            interval: 1_000_000,
             max_steps: 1_000,
-            program: ProgramSelect::Bb5Champ,
+            min_tape: 128,
+            max_tape: 1usize << 16,
         }
-        .run()
-        .expect("run should succeed");
+        .try_into()
+        .expect("conversion should succeed");
+
+        let summary = config.run().expect("run should succeed");
         assert_eq!(summary.step_count, 1_000);
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
         assert!(summary.final_state_id <= 4);
