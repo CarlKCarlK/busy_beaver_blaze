@@ -31,6 +31,7 @@ png = "0.17.16"
 rayon = "1.10.0"
 smallvec = "1.14.0"
 thousands = "0.2.0"
+humantime = "2.1"
 wasm-bindgen = "0.2.100"
 zerocopy = { version = "0.8.21", features = ["std", "derive"] }
 
@@ -135,3 +136,4 @@ missing_errors_doc = "allow"
 # blanket_clippy_restriction_lints = "warn"
 #cargo = "warn"
 # restriction = "warn"
+

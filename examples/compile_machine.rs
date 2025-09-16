@@ -1,6 +1,6 @@
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
 use clap::{Parser, ValueEnum};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use thousands::Separable;
 
 // Macro helpers to generate the full asm template from a TM spec
@@ -138,18 +138,12 @@ macro_rules! tm_prog {
 
 // Heartbeat is chosen per-iteration; no fixed default needed.
 fn format_duration(total_secs: f64) -> String {
-    let mut secs = total_secs.max(0.0);
-    let days = (secs / 86_400.0).floor() as u64;
-    secs -= (days as f64) * 86_400.0;
-    let hours = (secs / 3_600.0).floor() as u64;
-    secs -= (hours as f64) * 3_600.0;
-    let minutes = (secs / 60.0).floor() as u64;
-    secs -= (minutes as f64) * 60.0;
-    if days > 0 {
-        format!("{}d {:02}:{:02}:{:05.2}", days, hours, minutes, secs)
-    } else {
-        format!("{:02}:{:02}:{:05.2}", hours, minutes, secs)
+    if !total_secs.is_finite() {
+        return String::from("--:--:--");
     }
+    let clamped = total_secs.max(0.0);
+    let duration: Duration = Duration::from_secs_f64(clamped);
+    humantime::format_duration(duration).to_string()
 }
 
 fn format_steps_per_sec(steps_per_sec: f64) -> String {
