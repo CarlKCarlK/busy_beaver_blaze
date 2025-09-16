@@ -6,76 +6,76 @@ use std::time::Instant;
 // Macro helpers to generate the full asm template from a TM spec
 macro_rules! tm_move {
     (R) => {
-        "inc rsi\n" // move head Right
+        /* move head Right */ "inc rsi\n"
     };
     (L) => {
-        "dec rsi\n" // move head Left
+        /* move head Left */ "dec rsi\n"
     };
 }
 macro_rules! tm_next {
     ( $P:ident, HALT, $id:expr ) => {
         concat!(
-            "mov al, 1\n", // set status = halt
-            "mov bl, ", stringify!($id), "\n", // record current state id
-            "jmp ", stringify!($P), "_END\n" // jump to end label
+            /* set status = halt */ "mov al, 1\n",
+            /* record current state id */ "mov bl, ", stringify!($id), "\n",
+            /* jump to end label */ "jmp ", stringify!($P), "_END\n"
         )
     };
     ( $P:ident, $N:ident, $id:expr ) => {
-        concat!("jmp ", stringify!($P), "_", stringify!($N), "\n") // goto next state
+        concat!( /* goto next state */ "jmp ", stringify!($P), "_", stringify!($N), "\n")
     };
 }
 macro_rules! tm_dispatch {
     ( $P:ident, $S:ident, $id:expr ) => {
         concat!(
-            "cmp bl, ", stringify!($id), "\n", // compare BL with state id
-            "je ", stringify!($P), "_", stringify!($S), "\n" // if equal, jump to state
+            /* compare BL with state id */ "cmp bl, ", stringify!($id), "\n",
+            /* if equal, jump to state */ "je ", stringify!($P), "_", stringify!($S), "\n"
         )
     };
 }
 macro_rules! tm_state_block {
     ( $P:ident, $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
         concat!(
-            stringify!($P), "_", stringify!($S), ":\n", // state label
-            "cmp rcx, 0\n", // any credit left?
-            "jne ", stringify!($P), "_", stringify!($S), "_CONT\n", // continue if yes
-            "mov bl, ", stringify!($id), "\n", // record resume state
-            "jmp ", stringify!($P), "_END\n", // exit chunk
-            stringify!($P), "_", stringify!($S), "_CONT:\n", // continue label
-            "mov dl, [rsi]\n", // load cell
-            "cmp dl, 2\n", // boundary sentinel?
-            "je ", stringify!($P), "_BOUNDARY_", stringify!($S), "\n", // jump if boundary
-            "test dl, dl\n", // is cell == 0?
-            "jnz ", stringify!($P), "_", stringify!($S), "_ONE\n", // branch if 1
-            "mov byte ptr [rsi], ", stringify!($w0), "\n", // write on 0-branch
+            /* state label */ stringify!($P), "_", stringify!($S), ":\n",
+            /* any credit left? */ "cmp rcx, 0\n",
+            /* continue if yes */ "jne ", stringify!($P), "_", stringify!($S), "_CONT\n",
+            /* record resume state */ "mov bl, ", stringify!($id), "\n",
+            /* exit chunk */ "jmp ", stringify!($P), "_END\n",
+            /* continue label */ stringify!($P), "_", stringify!($S), "_CONT:\n",
+            /* load cell */ "mov dl, [rsi]\n",
+            /* boundary sentinel? */ "cmp dl, 2\n",
+            /* jump if boundary */ "je ", stringify!($P), "_BOUNDARY_", stringify!($S), "\n",
+            /* is cell == 0? */ "test dl, dl\n",
+            /* branch if 1 */ "jnz ", stringify!($P), "_", stringify!($S), "_ONE\n",
+            /* write on 0-branch */ "mov byte ptr [rsi], ", stringify!($w0), "\n",
             tm_move!($d0),
-            "sub rcx, 1\n", // consume one step
-            tm_next!($P, $n0, $id), // jump to next state (0-branch)
-            stringify!($P), "_", stringify!($S), "_ONE:\n", // 1-branch label
-            "mov byte ptr [rsi], ", stringify!($w1), "\n", // write on 1-branch
+            /* consume one step */ "sub rcx, 1\n",
+            /* jump to next state (0-branch) */ tm_next!($P, $n0, $id),
+            /* 1-branch label */ stringify!($P), "_", stringify!($S), "_ONE:\n",
+            /* write on 1-branch */ "mov byte ptr [rsi], ", stringify!($w1), "\n",
             tm_move!($d1),
-            "sub rcx, 1\n", // consume one step
-            tm_next!($P, $n1, $id), // jump to next state (1-branch)
-            stringify!($P), "_BOUNDARY_", stringify!($S), ":\n", // boundary label
-            "mov bl, ", stringify!($id), "\n", // record state id
-            "jmp ", stringify!($P), "_BOUNDARY\n", // go to common boundary
+            /* consume one step */ "sub rcx, 1\n",
+            /* jump to next state (1-branch) */ tm_next!($P, $n1, $id),
+            /* boundary label */ stringify!($P), "_BOUNDARY_", stringify!($S), ":\n",
+            /* record state id */ "mov bl, ", stringify!($id), "\n",
+            /* go to common boundary */ "jmp ", stringify!($P), "_BOUNDARY\n",
         )
     };
 }
 macro_rules! tm_prog {
     ( $P:ident, ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
         concat!(
-            "xor eax, eax\n", // clear status (AL)
-            "mov rcx, {hb}\n", // set heartbeat (credit) in RCX
+            /* clear status (AL) */ "xor eax, eax\n",
+            /* set heartbeat (credit) in RCX */ "mov rcx, {hb}\n",
             tm_dispatch!($P, $S0, $id0),
             $( tm_dispatch!($P, $S, $id), )*
-            "jmp ", stringify!($P), "_", stringify!($S0), "\n", // jump to first state
+            /* jump to first state */ "jmp ", stringify!($P), "_", stringify!($S0), "\n",
             tm_state_block!($P, $S0, $id0, $z0, $o0),
             $( tm_state_block!($P, $S, $id, $z, $o), )*
-            stringify!($P), "_BOUNDARY:\n", // common boundary label
-            "mov al, 2\n", // set status = boundary
-            stringify!($P), "_END:\n", // chunk end
-            "mov r8, {hb}\n", // copy heartbeat to r8 (steps taken temp)
-            "sub r8, rcx\n", // steps_taken = hb - rcx
+            /* common boundary label */ stringify!($P), "_BOUNDARY:\n",
+            /* set status = boundary */ "mov al, 2\n",
+            /* chunk end */ stringify!($P), "_END:\n",
+            /* copy heartbeat to r8 (steps taken temp) */ "mov r8, {hb}\n",
+            /* steps_taken = hb - rcx */ "sub r8, rcx\n",
         )
     };
 }
