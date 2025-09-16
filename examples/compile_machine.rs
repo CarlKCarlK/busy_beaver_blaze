@@ -196,6 +196,39 @@ pub struct ProgramRunConfig {
     pub program: ProgramSelect,
 }
 
+impl TryFrom<Args> for ProgramRunConfig {
+    type Error = String;
+
+    fn try_from(args: Args) -> Result<Self, Self::Error> {
+        if args.tape_len < 3 {
+            return Err(String::from(
+                "tape_len must be >= 3 (two sentinels + at least one interior)",
+            ));
+        }
+        if args.max_tape < 3 {
+            return Err(String::from(
+                "max_tape must be >= 3 (two sentinels + at least one interior)",
+            ));
+        }
+        let mut tape_len = args.tape_len;
+        if tape_len > args.max_tape {
+            eprintln!(
+                "requested tape_len {} exceeds max {}, clamping",
+                tape_len.separate_with_commas(),
+                args.max_tape.separate_with_commas()
+            );
+            tape_len = args.max_tape;
+        }
+        Ok(Self {
+            tape_len,
+            interval: args.interval,
+            max_tape: args.max_tape,
+            max_steps: args.max_steps,
+            program: args.program,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunTermination {
     Halted,
@@ -225,37 +258,36 @@ where
 
 fn main() {
     let args = Args::parse();
-    let config = ProgramRunConfig {
-        tape_len: args.tape_len,
-        interval: args.interval,
-        max_tape: args.max_tape,
-        max_steps: args.max_steps,
-        program: args.program,
-    };
+    let config = ProgramRunConfig::try_from(args).unwrap_or_else(|err| {
+        eprintln!("{err}");
+        std::process::exit(2);
+    });
     let _ = run_compiled_machine(config);
 }
 
 pub fn run_compiled_machine(config: ProgramRunConfig) -> RunSummary {
     let ProgramRunConfig {
-        tape_len: requested_tape_len,
+        tape_len: initial_tape_len,
         interval,
         max_tape,
         max_steps,
         program,
     } = config;
-    let mut tape_len = requested_tape_len;
-    assert!(
-        tape_len >= 3,
+
+    debug_assert!(
+        initial_tape_len >= 3,
         "tape_len must be >= 3 (two sentinels + at least one interior)"
     );
-    if tape_len > max_tape {
-        eprintln!(
-            "requested tape_len {} exceeds max {}, clamping",
-            tape_len.separate_with_commas(),
-            max_tape.separate_with_commas()
-        );
-        tape_len = max_tape;
-    }
+    debug_assert!(
+        max_tape >= 3,
+        "max_tape must be >= 3 (two sentinels + at least one interior)"
+    );
+    debug_assert!(
+        initial_tape_len <= max_tape,
+        "tape_len must be <= max_tape after configuration sanitization"
+    );
+
+    let mut tape_len = initial_tape_len;
     let mut next_report: u64 = if interval == 0 { u64::MAX } else { interval };
 
     let mut tape: Vec<u8> = vec![0; tape_len];
@@ -583,6 +615,32 @@ fn extend_tape_right(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn try_from_rejects_short_tape() {
+        let args = Args {
+            program: ProgramSelect::Bb5Champ,
+            interval: 10,
+            max_steps: None,
+            tape_len: 2,
+            max_tape: 10,
+        };
+        let err = ProgramRunConfig::try_from(args).expect_err("expected validation failure");
+        assert!(err.contains("tape_len must be >= 3"));
+    }
+
+    #[test]
+    fn try_from_clamps_tape_len() {
+        let args = Args {
+            program: ProgramSelect::Bb5Champ,
+            interval: 10,
+            max_steps: None,
+            tape_len: 1_000,
+            max_tape: 64,
+        };
+        let config = ProgramRunConfig::try_from(args).expect("config should succeed");
+        assert_eq!(config.tape_len, 64);
+    }
 
     #[test]
     fn test_run_compiled_machine_stops_at_max_steps() {
