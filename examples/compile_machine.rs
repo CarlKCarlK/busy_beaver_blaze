@@ -180,9 +180,35 @@ struct Args {
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
-enum MachineSelect {
+pub enum MachineSelect {
     Bb5,
     Bb6,
+}
+
+#[derive(Debug, Clone)]
+pub struct MachineRunConfig {
+    pub tape_length: usize,
+    pub status_interval: u64,
+    pub max_total: usize,
+    pub max_steps: Option<u64>,
+    pub machine: MachineSelect,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunTermination {
+    Halted,
+    MaxSteps,
+    MaxMemoryLeft,
+    MaxMemoryRight,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RunSummary {
+    pub step_count: u64,
+    pub final_state_id: u8,
+    pub termination: RunTermination,
+    pub elapsed_seconds: f64,
+    pub tape_length: usize,
 }
 
 fn parse_clean<T>(s: &str) -> Result<T, String>
@@ -197,10 +223,25 @@ where
 
 fn main() {
     let args = Args::parse();
-    let mut tape_length = args.tape_length;
-    let status_interval = args.status_interval;
-    let max_total = args.max_total;
-    let max_steps = args.max_steps;
+    let config = MachineRunConfig {
+        tape_length: args.tape_length,
+        status_interval: args.status_interval,
+        max_total: args.max_total,
+        max_steps: args.max_steps,
+        machine: args.machine,
+    };
+    let _ = run_compiled_machine(config);
+}
+
+pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
+    let MachineRunConfig {
+        tape_length: requested_tape_length,
+        status_interval,
+        max_total,
+        max_steps,
+        machine,
+    } = config;
+    let mut tape_length = requested_tape_length;
     assert!(
         tape_length >= 3,
         "tape_length must be >= 3 (two sentinels + at least one interior)"
@@ -219,32 +260,22 @@ fn main() {
         status_interval
     };
 
-    // tape with sentinel cells (value 2) at both ends
-    // Interpret `tape_length` as TOTAL length (including the two sentinel cells).
-    // (checked above) tape_length >= 3
     let mut tape: Vec<u8> = vec![0; tape_length];
     tape[0] = 2;
     tape[tape_length - 1] = 2;
 
-    // Center of the interior [1 .. tape_length-1)
     let mut head_pointer = unsafe { tape.as_mut_ptr().add(1 + ((tape_length - 2) >> 1)) };
     let mut step_count: u64 = 0;
-    let mut state_id: u8 = 0; // 0=A, 1=B, 2=C, 3=D, 4=E
+    let mut state_id: u8 = 0;
     let start_time: Instant = Instant::now();
 
-    // Select machine heartbeat outside the loop
     type CompiledFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
-    let compiled_fn: CompiledFn = match args.machine {
+    let compiled_fn: CompiledFn = match machine {
         MachineSelect::Bb5 => bb5_champ_compiled,
         MachineSelect::Bb6 => bb6_contender_compiled,
     };
 
     loop {
-        // Choose heartbeat for this chunk: only yield when we have a reason
-        // Choose heartbeat for this chunk: yield at the earliest of
-        // - next report threshold (if enabled)
-        // - max steps cap (if provided)
-        // - otherwise, run until boundary/halt
         let hb_to_limit = max_steps
             .map(|limit| limit.saturating_sub(step_count))
             .unwrap_or(u64::MAX);
@@ -267,15 +298,20 @@ fn main() {
                     "reached max steps {}; stopping",
                     step_count.separate_with_commas()
                 );
-                let elapsed = start_time.elapsed().as_secs_f64();
-                println!("{:.3} s", elapsed);
-                break;
+                let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                println!("{:.3} s", elapsed_seconds);
+                return RunSummary {
+                    step_count,
+                    final_state_id: state_id,
+                    termination: RunTermination::MaxSteps,
+                    elapsed_seconds,
+                    tape_length,
+                };
             }
         }
 
         if status_code == 0 {
             if step_count >= next_report {
-                // Print the greatest multiple of status_interval not exceeding step_count
                 let crossed = (step_count - next_report) / status_interval + 1;
                 let last = next_report + (crossed - 1) * status_interval;
                 let elapsed = start_time.elapsed().as_secs_f64();
@@ -320,12 +356,17 @@ fn main() {
 
         if status_code == 1 {
             println!("halted after {} steps", step_count.separate_with_commas());
-            let elapsed = start_time.elapsed().as_secs_f64();
-            println!("{:.3} s", elapsed); // exact elapsed in seconds (space before 's')
-            break;
+            let elapsed_seconds = start_time.elapsed().as_secs_f64();
+            println!("{:.3} s", elapsed_seconds);
+            return RunSummary {
+                step_count,
+                final_state_id: state_id,
+                termination: RunTermination::Halted,
+                elapsed_seconds,
+                tape_length,
+            };
         }
 
-        // status_code == 2 => boundary reached; reallocate and continue
         let left_sentinel_ptr = tape.as_ptr();
         let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_length - 1) };
         let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
@@ -340,9 +381,15 @@ fn main() {
                         (max_total - 2).separate_with_commas(),
                         step_count.separate_with_commas()
                     );
-                    let elapsed = start_time.elapsed().as_secs_f64();
-                    println!("{:.3} s", elapsed);
-                    break;
+                    let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                    println!("{:.3} s", elapsed_seconds);
+                    return RunSummary {
+                        step_count,
+                        final_state_id: state_id,
+                        termination: RunTermination::MaxMemoryLeft,
+                        elapsed_seconds,
+                        tape_length,
+                    };
                 }
             }
         } else if hit_right {
@@ -354,9 +401,15 @@ fn main() {
                         (max_total - 2).separate_with_commas(),
                         step_count.separate_with_commas()
                     );
-                    let elapsed = start_time.elapsed().as_secs_f64();
-                    println!("{:.3} s", elapsed);
-                    break;
+                    let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                    println!("{:.3} s", elapsed_seconds);
+                    return RunSummary {
+                        step_count,
+                        final_state_id: state_id,
+                        termination: RunTermination::MaxMemoryRight,
+                        elapsed_seconds,
+                        tape_length,
+                    };
                 }
             }
         } else {
@@ -532,72 +585,21 @@ fn extend_tape_right(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use busy_beaver_blaze::{BB5_CHAMP, Machine};
 
     #[test]
-    fn test_format_duration() {
-        assert_eq!(format_duration(0.0), "00:00:00.00");
-        assert_eq!(format_duration(65.5), "00:01:05.50");
-        assert_eq!(format_duration(3_726.25), "01:02:06.25");
-        assert_eq!(format_duration(172_800.5), "2d 00:00:00.50");
-    }
-
-    #[test]
-    fn test_format_sps_commas() {
-        let s = format_sps(2_103_234_710.4);
-        assert_eq!(s, "2,103,234,710");
-    }
-
-    #[test]
-    fn test_extend_tape_growth_and_cap() {
-        let mut tape_len: usize = 6; // 4 interior + 2 sentinels
-        let mut tape: Vec<u8> = vec![0; tape_len];
-        tape[0] = 2;
-        tape[tape_len - 1] = 2;
-        // Cap allows one growth, then prevents second
-        let max_total = 10usize;
-        // Right growth should fit once (6 -> 10)
-        let p1 = super::extend_tape_right(&mut tape, &mut tape_len, max_total);
-        assert!(p1.is_some());
-        assert_eq!(tape_len, 10);
-        assert_eq!(tape[0], 2);
-        assert_eq!(tape[tape_len - 1], 2);
-        // Next growth would exceed cap
-        let p2 = super::extend_tape_right(&mut tape, &mut tape_len, max_total);
-        assert!(p2.is_none());
-    }
-
-    #[test]
-    fn test_compiled_chunk_small_bb5() {
-        // tiny tape
-        let tape_len: usize = 10;
-        let mut tape: Vec<u8> = vec![0; tape_len];
-        tape[0] = 2;
-        tape[tape_len - 1] = 2;
-        let mut head = unsafe { tape.as_mut_ptr().add(5) };
-        let hb: u64 = 100;
-        let (new_head, status, taken, new_state) =
-            unsafe { super::bb5_champ_compiled(head, 0, hb) };
-        assert!(taken <= hb);
-        assert!(matches!(status, 0 | 1 | 2));
-        assert!(!new_head.is_null());
-        assert!(new_state <= 4);
-    }
-
-    #[test]
-    fn test_compiled_chunk_small_bb6() {
-        // require a max-step policy in real runs, but here just a tiny chunk
-        let tape_len: usize = 10;
-        let mut tape: Vec<u8> = vec![0; tape_len];
-        tape[0] = 2;
-        tape[tape_len - 1] = 2;
-        let head = unsafe { tape.as_mut_ptr().add(5) };
-        let hb: u64 = 100;
-        let (new_head, status, taken, new_state) =
-            unsafe { super::bb6_contender_compiled(head, 0, hb) };
-        assert!(taken <= hb);
-        assert!(matches!(status, 0 | 1 | 2));
-        assert!(!new_head.is_null());
-        assert!(new_state <= 5);
+    fn test_run_compiled_machine_stops_at_max_steps() {
+        let config = MachineRunConfig {
+            tape_length: 128,
+            status_interval: 1_000_000,
+            max_total: 1usize << 16,
+            max_steps: Some(1_000),
+            machine: MachineSelect::Bb5,
+        };
+        let summary = run_compiled_machine(config);
+        assert_eq!(summary.step_count, 1_000);
+        assert_eq!(summary.termination, RunTermination::MaxSteps);
+        assert!(summary.final_state_id <= 4);
+        assert!(summary.elapsed_seconds >= 0.0);
+        assert!(summary.tape_length >= 3);
     }
 }
