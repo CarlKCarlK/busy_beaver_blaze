@@ -532,6 +532,7 @@ fn extend_tape_right(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use busy_beaver_blaze::{BB5_CHAMP, Machine};
 
     #[test]
     fn test_format_duration() {
@@ -569,7 +570,7 @@ mod tests {
     #[test]
     fn test_compiled_chunk_small_bb5() {
         // tiny tape
-        let mut tape_len: usize = 10;
+        let tape_len: usize = 10;
         let mut tape: Vec<u8> = vec![0; tape_len];
         tape[0] = 2;
         tape[tape_len - 1] = 2;
@@ -586,7 +587,7 @@ mod tests {
     #[test]
     fn test_compiled_chunk_small_bb6() {
         // require a max-step policy in real runs, but here just a tiny chunk
-        let mut tape_len: usize = 10;
+        let tape_len: usize = 10;
         let mut tape: Vec<u8> = vec![0; tape_len];
         tape[0] = 2;
         tape[tape_len - 1] = 2;

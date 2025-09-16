@@ -3,8 +3,8 @@
 ## Run Turing Compiler
 
 ```bash
-cargo run --example bb5_champ_fast --release
-cargo test --example bb5_champ_fast
+cargo run --example compile_machine --release
+cargo test --example compile_machine
 ```
 
 ## Python Dev mode
