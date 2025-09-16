@@ -3,40 +3,87 @@ use clap::Parser;
 use thousands::Separable;
 
 // Macro helpers to generate the full asm template from a TM spec
-macro_rules! tm_move { (R) => { "inc rsi\n" }; (L) => { "dec rsi\n" }; }
-macro_rules! tm_next {
-    (HALT, $id:expr) => { concat!("mov al, 1\n","mov bl, ", stringify!($id), "\n","jmp END\n") };
-    ($N:ident, $id:expr) => { concat!("jmp ", stringify!($N), "\n") };
+macro_rules! tm_move {
+    (R) => {
+        "inc rsi\n"
+    };
+    (L) => {
+        "dec rsi\n"
+    };
 }
-macro_rules! tm_dispatch { ($S:ident, $id:expr) => { concat!("cmp bl, ", stringify!($id), "\n","je ", stringify!($S), "\n") }; }
+macro_rules! tm_next {
+    (HALT, $id:expr) => {
+        concat!(
+            "mov al, 1\n",
+            "mov bl, ",
+            stringify!($id),
+            "\n",
+            "jmp END\n"
+        )
+    };
+    ($N:ident, $id:expr) => {
+        concat!("jmp ", stringify!($N), "\n")
+    };
+}
+macro_rules! tm_dispatch {
+    ($S:ident, $id:expr) => {
+        concat!(
+            "cmp bl, ",
+            stringify!($id),
+            "\n",
+            "je ",
+            stringify!($S),
+            "\n"
+        )
+    };
+}
 macro_rules! tm_state_block {
     ( $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
         concat!(
-            stringify!($S), ":\n",
+            stringify!($S),
+            ":\n",
             "cmp rcx, 0\n",
-            "jne ", stringify!($S), "_CONT\n",
-            "mov bl, ", stringify!($id), "\n",
+            "jne ",
+            stringify!($S),
+            "_CONT\n",
+            "mov bl, ",
+            stringify!($id),
+            "\n",
             "jmp END\n",
-            stringify!($S), "_CONT:\n",
+            stringify!($S),
+            "_CONT:\n",
             "mov dl, [rsi]\n",
             "cmp dl, 2\n",
-            "je BOUNDARY_", stringify!($S), "\n",
+            "je BOUNDARY_",
+            stringify!($S),
+            "\n",
             "test dl, dl\n",
-            "jnz ", stringify!($S), "_ONE\n",
-            "mov byte ptr [rsi], ", stringify!($w0), "\n",
+            "jnz ",
+            stringify!($S),
+            "_ONE\n",
+            "mov byte ptr [rsi], ",
+            stringify!($w0),
+            "\n",
             tm_move!($d0),
             "sub rcx, 1\n",
             tm_next!($n0, $id),
-            stringify!($S), "_ONE:\n",
-            "mov byte ptr [rsi], ", stringify!($w1), "\n",
+            stringify!($S),
+            "_ONE:\n",
+            "mov byte ptr [rsi], ",
+            stringify!($w1),
+            "\n",
             tm_move!($d1),
             "sub rcx, 1\n",
             tm_next!($n1, $id),
-            "BOUNDARY_", stringify!($S), ":\n",
-            "mov bl, ", stringify!($id), "\n",
+            "BOUNDARY_",
+            stringify!($S),
+            ":\n",
+            "mov bl, ",
+            stringify!($id),
+            "\n",
             "jmp BOUNDARY\n",
         )
-    }
+    };
 }
 macro_rules! tm_prog {
     ( ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
@@ -114,18 +161,22 @@ fn main() {
 
     loop {
         // Choose heartbeat for this chunk: only yield when we have a reason
-        let hb_this_chunk: u64 = if let Some(limit) = max_steps {
-            let remaining = limit.saturating_sub(step_count);
-            remaining.max(1)
-        } else if status_interval > 0 {
-            let remaining_to_report = next_report.saturating_sub(step_count);
-            remaining_to_report.max(1)
+        // Choose heartbeat for this chunk: yield at the earliest of
+        // - next report threshold (if enabled)
+        // - max steps cap (if provided)
+        // - otherwise, run until boundary/halt
+        let hb_to_limit = max_steps
+            .map(|limit| limit.saturating_sub(step_count))
+            .unwrap_or(u64::MAX);
+        let hb_to_report = if status_interval > 0 {
+            next_report.saturating_sub(step_count)
         } else {
             u64::MAX
         };
+        let hb_this_chunk: u64 = hb_to_limit.min(hb_to_report).max(1);
 
         let (new_head, status_code, steps_taken_this_chunk, new_state_id) =
-            unsafe { bb5_champ_heartbeat(head_pointer, state_id, hb_this_chunk) };
+            unsafe { bb6_contender_heartbeat(head_pointer, state_id, hb_this_chunk) };
         head_pointer = new_head;
         step_count += steps_taken_this_chunk;
         state_id = new_state_id;
@@ -203,7 +254,6 @@ fn main() {
 /// Returns (new_head, status_code, remaining_steps)
 /// - `status_code`: 0 = ran HEARTBEAT, 1 = halted, 2 = boundary encountered
 /// - remaining_steps: RCX after exit; steps_taken = HEARTBEAT - remaining_steps
-#[allow(clippy::too_many_lines)]
 unsafe fn bb5_champ_heartbeat(
     mut head: *mut u8,
     mut state_id: u8,
@@ -226,6 +276,40 @@ unsafe fn bb5_champ_heartbeat(
             inout("bl") state_id,            // state id in/out
             out("rdx") _,                     // clobber DL container
             out("rcx") _,                     // clobber: RCX used as loop counter
+            hb = in(reg) heartbeat,
+            options(nostack)
+        );
+    };
+    (head, status_code, steps_taken, state_id)
+}
+
+/// BB6 Contender heartbeat using the macro-generated asm template
+#[allow(clippy::too_many_lines)]
+unsafe fn bb6_contender_heartbeat(
+    mut head: *mut u8,
+    mut state_id: u8,
+    heartbeat: u64,
+) -> (*mut u8, u8, u64, u8) {
+    let mut status_code: u8;
+    let steps_taken: u64;
+    unsafe {
+        core::arch::asm!(
+            tm_prog!(
+                // 0: A 1RB, B 1RC, C 1LC, D 0LE, E 1LF, F 0RC
+                // 1: A 0LD, B 0RF, C 1LA, D 1RH, E 0RB, F 0RE
+                (A, 0, (1, R, B), (0, L, D)),
+                (B, 1, (1, R, C), (0, R, F)),
+                (C, 2, (1, L, C), (1, L, A)),
+                (D, 3, (0, L, E), (1, R, HALT)),
+                (E, 4, (1, L, F), (0, R, B)),
+                (F, 5, (0, R, C), (0, R, E)),
+            ),
+            inout("rsi") head,
+            lateout("r8") steps_taken,
+            lateout("al") status_code,
+            inout("bl") state_id,
+            out("rdx") _,
+            out("rcx") _,
             hb = in(reg) heartbeat,
             options(nostack)
         );
