@@ -152,46 +152,54 @@ fn format_duration(total_secs: f64) -> String {
     }
 }
 
-fn format_sps(sps: f64) -> String {
-    let v = if sps.is_finite() {
-        sps.max(0.0).round() as u64
+fn format_steps_per_sec(steps_per_sec: f64) -> String {
+    let value = if steps_per_sec.is_finite() {
+        steps_per_sec.max(0.0).round() as u64
     } else {
         0
     };
-    v.separate_with_commas()
+    value.separate_with_commas()
 }
 #[derive(Debug, Parser, Clone)]
-#[command(name = "bb5_champ_fast", about = "Fast BB5 runner with inline asm")]
+#[command(
+    name = "bb5_champ_fast",
+    about = "Fast Turing machine runner with inline asm"
+)]
 struct Args {
-    #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], value_parser = parse_clean::<usize>, default_value_t = 1usize << 21)]
-    tape_length: usize,
+    #[arg(value_enum, default_value_t = ProgramSelect::Bb5Champ)]
+    program: ProgramSelect,
 
-    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], value_parser = parse_clean::<u64>, default_value_t = 10_000_000u64)]
-    status_interval: u64,
+    /// Status print interval in steps (0 disables updates)
+    #[arg(default_value = "10_000_000", value_parser = parse_clean::<u64>)]
+    interval: u64,
 
-    #[arg(long = "max-memory", aliases = ["max_memory", "max"], value_parser = parse_clean::<usize>, default_value_t = 1usize << 21)]
-    max_total: usize,
-
-    #[arg(long = "max-steps", aliases = ["max_steps"], value_parser = parse_clean::<u64>)]
+    /// Stop after this many steps if provided
+    #[arg(value_parser = parse_clean::<u64>)]
     max_steps: Option<u64>,
 
-    #[arg(long = "machine", value_enum, default_value_t = MachineSelect::Bb5)]
-    machine: MachineSelect,
+    /// Initial tape length (includes two sentinel cells)
+    #[arg(default_value = "2_097_152", value_parser = parse_clean::<usize>)]
+    tape_len: usize,
+
+    /// Maximum allowed total tape length (cells incl. sentinels)
+    #[arg(default_value = "16_777_216", value_parser = parse_clean::<usize>)]
+    max_tape: usize,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum MachineSelect {
-    Bb5,
-    Bb6,
+#[value(rename_all = "kebab-case")]
+pub enum ProgramSelect {
+    Bb5Champ,
+    Bb6Contender,
 }
 
 #[derive(Debug, Clone)]
-pub struct MachineRunConfig {
-    pub tape_length: usize,
-    pub status_interval: u64,
-    pub max_total: usize,
+pub struct ProgramRunConfig {
+    pub tape_len: usize,
+    pub interval: u64,
+    pub max_tape: usize,
     pub max_steps: Option<u64>,
-    pub machine: MachineSelect,
+    pub program: ProgramSelect,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,7 +216,7 @@ pub struct RunSummary {
     pub final_state_id: u8,
     pub termination: RunTermination,
     pub elapsed_seconds: f64,
-    pub tape_length: usize,
+    pub tape_len: usize,
 }
 
 fn parse_clean<T>(s: &str) -> Result<T, String>
@@ -223,63 +231,59 @@ where
 
 fn main() {
     let args = Args::parse();
-    let config = MachineRunConfig {
-        tape_length: args.tape_length,
-        status_interval: args.status_interval,
-        max_total: args.max_total,
+    let config = ProgramRunConfig {
+        tape_len: args.tape_len,
+        interval: args.interval,
+        max_tape: args.max_tape,
         max_steps: args.max_steps,
-        machine: args.machine,
+        program: args.program,
     };
     let _ = run_compiled_machine(config);
 }
 
-pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
-    let MachineRunConfig {
-        tape_length: requested_tape_length,
-        status_interval,
-        max_total,
+pub fn run_compiled_machine(config: ProgramRunConfig) -> RunSummary {
+    let ProgramRunConfig {
+        tape_len: requested_tape_len,
+        interval,
+        max_tape,
         max_steps,
-        machine,
+        program,
     } = config;
-    let mut tape_length = requested_tape_length;
+    let mut tape_len = requested_tape_len;
     assert!(
-        tape_length >= 3,
-        "tape_length must be >= 3 (two sentinels + at least one interior)"
+        tape_len >= 3,
+        "tape_len must be >= 3 (two sentinels + at least one interior)"
     );
-    if tape_length > max_total {
+    if tape_len > max_tape {
         eprintln!(
-            "requested tape_length {} exceeds max {}, clamping",
-            tape_length.separate_with_commas(),
-            max_total.separate_with_commas()
+            "requested tape_len {} exceeds max {}, clamping",
+            tape_len.separate_with_commas(),
+            max_tape.separate_with_commas()
         );
-        tape_length = max_total;
+        tape_len = max_tape;
     }
-    let mut next_report: u64 = if status_interval == 0 {
-        u64::MAX
-    } else {
-        status_interval
-    };
+    let mut next_report: u64 = if interval == 0 { u64::MAX } else { interval };
 
-    let mut tape: Vec<u8> = vec![0; tape_length];
+    let mut tape: Vec<u8> = vec![0; tape_len];
     tape[0] = 2;
-    tape[tape_length - 1] = 2;
+    tape[tape_len - 1] = 2;
 
-    let mut head_pointer = unsafe { tape.as_mut_ptr().add(1 + ((tape_length - 2) >> 1)) };
+    let mut head_pointer = unsafe { tape.as_mut_ptr().add(1 + ((tape_len - 2) >> 1)) };
     let mut step_count: u64 = 0;
     let mut state_id: u8 = 0;
     let start_time: Instant = Instant::now();
 
     type CompiledFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
-    let compiled_fn: CompiledFn = match machine {
-        MachineSelect::Bb5 => bb5_champ_compiled,
-        MachineSelect::Bb6 => bb6_contender_compiled,
+    let compiled_fn: CompiledFn = match program {
+        ProgramSelect::Bb5Champ => bb5_champ_compiled,
+        ProgramSelect::Bb6Contender => bb6_contender_compiled,
     };
 
     loop {
         let hb_to_limit = max_steps
             .map(|limit| limit.saturating_sub(step_count))
             .unwrap_or(u64::MAX);
-        let hb_to_report = if status_interval > 0 {
+        let hb_to_report = if interval > 0 {
             next_report.saturating_sub(step_count)
         } else {
             u64::MAX
@@ -305,22 +309,22 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
                     final_state_id: state_id,
                     termination: RunTermination::MaxSteps,
                     elapsed_seconds,
-                    tape_length,
+                    tape_len,
                 };
             }
         }
 
         if status_code == 0 {
             if step_count >= next_report {
-                let crossed = (step_count - next_report) / status_interval + 1;
-                let last = next_report + (crossed - 1) * status_interval;
+                let crossed = (step_count - next_report) / interval + 1;
+                let last = next_report + (crossed - 1) * interval;
                 let elapsed = start_time.elapsed().as_secs_f64();
                 if let Some(limit) = max_steps {
                     let done = last as f64;
-                    let sps = if elapsed > 0.0 { done / elapsed } else { 0.0 };
+                    let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
                     let remaining = (limit.saturating_sub(last)) as f64;
-                    let eta = if sps > 0.0 {
-                        remaining / sps
+                    let eta = if steps_per_sec > 0.0 {
+                        remaining / steps_per_sec
                     } else {
                         f64::INFINITY
                     };
@@ -337,7 +341,7 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
                         elapsed
                     );
                 } else {
-                    let sps = if elapsed > 0.0 {
+                    let steps_per_sec = if elapsed > 0.0 {
                         (last as f64) / elapsed
                     } else {
                         0.0
@@ -345,11 +349,11 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
                     println!(
                         "{} steps ({} steps/s, elapsed {:.3} s)",
                         last.separate_with_commas(),
-                        format_sps(sps),
+                        format_steps_per_sec(steps_per_sec),
                         elapsed
                     );
                 }
-                next_report = last.saturating_add(status_interval);
+                next_report = last.saturating_add(interval);
             }
             continue;
         }
@@ -363,22 +367,22 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
                 final_state_id: state_id,
                 termination: RunTermination::Halted,
                 elapsed_seconds,
-                tape_length,
+                tape_len,
             };
         }
 
         let left_sentinel_ptr = tape.as_ptr();
-        let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_length - 1) };
+        let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
         let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
         let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
 
         if hit_left {
-            match extend_tape_left(&mut tape, &mut tape_length, max_total) {
+            match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
                 Some(ptr) => head_pointer = ptr,
                 None => {
                     println!(
                         "reached max memory {} cells; stopping at {} steps",
-                        (max_total - 2).separate_with_commas(),
+                        (max_tape - 2).separate_with_commas(),
                         step_count.separate_with_commas()
                     );
                     let elapsed_seconds = start_time.elapsed().as_secs_f64();
@@ -388,17 +392,17 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
                         final_state_id: state_id,
                         termination: RunTermination::MaxMemoryLeft,
                         elapsed_seconds,
-                        tape_length,
+                        tape_len,
                     };
                 }
             }
         } else if hit_right {
-            match extend_tape_right(&mut tape, &mut tape_length, max_total) {
+            match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
                 Some(ptr) => head_pointer = ptr,
                 None => {
                     println!(
                         "reached max memory {} cells; stopping at {} steps",
-                        (max_total - 2).separate_with_commas(),
+                        (max_tape - 2).separate_with_commas(),
                         step_count.separate_with_commas()
                     );
                     let elapsed_seconds = start_time.elapsed().as_secs_f64();
@@ -408,7 +412,7 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
                         final_state_id: state_id,
                         termination: RunTermination::MaxMemoryRight,
                         elapsed_seconds,
-                        tape_length,
+                        tape_len,
                     };
                 }
             }
@@ -417,15 +421,15 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
         }
 
         if step_count >= next_report {
-            let crossed = (step_count - next_report) / status_interval + 1;
-            let last = next_report + (crossed - 1) * status_interval;
+            let crossed = (step_count - next_report) / interval + 1;
+            let last = next_report + (crossed - 1) * interval;
             let elapsed = start_time.elapsed().as_secs_f64();
             if let Some(limit) = max_steps {
                 let done = step_count as f64;
-                let sps = if elapsed > 0.0 { done / elapsed } else { 0.0 };
+                let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
                 let remaining = (limit.saturating_sub(step_count)) as f64;
-                let eta = if sps > 0.0 {
-                    remaining / sps
+                let eta = if steps_per_sec > 0.0 {
+                    remaining / steps_per_sec
                 } else {
                     f64::INFINITY
                 };
@@ -442,7 +446,7 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
                     elapsed
                 );
             } else {
-                let sps = if elapsed > 0.0 {
+                let steps_per_sec = if elapsed > 0.0 {
                     (step_count as f64) / elapsed
                 } else {
                     0.0
@@ -450,11 +454,11 @@ pub fn run_compiled_machine(config: MachineRunConfig) -> RunSummary {
                 println!(
                     "{} steps ({} steps/s, elapsed {:.3} s)",
                     last.separate_with_commas(),
-                    format_sps(sps),
+                    format_steps_per_sec(steps_per_sec),
                     elapsed
                 );
             }
-            next_report = last.saturating_add(status_interval);
+            next_report = last.saturating_add(interval);
         }
     }
 }
@@ -588,18 +592,18 @@ mod tests {
 
     #[test]
     fn test_run_compiled_machine_stops_at_max_steps() {
-        let config = MachineRunConfig {
-            tape_length: 128,
-            status_interval: 1_000_000,
-            max_total: 1usize << 16,
+        let config = ProgramRunConfig {
+            tape_len: 128,
+            interval: 1_000_000,
+            max_tape: 1usize << 16,
             max_steps: Some(1_000),
-            machine: MachineSelect::Bb5,
+            program: ProgramSelect::Bb5Champ,
         };
         let summary = run_compiled_machine(config);
         assert_eq!(summary.step_count, 1_000);
         assert_eq!(summary.termination, RunTermination::MaxSteps);
         assert!(summary.final_state_id <= 4);
         assert!(summary.elapsed_seconds >= 0.0);
-        assert!(summary.tape_length >= 3);
+        assert!(summary.tape_len >= 3);
     }
 }
