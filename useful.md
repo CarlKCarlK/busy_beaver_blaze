@@ -4,6 +4,8 @@
 
 ```bash
 cargo run --example bb5_champ_fast --release
+cargo test --example bb5_champ_fast
+```
 
 ## Python Dev mode
 

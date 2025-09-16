@@ -1,63 +1,117 @@
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
 use clap::{Parser, ValueEnum};
-use thousands::Separable;
 use std::time::Instant;
+use thousands::Separable;
 
 // Macro helpers to generate the full asm template from a TM spec
 macro_rules! tm_move {
     (R) => {
-        /* move head Right */ "inc rsi\n"
+        /* move head Right */
+        "inc rsi\n"
     };
     (L) => {
-        /* move head Left */ "dec rsi\n"
+        /* move head Left */
+        "dec rsi\n"
     };
 }
 macro_rules! tm_next {
     ( $P:ident, HALT, $id:expr ) => {
         concat!(
             /* set status = halt */ "mov al, 1\n",
-            /* record current state id */ "mov bl, ", stringify!($id), "\n",
-            /* jump to end label */ "jmp ", stringify!($P), "_END\n"
+            /* record current state id */ "mov bl, ",
+            stringify!($id),
+            "\n",
+            /* jump to end label */ "jmp ",
+            stringify!($P),
+            "_END\n"
         )
     };
     ( $P:ident, $N:ident, $id:expr ) => {
-        concat!( /* goto next state */ "jmp ", stringify!($P), "_", stringify!($N), "\n")
+        concat!(
+            /* goto next state */ "jmp ",
+            stringify!($P),
+            "_",
+            stringify!($N),
+            "\n"
+        )
     };
 }
 macro_rules! tm_dispatch {
     ( $P:ident, $S:ident, $id:expr ) => {
         concat!(
-            /* compare BL with state id */ "cmp bl, ", stringify!($id), "\n",
-            /* if equal, jump to state */ "je ", stringify!($P), "_", stringify!($S), "\n"
+            /* compare BL with state id */ "cmp bl, ",
+            stringify!($id),
+            "\n",
+            /* if equal, jump to state */ "je ",
+            stringify!($P),
+            "_",
+            stringify!($S),
+            "\n"
         )
     };
 }
 macro_rules! tm_state_block {
     ( $P:ident, $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
         concat!(
-            /* state label */ stringify!($P), "_", stringify!($S), ":\n",
+            /* state label */ stringify!($P),
+            "_",
+            stringify!($S),
+            ":\n",
             /* any credit left? */ "cmp rcx, 0\n",
-            /* continue if yes */ "jne ", stringify!($P), "_", stringify!($S), "_CONT\n",
-            /* record resume state */ "mov bl, ", stringify!($id), "\n",
-            /* exit chunk */ "jmp ", stringify!($P), "_END\n",
-            /* continue label */ stringify!($P), "_", stringify!($S), "_CONT:\n",
+            /* continue if yes */ "jne ",
+            stringify!($P),
+            "_",
+            stringify!($S),
+            "_CONT\n",
+            /* record resume state */ "mov bl, ",
+            stringify!($id),
+            "\n",
+            /* exit chunk */ "jmp ",
+            stringify!($P),
+            "_END\n",
+            /* continue label */ stringify!($P),
+            "_",
+            stringify!($S),
+            "_CONT:\n",
             /* load cell */ "mov dl, [rsi]\n",
             /* boundary sentinel? */ "cmp dl, 2\n",
-            /* jump if boundary */ "je ", stringify!($P), "_BOUNDARY_", stringify!($S), "\n",
+            /* jump if boundary */ "je ",
+            stringify!($P),
+            "_BOUNDARY_",
+            stringify!($S),
+            "\n",
             /* is cell == 0? */ "test dl, dl\n",
-            /* branch if 1 */ "jnz ", stringify!($P), "_", stringify!($S), "_ONE\n",
-            /* write on 0-branch */ "mov byte ptr [rsi], ", stringify!($w0), "\n",
+            /* branch if 1 */ "jnz ",
+            stringify!($P),
+            "_",
+            stringify!($S),
+            "_ONE\n",
+            /* write on 0-branch */ "mov byte ptr [rsi], ",
+            stringify!($w0),
+            "\n",
             tm_move!($d0),
             /* consume one step */ "sub rcx, 1\n",
             /* jump to next state (0-branch) */ tm_next!($P, $n0, $id),
-            /* 1-branch label */ stringify!($P), "_", stringify!($S), "_ONE:\n",
-            /* write on 1-branch */ "mov byte ptr [rsi], ", stringify!($w1), "\n",
+            /* 1-branch label */ stringify!($P),
+            "_",
+            stringify!($S),
+            "_ONE:\n",
+            /* write on 1-branch */ "mov byte ptr [rsi], ",
+            stringify!($w1),
+            "\n",
             tm_move!($d1),
             /* consume one step */ "sub rcx, 1\n",
             /* jump to next state (1-branch) */ tm_next!($P, $n1, $id),
-            /* boundary label */ stringify!($P), "_BOUNDARY_", stringify!($S), ":\n",
-            /* record state id */ "mov bl, ", stringify!($id), "\n",
-            /* go to common boundary */ "jmp ", stringify!($P), "_BOUNDARY\n",
+            /* boundary label */ stringify!($P),
+            "_BOUNDARY_",
+            stringify!($S),
+            ":\n",
+            /* record state id */ "mov bl, ",
+            stringify!($id),
+            "\n",
+            /* go to common boundary */ "jmp ",
+            stringify!($P),
+            "_BOUNDARY\n",
         )
     };
 }
@@ -83,34 +137,62 @@ macro_rules! tm_prog {
 // Note: we intentionally accept only plain numeric values for CLI args now.
 
 // Heartbeat is chosen per-iteration; no fixed default needed.
+fn format_duration(total_secs: f64) -> String {
+    let mut secs = total_secs.max(0.0);
+    let days = (secs / 86_400.0).floor() as u64;
+    secs -= (days as f64) * 86_400.0;
+    let hours = (secs / 3_600.0).floor() as u64;
+    secs -= (hours as f64) * 3_600.0;
+    let minutes = (secs / 60.0).floor() as u64;
+    secs -= (minutes as f64) * 60.0;
+    if days > 0 {
+        format!("{}d {:02}:{:02}:{:05.2}", days, hours, minutes, secs)
+    } else {
+        format!("{:02}:{:02}:{:05.2}", hours, minutes, secs)
+    }
+}
+
+fn format_sps(sps: f64) -> String {
+    let v = if sps.is_finite() {
+        sps.max(0.0).round() as u64
+    } else {
+        0
+    };
+    v.separate_with_commas()
+}
 #[derive(Debug, Parser, Clone)]
 #[command(name = "bb5_champ_fast", about = "Fast BB5 runner with inline asm")]
 struct Args {
-    #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], value_parser = parse_clean_usize, default_value_t = 1usize << 21)]
+    #[arg(long = "tape-length", aliases = ["tape_length", "tape", "total-length", "total_length"], value_parser = parse_clean::<usize>, default_value_t = 1usize << 21)]
     tape_length: usize,
 
-    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], value_parser = parse_clean_u64, default_value_t = 10_000_000u64)]
+    #[arg(long = "status", aliases = ["status-interval", "status_interval", "interval"], value_parser = parse_clean::<u64>, default_value_t = 10_000_000u64)]
     status_interval: u64,
 
-    #[arg(long = "max-memory", aliases = ["max_memory", "max"], value_parser = parse_clean_usize, default_value_t = 1usize << 21)]
+    #[arg(long = "max-memory", aliases = ["max_memory", "max"], value_parser = parse_clean::<usize>, default_value_t = 1usize << 21)]
     max_total: usize,
 
-    #[arg(long = "max-steps", aliases = ["max_steps"], value_parser = parse_clean_u64)]
+    #[arg(long = "max-steps", aliases = ["max_steps"], value_parser = parse_clean::<u64>)]
     max_steps: Option<u64>,
 
-    #[arg(long = "machine", value_enum, default_value_t = MachineSelect::Bb6)]
+    #[arg(long = "machine", value_enum, default_value_t = MachineSelect::Bb5)]
     machine: MachineSelect,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
-enum MachineSelect { Bb5, Bb6 }
-
-fn parse_clean_usize(s: &str) -> Result<usize, String> {
-    s.replace(['_', ','], "").parse::<usize>().map_err(|e| e.to_string())
+enum MachineSelect {
+    Bb5,
+    Bb6,
 }
 
-fn parse_clean_u64(s: &str) -> Result<u64, String> {
-    s.replace(['_', ','], "").parse::<u64>().map_err(|e| e.to_string())
+fn parse_clean<T>(s: &str) -> Result<T, String>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    s.replace(['_', ','], "")
+        .parse::<T>()
+        .map_err(|e| e.to_string())
 }
 
 fn main() {
@@ -149,22 +231,6 @@ fn main() {
     let mut step_count: u64 = 0;
     let mut state_id: u8 = 0; // 0=A, 1=B, 2=C, 3=D, 4=E
     let start_time: Instant = Instant::now();
-
-    fn format_duration(total_secs: f64) -> String {
-        let mut secs = total_secs.max(0.0);
-        let days = (secs / 86_400.0).floor() as u64;
-        secs -= (days as f64) * 86_400.0;
-        let hours = (secs / 3_600.0).floor() as u64;
-        secs -= (hours as f64) * 3_600.0;
-        let minutes = (secs / 60.0).floor() as u64;
-        secs -= (minutes as f64) * 60.0;
-        // keep two decimals for seconds
-        if days > 0 {
-            format!("{}d {:02}:{:02}:{:05.2}", days, hours, minutes, secs)
-        } else {
-            format!("{:02}:{:02}:{:05.2}", hours, minutes, secs)
-        }
-    }
 
     // Select machine heartbeat outside the loop
     type CompiledFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
@@ -217,8 +283,16 @@ fn main() {
                     let done = last as f64;
                     let sps = if elapsed > 0.0 { done / elapsed } else { 0.0 };
                     let remaining = (limit.saturating_sub(last)) as f64;
-                    let eta = if sps > 0.0 { remaining / sps } else { f64::INFINITY };
-                    let total = if eta.is_finite() { format_duration(elapsed + eta) } else { String::from("--:--:--") };
+                    let eta = if sps > 0.0 {
+                        remaining / sps
+                    } else {
+                        f64::INFINITY
+                    };
+                    let total = if eta.is_finite() {
+                        format_duration(elapsed + eta)
+                    } else {
+                        String::from("--:--:--")
+                    };
                     println!(
                         "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
                         last.separate_with_commas(),
@@ -227,11 +301,15 @@ fn main() {
                         elapsed
                     );
                 } else {
-                    let sps = if elapsed > 0.0 { (last as f64) / elapsed } else { 0.0 };
+                    let sps = if elapsed > 0.0 {
+                        (last as f64) / elapsed
+                    } else {
+                        0.0
+                    };
                     println!(
-                        "{} steps ({:.0} steps/s, elapsed {:.3} s)",
+                        "{} steps ({} steps/s, elapsed {:.3} s)",
                         last.separate_with_commas(),
-                        sps,
+                        format_sps(sps),
                         elapsed
                     );
                 }
@@ -293,8 +371,16 @@ fn main() {
                 let done = step_count as f64;
                 let sps = if elapsed > 0.0 { done / elapsed } else { 0.0 };
                 let remaining = (limit.saturating_sub(step_count)) as f64;
-                let eta = if sps > 0.0 { remaining / sps } else { f64::INFINITY };
-                let total = if eta.is_finite() { format_duration(elapsed + eta) } else { String::from("--:--:--") };
+                let eta = if sps > 0.0 {
+                    remaining / sps
+                } else {
+                    f64::INFINITY
+                };
+                let total = if eta.is_finite() {
+                    format_duration(elapsed + eta)
+                } else {
+                    String::from("--:--:--")
+                };
                 println!(
                     "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
                     last.separate_with_commas(),
@@ -303,11 +389,15 @@ fn main() {
                     elapsed
                 );
             } else {
-                let sps = if elapsed > 0.0 { (step_count as f64) / elapsed } else { 0.0 };
+                let sps = if elapsed > 0.0 {
+                    (step_count as f64) / elapsed
+                } else {
+                    0.0
+                };
                 println!(
-                    "{} steps ({:.0} steps/s, elapsed {:.3} s)",
+                    "{} steps ({} steps/s, elapsed {:.3} s)",
                     last.separate_with_commas(),
-                    sps,
+                    format_sps(sps),
                     elapsed
                 );
             }
@@ -437,4 +527,76 @@ fn extend_tape_right(
     );
     // Head should be the first newly-added interior cell to the right of the old end.
     Some(unsafe { tape.as_mut_ptr().add(old_total - 1) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_duration() {
+        assert_eq!(format_duration(0.0), "00:00:00.00");
+        assert_eq!(format_duration(65.5), "00:01:05.50");
+        assert_eq!(format_duration(3_726.25), "01:02:06.25");
+        assert_eq!(format_duration(172_800.5), "2d 00:00:00.50");
+    }
+
+    #[test]
+    fn test_format_sps_commas() {
+        let s = format_sps(2_103_234_710.4);
+        assert_eq!(s, "2,103,234,710");
+    }
+
+    #[test]
+    fn test_extend_tape_growth_and_cap() {
+        let mut tape_len: usize = 6; // 4 interior + 2 sentinels
+        let mut tape: Vec<u8> = vec![0; tape_len];
+        tape[0] = 2;
+        tape[tape_len - 1] = 2;
+        // Cap allows one growth, then prevents second
+        let max_total = 10usize;
+        // Right growth should fit once (6 -> 10)
+        let p1 = super::extend_tape_right(&mut tape, &mut tape_len, max_total);
+        assert!(p1.is_some());
+        assert_eq!(tape_len, 10);
+        assert_eq!(tape[0], 2);
+        assert_eq!(tape[tape_len - 1], 2);
+        // Next growth would exceed cap
+        let p2 = super::extend_tape_right(&mut tape, &mut tape_len, max_total);
+        assert!(p2.is_none());
+    }
+
+    #[test]
+    fn test_compiled_chunk_small_bb5() {
+        // tiny tape
+        let mut tape_len: usize = 10;
+        let mut tape: Vec<u8> = vec![0; tape_len];
+        tape[0] = 2;
+        tape[tape_len - 1] = 2;
+        let mut head = unsafe { tape.as_mut_ptr().add(5) };
+        let hb: u64 = 100;
+        let (new_head, status, taken, new_state) =
+            unsafe { super::bb5_champ_compiled(head, 0, hb) };
+        assert!(taken <= hb);
+        assert!(matches!(status, 0 | 1 | 2));
+        assert!(!new_head.is_null());
+        assert!(new_state <= 4);
+    }
+
+    #[test]
+    fn test_compiled_chunk_small_bb6() {
+        // require a max-step policy in real runs, but here just a tiny chunk
+        let mut tape_len: usize = 10;
+        let mut tape: Vec<u8> = vec![0; tape_len];
+        tape[0] = 2;
+        tape[tape_len - 1] = 2;
+        let head = unsafe { tape.as_mut_ptr().add(5) };
+        let hb: u64 = 100;
+        let (new_head, status, taken, new_state) =
+            unsafe { super::bb6_contender_compiled(head, 0, hb) };
+        assert!(taken <= hb);
+        assert!(matches!(status, 0 | 1 | 2));
+        assert!(!new_head.is_null());
+        assert!(new_state <= 5);
+    }
 }
