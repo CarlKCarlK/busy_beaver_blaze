@@ -189,13 +189,16 @@ pub enum ProgramSelect {
     Bb6Contender,
 }
 
+// Compiled function type: three &mut inout params, returns status code
+type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> u8;
+
 #[derive(Debug, Clone)]
 pub struct CompiledMachine {
     pub min_tape: usize,
     pub interval: NonZeroU64,
     pub max_tape: usize,
     pub max_steps: u64,
-    pub program: ProgramSelect,
+    pub compiled_fn: CompiledFn,
 }
 
 impl TryFrom<Args> for CompiledMachine {
@@ -230,13 +233,12 @@ impl CompiledMachine {
         }
         let interval = NonZeroU64::new(interval).ok_or(Error::IntervalTooSmall { interval })?;
 
-        Ok(Self {
-            min_tape,
-            interval,
-            max_tape,
-            max_steps,
-            program,
-        })
+        let compiled_fn: CompiledFn = match program {
+            ProgramSelect::Bb5Champ => bb5_champ_compiled,
+            ProgramSelect::Bb6Contender => bb6_contender_compiled,
+        };
+
+        Ok(Self { min_tape, interval, max_tape, max_steps, compiled_fn })
     }
 }
 
@@ -294,7 +296,7 @@ impl CompiledMachine {
         let interval = self.interval;
         let max_tape = self.max_tape;
         let max_steps = self.max_steps;
-        let program = self.program;
+        let compiled_fn = self.compiled_fn;
 
         let mut tape_len = min_tape;
         let mut tape: Vec<u8> = vec![0; tape_len];
@@ -307,11 +309,7 @@ impl CompiledMachine {
 
         let mut state_id: u8 = 0;
 
-        type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> u8;
-        let compiled_fn: CompiledFn = match program {
-            ProgramSelect::Bb5Champ => bb5_champ_compiled,
-            ProgramSelect::Bb6Contender => bb6_contender_compiled,
-        };
+        // compiled_fn selected during construction
 
         let start_time: Instant = Instant::now();
         loop {
@@ -638,7 +636,8 @@ mod tests {
             max_tape: 256,
         };
         let compiled_machine: CompiledMachine = args.try_into().expect("conversion should succeed");
-        assert_eq!(compiled_machine.program, ProgramSelect::Bb6Contender);
+        // Verify constructor selected the correct compiled function
+        assert_eq!(compiled_machine.compiled_fn as usize, bb6_contender_compiled as usize);
         assert_eq!(compiled_machine.interval.get(), 42);
         assert_eq!(compiled_machine.max_steps, 7);
         assert_eq!(compiled_machine.min_tape, 128);
