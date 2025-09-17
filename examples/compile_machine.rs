@@ -70,30 +70,26 @@ macro_rules! tm_state_block {
             "_",
             stringify!($S),
             ":\n",
-            /* any credit left? */ "cmp rcx, 0\n",
-            /* continue if yes */ "jne ",
-            stringify!($P),
-            "_",
-            stringify!($S),
-            "_CONT\n",
-            /* record resume state */ "mov bl, ",
-            stringify!($id),
-            "\n",
-            /* exit chunk */ "jmp ",
+            /* consume one step */ "dec rcx\n",
+            // // cmk00 the credit check is virtually free because of branch prediction
+            /* out of credit? */
+            "jz ",
             stringify!($P),
             "_END\n",
-            /* continue label */ stringify!($P),
-            "_",
-            stringify!($S),
-            "_CONT:\n",
-            /* load cell */ "mov dl, [rsi]\n",
-            /* boundary sentinel? */ "cmp dl, 2\n",
+            // // cmk000 end
+            /* load cell */
+            "mov dl, [rsi]\n",
+            // cmk000 The boundary check is virtually free because of branch prediction
+            /* boundary sentinel? */
+            "cmp dl, 2\n",
             /* jump if boundary */ "je ",
             stringify!($P),
             "_BOUNDARY_",
             stringify!($S),
             "\n",
-            /* is cell == 0? */ "test dl, dl\n",
+            // cmk000 end
+            /* is cell == 0? */
+            "test dl, dl\n",
             /* branch if 1 */ "jnz ",
             stringify!($P),
             "_",
@@ -103,8 +99,9 @@ macro_rules! tm_state_block {
             stringify!($w0),
             "\n",
             tm_move!($d0),
-            /* consume one step */ "sub rcx, 1\n",
-            /* jump to next state (0-branch) */ tm_next!($P, $n0, $id),
+            // cmk000            /* consume one step */ "sub rcx, 1\n",
+            /* jump to next state (0-branch) */
+            tm_next!($P, $n0, $id),
             /* 1-branch label */ stringify!($P),
             "_",
             stringify!($S),
@@ -113,8 +110,9 @@ macro_rules! tm_state_block {
             stringify!($w1),
             "\n",
             tm_move!($d1),
-            /* consume one step */ "sub rcx, 1\n",
-            /* jump to next state (1-branch) */ tm_next!($P, $n1, $id),
+            // cmk000 /* consume one step */ "sub rcx, 1\n",
+            /* jump to next state (1-branch) */
+            tm_next!($P, $n1, $id),
             /* boundary label */ stringify!($P),
             "_BOUNDARY_",
             stringify!($S),
@@ -128,6 +126,7 @@ macro_rules! tm_state_block {
         )
     };
 }
+
 macro_rules! tm_prog {
     ( $P:ident, ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
         concat!(
@@ -294,13 +293,11 @@ fn main() {
 impl CompiledMachine {
     pub fn run(self) -> Result<Summary, Error> {
         // cmk don't like that validation is here and not in the constructor (may no longer apply)
-        let CompiledMachine {
-            min_tape,
-            interval,
-            max_tape,
-            max_steps,
-            program,
-        } = self;
+        let min_tape = self.min_tape;
+        let interval = self.interval;
+        let max_tape = self.max_tape;
+        let max_steps = self.max_steps;
+        let program = self.program;
 
         debug_assert!(min_tape >= 3);
         debug_assert!(max_tape >= min_tape);
