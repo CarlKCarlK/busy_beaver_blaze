@@ -20,11 +20,11 @@ use thousands::Separable;
 macro_rules! tm_move {
     (R) => {
         /* move head Right */
-        "inc rsi\n"
+        "add rsi, 1\n"
     };
     (L) => {
         /* move head Left */
-        "dec rsi\n"
+        "sub rsi, 1\n"
     };
 }
 
@@ -37,6 +37,21 @@ macro_rules! s {
     ($x:expr) => {
         stringify!($x)
     };
+}
+
+// Skip redundant stores based on the read branch.
+// - On the 0-branch (read 0), writing 0 is a no-op; only write if 1.
+// - On the 1-branch (read 1), writing 1 is a no-op; only write if 0.
+macro_rules! tm_store_on_0 {
+    (0) => { "" };
+    (1) => { asmline!("mov byte ptr [rsi], 1") };
+    ($other:tt) => { asmline!("mov byte ptr [rsi], ", s!($other)) };
+}
+
+macro_rules! tm_store_on_1 {
+    (0) => { asmline!("mov byte ptr [rsi], 0") };
+    (1) => { "" };
+    ($other:tt) => { asmline!("mov byte ptr [rsi], ", s!($other)) };
 }
 
 #[rustfmt::skip] // keep comment alignment, don't reflow
@@ -83,11 +98,11 @@ macro_rules! tm_state_block {
             // cmk000 end
             /* is cell == 0?               */ asmline!("test dl, dl"),
             /* branch if 1                 */ asmline!("jnz ", s!($P), "_", s!($S), "_ONE"),
-            /* write on 0-branch           */ asmline!("mov byte ptr [rsi], ", s!($w0)),
+            /* write on 0-branch           */ tm_store_on_0!($w0),
             tm_move!($d0),
             /* jump to next (0-branch)     */ tm_next!($P, $n0, $id),
             /* 1-branch label              */ asmline!(s!($P), "_", s!($S), "_ONE:"),
-            /* write on 1-branch           */ asmline!("mov byte ptr [rsi], ", s!($w1)),
+            /* write on 1-branch           */ tm_store_on_1!($w1),
             tm_move!($d1),
             /* jump to next (1-branch)     */ tm_next!($P, $n1, $id),
             /* boundary label              */ asmline!(s!($P), "_BOUNDARY_", s!($S), ":"),

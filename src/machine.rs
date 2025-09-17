@@ -116,7 +116,10 @@ impl Iterator for Machine {
         let program = &self.program;
         let input = self.tape.read(self.tape_index);
         let action = program.action(self.state, input);
-        self.tape.write(self.tape_index, action.next_symbol);
+        if action.next_symbol != input {
+            // Avoid redundant writes when the symbol is unchanged.
+            self.tape.write(self.tape_index, action.next_symbol);
+        }
         let previous_index = self.tape_index;
         self.tape_index += action.direction as i64;
         self.state = action.next_state;
