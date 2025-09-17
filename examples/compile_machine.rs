@@ -213,6 +213,18 @@ impl TryFrom<Args> for CompiledMachine {
             max_tape,
         }: Args,
     ) -> Result<Self, Self::Error> {
+        Self::new(program, interval, max_steps, min_tape, max_tape)
+    }
+}
+
+impl CompiledMachine {
+    pub fn new(
+        program: ProgramSelect,
+        interval: u64,
+        max_steps: u64,
+        min_tape: usize,
+        max_tape: usize,
+    ) -> Result<Self, Error> {
         if min_tape < 3 {
             return Err(Error::TapeTooShort { min_tape });
         }
@@ -269,11 +281,11 @@ where
 }
 
 fn main() {
-    let config: CompiledMachine = Args::parse().try_into().unwrap_or_else(|e| {
+    let compiled_machine: CompiledMachine = Args::parse().try_into().unwrap_or_else(|e| {
         eprintln!("error: {e}");
         std::process::exit(1);
     });
-    if let Err(error) = config.run() {
+    if let Err(error) = compiled_machine.run() {
         eprintln!("{error}");
         std::process::exit(2);
     }
@@ -281,7 +293,7 @@ fn main() {
 
 impl CompiledMachine {
     pub fn run(self) -> Result<Summary, Error> {
-        // cmk don't like that validation is here and not in the constructor
+        // cmk don't like that validation is here and not in the constructor (may no longer apply)
         let CompiledMachine {
             min_tape,
             interval,
@@ -290,12 +302,8 @@ impl CompiledMachine {
             program,
         } = self;
 
-        if min_tape < 3 {
-            return Err(Error::TapeTooShort { min_tape });
-        }
-        if max_tape < min_tape {
-            return Err(Error::MaxTapeTooSmall { max_tape });
-        }
+        debug_assert!(min_tape >= 3);
+        debug_assert!(max_tape >= min_tape);
 
         let mut tape_len = min_tape;
         let mut next_report: u64 = interval.get();
@@ -601,12 +609,12 @@ mod tests {
             min_tape: 128,
             max_tape: 256,
         };
-        let config: CompiledMachine = args.try_into().expect("conversion should succeed");
-        assert_eq!(config.program, ProgramSelect::Bb6Contender);
-        assert_eq!(config.interval.get(), 42);
-        assert_eq!(config.max_steps, 7);
-        assert_eq!(config.min_tape, 128);
-        assert_eq!(config.max_tape, 256);
+        let compiled_machine: CompiledMachine = args.try_into().expect("conversion should succeed");
+        assert_eq!(compiled_machine.program, ProgramSelect::Bb6Contender);
+        assert_eq!(compiled_machine.interval.get(), 42);
+        assert_eq!(compiled_machine.max_steps, 7);
+        assert_eq!(compiled_machine.min_tape, 128);
+        assert_eq!(compiled_machine.max_tape, 256);
     }
 
     #[test]
@@ -656,7 +664,7 @@ mod tests {
 
     #[test]
     fn run_stops_at_max_steps() {
-        let config: CompiledMachine = Args {
+        let compiled_machine: CompiledMachine = Args {
             program: ProgramSelect::Bb5Champ,
             interval: 1_000_000,
             max_steps: 1_000,
@@ -666,7 +674,7 @@ mod tests {
         .try_into()
         .expect("conversion should succeed");
 
-        let summary = config.run().expect("run should succeed");
+        let summary = compiled_machine.run().expect("run should succeed");
         assert_eq!(summary.step_count, 1_000);
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
         assert!(summary.final_state_id <= 4);
