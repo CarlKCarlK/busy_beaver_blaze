@@ -27,121 +27,92 @@ macro_rules! tm_move {
         "dec rsi\n"
     };
 }
+
+// one line of assembly -> compile-time string with trailing '\n'
+macro_rules! asmline {
+    ($($p:expr),* $(,)?) => { concat!($($p),*, "\n") };
+}
+
+macro_rules! s {
+    ($x:expr) => {
+        stringify!($x)
+    };
+}
+
+#[rustfmt::skip] // keep comment alignment, don't reflow
 macro_rules! tm_next {
-    ( $P:ident, HALT, $id:expr ) => {
+    // HALT case
+    ($P:ident, HALT, $id:expr) => {
         concat!(
-            /* set status = halt */ "mov al, 1\n",
-            /* record current state id */ "mov bl, ",
-            stringify!($id),
-            "\n",
-            /* jump to end label */ "jmp ",
-            stringify!($P),
-            "_END\n"
+            /* set status = halt          */ asmline!("mov al, 1"),
+            /* record current state id    */ asmline!("mov bl, ", s!($id)),
+            /* jump to end label          */ asmline!("jmp ", s!($P), "_END"),
         )
     };
-    ( $P:ident, $N:ident, $id:expr ) => {
+
+    // goto next state
+    ($P:ident, $N:ident, $id:expr) => {
         concat!(
-            /* goto next state */ "jmp ",
-            stringify!($P),
-            "_",
-            stringify!($N),
-            "\n"
-        )
-    };
-}
-macro_rules! tm_dispatch {
-    ( $P:ident, $S:ident, $id:expr ) => {
-        concat!(
-            /* compare BL with state id */ "cmp bl, ",
-            stringify!($id),
-            "\n",
-            /* if equal, jump to state */ "je ",
-            stringify!($P),
-            "_",
-            stringify!($S),
-            "\n"
-        )
-    };
-}
-macro_rules! tm_state_block {
-    ( $P:ident, $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
-        concat!(
-            /* state label */ stringify!($P),
-            "_",
-            stringify!($S),
-            ":\n",
-            /* consume one step */ "dec rcx\n",
-            // // cmk00 the credit check is virtually free because of branch prediction
-            /* out of credit? */
-            "jz ",
-            stringify!($P),
-            "_END\n",
-            // // cmk000 end
-            /* load cell */
-            "mov dl, [rsi]\n",
-            // cmk000 The boundary check is virtually free because of branch prediction
-            /* boundary sentinel? */
-            "cmp dl, 2\n",
-            /* jump if boundary */ "je ",
-            stringify!($P),
-            "_BOUNDARY_",
-            stringify!($S),
-            "\n",
-            // cmk000 end
-            /* is cell == 0? */
-            "test dl, dl\n",
-            /* branch if 1 */ "jnz ",
-            stringify!($P),
-            "_",
-            stringify!($S),
-            "_ONE\n",
-            /* write on 0-branch */ "mov byte ptr [rsi], ",
-            stringify!($w0),
-            "\n",
-            tm_move!($d0),
-            // cmk000            /* consume one step */ "sub rcx, 1\n",
-            /* jump to next state (0-branch) */
-            tm_next!($P, $n0, $id),
-            /* 1-branch label */ stringify!($P),
-            "_",
-            stringify!($S),
-            "_ONE:\n",
-            /* write on 1-branch */ "mov byte ptr [rsi], ",
-            stringify!($w1),
-            "\n",
-            tm_move!($d1),
-            // cmk000 /* consume one step */ "sub rcx, 1\n",
-            /* jump to next state (1-branch) */
-            tm_next!($P, $n1, $id),
-            /* boundary label */ stringify!($P),
-            "_BOUNDARY_",
-            stringify!($S),
-            ":\n",
-            /* record state id */ "mov bl, ",
-            stringify!($id),
-            "\n",
-            /* go to common boundary */ "jmp ",
-            stringify!($P),
-            "_BOUNDARY\n",
+            /* goto next state            */ asmline!("jmp ", s!($P), "_", s!($N)),
         )
     };
 }
 
+#[rustfmt::skip] // keep comment alignment, don't reflow
+macro_rules! tm_dispatch {
+    ( $P:ident, $S:ident, $id:expr ) => {
+        concat!(
+            /* compare BL with state id */ asmline!("cmp bl, ", s!($id)),
+            /* if equal, jump to state */ asmline!("je ", s!($P), "_", s!($S)),
+        )
+    };
+}
+#[rustfmt::skip] // keep comment alignment, don't reflow
+macro_rules! tm_state_block {
+    ( $P:ident, $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
+        concat!(
+            /* state label                 */ asmline!(s!($P), "_", s!($S), ":"),
+            /* consume one step            */ asmline!("dec rcx"),
+            // // cmk00 the credit check is virtually free because of branch prediction
+            /* out of credit?              */ asmline!("jz ", s!($P), "_END"),
+            // // cmk000 end
+            /* load cell                   */ asmline!("mov dl, [rsi]"),
+            // cmk000 The boundary check is virtually free because of branch prediction
+            /* boundary sentinel?          */ asmline!("cmp dl, 2"),
+            /* jump if boundary            */ asmline!("je ", s!($P), "_BOUNDARY_", s!($S)),
+            // cmk000 end
+            /* is cell == 0?               */ asmline!("test dl, dl"),
+            /* branch if 1                 */ asmline!("jnz ", s!($P), "_", s!($S), "_ONE"),
+            /* write on 0-branch           */ asmline!("mov byte ptr [rsi], ", s!($w0)),
+            tm_move!($d0),
+            /* jump to next (0-branch)     */ tm_next!($P, $n0, $id),
+            /* 1-branch label              */ asmline!(s!($P), "_", s!($S), "_ONE:"),
+            /* write on 1-branch           */ asmline!("mov byte ptr [rsi], ", s!($w1)),
+            tm_move!($d1),
+            /* jump to next (1-branch)     */ tm_next!($P, $n1, $id),
+            /* boundary label              */ asmline!(s!($P), "_BOUNDARY_", s!($S), ":"),
+            /* record state id             */ asmline!("mov bl, ", s!($id)),
+            /* go to common boundary       */ asmline!("jmp ", s!($P), "_BOUNDARY"),
+        )
+    };
+}
+
+#[rustfmt::skip] // keep comment alignment, don't reflow
 macro_rules! tm_prog {
     ( $P:ident, ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
         concat!(
-            /* clear status (AL) */ "xor eax, eax\n",
-            /* set heartbeat (credit) in RCX */ "mov rcx, {hb}\n",
+            /* clear status (AL)            */ asmline!("xor eax, eax"),
+            /* set heartbeat (credit) in RCX */ asmline!("mov rcx, {hb}"),
             tm_dispatch!($P, $S0, $id0),
             $( tm_dispatch!($P, $S, $id), )*
-            /* jump to first state */ "jmp ", stringify!($P), "_", stringify!($S0), "\n",
+            /* jump to first state          */ asmline!("jmp ", s!($P), "_", s!($S0)),
             tm_state_block!($P, $S0, $id0, $z0, $o0),
             $( tm_state_block!($P, $S, $id, $z, $o), )*
-            /* common boundary label */ stringify!($P), "_BOUNDARY:\n",
-            /* set status = boundary */ "mov al, 2\n",
-            /* chunk end */ stringify!($P), "_END:\n",
-            /* copy heartbeat to r8 (steps taken temp) */ "mov r8, {hb}\n",
-            /* steps_taken = hb - rcx */ "sub r8, rcx\n",
+            /* common boundary label        */ asmline!(s!($P), "_BOUNDARY:"),
+            /* set status = boundary        */ asmline!("mov al, 2"),
+            /* chunk end                    */ asmline!(s!($P), "_END:"),
+            /* copy heartbeat to r8         */ asmline!("mov r8, {hb}"),
+            /* steps_taken = hb - rcx       */ asmline!("sub r8, rcx"),
         )
     };
 }
