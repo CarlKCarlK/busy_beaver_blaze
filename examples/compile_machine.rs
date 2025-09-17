@@ -129,7 +129,7 @@ macro_rules! tm_prog {
     ( $P:ident, ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
         concat!(
             /* clear status (AL)            */ asmline!("xor eax, eax"),
-            /* set heartbeat (credit) in RCX */ asmline!("mov rcx, {hb}"),
+            /* set heartbeat (credit) in RCX */ asmline!("mov rcx, r9"),
             tm_dispatch!($P, $S0, $id0),
             $( tm_dispatch!($P, $S, $id), )*
             /* jump to first state          */ asmline!("jmp ", s!($P), "_", s!($S0)),
@@ -138,7 +138,7 @@ macro_rules! tm_prog {
             /* common boundary label        */ asmline!(s!($P), "_BOUNDARY:"),
             /* set status = boundary        */ asmline!("mov al, 2"),
             /* chunk end                    */ asmline!(s!($P), "_END:"),
-            /* copy heartbeat to r8         */ asmline!("mov r8, {hb}"),
+            /* copy heartbeat to r8         */ asmline!("mov r8, r9"),
             /* steps_taken = hb - rcx       */ asmline!("sub r8, rcx"),
         )
     };
@@ -307,7 +307,7 @@ impl CompiledMachine {
 
         let mut state_id: u8 = 0;
 
-        type CompiledFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
+        type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> u8;
         let compiled_fn: CompiledFn = match program {
             ProgramSelect::Bb5Champ => bb5_champ_compiled,
             ProgramSelect::Bb6Contender => bb6_contender_compiled,
@@ -319,14 +319,19 @@ impl CompiledMachine {
             assert!(step_count < report_at_step, "real assert");
 
             // Compute the smaller of the two limits first, then subtract once
-            let step_budget = self.max_steps.min(report_at_step) - step_count;
+            let requested_heartbeat = self.max_steps.min(report_at_step) - step_count;
+            let mut step_budget = requested_heartbeat;
 
-            let (new_head, status_code, new_step_budget, new_state_id) =
-                unsafe { compiled_fn(head_pointer, state_id, step_budget) };
-            head_pointer = new_head;
-            state_id = new_state_id;
+            let status_code = unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut step_budget) };
 
-            step_count += new_step_budget;
+            // `step_budget` now holds steps_taken for this heartbeat
+            debug_assert!(
+                step_budget <= requested_heartbeat,
+                "steps_taken {} exceeded heartbeat {}",
+                step_budget,
+                requested_heartbeat
+            );
+            step_count += step_budget;
 
             if step_count >= max_steps {
                 // cmk should this be a result?
@@ -473,19 +478,30 @@ impl CompiledMachine {
         }
     }
 }
-/// Executes up to HEARTBEAT steps starting at `head`.
-/// Returns (new_head, status_code, remaining_steps)
-/// - `status_code`: 0 = ran HEARTBEAT, 1 = halted, 2 = boundary encountered
-/// - remaining_steps: RCX after exit; steps_taken = HEARTBEAT - remaining_steps
+/// Executes up to `*step_budget_in_out` steps starting at `*head_in_out`.
+/// Mutates inputs in place and returns `status_code`:
+/// - `status_code`: 0 = ran heartbeat fully, 1 = halted, 2 = boundary encountered
+/// - `*head_in_out`: updated head pointer
+/// - `*state_id_in_out`: updated state id
+/// - `*step_budget_in_out`: overwritten with steps taken during this heartbeat
+///
+/// Safety: Uses inline assembly and relies on `head_in_out` pointing to a valid
+/// tape cell within an allocation that includes boundary sentinels. The asm
+/// only reads/writes the current cell and moves within the allocation; it also
+/// preserves alignment/stack and does not touch memory beyond the tape.
 unsafe fn bb5_champ_compiled(
-    mut head: *mut u8,
-    mut state_id: u8,
-    heartbeat: u64,
-) -> (*mut u8, u8, u64, u8) {
+    head_in_out: &mut *mut u8,
+    state_id_in_out: &mut u8,
+    step_budget_in_out: &mut u64,
+) -> u8 {
+    let mut head_local: *mut u8 = *head_in_out;
+    let mut state_local: u8 = *state_id_in_out;
+    let heartbeat: u64 = *step_budget_in_out;
     let mut status_code: u8;
     let steps_taken: u64;
     unsafe {
         core::arch::asm!(
+            "mov r9, {hb}",
             tm_prog!(BB5,
                 (A, 0, (1, R, B), (1, L, C)),
                 (B, 1, (1, R, C), (1, R, B)),
@@ -493,30 +509,38 @@ unsafe fn bb5_champ_compiled(
                 (D, 3, (1, L, A), (1, L, D)),
                 (E, 4, (1, R, HALT), (0, L, A)),
             ),
-            inout("rsi") head,                // head pointer in/out
+            inout("rsi") head_local,          // head pointer in/out
             lateout("r8") steps_taken,        // steps taken this heartbeat
             lateout("al") status_code,        // status code in AL
-            inout("bl") state_id,            // state id in/out
+            inout("bl") state_local,          // state id in/out
             out("rdx") _,                     // clobber DL container
             out("rcx") _,                     // clobber: RCX used as loop counter
+            out("r9") _,                      // clobber: R9 holds heartbeat shadow
             hb = in(reg) heartbeat,
             options(nostack)
         );
     };
-    (head, status_code, steps_taken, state_id)
+    *head_in_out = head_local;
+    *state_id_in_out = state_local;
+    *step_budget_in_out = steps_taken;
+    status_code
 }
 
 /// BB6 Contender heartbeat using the macro-generated asm template
 #[allow(clippy::too_many_lines)]
 unsafe fn bb6_contender_compiled(
-    mut head: *mut u8,
-    mut state_id: u8,
-    heartbeat: u64,
-) -> (*mut u8, u8, u64, u8) {
+    head_in_out: &mut *mut u8,
+    state_id_in_out: &mut u8,
+    step_budget_in_out: &mut u64,
+) -> u8 {
+    let mut head_local: *mut u8 = *head_in_out;
+    let mut state_local: u8 = *state_id_in_out;
+    let heartbeat: u64 = *step_budget_in_out;
     let mut status_code: u8;
     let steps_taken: u64;
     unsafe {
         core::arch::asm!(
+            "mov r9, {hb}",
             tm_prog!(BB6,
                 // 0: A 1RB, B 1RC, C 1LC, D 0LE, E 1LF, F 0RC
                 // 1: A 0LD, B 0RF, C 1LA, D 1RH, E 0RB, F 0RE
@@ -527,17 +551,21 @@ unsafe fn bb6_contender_compiled(
                 (E, 4, (1, L, F), (0, R, B)),
                 (F, 5, (0, R, C), (0, R, E)),
             ),
-            inout("rsi") head,
+            inout("rsi") head_local,
             lateout("r8") steps_taken,
             lateout("al") status_code,
-            inout("bl") state_id,
+            inout("bl") state_local,
             out("rdx") _,
             out("rcx") _,
+            out("r9") _,
             hb = in(reg) heartbeat,
             options(nostack)
         );
     };
-    (head, status_code, steps_taken, state_id)
+    *head_in_out = head_local;
+    *state_id_in_out = state_local;
+    *step_budget_in_out = steps_taken;
+    status_code
 }
 
 fn extend_tape_left(
