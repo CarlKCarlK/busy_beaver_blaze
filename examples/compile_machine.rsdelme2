@@ -290,43 +290,35 @@ fn main() {
 
 impl CompiledMachine {
     pub fn run(self) -> Result<Summary, Error> {
-        let min_tape = self.min_tape;
-        let interval = self.interval;
-        let max_tape = self.max_tape;
-        let max_steps = self.max_steps;
-        let program = self.program;
-
-        let mut tape_len = min_tape;
-        let mut tape: Vec<u8> = vec![0; tape_len];
+        let mut tape: Vec<u8> = vec![0; self.min_tape];
         tape[0] = 2;
-        tape[tape_len - 1] = 2;
-        let mut head_pointer = unsafe { tape.as_mut_ptr().add(tape_len >> 1) };
+        let len = tape.len();
+        tape[len - 1] = 2;
+        let mut head_pointer = unsafe { tape.as_mut_ptr().add(len >> 1) };
+        let _ = len;
 
-        let mut report_at_step: u64 = interval.get();
+        let mut report_at_step: u64 = self.interval.get();
         let mut step_count: u64 = 0;
 
         let mut state_id: u8 = 0;
 
         type CompiledFn = unsafe fn(*mut u8, u8, u64) -> (*mut u8, u8, u64, u8);
-        let compiled_fn: CompiledFn = match program {
+        let compiled_fn: CompiledFn = match self.program {
             ProgramSelect::Bb5Champ => bb5_champ_compiled,
             ProgramSelect::Bb6Contender => bb6_contender_compiled,
         };
-
         let start_time: Instant = Instant::now();
+
         loop {
-            assert!(step_count < self.max_steps, "real assert");
-            assert!(step_count < report_at_step, "real assert");
-
-            // Compute the smaller of the two limits first, then subtract once
-            let step_budget = self.max_steps.min(report_at_step) - step_count;
-
+            let hb_to_limit = self.max_steps.saturating_sub(step_count);
+            let hb_to_report = report_at_step.saturating_sub(step_count);
+            let hb_this_chunk: u64 = hb_to_limit.min(hb_to_report).max(1);
             let (new_head, status_code, steps_taken_this_chunk, new_state_id) =
-                unsafe { compiled_fn(head_pointer, state_id, step_budget) };
+                unsafe { compiled_fn(head_pointer, state_id, hb_this_chunk) };
             head_pointer = new_head;
             step_count += steps_taken_this_chunk;
             state_id = new_state_id;
-            if step_count >= max_steps {
+            if step_count >= self.max_steps {
                 // cmk should this be a result?
                 println!(
                     "reached max steps {}; stopping",
@@ -339,17 +331,17 @@ impl CompiledMachine {
                     final_state_id: state_id,
                     run_termination: RunTermination::MaxSteps,
                     elapsed_seconds,
-                    tape_len,
+                    tape_len: tape.len(),
                 });
             }
             if status_code == 0 {
                 if step_count >= report_at_step {
-                    let crossed = (step_count - report_at_step) / interval + 1;
-                    let last = report_at_step + (crossed - 1) * interval.get();
+                    let crossed = (step_count - report_at_step) / self.interval + 1;
+                    let last = report_at_step + (crossed - 1) * self.interval.get();
                     let elapsed = start_time.elapsed().as_secs_f64();
                     let done = last as f64; // Convert last to f64 directly
                     let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-                    let remaining = (max_steps.saturating_sub(last)) as f64;
+                    let remaining = (self.max_steps.saturating_sub(last)) as f64;
                     let eta = if steps_per_sec > 0.0 {
                         remaining / steps_per_sec
                     } else {
@@ -373,7 +365,7 @@ impl CompiledMachine {
                         format_steps_per_sec(steps_per_sec),
                         elapsed
                     );
-                    report_at_step = last.saturating_add(interval.get());
+                    report_at_step = last.saturating_add(self.interval.get());
                 }
                 continue;
             }
@@ -386,20 +378,22 @@ impl CompiledMachine {
                     final_state_id: state_id,
                     run_termination: RunTermination::Halted,
                     elapsed_seconds,
-                    tape_len,
+                    tape_len: tape.len(),
                 });
             }
             let left_sentinel_ptr = tape.as_ptr();
+            let tape_len = tape.len();
             let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
+            let _ = tape_len;
             let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
             let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
             if hit_left {
-                match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
+                match extend_tape_left(&mut tape, self.max_tape) {
                     Some(ptr) => head_pointer = ptr,
                     None => {
                         println!(
                             "reached max memory {} cells; stopping at {} steps",
-                            (max_tape - 2).separate_with_commas(),
+                            (self.max_tape - 2).separate_with_commas(),
                             step_count.separate_with_commas()
                         );
                         let elapsed_seconds = start_time.elapsed().as_secs_f64();
@@ -414,12 +408,12 @@ impl CompiledMachine {
                     }
                 }
             } else if hit_right {
-                match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
+                match extend_tape_right(&mut tape, self.max_tape) {
                     Some(ptr) => head_pointer = ptr,
                     None => {
                         println!(
                             "reached max memory {} cells; stopping at {} steps",
-                            (max_tape - 2).separate_with_commas(),
+                            (self.max_tape - 2).separate_with_commas(),
                             step_count.separate_with_commas()
                         );
                         let elapsed_seconds = start_time.elapsed().as_secs_f64();
@@ -437,12 +431,12 @@ impl CompiledMachine {
                 panic!("unexpected boundary pointer returned from asm");
             }
             if step_count >= report_at_step {
-                let crossed = (step_count - report_at_step) / interval + 1;
-                let last = report_at_step + (crossed - 1) * interval.get();
+                let crossed = (step_count - report_at_step) / self.interval + 1;
+                let last = report_at_step + (crossed - 1) * self.interval.get();
                 let elapsed = start_time.elapsed().as_secs_f64();
                 let done = step_count as f64;
                 let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-                let remaining = (max_steps.saturating_sub(step_count)) as f64;
+                let remaining = (self.max_steps.saturating_sub(step_count)) as f64;
                 let eta = if steps_per_sec > 0.0 {
                     remaining / steps_per_sec
                 } else {
@@ -466,7 +460,7 @@ impl CompiledMachine {
                     format_steps_per_sec(steps_per_sec),
                     elapsed
                 );
-                report_at_step = last.saturating_add(interval.get());
+                report_at_step = last.saturating_add(self.interval.get());
             }
         }
     }
@@ -538,12 +532,8 @@ unsafe fn bb6_contender_compiled(
     (head, status_code, steps_taken, state_id)
 }
 
-fn extend_tape_left(
-    tape: &mut Vec<u8>,
-    total_len: &mut usize,
-    max_total: usize,
-) -> Option<*mut u8> {
-    let old_total = *total_len;
+fn extend_tape_left(tape: &mut Vec<u8>, max_total: usize) -> Option<*mut u8> {
+    let old_total = tape.len();
     let old_interior = old_total.saturating_sub(2);
     let growth = old_interior.max(1);
     let new_total = old_total + growth;
@@ -558,7 +548,6 @@ fn extend_tape_left(
     let dst_end = dst_start + old_interior;
     new_tape[dst_start..dst_end].copy_from_slice(&tape[1..(old_total - 1)]);
     *tape = new_tape;
-    *total_len = new_total;
     println!(
         "tape grown LEFT to {} cells",
         (new_total - 2).separate_with_commas()
@@ -567,12 +556,8 @@ fn extend_tape_left(
     Some(unsafe { tape.as_mut_ptr().add(growth) })
 }
 
-fn extend_tape_right(
-    tape: &mut Vec<u8>,
-    total_len: &mut usize,
-    max_total: usize,
-) -> Option<*mut u8> {
-    let old_total = *total_len;
+fn extend_tape_right(tape: &mut Vec<u8>, max_total: usize) -> Option<*mut u8> {
+    let old_total = tape.len();
     let old_interior = old_total.saturating_sub(2);
     let growth = old_interior.max(1);
     let new_total = old_total + growth;
@@ -585,7 +570,6 @@ fn extend_tape_right(
     // Copy old interior at the same offset.
     new_tape[1..(1 + old_interior)].copy_from_slice(&tape[1..(old_total - 1)]);
     *tape = new_tape;
-    *total_len = new_total;
     println!(
         "tape grown RIGHT to {} cells",
         (new_total - 2).separate_with_commas()
