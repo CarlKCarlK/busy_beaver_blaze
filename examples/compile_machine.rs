@@ -321,11 +321,13 @@ impl CompiledMachine {
             // Compute the smaller of the two limits first, then subtract once
             let step_budget = self.max_steps.min(report_at_step) - step_count;
 
-            let (new_head, status_code, steps_taken_this_chunk, new_state_id) =
+            let (new_head, status_code, new_step_budget, new_state_id) =
                 unsafe { compiled_fn(head_pointer, state_id, step_budget) };
             head_pointer = new_head;
-            step_count += steps_taken_this_chunk;
             state_id = new_state_id;
+
+            step_count += new_step_budget;
+
             if step_count >= max_steps {
                 // cmk should this be a result?
                 println!(
