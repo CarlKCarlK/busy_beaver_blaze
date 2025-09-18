@@ -328,12 +328,10 @@ impl CompiledMachine {
             assert!(step_count < max_steps, "real assert");
             assert!(step_count < report_at_step, "real assert");
 
-            // Compute the smaller of the two limits first, then subtract once
             let mut steps_delta = self.max_steps.min(report_at_step) - step_count;
-
             let status = unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut steps_delta) };
-
             step_count += steps_delta; // add actual steps taken
+
             match status {
                 CompiledStatus::OkChunk => {
                     assert!(step_count <= max_steps, "real assert");

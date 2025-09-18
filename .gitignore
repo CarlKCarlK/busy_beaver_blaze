@@ -6,3 +6,4 @@ src/busy_beaver_blaze.egg-info/*
 /target-nightly
 examples/delme.rs
 examples/compile_machine.rsdelme
+ignore.c
