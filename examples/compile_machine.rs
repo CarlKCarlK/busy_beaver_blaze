@@ -196,8 +196,9 @@ pub enum Status {
     Boundary,
 }
 
-// Compiled function type: three &mut inout params, returns status enum
-type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> Status;
+// Compiled function type: head/state inout, step_limit absolute threshold, step_count inout.
+// The compiled function must add the steps it executed to step_count and return status.
+type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, u64, &mut u64) -> Status;
 
 #[derive(Debug, Clone)]
 pub struct CompiledMachine {
@@ -320,12 +321,14 @@ impl CompiledMachine {
             assert!(step_count < self.max_steps, "real assert");
             assert!(step_count < report_at_step, "real assert");
 
-            let mut steps_delta = self.max_steps.min(report_at_step) - step_count;
-            let status =
-                unsafe { (self.compiled_fn)(&mut head_pointer, &mut state_id, &mut steps_delta) };
-            step_count += steps_delta;
-
-            match status {
+            match unsafe {
+                (self.compiled_fn)(
+                    &mut head_pointer,
+                    &mut state_id,
+                    self.max_steps.min(report_at_step),
+                    &mut step_count,
+                )
+            } {
                 Status::OkChunk => {
                     if let Some(summary) = self.on_ok_chunk(
                         step_count,
@@ -547,11 +550,13 @@ impl CompiledMachine {
 unsafe fn bb5_champ_compiled(
     head_in_out: &mut *mut u8,
     state_id_in_out: &mut u8,
-    step_budget_in_out: &mut u64,
+    step_limit: u64,
+    step_count_in_out: &mut u64,
 ) -> Status {
     let mut head_local: *mut u8 = *head_in_out;
     let mut state_local: u8 = *state_id_in_out;
-    let heartbeat: u64 = *step_budget_in_out;
+    assert!(step_limit > *step_count_in_out);
+    let heartbeat: u64 = step_limit - *step_count_in_out;
     let mut status_code: u8;
     let mut steps_taken_local: u64;
     unsafe {
@@ -577,7 +582,7 @@ unsafe fn bb5_champ_compiled(
     };
     *head_in_out = head_local;
     *state_id_in_out = state_local;
-    *step_budget_in_out = steps_taken_local;
+    *step_count_in_out += steps_taken_local;
     match status_code {
         0 => Status::OkChunk,
         1 => Status::Halted,
@@ -591,11 +596,13 @@ unsafe fn bb5_champ_compiled(
 unsafe fn bb6_contender_compiled(
     head_in_out: &mut *mut u8,
     state_id_in_out: &mut u8,
-    step_budget_in_out: &mut u64,
+    step_limit: u64,
+    step_count_in_out: &mut u64,
 ) -> Status {
     let mut head_local: *mut u8 = *head_in_out;
     let mut state_local: u8 = *state_id_in_out;
-    let heartbeat: u64 = *step_budget_in_out;
+    assert!(step_limit > *step_count_in_out);
+    let heartbeat: u64 = step_limit - *step_count_in_out;
     let mut status_code: u8;
     let mut steps_taken_local: u64;
     unsafe {
@@ -624,7 +631,7 @@ unsafe fn bb6_contender_compiled(
     };
     *head_in_out = head_local;
     *state_id_in_out = state_local;
-    *step_budget_in_out = steps_taken_local;
+    *step_count_in_out += steps_taken_local;
     match status_code {
         0 => Status::OkChunk,
         1 => Status::Halted,
