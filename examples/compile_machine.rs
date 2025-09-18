@@ -189,8 +189,15 @@ pub enum ProgramSelect {
     Bb6Contender,
 }
 
-// Compiled function type: three &mut inout params, returns status code
-type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> u8;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompiledStatus {
+    OkChunk,
+    Halted,
+    Boundary,
+}
+
+// Compiled function type: three &mut inout params, returns status enum
+type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> CompiledStatus;
 
 #[derive(Debug, Clone)]
 pub struct CompiledMachine {
@@ -324,7 +331,7 @@ impl CompiledMachine {
             // Compute the smaller of the two limits first, then subtract once
             let mut steps_delta = self.max_steps.min(report_at_step) - step_count;
 
-            let status_code =
+            let status =
                 unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut steps_delta) };
 
             step_count += steps_delta; // add actual steps taken
@@ -347,99 +354,95 @@ impl CompiledMachine {
                     tape_len,
                 });
             }
-            if status_code == 0 {
-                if step_count >= report_at_step {
-                    let crossed = (step_count - report_at_step) / interval + 1;
-                    let last = report_at_step + (crossed - 1) * interval.get();
-                    let elapsed = start_time.elapsed().as_secs_f64();
-                    let done = last as f64; // Convert last to f64 directly
-                    let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-                    let remaining = (max_steps.saturating_sub(last)) as f64;
-                    let eta = if steps_per_sec > 0.0 {
-                        remaining / steps_per_sec
-                    } else {
-                        f64::INFINITY
-                    };
-                    let total = if eta.is_finite() {
-                        format_duration(elapsed + eta)
-                    } else {
-                        String::from("--:--:--")
-                    };
-                    println!(
-                        "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
-                        last.separate_with_commas(),
-                        total,
-                        eta,
-                        elapsed
-                    );
-                    println!(
-                        "{} steps ({} steps/s, elapsed {:.3} s)",
-                        last.separate_with_commas(),
-                        format_steps_per_sec(steps_per_sec),
-                        elapsed
-                    );
-                    report_at_step = last.saturating_add(interval.get());
-                }
-                continue;
-            }
-            if status_code == 1 {
-                println!("halted after {} steps", step_count.separate_with_commas());
-                let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                println!("{:.3} s", elapsed_seconds);
-                return Ok(Summary {
-                    step_count,
-                    final_state_id: state_id,
-                    run_termination: RunTermination::Halted,
-                    elapsed_seconds,
-                    tape_len,
-                });
-            }
-            let left_sentinel_ptr = tape.as_ptr();
-            let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
-            let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
-            let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
-            if hit_left {
-                match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
-                    Some(ptr) => head_pointer = ptr,
-                    None => {
+            match status {
+                CompiledStatus::OkChunk => {
+                    if step_count >= report_at_step {
+                        let crossed = (step_count - report_at_step) / interval + 1;
+                        let last = report_at_step + (crossed - 1) * interval.get();
+                        let elapsed = start_time.elapsed().as_secs_f64();
+                        let done = last as f64; // Convert last to f64 directly
+                        let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
+                        let remaining = (max_steps.saturating_sub(last)) as f64;
+                        let eta = if steps_per_sec > 0.0 { remaining / steps_per_sec } else { f64::INFINITY };
+                        let total = if eta.is_finite() { format_duration(elapsed + eta) } else { String::from("--:--:--") };
                         println!(
-                            "reached max memory {} cells; stopping at {} steps",
-                            (max_tape - 2).separate_with_commas(),
-                            step_count.separate_with_commas()
+                            "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
+                            last.separate_with_commas(),
+                            total,
+                            eta,
+                            elapsed
                         );
-                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                        println!("{:.3} s", elapsed_seconds);
-                        return Ok(Summary {
-                            step_count,
-                            final_state_id: state_id,
-                            run_termination: RunTermination::MaxMemoryLeft,
-                            elapsed_seconds,
-                            tape_len,
-                        });
+                        println!(
+                            "{} steps ({} steps/s, elapsed {:.3} s)",
+                            last.separate_with_commas(),
+                            format_steps_per_sec(steps_per_sec),
+                            elapsed
+                        );
+                        report_at_step = last.saturating_add(interval.get());
+                    }
+                    continue;
+                }
+                CompiledStatus::Halted => {
+                    println!("halted after {} steps", step_count.separate_with_commas());
+                    let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                    println!("{:.3} s", elapsed_seconds);
+                    return Ok(Summary {
+                        step_count,
+                        final_state_id: state_id,
+                        run_termination: RunTermination::Halted,
+                        elapsed_seconds,
+                        tape_len,
+                    });
+                }
+                CompiledStatus::Boundary => {
+                    let left_sentinel_ptr = tape.as_ptr();
+                    let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
+                    let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
+                    let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
+                    if hit_left {
+                        match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
+                            Some(ptr) => head_pointer = ptr,
+                            None => {
+                                println!(
+                                    "reached max memory {} cells; stopping at {} steps",
+                                    (max_tape - 2).separate_with_commas(),
+                                    step_count.separate_with_commas()
+                                );
+                                let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                                println!("{:.3} s", elapsed_seconds);
+                                return Ok(Summary {
+                                    step_count,
+                                    final_state_id: state_id,
+                                    run_termination: RunTermination::MaxMemoryLeft,
+                                    elapsed_seconds,
+                                    tape_len,
+                                });
+                            }
+                        }
+                    } else if hit_right {
+                        match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
+                            Some(ptr) => head_pointer = ptr,
+                            None => {
+                                println!(
+                                    "reached max memory {} cells; stopping at {} steps",
+                                    (max_tape - 2).separate_with_commas(),
+                                    step_count.separate_with_commas()
+                                );
+                                let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                                println!("{:.3} s", elapsed_seconds);
+                                return Ok(Summary {
+                                    step_count,
+                                    final_state_id: state_id,
+                                    run_termination: RunTermination::MaxMemoryRight,
+                                    elapsed_seconds,
+                                    tape_len,
+                                });
+                            }
+                        }
+                    } else {
+                        panic!("unexpected boundary pointer returned from asm");
                     }
                 }
-            } else if hit_right {
-                match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
-                    Some(ptr) => head_pointer = ptr,
-                    None => {
-                        println!(
-                            "reached max memory {} cells; stopping at {} steps",
-                            (max_tape - 2).separate_with_commas(),
-                            step_count.separate_with_commas()
-                        );
-                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                        println!("{:.3} s", elapsed_seconds);
-                        return Ok(Summary {
-                            step_count,
-                            final_state_id: state_id,
-                            run_termination: RunTermination::MaxMemoryRight,
-                            elapsed_seconds,
-                            tape_len,
-                        });
-                    }
-                }
-            } else {
-                panic!("unexpected boundary pointer returned from asm");
             }
             if step_count >= report_at_step {
                 let crossed = (step_count - report_at_step) / interval + 1;
@@ -491,7 +494,7 @@ unsafe fn bb5_champ_compiled(
     head_in_out: &mut *mut u8,
     state_id_in_out: &mut u8,
     step_budget_in_out: &mut u64,
-) -> u8 {
+) -> CompiledStatus {
     let mut head_local: *mut u8 = *head_in_out;
     let mut state_local: u8 = *state_id_in_out;
     let heartbeat: u64 = *step_budget_in_out;
@@ -521,7 +524,12 @@ unsafe fn bb5_champ_compiled(
     *head_in_out = head_local;
     *state_id_in_out = state_local;
     *step_budget_in_out = steps_taken;
-    status_code
+    match status_code {
+        0 => CompiledStatus::OkChunk,
+        1 => CompiledStatus::Halted,
+        2 => CompiledStatus::Boundary,
+        other => panic!("unexpected status code from asm: {other}"),
+    }
 }
 
 /// BB6 Contender heartbeat using the macro-generated asm template
@@ -530,7 +538,7 @@ unsafe fn bb6_contender_compiled(
     head_in_out: &mut *mut u8,
     state_id_in_out: &mut u8,
     step_budget_in_out: &mut u64,
-) -> u8 {
+) -> CompiledStatus {
     let mut head_local: *mut u8 = *head_in_out;
     let mut state_local: u8 = *state_id_in_out;
     let heartbeat: u64 = *step_budget_in_out;
@@ -563,7 +571,12 @@ unsafe fn bb6_contender_compiled(
     *head_in_out = head_local;
     *state_id_in_out = state_local;
     *step_budget_in_out = steps_taken;
-    status_code
+    match status_code {
+        0 => CompiledStatus::OkChunk,
+        1 => CompiledStatus::Halted,
+        2 => CompiledStatus::Boundary,
+        other => panic!("unexpected status code from asm: {other}"),
+    }
 }
 
 fn extend_tape_left(
