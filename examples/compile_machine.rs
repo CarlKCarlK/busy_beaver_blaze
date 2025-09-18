@@ -238,7 +238,13 @@ impl CompiledMachine {
             ProgramSelect::Bb6Contender => bb6_contender_compiled,
         };
 
-        Ok(Self { min_tape, interval, max_tape, max_steps, compiled_fn })
+        Ok(Self {
+            min_tape,
+            interval,
+            max_tape,
+            max_steps,
+            compiled_fn,
+        })
     }
 }
 
@@ -292,11 +298,13 @@ fn main() {
 
 impl CompiledMachine {
     pub fn run(self) -> Result<Summary, Error> {
-        let min_tape = self.min_tape;
-        let interval = self.interval;
-        let max_tape = self.max_tape;
-        let max_steps = self.max_steps;
-        let compiled_fn = self.compiled_fn;
+        let Self {
+            min_tape,
+            interval,
+            max_tape,
+            max_steps,
+            compiled_fn,
+        } = self;
 
         let mut tape_len = min_tape;
         let mut tape: Vec<u8> = vec![0; tape_len];
@@ -306,10 +314,7 @@ impl CompiledMachine {
 
         let mut report_at_step: u64 = interval.get();
         let mut step_count: u64 = 0;
-
         let mut state_id: u8 = 0;
-
-        // compiled_fn selected during construction
 
         let start_time: Instant = Instant::now();
         loop {
@@ -317,21 +322,16 @@ impl CompiledMachine {
             assert!(step_count < report_at_step, "real assert");
 
             // Compute the smaller of the two limits first, then subtract once
-            let requested_heartbeat = self.max_steps.min(report_at_step) - step_count;
-            let mut step_budget = requested_heartbeat;
+            let mut steps_delta = self.max_steps.min(report_at_step) - step_count;
 
-            let status_code = unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut step_budget) };
+            let status_code =
+                unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut steps_delta) };
 
-            // `step_budget` now holds steps_taken for this heartbeat
-            debug_assert!(
-                step_budget <= requested_heartbeat,
-                "steps_taken {} exceeded heartbeat {}",
-                step_budget,
-                requested_heartbeat
-            );
-            step_count += step_budget;
+            step_count += steps_delta; // add actual steps taken
 
-            if step_count >= max_steps {
+            assert!(step_count <= self.max_steps, "real assert");
+
+            if step_count == max_steps {
                 // cmk should this be a result?
                 println!(
                     "reached max steps {}; stopping",
@@ -637,7 +637,10 @@ mod tests {
         };
         let compiled_machine: CompiledMachine = args.try_into().expect("conversion should succeed");
         // Verify constructor selected the correct compiled function
-        assert_eq!(compiled_machine.compiled_fn as usize, bb6_contender_compiled as usize);
+        assert_eq!(
+            compiled_machine.compiled_fn as usize,
+            bb6_contender_compiled as usize
+        );
         assert_eq!(compiled_machine.interval.get(), 42);
         assert_eq!(compiled_machine.max_steps, 7);
         assert_eq!(compiled_machine.min_tape, 128);
