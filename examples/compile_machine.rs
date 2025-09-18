@@ -71,6 +71,7 @@ macro_rules! tm_next {
     // HALT case
     ($P:ident, HALT, $id:expr) => {
         concat!(
+            /* consume one step           */ asmline!("dec r10"),
             /* set status = halt          */ asmline!("mov al, 1"),
             /* record current state id    */ asmline!("mov bl, ", s!($id)),
             /* jump to end label          */ asmline!("jmp ", s!($P), "_END"),
@@ -80,6 +81,8 @@ macro_rules! tm_next {
     // goto next state
     ($P:ident, $N:ident, $id:expr) => {
         concat!(
+            /* consume one step           */ asmline!("dec r10"),
+            /* out of credit?             */ asmline!("jz ", s!($P), "_END"),
             /* goto next state            */ asmline!("jmp ", s!($P), "_", s!($N)),
         )
     };
@@ -99,10 +102,7 @@ macro_rules! tm_state_block {
     ( $P:ident, $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
         concat!(
             /* state label                 */ asmline!(s!($P), "_", s!($S), ":"),
-            /* consume one step            */ asmline!("dec rcx"),
-            // // cmk00 the credit check is virtually free because of branch prediction
-            /* out of credit?              */ asmline!("jz ", s!($P), "_END"),
-            // // cmk000 end
+            /* persist current state id    */ asmline!("mov bl, ", s!($id)),
             /* load cell                   */ asmline!("mov dl, [rsi]"),
             // cmk000 The boundary check is virtually free because of branch prediction
             /* boundary sentinel?          */ asmline!("cmp dl, 2"),
@@ -129,7 +129,7 @@ macro_rules! tm_prog {
     ( $P:ident, ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
         concat!(
             /* clear status (AL)            */ asmline!("xor eax, eax"),
-            /* set heartbeat (credit) in RCX */ asmline!("mov rcx, r9"),
+            /* set heartbeat (credit) in R10 */ asmline!("mov r10, r9"),
             tm_dispatch!($P, $S0, $id0),
             $( tm_dispatch!($P, $S, $id), )*
             /* jump to first state          */ asmline!("jmp ", s!($P), "_", s!($S0)),
@@ -139,7 +139,7 @@ macro_rules! tm_prog {
             /* set status = boundary        */ asmline!("mov al, 2"),
             /* chunk end                    */ asmline!(s!($P), "_END:"),
             /* copy heartbeat to r8         */ asmline!("mov r8, r9"),
-            /* steps_taken = hb - rcx       */ asmline!("sub r8, rcx"),
+            /* steps_taken = hb - r10       */ asmline!("sub r8, r10"),
         )
     };
 }
@@ -472,7 +472,7 @@ unsafe fn bb5_champ_compiled(
             lateout("al") status_code,        // status code in AL
             inout("bl") state_local,          // state id in/out
             out("rdx") _,                     // clobber DL container
-            out("rcx") _,                     // clobber: RCX used as loop counter
+            out("r10") _,                    // clobber: R10 used as heartbeat counter
             out("r9") _,                      // clobber: R9 holds heartbeat shadow
             hb = in(reg) heartbeat,
             options(nostack)
@@ -480,16 +480,6 @@ unsafe fn bb5_champ_compiled(
     };
     *head_in_out = head_local;
     *state_id_in_out = state_local;
-    // If boundary was encountered, one credit was consumed prior to detecting
-    // the boundary (RCX was decremented). That transition didn't commit, so
-    // roll back exactly one step. This must be > 0 when boundary is reported.
-    if status_code == 2 {
-        assert!(
-            steps_taken_local > 0,
-            "boundary reported with zero steps taken"
-        );
-        steps_taken_local -= 1;
-    }
     *step_budget_in_out = steps_taken_local;
     match status_code {
         0 => CompiledStatus::OkChunk,
@@ -527,8 +517,8 @@ fn maybe_report(
         println!(
             "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
             last.separate_with_commas(),
-            total,
             eta,
+            total,
             elapsed
         );
         println!(
@@ -571,7 +561,7 @@ unsafe fn bb6_contender_compiled(
             lateout("al") status_code,
             inout("bl") state_local,
             out("rdx") _,
-            out("rcx") _,
+            out("r10") _,
             out("r9") _,
             hb = in(reg) heartbeat,
             options(nostack)
@@ -579,13 +569,6 @@ unsafe fn bb6_contender_compiled(
     };
     *head_in_out = head_local;
     *state_id_in_out = state_local;
-    if status_code == 2 {
-        assert!(
-            steps_taken_local > 0,
-            "boundary reported with zero steps taken"
-        );
-        steps_taken_local -= 1;
-    }
     *step_budget_in_out = steps_taken_local;
     match status_code {
         0 => CompiledStatus::OkChunk,
@@ -745,7 +728,6 @@ mod tests {
     // and asserts the known halting step count for Bb5Champ. It is long-running
     // in debug mode, so we only run it in release builds.
     #[test]
-    #[cfg_attr(debug_assertions, ignore = "slow: requires --release; ~47M steps")]
     fn bb5_champ_halts_at_47_million_steps() {
         let compiled_machine: CompiledMachine = Args {
             program: ProgramSelect::Bb5Champ,
@@ -759,6 +741,48 @@ mod tests {
 
         let summary = compiled_machine.run().expect("run should succeed");
         assert_eq!(summary.run_termination, RunTermination::Halted);
-        assert_eq!(summary.step_count, 47_000_000);
+        assert_eq!(summary.step_count, 47_176_870);
+    }
+
+    #[test]
+    fn bb5_compiled_does_not_halt_early() {
+        // Reproduce the bug where resuming at chunk boundaries jumps to a wrong state
+        // and halts around ~10,003,798 steps. With the fix, this run should not halt
+        // and instead stop at the max_steps limit.
+        let compiled_machine: CompiledMachine = Args {
+            program: ProgramSelect::Bb5Champ,
+            interval: 10_000_000,
+            max_steps: 20_000_000,
+            min_tape: 2_097_152,
+            max_tape: 16_777_216,
+        }
+        .try_into()
+        .expect("conversion should succeed");
+
+        let summary = compiled_machine.run().expect("run should succeed");
+        assert_eq!(summary.run_termination, RunTermination::MaxSteps);
+        assert_eq!(summary.step_count, 20_000_000);
+        // Should still be in a valid state id (0..=4) for BB5
+        assert!(summary.final_state_id <= 4);
+    }
+
+    #[test]
+    fn bb5_compiled_runs_to_halt_with_10m_reports() {
+        // Ensure the compiled runner reaches the true BB5 halt step
+        // while still emitting periodic messages every 10 million.
+        let compiled_machine: CompiledMachine = Args {
+            program: ProgramSelect::Bb5Champ,
+            interval: 10_000_000,
+            max_steps: u64::MAX,
+            min_tape: 2_097_152,
+            max_tape: 16_777_216,
+        }
+        .try_into()
+        .expect("conversion should succeed");
+
+        let summary = compiled_machine.run().expect("run should succeed");
+        assert_eq!(summary.run_termination, RunTermination::Halted);
+        assert_eq!(summary.step_count, 47_176_870);
+        assert!(summary.final_state_id <= 4);
     }
 }
