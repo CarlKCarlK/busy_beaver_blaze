@@ -331,20 +331,13 @@ impl CompiledMachine {
             // Compute the smaller of the two limits first, then subtract once
             let mut steps_delta = self.max_steps.min(report_at_step) - step_count;
 
-            let status =
-                unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut steps_delta) };
-
-            // Boundary is detected at the start of a step after RCX was
-            // already decremented in the asm prologue. Roll that credit back
-            // so step_count reflects completed transitions.
-            if matches!(status, CompiledStatus::Boundary) && steps_delta > 0 {
-                steps_delta -= 1;
-            }
+            let status = unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut steps_delta) };
 
             step_count += steps_delta; // add actual steps taken
             match status {
                 CompiledStatus::OkChunk => {
-                    if step_count >= max_steps {
+                    assert!(step_count <= self.max_steps, "real assert");
+                    if step_count == max_steps {
                         println!(
                             "reached max steps {}; stopping",
                             step_count.separate_with_commas()
@@ -360,7 +353,13 @@ impl CompiledMachine {
                         });
                     }
                     // Advance reporting window if crossed, then continue.
-                    maybe_report(step_count, &mut report_at_step, interval, max_steps, &start_time);
+                    maybe_report(
+                        step_count,
+                        &mut report_at_step,
+                        interval,
+                        max_steps,
+                        &start_time,
+                    );
                     continue;
                 }
                 CompiledStatus::Halted => {
@@ -440,7 +439,13 @@ impl CompiledMachine {
                     }
                 }
             }
-            maybe_report(step_count, &mut report_at_step, interval, max_steps, &start_time);
+            maybe_report(
+                step_count,
+                &mut report_at_step,
+                interval,
+                max_steps,
+                &start_time,
+            );
         }
     }
 }
@@ -464,7 +469,7 @@ unsafe fn bb5_champ_compiled(
     let mut state_local: u8 = *state_id_in_out;
     let heartbeat: u64 = *step_budget_in_out;
     let mut status_code: u8;
-    let steps_taken: u64;
+    let mut steps_taken_local: u64;
     unsafe {
         core::arch::asm!(
             "mov r9, {hb}",
@@ -476,7 +481,7 @@ unsafe fn bb5_champ_compiled(
                 (E, 4, (1, R, HALT), (0, L, A)),
             ),
             inout("rsi") head_local,          // head pointer in/out
-            lateout("r8") steps_taken,        // steps taken this heartbeat
+            lateout("r8") steps_taken_local,  // steps taken this heartbeat
             lateout("al") status_code,        // status code in AL
             inout("bl") state_local,          // state id in/out
             out("rdx") _,                     // clobber DL container
@@ -488,7 +493,17 @@ unsafe fn bb5_champ_compiled(
     };
     *head_in_out = head_local;
     *state_id_in_out = state_local;
-    *step_budget_in_out = steps_taken;
+    // If boundary was encountered, one credit was consumed prior to detecting
+    // the boundary (RCX was decremented). That transition didn't commit, so
+    // roll back exactly one step. This must be > 0 when boundary is reported.
+    if status_code == 2 {
+        assert!(
+            steps_taken_local > 0,
+            "boundary reported with zero steps taken"
+        );
+        steps_taken_local -= 1;
+    }
+    *step_budget_in_out = steps_taken_local;
     match status_code {
         0 => CompiledStatus::OkChunk,
         1 => CompiledStatus::Halted,
@@ -548,7 +563,7 @@ unsafe fn bb6_contender_compiled(
     let mut state_local: u8 = *state_id_in_out;
     let heartbeat: u64 = *step_budget_in_out;
     let mut status_code: u8;
-    let steps_taken: u64;
+    let mut steps_taken_local: u64;
     unsafe {
         core::arch::asm!(
             "mov r9, {hb}",
@@ -563,7 +578,7 @@ unsafe fn bb6_contender_compiled(
                 (F, 5, (0, R, C), (0, R, E)),
             ),
             inout("rsi") head_local,
-            lateout("r8") steps_taken,
+            lateout("r8") steps_taken_local,
             lateout("al") status_code,
             inout("bl") state_local,
             out("rdx") _,
@@ -575,7 +590,14 @@ unsafe fn bb6_contender_compiled(
     };
     *head_in_out = head_local;
     *state_id_in_out = state_local;
-    *step_budget_in_out = steps_taken;
+    if status_code == 2 {
+        assert!(
+            steps_taken_local > 0,
+            "boundary reported with zero steps taken"
+        );
+        steps_taken_local -= 1;
+    }
+    *step_budget_in_out = steps_taken_local;
     match status_code {
         0 => CompiledStatus::OkChunk,
         1 => CompiledStatus::Halted,
