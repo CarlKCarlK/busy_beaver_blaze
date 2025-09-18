@@ -278,7 +278,7 @@ pub struct Summary {
     pub step_count: u64,
     pub final_state_id: u8,
     pub run_termination: RunTermination,
-    pub elapsed_seconds: f64,
+    pub elapsed_secs: f64,
     pub tape_len: usize,
 }
 
@@ -335,72 +335,60 @@ impl CompiledMachine {
             match status {
                 CompiledStatus::OkChunk => {
                     assert!(step_count <= max_steps, "real assert");
+
+                    let elapsed_secs = start_time.elapsed().as_secs_f64();
                     if step_count == max_steps {
                         println!(
                             "reached max steps {}; stopping",
                             step_count.separate_with_commas()
                         );
-                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                        println!("{:.3} s", elapsed_seconds);
+                        println!("{:.3} s", elapsed_secs);
                         return Ok(Summary {
                             step_count,
                             final_state_id: state_id,
                             run_termination: RunTermination::MaxSteps,
-                            elapsed_seconds,
+                            elapsed_secs,
                             tape_len,
                         });
                     }
-                    // Report exactly at the threshold and schedule the next.
                     assert!(step_count == report_at_step, "real assert");
-                    let elapsed = start_time.elapsed().as_secs_f64();
-                    let done = step_count as f64;
-                    let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-                    let remaining = (max_steps.saturating_sub(step_count)) as f64;
-                    let eta = if steps_per_sec > 0.0 {
-                        remaining / steps_per_sec
+                    let (steps_per_sec, eta, total) = if elapsed_secs > 0.0 {
+                        let steps_per_sec = (step_count as f64) / elapsed_secs;
+                        let eta = ((max_steps - step_count) as f64) / steps_per_sec;
+                        let total = format_duration(elapsed_secs + eta);
+                        (steps_per_sec, eta, total)
                     } else {
-                        f64::INFINITY
-                    };
-                    let total = if eta.is_finite() {
-                        format_duration(elapsed + eta)
-                    } else {
-                        String::from("--:--:--")
+                        (0.0, f64::INFINITY, String::from("--:--:--"))
                     };
                     println!(
-                        "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
-                        step_count.separate_with_commas(),
-                        eta,
-                        total,
-                        elapsed
-                    );
-                    println!(
-                        "{} steps ({} steps/s, elapsed {:.3} s)",
+                        "{} steps ({} steps/s, ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
                         step_count.separate_with_commas(),
                         format_steps_per_sec(steps_per_sec),
-                        elapsed
+                        eta,
+                        total,
+                        elapsed_secs
                     );
-                    report_at_step = report_at_step.saturating_add(interval.get());
+                    assert!(report_at_step <= u64::MAX - interval.get());
+                    report_at_step += interval.get();
                 }
                 CompiledStatus::Halted => {
                     println!("halted after {} steps", step_count.separate_with_commas());
-                    let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                    println!("{:.3} s", elapsed_seconds);
+                    let elapsed_secs = start_time.elapsed().as_secs_f64();
+                    println!("{:.3} s", elapsed_secs);
                     return Ok(Summary {
                         step_count,
                         final_state_id: state_id,
                         run_termination: RunTermination::Halted,
-                        elapsed_seconds,
+                        elapsed_secs,
                         tape_len,
                     });
                 }
                 CompiledStatus::Boundary => {
                     assert!(step_count < max_steps, "real assert");
+                    assert!(tape_len >= 3, "real assert");
 
-                    let left_sentinel_ptr = tape.as_ptr();
-                    let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
-                    let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
-                    let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
-                    if hit_left {
+                    // must be left hit xor right hit
+                    if head_pointer.cast_const() == tape.as_ptr() {
                         match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
                             Some(ptr) => head_pointer = ptr,
                             None => {
@@ -409,18 +397,22 @@ impl CompiledMachine {
                                     (max_tape - 2).separate_with_commas(),
                                     step_count.separate_with_commas()
                                 );
-                                let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                                println!("{:.3} s", elapsed_seconds);
+                                let elapsed_secs = start_time.elapsed().as_secs_f64();
+                                println!("{:.3} s", elapsed_secs);
                                 return Ok(Summary {
                                     step_count,
                                     final_state_id: state_id,
                                     run_termination: RunTermination::MaxMemoryLeft,
-                                    elapsed_seconds,
+                                    elapsed_secs,
                                     tape_len,
                                 });
                             }
                         }
-                    } else if hit_right {
+                    } else {
+                        assert!(
+                            head_pointer.cast_const() == unsafe { tape.as_ptr().add(tape_len - 1) },
+                            "real assert"
+                        );
                         match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
                             Some(ptr) => head_pointer = ptr,
                             None => {
@@ -429,19 +421,17 @@ impl CompiledMachine {
                                     (max_tape - 2).separate_with_commas(),
                                     step_count.separate_with_commas()
                                 );
-                                let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                                println!("{:.3} s", elapsed_seconds);
+                                let elapsed_secs = start_time.elapsed().as_secs_f64();
+                                println!("{:.3} s", elapsed_secs);
                                 return Ok(Summary {
                                     step_count,
                                     final_state_id: state_id,
                                     run_termination: RunTermination::MaxMemoryRight,
-                                    elapsed_seconds,
+                                    elapsed_secs,
                                     tape_len,
                                 });
                             }
                         }
-                    } else {
-                        panic!("unexpected boundary pointer returned from asm");
                     }
                 }
             }
@@ -690,7 +680,7 @@ mod tests {
         assert_eq!(summary.step_count, 1_000);
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
         assert!(summary.final_state_id <= 4);
-        assert!(summary.elapsed_seconds >= 0.0);
+        assert!(summary.elapsed_secs >= 0.0);
         assert!(summary.tape_len >= 3);
     }
 
