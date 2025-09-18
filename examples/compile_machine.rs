@@ -16,6 +16,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+const SENTINEL: u8 = 255;
+
 fn format_steps_per_sec(steps_per_sec: f64) -> String {
     let value = if steps_per_sec.is_finite() {
         steps_per_sec.max(0.0).round() as u64
@@ -115,7 +117,7 @@ macro_rules! tm_state_block {
             /* persist current state id    */ asmline!("mov bl, ", s!($id)),
             /* load cell                   */ asmline!("mov dl, [rsi]"),
             // cmk000 The boundary check is virtually free because of branch prediction
-            /* boundary sentinel?          */ asmline!("cmp dl, 2"),
+            /* boundary sentinel?          */ asmline!("cmp dl, 255"),
             /* jump if boundary            */ asmline!("je ", s!($P), "_BOUNDARY_", s!($S)),
             // cmk000 end
             /* is cell == 0?               */ asmline!("test dl, dl"),
@@ -197,6 +199,7 @@ struct Args {
 pub enum CompiledFnId {
     Bb5Champ,
     Bb6Contender,
+    Bb33_355K,
 }
 
 impl CompiledFnId {
@@ -204,6 +207,7 @@ impl CompiledFnId {
         match self {
             CompiledFnId::Bb5Champ => bb5_champ_compiled,
             CompiledFnId::Bb6Contender => bb6_contender_compiled,
+            CompiledFnId::Bb33_355K => bb33_355K_compiled,
         }
     }
 }
@@ -300,6 +304,97 @@ pub struct Summary {
     pub tape: Vec<u8>,
     // Index in `tape` that corresponds to the original logical 0 cell
     pub origin_index: usize,
+}
+
+// 3-symbol (0,1,2) stepper generator for A/B/C states
+#[rustfmt::skip]
+macro_rules! define_compiled_stepper_3sym {
+    ($fn_name:ident,
+        ($A:ident, $idA:expr, ($a0w:literal, $a0d:ident, $a0n:ident), ($a1w:literal, $a1d:ident, $a1n:ident), ($a2w:literal, $a2d:ident, $a2n:ident)),
+        ($B:ident, $idB:expr, ($b0w:literal, $b0d:ident, $b0n:ident), ($b1w:literal, $b1d:ident, $b1n:ident), ($b2w:literal, $b2d:ident, $b2n:ident)),
+        ($C:ident, $idC:expr, ($c0w:literal, $c0d:ident, $c0n:ident), ($c1w:literal, $c1d:ident, $c1n:ident), ($c2w:literal, $c2d:ident, $c2n:ident))
+        $(,)?
+    ) => {
+        unsafe fn $fn_name(runtime_state: &mut RuntimeState<'_>) -> Status {
+            let mut head_local: *mut u8 = runtime_state.head_pointer;
+            let mut state_local: u8 = runtime_state.state_index;
+            let step_limit: u64 = runtime_state.config.max_steps.min(runtime_state.report_at_step);
+            assert!(step_limit > runtime_state.step_count);
+            let heartbeat: u64 = step_limit - runtime_state.step_count;
+            let mut status_code: u8;
+            let mut steps_taken_local: u64;
+            core::arch::asm!(
+                "mov r9, {hb}",
+                asmline!("mov r10, r9"),
+                // dispatch
+                asmline!("cmp bl, ", s!($idA)), asmline!("je ", s!($fn_name), "_", s!($A)),
+                asmline!("cmp bl, ", s!($idB)), asmline!("je ", s!($fn_name), "_", s!($B)),
+                asmline!("cmp bl, ", s!($idC)), asmline!("je ", s!($fn_name), "_", s!($C)),
+                asmline!("jmp ", s!($fn_name), "_", s!($A)),
+                // A
+                asmline!(s!($fn_name), "_", s!($A), ":"),
+                asmline!("mov bl, ", s!($idA)),
+                asmline!("mov dl, [rsi]"),
+                asmline!("cmp dl, 255"), asmline!("je ", s!($fn_name), "_BOUNDARY_", s!($A)),
+                asmline!("cmp dl, 0"), asmline!("je ", s!($fn_name), "_", s!($A), "_ZERO"),
+                asmline!("cmp dl, 1"), asmline!("je ", s!($fn_name), "_", s!($A), "_ONE"),
+                asmline!("jmp ", s!($fn_name), "_", s!($A), "_TWO"),
+                asmline!(s!($fn_name), "_", s!($A), "_ZERO:"), tm_store_any!($a0w), tm_move!($a0d), tm_next!($fn_name, $a0n, $idA),
+                asmline!(s!($fn_name), "_", s!($A), "_ONE:"),  tm_store_any!($a1w), tm_move!($a1d), tm_next!($fn_name, $a1n, $idA),
+                asmline!(s!($fn_name), "_", s!($A), "_TWO:"),  tm_store_any!($a2w), tm_move!($a2d), tm_next!($fn_name, $a2n, $idA),
+                asmline!(s!($fn_name), "_BOUNDARY_", s!($A), ":"), asmline!("mov bl, ", s!($idA)), asmline!("jmp ", s!($fn_name), "_BOUNDARY"),
+                // B
+                asmline!(s!($fn_name), "_", s!($B), ":"),
+                asmline!("mov bl, ", s!($idB)),
+                asmline!("mov dl, [rsi]"),
+                asmline!("cmp dl, 255"), asmline!("je ", s!($fn_name), "_BOUNDARY_", s!($B)),
+                asmline!("cmp dl, 0"), asmline!("je ", s!($fn_name), "_", s!($B), "_ZERO"),
+                asmline!("cmp dl, 1"), asmline!("je ", s!($fn_name), "_", s!($B), "_ONE"),
+                asmline!("jmp ", s!($fn_name), "_", s!($B), "_TWO"),
+                asmline!(s!($fn_name), "_", s!($B), "_ZERO:"), tm_store_any!($b0w), tm_move!($b0d), tm_next!($fn_name, $b0n, $idB),
+                asmline!(s!($fn_name), "_", s!($B), "_ONE:"),  tm_store_any!($b1w), tm_move!($b1d), tm_next!($fn_name, $b1n, $idB),
+                asmline!(s!($fn_name), "_", s!($B), "_TWO:"),  tm_store_any!($b2w), tm_move!($b2d), tm_next!($fn_name, $b2n, $idB),
+                asmline!(s!($fn_name), "_BOUNDARY_", s!($B), ":"), asmline!("mov bl, ", s!($idB)), asmline!("jmp ", s!($fn_name), "_BOUNDARY"),
+                // C
+                asmline!(s!($fn_name), "_", s!($C), ":"),
+                asmline!("mov bl, ", s!($idC)),
+                asmline!("mov dl, [rsi]"),
+                asmline!("cmp dl, 255"), asmline!("je ", s!($fn_name), "_BOUNDARY_", s!($C)),
+                asmline!("cmp dl, 0"), asmline!("je ", s!($fn_name), "_", s!($C), "_ZERO"),
+                asmline!("cmp dl, 1"), asmline!("je ", s!($fn_name), "_", s!($C), "_ONE"),
+                asmline!("jmp ", s!($fn_name), "_", s!($C), "_TWO"),
+                asmline!(s!($fn_name), "_", s!($C), "_ZERO:"), tm_store_any!($c0w), tm_move!($c0d), tm_next!($fn_name, $c0n, $idC),
+                asmline!(s!($fn_name), "_", s!($C), "_ONE:"),  tm_store_any!($c1w), tm_move!($c1d), tm_next!($fn_name, $c1n, $idC),
+                asmline!(s!($fn_name), "_", s!($C), "_TWO:"),  tm_store_any!($c2w), tm_move!($c2d), tm_next!($fn_name, $c2n, $idC),
+                asmline!(s!($fn_name), "_BOUNDARY_", s!($C), ":"), asmline!("mov bl, ", s!($idC)), asmline!("jmp ", s!($fn_name), "_BOUNDARY"),
+                // end
+                asmline!(s!($fn_name), "_BOUNDARY:"), asmline!("mov al, 2"),
+                asmline!(s!($fn_name), "_END:"), asmline!("mov r8, r9"), asmline!("sub r8, r10"),
+                inout("rsi") head_local,
+                lateout("r8") steps_taken_local,
+                lateout("al") status_code,
+                inout("bl") state_local,
+                out("rdx") _, out("r10") _, out("r9") _,
+                hb = in(reg) heartbeat,
+                options(nostack)
+            );
+            runtime_state.head_pointer = head_local;
+            runtime_state.state_index = state_local;
+            runtime_state.step_count += steps_taken_local;
+            match status_code {
+                0 => Status::OkChunk,
+                1 => Status::Halted,
+                2 => Status::Boundary,
+                other => panic!("unexpected status code from asm: {other}"),
+            }
+        }
+    };
+}
+
+// Unconditional store for any symbol value (0..=254)
+#[rustfmt::skip]
+macro_rules! tm_store_any {
+    ($val:literal) => { asmline!("mov byte ptr [rsi], ", s!($val)) };
 }
 
 fn parse_clean<T>(s: &str) -> Result<T, String>
@@ -592,6 +687,14 @@ define_compiled_stepper!(
     (F, 5, (0, R, C), (0, R, E)),
 );
 
+// BB(3,3) champion (~355,317 steps) spec: 1RB 2LA 1RA_1LA 1RZ 1RC_2RB 1RC 2RB
+define_compiled_stepper_3sym!(
+    bb33_355K_compiled,
+    (A, 0, (1, R, B), (2, L, A), (1, R, A)),
+    (B, 1, (1, L, A), (1, R, HALT), (1, R, C)),
+    (C, 2, (2, R, B), (1, R, C), (2, R, B)),
+);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -735,6 +838,41 @@ mod tests {
         assert_eq!(summary.run_termination, RunTermination::Halted);
         assert_eq!(summary.step_count, 47_176_870);
         assert_eq!(summary.state_index, 4);
+        Ok(())
+    }
+
+    #[test]
+    fn bb33_compiled_halts_and_has_expected_nonzeros() -> Result<(), Error> {
+        // BB(3,3): 1RB 2LA 1RA_1LA 1RZ 1RC_2RB 1RC 2RB
+        // Expect: halts at exactly 355,317 steps and has 772 nonzeros.
+        let summary = Config::new(
+            CompiledFnId::Bb33_355K,
+            10_000_000,
+            u64::MAX,
+            2_097_152,
+            16_777_216,
+        )?
+        .run();
+
+        assert_eq!(summary.run_termination, RunTermination::Halted);
+        assert_eq!(summary.step_count, 355_317);
+        // Cross-check with interpreter to avoid ambiguity in symbol tallies.
+        use busy_beaver_blaze::Machine;
+        let mut interp =
+            Machine::from_string("1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB").expect("parse BB(3,3)");
+        let mut steps = 1u64;
+        while interp.step() {
+            steps += 1;
+        }
+        assert_eq!(steps, summary.step_count);
+        let nonblanks = interp.count_nonblanks() as usize;
+        let compiled_nonblanks = summary
+            .tape
+            .iter()
+            .filter(|&&v| v != 0 && v != SENTINEL)
+            .count();
+        assert_eq!(compiled_nonblanks, nonblanks);
+        assert_eq!(nonblanks, 772);
         Ok(())
     }
 }
