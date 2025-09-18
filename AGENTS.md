@@ -150,6 +150,13 @@ Reference `src/code_notes.md` for sampling vs binning implementation locations a
 - Public API stability: avoid renaming exported types/functions without coordination. Add doc comments for any new public items.
 - Documentation: when adding a feature or toggling behavior, update this guide and any relevant docs/examples.
 
+### Precision Over Future‑Proofing
+
+- Prefer precise code that encodes current assumptions with `assert!`s and fails fast when violated.
+- Do not write code that is “resilient to possible future changes” at the expense of clarity; instead, express today’s preconditions explicitly and let assertions catch regressions if behavior changes later.
+- When control flow has expected invariants (e.g., counters must be equal, ranges nonnegative), use `assert!` rather than saturating math or silent fallbacks.
+- If a `match` requires a catch‑all only for type completeness, use `unreachable!()`/`panic!()` rather than `_ => {}` to surface violations early.
+
 - When you write assembly code (for example using `asm!` in Rust) include a comment explaining what that statement does.
 
 - In Rust, generally custom Error enums should be named 'Error' rather than 'MyThingError'
