@@ -190,14 +190,14 @@ pub enum ProgramSelect {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompiledStatus {
+pub enum Status {
     OkChunk,
     Halted,
     Boundary,
 }
 
 // Compiled function type: three &mut inout params, returns status enum
-type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> CompiledStatus;
+type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> Status;
 
 #[derive(Debug, Clone)]
 pub struct CompiledMachine {
@@ -305,137 +305,232 @@ fn main() {
 
 impl CompiledMachine {
     pub fn run(self) -> Result<Summary, Error> {
-        let Self {
-            min_tape,
-            interval,
-            max_tape,
-            max_steps,
-            compiled_fn,
-        } = self;
-
-        let mut tape_len = min_tape;
+        let mut tape_len = self.min_tape;
         let mut tape: Vec<u8> = vec![0; tape_len];
         tape[0] = 2;
         tape[tape_len - 1] = 2;
         let mut head_pointer = unsafe { tape.as_mut_ptr().add(tape_len >> 1) };
 
-        let mut report_at_step: u64 = interval.get();
+        let mut report_at_step: u64 = self.interval.get();
         let mut step_count: u64 = 0;
         let mut state_id: u8 = 0;
-
         let start_time: Instant = Instant::now();
+
         loop {
-            assert!(step_count < max_steps, "real assert");
+            assert!(step_count < self.max_steps, "real assert");
             assert!(step_count < report_at_step, "real assert");
 
             let mut steps_delta = self.max_steps.min(report_at_step) - step_count;
-            let status = unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut steps_delta) };
-            step_count += steps_delta; // add actual steps taken
+            let status =
+                unsafe { (self.compiled_fn)(&mut head_pointer, &mut state_id, &mut steps_delta) };
+            step_count += steps_delta;
 
             match status {
-                CompiledStatus::OkChunk => {
-                    assert!(step_count <= max_steps, "real assert");
-
-                    let elapsed_secs = start_time.elapsed().as_secs_f64();
-                    if step_count == max_steps {
-                        println!(
-                            "reached max steps {}; stopping",
-                            step_count.separate_with_commas()
-                        );
-                        println!("{:.3} s", elapsed_secs);
-                        return Ok(Summary {
-                            step_count,
-                            final_state_id: state_id,
-                            run_termination: RunTermination::MaxSteps,
-                            elapsed_secs,
-                            tape_len,
-                        });
-                    }
-                    assert!(step_count == report_at_step, "real assert");
-                    let (steps_per_sec, eta, total) = if elapsed_secs > 0.0 {
-                        let steps_per_sec = (step_count as f64) / elapsed_secs;
-                        let eta = ((max_steps - step_count) as f64) / steps_per_sec;
-                        let total = format_duration(elapsed_secs + eta);
-                        (steps_per_sec, eta, total)
-                    } else {
-                        (0.0, f64::INFINITY, String::from("--:--:--"))
-                    };
-                    println!(
-                        "{} steps ({} steps/s, ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
-                        step_count.separate_with_commas(),
-                        format_steps_per_sec(steps_per_sec),
-                        eta,
-                        total,
-                        elapsed_secs
-                    );
-                    assert!(report_at_step <= u64::MAX - interval.get());
-                    report_at_step += interval.get();
-                }
-                CompiledStatus::Halted => {
-                    println!("halted after {} steps", step_count.separate_with_commas());
-                    let elapsed_secs = start_time.elapsed().as_secs_f64();
-                    println!("{:.3} s", elapsed_secs);
-                    return Ok(Summary {
+                Status::OkChunk => {
+                    if let Some(summary) = self.on_ok_chunk(
                         step_count,
-                        final_state_id: state_id,
-                        run_termination: RunTermination::Halted,
-                        elapsed_secs,
+                        &mut report_at_step,
+                        state_id,
                         tape_len,
-                    });
+                        &start_time,
+                    ) {
+                        return Ok(summary);
+                    }
                 }
-                CompiledStatus::Boundary => {
-                    assert!(step_count < max_steps, "real assert");
-                    assert!(tape_len >= 3, "real assert");
-
-                    // must be left hit xor right hit
-                    if head_pointer.cast_const() == tape.as_ptr() {
-                        match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
-                            Some(ptr) => head_pointer = ptr,
-                            None => {
-                                println!(
-                                    "reached max memory {} cells; stopping at {} steps",
-                                    (max_tape - 2).separate_with_commas(),
-                                    step_count.separate_with_commas()
-                                );
-                                let elapsed_secs = start_time.elapsed().as_secs_f64();
-                                println!("{:.3} s", elapsed_secs);
-                                return Ok(Summary {
-                                    step_count,
-                                    final_state_id: state_id,
-                                    run_termination: RunTermination::MaxMemoryLeft,
-                                    elapsed_secs,
-                                    tape_len,
-                                });
-                            }
-                        }
-                    } else {
-                        assert!(
-                            head_pointer.cast_const() == unsafe { tape.as_ptr().add(tape_len - 1) },
-                            "real assert"
-                        );
-                        match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
-                            Some(ptr) => head_pointer = ptr,
-                            None => {
-                                println!(
-                                    "reached max memory {} cells; stopping at {} steps",
-                                    (max_tape - 2).separate_with_commas(),
-                                    step_count.separate_with_commas()
-                                );
-                                let elapsed_secs = start_time.elapsed().as_secs_f64();
-                                println!("{:.3} s", elapsed_secs);
-                                return Ok(Summary {
-                                    step_count,
-                                    final_state_id: state_id,
-                                    run_termination: RunTermination::MaxMemoryRight,
-                                    elapsed_secs,
-                                    tape_len,
-                                });
-                            }
-                        }
+                Status::Halted => {
+                    let summary = self.on_halted(step_count, state_id, tape_len, &start_time);
+                    return Ok(summary);
+                }
+                Status::Boundary => {
+                    if let Some(summary) = self.on_boundary(
+                        &mut tape,
+                        &mut tape_len,
+                        &mut head_pointer,
+                        step_count,
+                        state_id,
+                        &start_time,
+                    ) {
+                        return Ok(summary);
                     }
                 }
             }
         }
+    }
+
+    fn on_ok_chunk(
+        &self,
+        step_count: u64,
+        report_at_step: &mut u64,
+        state_id: u8,
+        tape_len: usize,
+        start_time: &Instant,
+    ) -> Option<Summary> {
+        assert!(step_count <= self.max_steps, "real assert");
+        let elapsed_secs = start_time.elapsed().as_secs_f64();
+        if step_count == self.max_steps {
+            println!(
+                "reached max steps {}; stopping",
+                step_count.separate_with_commas()
+            );
+            println!("{:.3} s", elapsed_secs);
+            return Some(Summary {
+                step_count,
+                final_state_id: state_id,
+                run_termination: RunTermination::MaxSteps,
+                elapsed_secs,
+                tape_len,
+            });
+        }
+        assert!(step_count == *report_at_step, "real assert");
+        let (steps_per_sec, eta, total) = if elapsed_secs > 0.0 {
+            let steps_per_sec = (step_count as f64) / elapsed_secs;
+            let eta = ((self.max_steps - step_count) as f64) / steps_per_sec;
+            let total = format_duration(elapsed_secs + eta);
+            (steps_per_sec, eta, total)
+        } else {
+            (0.0, f64::INFINITY, String::from("--:--:--"))
+        };
+        println!(
+            "{} steps ({} steps/s, ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
+            step_count.separate_with_commas(),
+            format_steps_per_sec(steps_per_sec),
+            eta,
+            total,
+            elapsed_secs
+        );
+        assert!(*report_at_step <= u64::MAX - self.interval.get());
+        *report_at_step += self.interval.get();
+        None
+    }
+
+    fn on_halted(
+        &self,
+        step_count: u64,
+        state_id: u8,
+        tape_len: usize,
+        start_time: &Instant,
+    ) -> Summary {
+        let elapsed_secs = start_time.elapsed().as_secs_f64();
+        println!("halted after {} steps", step_count.separate_with_commas());
+        println!("{:.3} s", elapsed_secs);
+        Summary {
+            step_count,
+            final_state_id: state_id,
+            run_termination: RunTermination::Halted,
+            elapsed_secs,
+            tape_len,
+        }
+    }
+
+    fn on_boundary(
+        &self,
+        tape: &mut Vec<u8>,
+        tape_len: &mut usize,
+        head_pointer: &mut *mut u8,
+        step_count: u64,
+        _state_id: u8,
+        start_time: &Instant,
+    ) -> Option<Summary> {
+        assert!(step_count < self.max_steps, "real assert");
+        assert!(*tape_len >= 3, "real assert");
+        if head_pointer.cast_const() == tape.as_ptr() {
+            match self.extend_tape_left(tape, tape_len) {
+                Some(ptr) => *head_pointer = ptr,
+                None => {
+                    return Some(self.max_mem_summary(
+                        step_count,
+                        RunTermination::MaxMemoryLeft,
+                        *tape_len,
+                        start_time,
+                    ));
+                }
+            }
+        } else {
+            let right = unsafe { tape.as_ptr().add(*tape_len - 1) };
+            assert!(
+                head_pointer.cast_const() == right,
+                "real assert: boundary else-branch must be at right sentinel"
+            );
+            match self.extend_tape_right(tape, tape_len) {
+                Some(ptr) => *head_pointer = ptr,
+                None => {
+                    return Some(self.max_mem_summary(
+                        step_count,
+                        RunTermination::MaxMemoryRight,
+                        *tape_len,
+                        start_time,
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    fn max_mem_summary(
+        &self,
+        step_count: u64,
+        side: RunTermination,
+        tape_len: usize,
+        start_time: &Instant,
+    ) -> Summary {
+        let elapsed_secs = start_time.elapsed().as_secs_f64();
+        println!(
+            "reached max memory {} cells; stopping at {} steps",
+            (self.max_tape - 2).separate_with_commas(),
+            step_count.separate_with_commas()
+        );
+        println!("{:.3} s", elapsed_secs);
+        Summary {
+            step_count,
+            final_state_id: 0, // caller sets state if needed elsewhere (not used here)
+            run_termination: side,
+            elapsed_secs,
+            tape_len,
+        }
+    }
+
+    fn extend_tape_left(&self, tape: &mut Vec<u8>, total_len: &mut usize) -> Option<*mut u8> {
+        let old_total = *total_len;
+        let old_interior = old_total.saturating_sub(2);
+        let growth = old_interior.max(1);
+        let new_total = old_total + growth;
+        if new_total > self.max_tape {
+            return None;
+        }
+        let mut new_tape = vec![0u8; new_total];
+        new_tape[0] = 2;
+        new_tape[new_total - 1] = 2;
+        let dst_start = 1 + growth;
+        let dst_end = dst_start + old_interior;
+        new_tape[dst_start..dst_end].copy_from_slice(&tape[1..(old_total - 1)]);
+        *tape = new_tape;
+        *total_len = new_total;
+        println!(
+            "tape grown LEFT to {} cells",
+            (new_total - 2).separate_with_commas()
+        );
+        Some(unsafe { tape.as_mut_ptr().add(growth) })
+    }
+
+    fn extend_tape_right(&self, tape: &mut Vec<u8>, total_len: &mut usize) -> Option<*mut u8> {
+        let old_total = *total_len;
+        let old_interior = old_total.saturating_sub(2);
+        let growth = old_interior.max(1);
+        let new_total = old_total + growth;
+        if new_total > self.max_tape {
+            return None;
+        }
+        let mut new_tape = vec![0u8; new_total];
+        new_tape[0] = 2;
+        new_tape[new_total - 1] = 2;
+        new_tape[1..(1 + old_interior)].copy_from_slice(&tape[1..(old_total - 1)]);
+        *tape = new_tape;
+        *total_len = new_total;
+        println!(
+            "tape grown RIGHT to {} cells",
+            (new_total - 2).separate_with_commas()
+        );
+        Some(unsafe { tape.as_mut_ptr().add(old_total - 1) })
     }
 }
 /// Executes up to `*step_budget_in_out` steps starting at `*head_in_out`.
@@ -453,7 +548,7 @@ unsafe fn bb5_champ_compiled(
     head_in_out: &mut *mut u8,
     state_id_in_out: &mut u8,
     step_budget_in_out: &mut u64,
-) -> CompiledStatus {
+) -> Status {
     let mut head_local: *mut u8 = *head_in_out;
     let mut state_local: u8 = *state_id_in_out;
     let heartbeat: u64 = *step_budget_in_out;
@@ -484,9 +579,9 @@ unsafe fn bb5_champ_compiled(
     *state_id_in_out = state_local;
     *step_budget_in_out = steps_taken_local;
     match status_code {
-        0 => CompiledStatus::OkChunk,
-        1 => CompiledStatus::Halted,
-        2 => CompiledStatus::Boundary,
+        0 => Status::OkChunk,
+        1 => Status::Halted,
+        2 => Status::Boundary,
         other => panic!("unexpected status code from asm: {other}"),
     }
 }
@@ -497,7 +592,7 @@ unsafe fn bb6_contender_compiled(
     head_in_out: &mut *mut u8,
     state_id_in_out: &mut u8,
     step_budget_in_out: &mut u64,
-) -> CompiledStatus {
+) -> Status {
     let mut head_local: *mut u8 = *head_in_out;
     let mut state_local: u8 = *state_id_in_out;
     let heartbeat: u64 = *step_budget_in_out;
@@ -531,68 +626,14 @@ unsafe fn bb6_contender_compiled(
     *state_id_in_out = state_local;
     *step_budget_in_out = steps_taken_local;
     match status_code {
-        0 => CompiledStatus::OkChunk,
-        1 => CompiledStatus::Halted,
-        2 => CompiledStatus::Boundary,
+        0 => Status::OkChunk,
+        1 => Status::Halted,
+        2 => Status::Boundary,
         other => panic!("unexpected status code from asm: {other}"),
     }
 }
 
-fn extend_tape_left(
-    tape: &mut Vec<u8>,
-    total_len: &mut usize,
-    max_total: usize,
-) -> Option<*mut u8> {
-    let old_total = *total_len;
-    let old_interior = old_total.saturating_sub(2);
-    let growth = old_interior.max(1);
-    let new_total = old_total + growth;
-    if new_total > max_total {
-        return None;
-    }
-    let mut new_tape = vec![0u8; new_total];
-    new_tape[0] = 2;
-    new_tape[new_total - 1] = 2;
-    // Copy old interior shifted right by `growth`.
-    let dst_start = 1 + growth;
-    let dst_end = dst_start + old_interior;
-    new_tape[dst_start..dst_end].copy_from_slice(&tape[1..(old_total - 1)]);
-    *tape = new_tape;
-    *total_len = new_total;
-    println!(
-        "tape grown LEFT to {} cells",
-        (new_total - 2).separate_with_commas()
-    );
-    // Head should be at the first newly-added interior cell.
-    Some(unsafe { tape.as_mut_ptr().add(growth) })
-}
-
-fn extend_tape_right(
-    tape: &mut Vec<u8>,
-    total_len: &mut usize,
-    max_total: usize,
-) -> Option<*mut u8> {
-    let old_total = *total_len;
-    let old_interior = old_total.saturating_sub(2);
-    let growth = old_interior.max(1);
-    let new_total = old_total + growth;
-    if new_total > max_total {
-        return None;
-    }
-    let mut new_tape = vec![0u8; new_total];
-    new_tape[0] = 2;
-    new_tape[new_total - 1] = 2;
-    // Copy old interior at the same offset.
-    new_tape[1..(1 + old_interior)].copy_from_slice(&tape[1..(old_total - 1)]);
-    *tape = new_tape;
-    *total_len = new_total;
-    println!(
-        "tape grown RIGHT to {} cells",
-        (new_total - 2).separate_with_commas()
-    );
-    // Head should be the first newly-added interior cell to the right of the old end.
-    Some(unsafe { tape.as_mut_ptr().add(old_total - 1) })
-}
+// moved extend_tape_left/right into impl CompiledMachine
 
 #[cfg(test)]
 mod tests {
