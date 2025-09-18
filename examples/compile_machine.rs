@@ -328,7 +328,6 @@ struct RuntimeState<'a> {
     config: &'a Config,
     // runtime state
     tape: Vec<u8>,
-    tape_len: usize,
     head_pointer: *mut u8,
     state_index: u8,
     report_at_step: u64,
@@ -338,18 +337,16 @@ struct RuntimeState<'a> {
 
 impl<'a> RuntimeState<'a> {
     fn new(config: &'a Config) -> Self {
-        let tape_len = config.min_tape;
-        let mut tape: Vec<u8> = vec![0; tape_len];
+        let mut tape: Vec<u8> = vec![0; config.min_tape];
         tape[0] = 2;
-        tape[tape_len - 1] = 2;
-        let head_pointer = unsafe { tape.as_mut_ptr().add(tape_len >> 1) };
+        *tape.last_mut().unwrap() = 2;
+        let head_pointer = unsafe { tape.as_mut_ptr().add(tape.len() >> 1) };
         let report_at_step = config.interval.get();
         let step_count = 0u64;
         assert!(step_count < report_at_step, "real assert");
         Self {
             config,
             tape,
-            tape_len,
             head_pointer,
             state_index: 0,
             report_at_step,
@@ -372,7 +369,7 @@ impl<'a> RuntimeState<'a> {
                 state_index: self.state_index,
                 run_termination: RunTermination::MaxSteps,
                 elapsed_secs,
-                tape_len: self.tape_len,
+                tape_len: self.tape.len(),
             });
         }
         assert!(self.step_count == self.report_at_step, "real assert");
@@ -426,20 +423,20 @@ impl<'a> RuntimeState<'a> {
             state_index: self.state_index,
             run_termination: RunTermination::Halted,
             elapsed_secs,
-            tape_len: self.tape_len,
+            tape_len: self.tape.len(),
         }
     }
 
     fn on_boundary(&mut self) -> Option<Summary> {
         assert!(self.step_count < self.config.max_steps, "real assert");
-        assert!(self.tape_len >= 3, "real assert");
+        assert!(self.tape.len() >= 3, "real assert");
         if self.head_pointer.cast_const() == self.tape.as_ptr() {
             match self.extend_tape_left() {
                 Some(ptr) => self.head_pointer = ptr,
                 None => return Some(self.max_mem_summary(RunTermination::MaxMemoryLeft)),
             }
         } else {
-            let right = unsafe { self.tape.as_ptr().add(self.tape_len - 1) };
+            let right = unsafe { self.tape.as_ptr().add(self.tape.len() - 1) };
             assert!(
                 self.head_pointer.cast_const() == right,
                 "real assert: boundary else-branch must be at right sentinel"
@@ -465,56 +462,54 @@ impl<'a> RuntimeState<'a> {
             state_index: self.state_index,
             run_termination: side,
             elapsed_secs,
-            tape_len: self.tape_len,
+            tape_len: self.tape.len(),
         }
     }
 
     fn extend_tape_left(&mut self) -> Option<*mut u8> {
-        let tape = &mut self.tape;
-        let total_len = &mut self.tape_len;
-        let old_total = *total_len;
-        let old_interior = old_total.saturating_sub(2);
-        let growth = old_interior.max(1);
-        let new_total = old_total + growth;
+        assert!(self.tape.len() >= 3, "real assert");
+        let old_interior = self.tape.len() - 2;
+        let new_total = old_interior * 2 + 2;
         if new_total > self.config.max_tape {
             return None;
         }
+        // Allocate exact new size and copy interior shifted right by old_interior.
         let mut new_tape = vec![0u8; new_total];
         new_tape[0] = 2;
-        new_tape[new_total - 1] = 2;
-        let dst_start = 1 + growth;
+        *new_tape.last_mut().unwrap() = 2;
+        let dst_start = 1 + old_interior;
         let dst_end = dst_start + old_interior;
-        new_tape[dst_start..dst_end].copy_from_slice(&tape[1..(old_total - 1)]);
-        *tape = new_tape;
-        *total_len = new_total;
+        new_tape[dst_start..dst_end].copy_from_slice(&self.tape[1..(old_interior + 1)]);
+        self.tape = new_tape;
         println!(
             "tape grown LEFT to {} cells",
             (new_total - 2).separate_with_commas()
         );
-        Some(unsafe { tape.as_mut_ptr().add(growth) })
+        Some(unsafe { self.tape.as_mut_ptr().add(old_interior) })
     }
 
     fn extend_tape_right(&mut self) -> Option<*mut u8> {
-        let tape = &mut self.tape;
-        let total_len = &mut self.tape_len;
-        let old_total = *total_len;
-        let old_interior = old_total.saturating_sub(2);
-        let growth = old_interior.max(1);
-        let new_total = old_total + growth;
+        assert!(self.tape.len() >= 3, "real assert");
+        let old_interior = self.tape.len() - 2; // >= 1 by invariant
+        let new_total = self.tape.len() + old_interior;
         if new_total > self.config.max_tape {
             return None;
         }
-        let mut new_tape = vec![0u8; new_total];
-        new_tape[0] = 2;
-        new_tape[new_total - 1] = 2;
-        new_tape[1..(1 + old_interior)].copy_from_slice(&tape[1..(old_total - 1)]);
-        *tape = new_tape;
-        *total_len = new_total;
+        // Grow in place; previous right sentinel becomes interior zero.
+        self.tape.reserve(old_interior);
+        // Clear the old right sentinel position before resize so it becomes interior 0.
+        let old_right = self.tape.len() - 1;
+        self.tape[old_right] = 0;
+        self.tape.resize(new_total, 0);
+        // Reassert sentinels.
+        self.tape[0] = 2;
+        *self.tape.last_mut().unwrap() = 2;
         println!(
             "tape grown RIGHT to {} cells",
             (new_total - 2).separate_with_commas()
         );
-        Some(unsafe { tape.as_mut_ptr().add(old_total - 1) })
+        // First newly-added interior cell is at the old sentinel position.
+        Some(unsafe { self.tape.as_mut_ptr().add(old_right) })
     }
 }
 /// Executes up to `*step_budget_in_out` steps starting at `*head_in_out`.
@@ -670,7 +665,7 @@ mod tests {
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
         assert!(summary.state_index <= 4);
         assert!(summary.elapsed_secs >= 0.0);
-        assert!(summary.tape_len >= 3);
+        assert!(summary.tape.len() >= 3);
     }
 
     // This mirrors `cargo run --example compile_machine --release` defaults
