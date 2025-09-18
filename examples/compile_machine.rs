@@ -215,13 +215,13 @@ pub enum Status {
     Boundary,
 }
 
-// Compiled function type: operates on Runner state.
+// Compiled function type: operates on RuntimeState state.
 // Must update head_pointer/state_id and add executed steps to step_count,
-// respecting runner.max_steps and runner.report_at_step.
-type CompiledFn = unsafe fn(&mut Runner<'_>) -> Status;
+// respecting runtime_state.max_steps and runtime_state.report_at_step.
+type CompiledFn = unsafe fn(&mut RuntimeState<'_>) -> Status;
 
 #[derive(Debug, Clone)]
-pub struct CompiledMachine {
+pub struct Config {
     pub min_tape: usize,
     pub interval: NonZeroU64,
     pub max_tape: usize,
@@ -229,7 +229,7 @@ pub struct CompiledMachine {
     compiled_fn: CompiledFn,
 }
 
-impl TryFrom<Args> for CompiledMachine {
+impl TryFrom<Args> for Config {
     type Error = Error;
 
     fn try_from(
@@ -245,7 +245,7 @@ impl TryFrom<Args> for CompiledMachine {
     }
 }
 
-impl CompiledMachine {
+impl Config {
     pub fn new(
         compiled_fn_id: CompiledFnId,
         interval: u64,
@@ -309,23 +309,23 @@ where
 }
 
 fn main() {
-    let compiled_machine: CompiledMachine = Args::parse().try_into().unwrap_or_else(|e| {
+    let config: Config = Args::parse().try_into().unwrap_or_else(|e| {
         eprintln!("error: {e}");
         std::process::exit(1);
     });
-    let _summary = compiled_machine.run();
+    let _summary = config.run();
 }
 
-impl CompiledMachine {
+impl Config {
     pub fn run(self) -> Summary {
-        Runner::new(&self).run()
+        RuntimeState::new(&self).run()
     }
 }
 
 #[derive(Debug)]
-struct Runner<'a> {
+struct RuntimeState<'a> {
     // configuration (borrowed)
-    cm: &'a CompiledMachine,
+    config: &'a Config,
     // runtime state
     tape: Vec<u8>,
     tape_len: usize,
@@ -336,18 +336,18 @@ struct Runner<'a> {
     start_time: Instant,
 }
 
-impl<'a> Runner<'a> {
-    fn new(cm: &'a CompiledMachine) -> Self {
-        let tape_len = cm.min_tape;
+impl<'a> RuntimeState<'a> {
+    fn new(config: &'a Config) -> Self {
+        let tape_len = config.min_tape;
         let mut tape: Vec<u8> = vec![0; tape_len];
         tape[0] = 2;
         tape[tape_len - 1] = 2;
         let head_pointer = unsafe { tape.as_mut_ptr().add(tape_len >> 1) };
-        let report_at_step = cm.interval.get();
+        let report_at_step = config.interval.get();
         let step_count = 0u64;
         assert!(step_count < report_at_step, "real assert");
         Self {
-            cm,
+            config,
             tape,
             tape_len,
             head_pointer,
@@ -359,9 +359,9 @@ impl<'a> Runner<'a> {
     }
 
     fn on_ok_chunk(&mut self) -> Option<Summary> {
-        assert!(self.step_count <= self.cm.max_steps, "real assert");
+        assert!(self.step_count <= self.config.max_steps, "real assert");
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
-        if self.step_count == self.cm.max_steps {
+        if self.step_count == self.config.max_steps {
             println!(
                 "reached max steps {}; stopping",
                 self.step_count.separate_with_commas()
@@ -378,7 +378,7 @@ impl<'a> Runner<'a> {
         assert!(self.step_count == self.report_at_step, "real assert");
         let (steps_per_sec, eta, total) = if elapsed_secs > 0.0 {
             let steps_per_sec = (self.step_count as f64) / elapsed_secs;
-            let eta = ((self.cm.max_steps - self.step_count) as f64) / steps_per_sec;
+            let eta = ((self.config.max_steps - self.step_count) as f64) / steps_per_sec;
             let total = format_duration(elapsed_secs + eta);
             (steps_per_sec, eta, total)
         } else {
@@ -392,13 +392,13 @@ impl<'a> Runner<'a> {
             total,
             elapsed_secs
         );
-        assert!(self.report_at_step <= u64::MAX - self.cm.interval.get());
-        self.report_at_step += self.cm.interval.get();
+        assert!(self.report_at_step <= u64::MAX - self.config.interval.get());
+        self.report_at_step += self.config.interval.get();
         None
     }
 
     fn step(&mut self) -> Option<Summary> {
-        match unsafe { (self.cm.compiled_fn)(self) } {
+        match unsafe { (self.config.compiled_fn)(self) } {
             Status::OkChunk => self.on_ok_chunk(),
             Status::Halted => Some(self.on_halted()),
             Status::Boundary => self.on_boundary(),
@@ -407,7 +407,7 @@ impl<'a> Runner<'a> {
 
     fn run(mut self) -> Summary {
         loop {
-            assert!(self.step_count < self.cm.max_steps, "real assert");
+            assert!(self.step_count < self.config.max_steps, "real assert");
             if let Some(summary) = self.step() {
                 return summary;
             }
@@ -431,7 +431,7 @@ impl<'a> Runner<'a> {
     }
 
     fn on_boundary(&mut self) -> Option<Summary> {
-        assert!(self.step_count < self.cm.max_steps, "real assert");
+        assert!(self.step_count < self.config.max_steps, "real assert");
         assert!(self.tape_len >= 3, "real assert");
         if self.head_pointer.cast_const() == self.tape.as_ptr() {
             match self.extend_tape_left() {
@@ -456,7 +456,7 @@ impl<'a> Runner<'a> {
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
         println!(
             "reached max memory {} cells; stopping at {} steps",
-            (self.cm.max_tape - 2).separate_with_commas(),
+            (self.config.max_tape - 2).separate_with_commas(),
             self.step_count.separate_with_commas()
         );
         println!("{:.3} s", elapsed_secs);
@@ -476,7 +476,7 @@ impl<'a> Runner<'a> {
         let old_interior = old_total.saturating_sub(2);
         let growth = old_interior.max(1);
         let new_total = old_total + growth;
-        if new_total > self.cm.max_tape {
+        if new_total > self.config.max_tape {
             return None;
         }
         let mut new_tape = vec![0u8; new_total];
@@ -501,7 +501,7 @@ impl<'a> Runner<'a> {
         let old_interior = old_total.saturating_sub(2);
         let growth = old_interior.max(1);
         let new_total = old_total + growth;
-        if new_total > self.cm.max_tape {
+        if new_total > self.config.max_tape {
             return None;
         }
         let mut new_tape = vec![0u8; new_total];
@@ -531,10 +531,10 @@ impl<'a> Runner<'a> {
 // Shared generator for compiled steppers differing only by program spec
 macro_rules! define_compiled_stepper {
     ($fn_name:ident, $( $prog_spec:tt )+ ) => {
-        unsafe fn $fn_name(runner: &mut Runner<'_>) -> Status {
+        unsafe fn $fn_name(runner: &mut RuntimeState<'_>) -> Status {
             let mut head_local: *mut u8 = runner.head_pointer;
             let mut state_local: u8 = runner.state_id;
-            let step_limit: u64 = runner.cm.max_steps.min(runner.report_at_step);
+            let step_limit: u64 = runner.config.max_steps.min(runner.report_at_step);
             assert!(step_limit > runner.step_count);
             let heartbeat: u64 = step_limit - runner.step_count;
             let mut status_code: u8;
@@ -599,16 +599,13 @@ mod tests {
             min_tape: 128,
             max_tape: 256,
         };
-        let compiled_machine: CompiledMachine = args.try_into().expect("conversion should succeed");
+        let config: Config = args.try_into().expect("conversion should succeed");
         // Verify constructor selected the correct compiled function
-        assert_eq!(
-            compiled_machine.compiled_fn as usize,
-            bb6_contender_compiled as usize
-        );
-        assert_eq!(compiled_machine.interval.get(), 42);
-        assert_eq!(compiled_machine.max_steps, 7);
-        assert_eq!(compiled_machine.min_tape, 128);
-        assert_eq!(compiled_machine.max_tape, 256);
+        assert_eq!(config.compiled_fn as usize, bb6_contender_compiled as usize);
+        assert_eq!(config.interval.get(), 42);
+        assert_eq!(config.max_steps, 7);
+        assert_eq!(config.min_tape, 128);
+        assert_eq!(config.max_tape, 256);
     }
 
     #[test]
@@ -620,7 +617,7 @@ mod tests {
             min_tape: 128,
             max_tape: 256,
         };
-        match CompiledMachine::try_from(args) {
+        match Config::try_from(args) {
             Err(Error::IntervalTooSmall { interval }) => assert_eq!(interval, 0),
             other => panic!("expected IntervalTooSmall error, got {:?}", other),
         }
@@ -635,7 +632,7 @@ mod tests {
             min_tape: 2,
             max_tape: 64,
         };
-        match CompiledMachine::try_from(args) {
+        match Config::try_from(args) {
             Err(Error::TapeTooShort { min_tape }) => assert_eq!(min_tape, 2),
             other => panic!("expected TapeTooShort error, got {:?}", other),
         }
@@ -650,7 +647,7 @@ mod tests {
             min_tape: 4,
             max_tape: 2,
         };
-        match CompiledMachine::try_from(args) {
+        match Config::try_from(args) {
             Err(Error::MaxTapeTooSmall { max_tape }) => assert_eq!(max_tape, 2),
             other => panic!("expected MaxTapeTooSmall error, got {:?}", other),
         }
@@ -658,7 +655,7 @@ mod tests {
 
     #[test]
     fn run_stops_at_max_steps() {
-        let compiled_machine: CompiledMachine = Args {
+        let compiled_machine: Config = Args {
             program: CompiledFnId::Bb5Champ,
             interval: 1_000_000,
             max_steps: 1_000,
@@ -681,7 +678,7 @@ mod tests {
     // in debug mode, so we only run it in release builds.
     #[test]
     fn bb5_champ_halts_at_47_million_steps() {
-        let compiled_machine: CompiledMachine = Args {
+        let compiled_machine: Config = Args {
             program: CompiledFnId::Bb5Champ,
             interval: 20_000_000,
             max_steps: u64::MAX,
@@ -701,7 +698,7 @@ mod tests {
         // Reproduce the bug where resuming at chunk boundaries jumps to a wrong state
         // and halts around ~10,003,798 steps. With the fix, this run should not halt
         // and instead stop at the max_steps limit.
-        let compiled_machine: CompiledMachine = Args {
+        let compiled_machine: Config = Args {
             program: CompiledFnId::Bb5Champ,
             interval: 10_000_000,
             max_steps: 20_000_000,
@@ -720,7 +717,7 @@ mod tests {
 
     #[test]
     fn bb5_run() -> Result<(), Error> {
-        let summary = CompiledMachine::new(
+        let summary = Config::new(
             CompiledFnId::Bb5Champ,
             10_000_000,
             u64::MAX,
