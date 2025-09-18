@@ -375,6 +375,8 @@ impl CompiledMachine {
                     });
                 }
                 CompiledStatus::Boundary => {
+                    assert!(step_count < max_steps, "real assert");
+
                     let left_sentinel_ptr = tape.as_ptr();
                     let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
                     let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
@@ -421,21 +423,6 @@ impl CompiledMachine {
                         }
                     } else {
                         panic!("unexpected boundary pointer returned from asm");
-                    }
-                    if step_count >= max_steps {
-                        println!(
-                            "reached max steps {}; stopping",
-                            step_count.separate_with_commas()
-                        );
-                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                        println!("{:.3} s", elapsed_seconds);
-                        return Ok(Summary {
-                            step_count,
-                            final_state_id: state_id,
-                            run_termination: RunTermination::MaxSteps,
-                            elapsed_seconds,
-                            tape_len,
-                        });
                     }
                 }
             }
