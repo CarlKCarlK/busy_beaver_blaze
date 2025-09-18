@@ -196,9 +196,11 @@ pub enum Status {
     Boundary,
 }
 
-// Compiled function type: head/state inout, step_limit absolute threshold, step_count inout.
-// The compiled function must add the steps it executed to step_count and return status.
-type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, u64, &mut u64) -> Status;
+// Compiled function type: operates on Runner state with a max_steps cap.
+// The compiled function must update runner.head_pointer, runner.state_id,
+// and add executed steps to runner.step_count, respecting max_steps and
+// runner.report_at_step as the immediate ceiling.
+type CompiledFn = unsafe fn(&mut Runner, u64) -> Status;
 
 #[derive(Debug, Clone)]
 pub struct CompiledMachine {
@@ -206,7 +208,7 @@ pub struct CompiledMachine {
     pub interval: NonZeroU64,
     pub max_tape: usize,
     pub max_steps: u64,
-    pub compiled_fn: CompiledFn,
+    compiled_fn: CompiledFn,
 }
 
 impl TryFrom<Args> for CompiledMachine {
@@ -306,53 +308,23 @@ fn main() {
 
 impl CompiledMachine {
     pub fn run(self) -> Result<Summary, Error> {
-        let mut tape_len = self.min_tape;
-        let mut tape: Vec<u8> = vec![0; tape_len];
-        tape[0] = 2;
-        tape[tape_len - 1] = 2;
-        let mut head_pointer = unsafe { tape.as_mut_ptr().add(tape_len >> 1) };
-
-        let mut report_at_step: u64 = self.interval.get();
-        let mut step_count: u64 = 0;
-        let mut state_id: u8 = 0;
-        let start_time: Instant = Instant::now();
+        let mut runner = Runner::new(self.min_tape, self.interval);
 
         loop {
-            assert!(step_count < self.max_steps, "real assert");
-            assert!(step_count < report_at_step, "real assert");
+            assert!(runner.step_count < self.max_steps, "real assert");
 
-            match unsafe {
-                (self.compiled_fn)(
-                    &mut head_pointer,
-                    &mut state_id,
-                    self.max_steps.min(report_at_step),
-                    &mut step_count,
-                )
-            } {
+            match unsafe { (self.compiled_fn)(&mut runner, self.max_steps) } {
                 Status::OkChunk => {
-                    if let Some(summary) = self.on_ok_chunk(
-                        step_count,
-                        &mut report_at_step,
-                        state_id,
-                        tape_len,
-                        &start_time,
-                    ) {
+                    if let Some(summary) = self.on_ok_chunk(&mut runner) {
                         return Ok(summary);
                     }
                 }
                 Status::Halted => {
-                    let summary = self.on_halted(step_count, state_id, tape_len, &start_time);
+                    let summary = self.on_halted(&runner);
                     return Ok(summary);
                 }
                 Status::Boundary => {
-                    if let Some(summary) = self.on_boundary(
-                        &mut tape,
-                        &mut tape_len,
-                        &mut head_pointer,
-                        step_count,
-                        state_id,
-                        &start_time,
-                    ) {
+                    if let Some(summary) = self.on_boundary(&mut runner) {
                         return Ok(summary);
                     }
                 }
@@ -360,34 +332,27 @@ impl CompiledMachine {
         }
     }
 
-    fn on_ok_chunk(
-        &self,
-        step_count: u64,
-        report_at_step: &mut u64,
-        state_id: u8,
-        tape_len: usize,
-        start_time: &Instant,
-    ) -> Option<Summary> {
-        assert!(step_count <= self.max_steps, "real assert");
-        let elapsed_secs = start_time.elapsed().as_secs_f64();
-        if step_count == self.max_steps {
+    fn on_ok_chunk(&self, runner: &mut Runner) -> Option<Summary> {
+        assert!(runner.step_count <= self.max_steps, "real assert");
+        let elapsed_secs = runner.start_time.elapsed().as_secs_f64();
+        if runner.step_count == self.max_steps {
             println!(
                 "reached max steps {}; stopping",
-                step_count.separate_with_commas()
+                runner.step_count.separate_with_commas()
             );
             println!("{:.3} s", elapsed_secs);
             return Some(Summary {
-                step_count,
-                final_state_id: state_id,
+                step_count: runner.step_count,
+                final_state_id: runner.state_id,
                 run_termination: RunTermination::MaxSteps,
                 elapsed_secs,
-                tape_len,
+                tape_len: runner.tape_len,
             });
         }
-        assert!(step_count == *report_at_step, "real assert");
+        assert!(runner.step_count == runner.report_at_step, "real assert");
         let (steps_per_sec, eta, total) = if elapsed_secs > 0.0 {
-            let steps_per_sec = (step_count as f64) / elapsed_secs;
-            let eta = ((self.max_steps - step_count) as f64) / steps_per_sec;
+            let steps_per_sec = (runner.step_count as f64) / elapsed_secs;
+            let eta = ((self.max_steps - runner.step_count) as f64) / steps_per_sec;
             let total = format_duration(elapsed_secs + eta);
             (steps_per_sec, eta, total)
         } else {
@@ -395,104 +360,79 @@ impl CompiledMachine {
         };
         println!(
             "{} steps ({} steps/s, ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
-            step_count.separate_with_commas(),
+            runner.step_count.separate_with_commas(),
             format_steps_per_sec(steps_per_sec),
             eta,
             total,
             elapsed_secs
         );
-        assert!(*report_at_step <= u64::MAX - self.interval.get());
-        *report_at_step += self.interval.get();
+        assert!(runner.report_at_step <= u64::MAX - self.interval.get());
+        runner.report_at_step += self.interval.get();
         None
     }
 
-    fn on_halted(
-        &self,
-        step_count: u64,
-        state_id: u8,
-        tape_len: usize,
-        start_time: &Instant,
-    ) -> Summary {
-        let elapsed_secs = start_time.elapsed().as_secs_f64();
-        println!("halted after {} steps", step_count.separate_with_commas());
-        println!("{:.3} s", elapsed_secs);
-        Summary {
-            step_count,
-            final_state_id: state_id,
-            run_termination: RunTermination::Halted,
-            elapsed_secs,
-            tape_len,
-        }
-    }
-
-    fn on_boundary(
-        &self,
-        tape: &mut Vec<u8>,
-        tape_len: &mut usize,
-        head_pointer: &mut *mut u8,
-        step_count: u64,
-        _state_id: u8,
-        start_time: &Instant,
-    ) -> Option<Summary> {
-        assert!(step_count < self.max_steps, "real assert");
-        assert!(*tape_len >= 3, "real assert");
-        if head_pointer.cast_const() == tape.as_ptr() {
-            match self.extend_tape_left(tape, tape_len) {
-                Some(ptr) => *head_pointer = ptr,
-                None => {
-                    return Some(self.max_mem_summary(
-                        step_count,
-                        RunTermination::MaxMemoryLeft,
-                        *tape_len,
-                        start_time,
-                    ));
-                }
-            }
-        } else {
-            let right = unsafe { tape.as_ptr().add(*tape_len - 1) };
-            assert!(
-                head_pointer.cast_const() == right,
-                "real assert: boundary else-branch must be at right sentinel"
-            );
-            match self.extend_tape_right(tape, tape_len) {
-                Some(ptr) => *head_pointer = ptr,
-                None => {
-                    return Some(self.max_mem_summary(
-                        step_count,
-                        RunTermination::MaxMemoryRight,
-                        *tape_len,
-                        start_time,
-                    ));
-                }
-            }
-        }
-        None
-    }
-
-    fn max_mem_summary(
-        &self,
-        step_count: u64,
-        side: RunTermination,
-        tape_len: usize,
-        start_time: &Instant,
-    ) -> Summary {
-        let elapsed_secs = start_time.elapsed().as_secs_f64();
+    fn on_halted(&self, runner: &Runner) -> Summary {
+        let elapsed_secs = runner.start_time.elapsed().as_secs_f64();
         println!(
-            "reached max memory {} cells; stopping at {} steps",
-            (self.max_tape - 2).separate_with_commas(),
-            step_count.separate_with_commas()
+            "halted after {} steps",
+            runner.step_count.separate_with_commas()
         );
         println!("{:.3} s", elapsed_secs);
         Summary {
-            step_count,
-            final_state_id: 0, // caller sets state if needed elsewhere (not used here)
-            run_termination: side,
+            step_count: runner.step_count,
+            final_state_id: runner.state_id,
+            run_termination: RunTermination::Halted,
             elapsed_secs,
-            tape_len,
+            tape_len: runner.tape_len,
         }
     }
 
-    fn extend_tape_left(&self, tape: &mut Vec<u8>, total_len: &mut usize) -> Option<*mut u8> {
+    fn on_boundary(&self, runner: &mut Runner) -> Option<Summary> {
+        assert!(runner.step_count < self.max_steps, "real assert");
+        assert!(runner.tape_len >= 3, "real assert");
+        if runner.head_pointer.cast_const() == runner.tape.as_ptr() {
+            match self.extend_tape_left(runner) {
+                Some(ptr) => runner.head_pointer = ptr,
+                None => {
+                    return Some(self.max_mem_summary(runner, RunTermination::MaxMemoryLeft));
+                }
+            }
+        } else {
+            let right = unsafe { runner.tape.as_ptr().add(runner.tape_len - 1) };
+            assert!(
+                runner.head_pointer.cast_const() == right,
+                "real assert: boundary else-branch must be at right sentinel"
+            );
+            match self.extend_tape_right(runner) {
+                Some(ptr) => runner.head_pointer = ptr,
+                None => {
+                    return Some(self.max_mem_summary(runner, RunTermination::MaxMemoryRight));
+                }
+            }
+        }
+        None
+    }
+
+    fn max_mem_summary(&self, runner: &Runner, side: RunTermination) -> Summary {
+        let elapsed_secs = runner.start_time.elapsed().as_secs_f64();
+        println!(
+            "reached max memory {} cells; stopping at {} steps",
+            (self.max_tape - 2).separate_with_commas(),
+            runner.step_count.separate_with_commas()
+        );
+        println!("{:.3} s", elapsed_secs);
+        Summary {
+            step_count: runner.step_count,
+            final_state_id: runner.state_id,
+            run_termination: side,
+            elapsed_secs,
+            tape_len: runner.tape_len,
+        }
+    }
+
+    fn extend_tape_left(&self, runner: &mut Runner) -> Option<*mut u8> {
+        let tape = &mut runner.tape;
+        let total_len = &mut runner.tape_len;
         let old_total = *total_len;
         let old_interior = old_total.saturating_sub(2);
         let growth = old_interior.max(1);
@@ -515,7 +455,9 @@ impl CompiledMachine {
         Some(unsafe { tape.as_mut_ptr().add(growth) })
     }
 
-    fn extend_tape_right(&self, tape: &mut Vec<u8>, total_len: &mut usize) -> Option<*mut u8> {
+    fn extend_tape_right(&self, runner: &mut Runner) -> Option<*mut u8> {
+        let tape = &mut runner.tape;
+        let total_len = &mut runner.tape_len;
         let old_total = *total_len;
         let old_interior = old_total.saturating_sub(2);
         let growth = old_interior.max(1);
@@ -536,6 +478,39 @@ impl CompiledMachine {
         Some(unsafe { tape.as_mut_ptr().add(old_total - 1) })
     }
 }
+
+#[derive(Debug)]
+struct Runner {
+    tape: Vec<u8>,
+    tape_len: usize,
+    head_pointer: *mut u8,
+    state_id: u8,
+    report_at_step: u64,
+    step_count: u64,
+    start_time: Instant,
+}
+
+impl Runner {
+    fn new(min_tape: usize, interval: NonZeroU64) -> Self {
+        let mut tape_len = min_tape;
+        let mut tape: Vec<u8> = vec![0; tape_len];
+        tape[0] = 2;
+        tape[tape_len - 1] = 2;
+        let head_pointer = unsafe { tape.as_mut_ptr().add(tape_len >> 1) };
+        let report_at_step = interval.get();
+        let step_count = 0u64;
+        assert!(step_count < report_at_step, "real assert");
+        Self {
+            tape,
+            tape_len,
+            head_pointer,
+            state_id: 0,
+            report_at_step,
+            step_count,
+            start_time: Instant::now(),
+        }
+    }
+}
 /// Executes up to `*step_budget_in_out` steps starting at `*head_in_out`.
 /// Mutates inputs in place and returns `status_code`:
 /// - `status_code`: 0 = ran heartbeat fully, 1 = halted, 2 = boundary encountered
@@ -547,16 +522,12 @@ impl CompiledMachine {
 /// tape cell within an allocation that includes boundary sentinels. The asm
 /// only reads/writes the current cell and moves within the allocation; it also
 /// preserves alignment/stack and does not touch memory beyond the tape.
-unsafe fn bb5_champ_compiled(
-    head_in_out: &mut *mut u8,
-    state_id_in_out: &mut u8,
-    step_limit: u64,
-    step_count_in_out: &mut u64,
-) -> Status {
-    let mut head_local: *mut u8 = *head_in_out;
-    let mut state_local: u8 = *state_id_in_out;
-    assert!(step_limit > *step_count_in_out);
-    let heartbeat: u64 = step_limit - *step_count_in_out;
+unsafe fn bb5_champ_compiled(runner: &mut Runner, max_steps: u64) -> Status {
+    let mut head_local: *mut u8 = runner.head_pointer;
+    let mut state_local: u8 = runner.state_id;
+    let step_limit: u64 = max_steps.min(runner.report_at_step);
+    assert!(step_limit > runner.step_count);
+    let heartbeat: u64 = step_limit - runner.step_count;
     let mut status_code: u8;
     let mut steps_taken_local: u64;
     unsafe {
@@ -580,9 +551,9 @@ unsafe fn bb5_champ_compiled(
             options(nostack)
         );
     };
-    *head_in_out = head_local;
-    *state_id_in_out = state_local;
-    *step_count_in_out += steps_taken_local;
+    runner.head_pointer = head_local;
+    runner.state_id = state_local;
+    runner.step_count += steps_taken_local;
     match status_code {
         0 => Status::OkChunk,
         1 => Status::Halted,
@@ -593,16 +564,12 @@ unsafe fn bb5_champ_compiled(
 
 /// BB6 Contender heartbeat using the macro-generated asm template
 #[allow(clippy::too_many_lines)]
-unsafe fn bb6_contender_compiled(
-    head_in_out: &mut *mut u8,
-    state_id_in_out: &mut u8,
-    step_limit: u64,
-    step_count_in_out: &mut u64,
-) -> Status {
-    let mut head_local: *mut u8 = *head_in_out;
-    let mut state_local: u8 = *state_id_in_out;
-    assert!(step_limit > *step_count_in_out);
-    let heartbeat: u64 = step_limit - *step_count_in_out;
+unsafe fn bb6_contender_compiled(runner: &mut Runner, max_steps: u64) -> Status {
+    let mut head_local: *mut u8 = runner.head_pointer;
+    let mut state_local: u8 = runner.state_id;
+    let step_limit: u64 = max_steps.min(runner.report_at_step);
+    assert!(step_limit > runner.step_count);
+    let heartbeat: u64 = step_limit - runner.step_count;
     let mut status_code: u8;
     let mut steps_taken_local: u64;
     unsafe {
@@ -629,9 +596,9 @@ unsafe fn bb6_contender_compiled(
             options(nostack)
         );
     };
-    *head_in_out = head_local;
-    *state_id_in_out = state_local;
-    *step_count_in_out += steps_taken_local;
+    runner.head_pointer = head_local;
+    runner.state_id = state_local;
+    runner.step_count += steps_taken_local;
     match status_code {
         0 => Status::OkChunk,
         1 => Status::Halted,
