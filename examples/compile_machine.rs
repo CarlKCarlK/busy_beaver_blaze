@@ -216,7 +216,7 @@ pub enum Status {
 }
 
 // Compiled function type: operates on RuntimeState state.
-// Must update head_pointer/state_id and add executed steps to step_count,
+// Must update head_pointer/state_index and add executed steps to step_count,
 // respecting runtime_state.max_steps and runtime_state.report_at_step.
 type CompiledFn = unsafe fn(&mut RuntimeState<'_>) -> Status;
 
@@ -292,7 +292,7 @@ pub enum RunTermination {
 #[derive(Debug, Clone, Copy)]
 pub struct Summary {
     pub step_count: u64,
-    pub final_state_id: u8,
+    pub state_index: u8,
     pub run_termination: RunTermination,
     pub elapsed_secs: f64,
     pub tape_len: usize,
@@ -330,7 +330,7 @@ struct RuntimeState<'a> {
     tape: Vec<u8>,
     tape_len: usize,
     head_pointer: *mut u8,
-    state_id: u8,
+    state_index: u8,
     report_at_step: u64,
     step_count: u64,
     start_time: Instant,
@@ -351,7 +351,7 @@ impl<'a> RuntimeState<'a> {
             tape,
             tape_len,
             head_pointer,
-            state_id: 0,
+            state_index: 0,
             report_at_step,
             step_count,
             start_time: Instant::now(),
@@ -369,7 +369,7 @@ impl<'a> RuntimeState<'a> {
             println!("{:.3} s", elapsed_secs);
             return Some(Summary {
                 step_count: self.step_count,
-                final_state_id: self.state_id,
+                state_index: self.state_index,
                 run_termination: RunTermination::MaxSteps,
                 elapsed_secs,
                 tape_len: self.tape_len,
@@ -423,7 +423,7 @@ impl<'a> RuntimeState<'a> {
         println!("{:.3} s", elapsed_secs);
         Summary {
             step_count: self.step_count,
-            final_state_id: self.state_id,
+            state_index: self.state_index,
             run_termination: RunTermination::Halted,
             elapsed_secs,
             tape_len: self.tape_len,
@@ -462,7 +462,7 @@ impl<'a> RuntimeState<'a> {
         println!("{:.3} s", elapsed_secs);
         Summary {
             step_count: self.step_count,
-            final_state_id: self.state_id,
+            state_index: self.state_index,
             run_termination: side,
             elapsed_secs,
             tape_len: self.tape_len,
@@ -521,7 +521,7 @@ impl<'a> RuntimeState<'a> {
 /// Mutates inputs in place and returns `status_code`:
 /// - `status_code`: 0 = ran heartbeat fully, 1 = halted, 2 = boundary encountered
 /// - `*head_in_out`: updated head pointer
-/// - `*state_id_in_out`: updated state id
+/// - `*state_index_in_out`: updated state index
 /// - `*step_budget_in_out`: overwritten with steps taken during this heartbeat
 ///
 /// Safety: Uses inline assembly and relies on `head_in_out` pointing to a valid
@@ -533,7 +533,7 @@ macro_rules! define_compiled_stepper {
     ($fn_name:ident, $( $prog_spec:tt )+ ) => {
         unsafe fn $fn_name(runner: &mut RuntimeState<'_>) -> Status {
             let mut head_local: *mut u8 = runner.head_pointer;
-            let mut state_local: u8 = runner.state_id;
+            let mut state_local: u8 = runner.state_index;
             let step_limit: u64 = runner.config.max_steps.min(runner.report_at_step);
             assert!(step_limit > runner.step_count);
             let heartbeat: u64 = step_limit - runner.step_count;
@@ -555,7 +555,7 @@ macro_rules! define_compiled_stepper {
                 );
             }
             runner.head_pointer = head_local;
-            runner.state_id = state_local;
+            runner.state_index = state_local;
             runner.step_count += steps_taken_local;
             match status_code {
                 0 => Status::OkChunk,
@@ -668,7 +668,7 @@ mod tests {
         let summary = compiled_machine.run();
         assert_eq!(summary.step_count, 1_000);
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
-        assert!(summary.final_state_id <= 4);
+        assert!(summary.state_index <= 4);
         assert!(summary.elapsed_secs >= 0.0);
         assert!(summary.tape_len >= 3);
     }
@@ -712,7 +712,7 @@ mod tests {
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
         assert_eq!(summary.step_count, 20_000_000);
         // Should still be in a valid state id (0..=4) for BB5
-        assert!(summary.final_state_id <= 4);
+        assert!(summary.state_index <= 4);
     }
 
     #[test]
@@ -728,7 +728,7 @@ mod tests {
 
         assert_eq!(summary.run_termination, RunTermination::Halted);
         assert_eq!(summary.step_count, 47_176_870);
-        assert_eq!(summary.final_state_id, 4);
+        assert_eq!(summary.state_index, 4);
         Ok(())
     }
 }
