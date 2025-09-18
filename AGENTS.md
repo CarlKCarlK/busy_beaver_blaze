@@ -157,3 +157,5 @@ Reference `src/code_notes.md` for sampling vs binning implementation locations a
 - In Rust, move deconstruction into the arguments were possible.
 
 - In Rust, I like using the same name when unwrapping, if let Some(max_steps) = max_steps {
+
+- I like asserts and using asserts. So, if the difference between two values must always be nonnegative, I would NOT use saturating_sub, I would use assert!(a >= b); let diff = a - b; because I want to catch any violations. Likewise, if a match requires a catch all, I wold use unreachable or panic. I would not use_ => {}.

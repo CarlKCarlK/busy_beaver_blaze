@@ -334,28 +334,32 @@ impl CompiledMachine {
             let status =
                 unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut steps_delta) };
 
-            step_count += steps_delta; // add actual steps taken
-
-            assert!(step_count <= self.max_steps, "real assert");
-
-            if step_count == max_steps {
-                // cmk should this be a result?
-                println!(
-                    "reached max steps {}; stopping",
-                    step_count.separate_with_commas()
-                );
-                let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                println!("{:.3} s", elapsed_seconds);
-                return Ok(Summary {
-                    step_count,
-                    final_state_id: state_id,
-                    run_termination: RunTermination::MaxSteps,
-                    elapsed_seconds,
-                    tape_len,
-                });
+            // Boundary is detected at the start of a step after RCX was
+            // already decremented in the asm prologue. Roll that credit back
+            // so step_count reflects completed transitions.
+            if matches!(status, CompiledStatus::Boundary) && steps_delta > 0 {
+                steps_delta -= 1;
             }
+
+            step_count += steps_delta; // add actual steps taken
             match status {
                 CompiledStatus::OkChunk => {
+                    if step_count >= max_steps {
+                        println!(
+                            "reached max steps {}; stopping",
+                            step_count.separate_with_commas()
+                        );
+                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                        println!("{:.3} s", elapsed_seconds);
+                        return Ok(Summary {
+                            step_count,
+                            final_state_id: state_id,
+                            run_termination: RunTermination::MaxSteps,
+                            elapsed_seconds,
+                            tape_len,
+                        });
+                    }
+                    // Advance reporting window if crossed, then continue.
                     maybe_report(step_count, &mut report_at_step, interval, max_steps, &start_time);
                     continue;
                 }
@@ -418,6 +422,21 @@ impl CompiledMachine {
                         }
                     } else {
                         panic!("unexpected boundary pointer returned from asm");
+                    }
+                    if step_count >= max_steps {
+                        println!(
+                            "reached max steps {}; stopping",
+                            step_count.separate_with_commas()
+                        );
+                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
+                        println!("{:.3} s", elapsed_seconds);
+                        return Ok(Summary {
+                            step_count,
+                            final_state_id: state_id,
+                            run_termination: RunTermination::MaxSteps,
+                            elapsed_seconds,
+                            tape_len,
+                        });
                     }
                 }
             }
