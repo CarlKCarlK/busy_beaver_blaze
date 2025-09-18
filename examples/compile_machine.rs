@@ -289,13 +289,17 @@ pub enum RunTermination {
     MaxMemoryRight,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Summary {
     pub step_count: u64,
     pub state_index: u8,
     pub run_termination: RunTermination,
     pub elapsed_secs: f64,
-    pub tape_len: usize,
+    // Full tape contents including sentinels at [0] and [len-1]
+    // Note: this can be large; returned on terminal summaries only.
+    pub tape: Vec<u8>,
+    // Index in `tape` that corresponds to the original logical 0 cell
+    pub origin_index: usize,
 }
 
 fn parse_clean<T>(s: &str) -> Result<T, String>
@@ -333,6 +337,7 @@ struct RuntimeState<'a> {
     report_at_step: u64,
     step_count: u64,
     start_time: Instant,
+    origin_index: usize,
 }
 
 impl<'a> RuntimeState<'a> {
@@ -340,7 +345,8 @@ impl<'a> RuntimeState<'a> {
         let mut tape: Vec<u8> = vec![0; config.min_tape];
         tape[0] = 2;
         *tape.last_mut().unwrap() = 2;
-        let head_pointer = unsafe { tape.as_mut_ptr().add(tape.len() >> 1) };
+        let middle = tape.len() >> 1;
+        let head_pointer = unsafe { tape.as_mut_ptr().add(middle) };
         let report_at_step = config.interval.get();
         let step_count = 0u64;
         assert!(step_count < report_at_step, "real assert");
@@ -352,6 +358,7 @@ impl<'a> RuntimeState<'a> {
             report_at_step,
             step_count,
             start_time: Instant::now(),
+            origin_index: middle,
         }
     }
 
@@ -364,12 +371,14 @@ impl<'a> RuntimeState<'a> {
                 self.step_count.separate_with_commas()
             );
             println!("{:.3} s", elapsed_secs);
+            use std::mem;
             return Some(Summary {
                 step_count: self.step_count,
                 state_index: self.state_index,
                 run_termination: RunTermination::MaxSteps,
                 elapsed_secs,
-                tape_len: self.tape.len(),
+                tape: mem::take(&mut self.tape),
+                origin_index: self.origin_index,
             });
         }
         assert!(self.step_count == self.report_at_step, "real assert");
@@ -411,7 +420,7 @@ impl<'a> RuntimeState<'a> {
         }
     }
 
-    fn on_halted(&self) -> Summary {
+    fn on_halted(&mut self) -> Summary {
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
         println!(
             "halted after {} steps",
@@ -423,7 +432,8 @@ impl<'a> RuntimeState<'a> {
             state_index: self.state_index,
             run_termination: RunTermination::Halted,
             elapsed_secs,
-            tape_len: self.tape.len(),
+            tape: std::mem::take(&mut self.tape),
+            origin_index: self.origin_index,
         }
     }
 
@@ -449,7 +459,7 @@ impl<'a> RuntimeState<'a> {
         None
     }
 
-    fn max_mem_summary(&self, side: RunTermination) -> Summary {
+    fn max_mem_summary(&mut self, side: RunTermination) -> Summary {
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
         println!(
             "reached max memory {} cells; stopping at {} steps",
@@ -462,7 +472,8 @@ impl<'a> RuntimeState<'a> {
             state_index: self.state_index,
             run_termination: side,
             elapsed_secs,
-            tape_len: self.tape.len(),
+            tape: std::mem::take(&mut self.tape),
+            origin_index: self.origin_index,
         }
     }
 
@@ -485,25 +496,25 @@ impl<'a> RuntimeState<'a> {
             "tape grown LEFT to {} cells",
             (new_total - 2).separate_with_commas()
         );
+        self.origin_index += old_interior;
         Some(unsafe { self.tape.as_mut_ptr().add(old_interior) })
     }
 
     fn extend_tape_right(&mut self) -> Option<*mut u8> {
         assert!(self.tape.len() >= 3, "real assert");
-        let old_interior = self.tape.len() - 2; // >= 1 by invariant
-        let new_total = self.tape.len() + old_interior;
+        let old_total = self.tape.len();
+        let old_interior = old_total - 2; // >= 1 by invariant
+        let new_total = old_total + old_interior;
         if new_total > self.config.max_tape {
             return None;
         }
-        // Grow in place; previous right sentinel becomes interior zero.
-        self.tape.reserve(old_interior);
-        // Clear the old right sentinel position before resize so it becomes interior 0.
-        let old_right = self.tape.len() - 1;
-        self.tape[old_right] = 0;
-        self.tape.resize(new_total, 0);
-        // Reassert sentinels.
-        self.tape[0] = 2;
-        *self.tape.last_mut().unwrap() = 2;
+        let old_right = old_total - 1;
+        let mut new_tape = vec![0u8; new_total];
+        new_tape[0] = 2;
+        *new_tape.last_mut().unwrap() = 2;
+        // Copy old interior at same offset starting at 1.
+        new_tape[1..(1 + old_interior)].copy_from_slice(&self.tape[1..(old_total - 1)]);
+        self.tape = new_tape;
         println!(
             "tape grown RIGHT to {} cells",
             (new_total - 2).separate_with_commas()
