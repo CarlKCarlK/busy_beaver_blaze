@@ -325,7 +325,7 @@ impl CompiledMachine {
 
         let start_time: Instant = Instant::now();
         loop {
-            assert!(step_count < self.max_steps, "real assert");
+            assert!(step_count < max_steps, "real assert");
             assert!(step_count < report_at_step, "real assert");
 
             // Compute the smaller of the two limits first, then subtract once
@@ -336,7 +336,7 @@ impl CompiledMachine {
             step_count += steps_delta; // add actual steps taken
             match status {
                 CompiledStatus::OkChunk => {
-                    assert!(step_count <= self.max_steps, "real assert");
+                    assert!(step_count <= max_steps, "real assert");
                     if step_count == max_steps {
                         println!(
                             "reached max steps {}; stopping",
@@ -505,6 +505,8 @@ fn maybe_report(
     max_steps: u64,
     start_time: &Instant,
 ) {
+    // cmk00
+    assert!(step_count == *report_at_step, "real assert");
     if step_count >= *report_at_step {
         let crossed = (step_count - *report_at_step) / interval + 1;
         let last = *report_at_step + (crossed - 1) * interval.get();
@@ -737,5 +739,26 @@ mod tests {
         assert!(summary.final_state_id <= 4);
         assert!(summary.elapsed_seconds >= 0.0);
         assert!(summary.tape_len >= 3);
+    }
+
+    // This mirrors `cargo run --example compile_machine --release` defaults
+    // and asserts the known halting step count for Bb5Champ. It is long-running
+    // in debug mode, so we only run it in release builds.
+    #[test]
+    #[cfg_attr(debug_assertions, ignore = "slow: requires --release; ~47M steps")]
+    fn bb5_champ_halts_at_47_million_steps() {
+        let compiled_machine: CompiledMachine = Args {
+            program: ProgramSelect::Bb5Champ,
+            interval: 20_000_000,
+            max_steps: u64::MAX,
+            min_tape: 2_097_152,
+            max_tape: 16_777_216,
+        }
+        .try_into()
+        .expect("conversion should succeed");
+
+        let summary = compiled_machine.run().expect("run should succeed");
+        assert_eq!(summary.run_termination, RunTermination::Halted);
+        assert_eq!(summary.step_count, 47_000_000);
     }
 }
