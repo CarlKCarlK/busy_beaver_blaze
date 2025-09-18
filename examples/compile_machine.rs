@@ -1,3 +1,13 @@
+// cmk notes
+// This is good. To refine the API and structure further, need to know our use case more, e.g. using it in
+// the larger program.
+// Other things to do:
+// -- support more symbols
+// -- use derive macros to make the use of the asm template more ergonomic.
+//           we might be able to more optimizations, e.g. if both 0/1 branch write same value or move same dir.
+// -- when used elsewhere likely want to return the final tape contents, not just step count.
+// -- haven't carefully review the tape growth code.
+
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
 use clap::{Parser, ValueEnum};
 use derive_more::{Display, Error};
@@ -208,7 +218,7 @@ pub enum Status {
 // Compiled function type: operates on Runner state.
 // Must update head_pointer/state_id and add executed steps to step_count,
 // respecting runner.max_steps and runner.report_at_step.
-type CompiledFn = unsafe fn(&mut Runner) -> Status;
+type CompiledFn = unsafe fn(&mut Runner<'_>) -> Status;
 
 #[derive(Debug, Clone)]
 pub struct CompiledMachine {
@@ -237,7 +247,7 @@ impl TryFrom<Args> for CompiledMachine {
 
 impl CompiledMachine {
     pub fn new(
-        compiled_function_id: CompiledFnId,
+        compiled_fn_id: CompiledFnId,
         interval: u64,
         max_steps: u64,
         min_tape: usize,
@@ -250,9 +260,7 @@ impl CompiledMachine {
             return Err(Error::MaxTapeTooSmall { max_tape });
         }
         let interval = NonZeroU64::new(interval).ok_or(Error::IntervalTooSmall { interval })?;
-
-        let compiled_fn: CompiledFn = compiled_function_id.compiled_fn();
-
+        let compiled_fn = compiled_fn_id.compiled_fn();
         Ok(Self {
             min_tape,
             interval,
@@ -315,12 +323,9 @@ impl CompiledMachine {
 }
 
 #[derive(Debug)]
-struct Runner {
-    // config snapshot
-    interval: NonZeroU64,
-    max_steps: u64,
-    max_tape: usize,
-    compiled_fn: CompiledFn,
+struct Runner<'a> {
+    // configuration (borrowed)
+    cm: &'a CompiledMachine,
     // runtime state
     tape: Vec<u8>,
     tape_len: usize,
@@ -331,8 +336,8 @@ struct Runner {
     start_time: Instant,
 }
 
-impl Runner {
-    fn new(cm: &CompiledMachine) -> Self {
+impl<'a> Runner<'a> {
+    fn new(cm: &'a CompiledMachine) -> Self {
         let tape_len = cm.min_tape;
         let mut tape: Vec<u8> = vec![0; tape_len];
         tape[0] = 2;
@@ -342,10 +347,7 @@ impl Runner {
         let step_count = 0u64;
         assert!(step_count < report_at_step, "real assert");
         Self {
-            interval: cm.interval,
-            max_steps: cm.max_steps,
-            max_tape: cm.max_tape,
-            compiled_fn: cm.compiled_fn,
+            cm,
             tape,
             tape_len,
             head_pointer,
@@ -357,9 +359,9 @@ impl Runner {
     }
 
     fn on_ok_chunk(&mut self) -> Option<Summary> {
-        assert!(self.step_count <= self.max_steps, "real assert");
+        assert!(self.step_count <= self.cm.max_steps, "real assert");
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
-        if self.step_count == self.max_steps {
+        if self.step_count == self.cm.max_steps {
             println!(
                 "reached max steps {}; stopping",
                 self.step_count.separate_with_commas()
@@ -376,7 +378,7 @@ impl Runner {
         assert!(self.step_count == self.report_at_step, "real assert");
         let (steps_per_sec, eta, total) = if elapsed_secs > 0.0 {
             let steps_per_sec = (self.step_count as f64) / elapsed_secs;
-            let eta = ((self.max_steps - self.step_count) as f64) / steps_per_sec;
+            let eta = ((self.cm.max_steps - self.step_count) as f64) / steps_per_sec;
             let total = format_duration(elapsed_secs + eta);
             (steps_per_sec, eta, total)
         } else {
@@ -390,13 +392,13 @@ impl Runner {
             total,
             elapsed_secs
         );
-        assert!(self.report_at_step <= u64::MAX - self.interval.get());
-        self.report_at_step += self.interval.get();
+        assert!(self.report_at_step <= u64::MAX - self.cm.interval.get());
+        self.report_at_step += self.cm.interval.get();
         None
     }
 
     fn step(&mut self) -> Option<Summary> {
-        match unsafe { (self.compiled_fn)(self) } {
+        match unsafe { (self.cm.compiled_fn)(self) } {
             Status::OkChunk => self.on_ok_chunk(),
             Status::Halted => Some(self.on_halted()),
             Status::Boundary => self.on_boundary(),
@@ -405,7 +407,7 @@ impl Runner {
 
     fn run(mut self) -> Summary {
         loop {
-            assert!(self.step_count < self.max_steps, "real assert");
+            assert!(self.step_count < self.cm.max_steps, "real assert");
             if let Some(summary) = self.step() {
                 return summary;
             }
@@ -429,7 +431,7 @@ impl Runner {
     }
 
     fn on_boundary(&mut self) -> Option<Summary> {
-        assert!(self.step_count < self.max_steps, "real assert");
+        assert!(self.step_count < self.cm.max_steps, "real assert");
         assert!(self.tape_len >= 3, "real assert");
         if self.head_pointer.cast_const() == self.tape.as_ptr() {
             match self.extend_tape_left() {
@@ -454,7 +456,7 @@ impl Runner {
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
         println!(
             "reached max memory {} cells; stopping at {} steps",
-            (self.max_tape - 2).separate_with_commas(),
+            (self.cm.max_tape - 2).separate_with_commas(),
             self.step_count.separate_with_commas()
         );
         println!("{:.3} s", elapsed_secs);
@@ -474,7 +476,7 @@ impl Runner {
         let old_interior = old_total.saturating_sub(2);
         let growth = old_interior.max(1);
         let new_total = old_total + growth;
-        if new_total > self.max_tape {
+        if new_total > self.cm.max_tape {
             return None;
         }
         let mut new_tape = vec![0u8; new_total];
@@ -499,7 +501,7 @@ impl Runner {
         let old_interior = old_total.saturating_sub(2);
         let growth = old_interior.max(1);
         let new_total = old_total + growth;
-        if new_total > self.max_tape {
+        if new_total > self.cm.max_tape {
             return None;
         }
         let mut new_tape = vec![0u8; new_total];
@@ -526,92 +528,63 @@ impl Runner {
 /// tape cell within an allocation that includes boundary sentinels. The asm
 /// only reads/writes the current cell and moves within the allocation; it also
 /// preserves alignment/stack and does not touch memory beyond the tape.
-unsafe fn bb5_champ_compiled(runner: &mut Runner) -> Status {
-    let mut head_local: *mut u8 = runner.head_pointer;
-    let mut state_local: u8 = runner.state_id;
-    let step_limit: u64 = runner.max_steps.min(runner.report_at_step);
-    assert!(step_limit > runner.step_count);
-    let heartbeat: u64 = step_limit - runner.step_count;
-    let mut status_code: u8;
-    let mut steps_taken_local: u64;
-    unsafe {
-        core::arch::asm!(
-            "mov r9, {hb}",
-            tm_prog!(BB5,
-                (A, 0, (1, R, B), (1, L, C)),
-                (B, 1, (1, R, C), (1, R, B)),
-                (C, 2, (1, R, D), (0, L, E)),
-                (D, 3, (1, L, A), (1, L, D)),
-                (E, 4, (1, R, HALT), (0, L, A)),
-            ),
-            inout("rsi") head_local,          // head pointer in/out
-            lateout("r8") steps_taken_local,  // steps taken this heartbeat
-            lateout("al") status_code,        // status code in AL
-            inout("bl") state_local,          // state id in/out
-            out("rdx") _,                     // clobber DL container
-            out("r10") _,                    // clobber: R10 used as heartbeat counter
-            out("r9") _,                      // clobber: R9 holds heartbeat shadow
-            hb = in(reg) heartbeat,
-            options(nostack)
-        );
+// Shared generator for compiled steppers differing only by program spec
+macro_rules! define_compiled_stepper {
+    ($fn_name:ident, $( $prog_spec:tt )+ ) => {
+        unsafe fn $fn_name(runner: &mut Runner<'_>) -> Status {
+            let mut head_local: *mut u8 = runner.head_pointer;
+            let mut state_local: u8 = runner.state_id;
+            let step_limit: u64 = runner.cm.max_steps.min(runner.report_at_step);
+            assert!(step_limit > runner.step_count);
+            let heartbeat: u64 = step_limit - runner.step_count;
+            let mut status_code: u8;
+            let mut steps_taken_local: u64;
+            unsafe {
+                core::arch::asm!(
+                    "mov r9, {hb}",
+                    tm_prog!($fn_name, $( $prog_spec )+),
+                    inout("rsi") head_local,
+                    lateout("r8") steps_taken_local,
+                    lateout("al") status_code,
+                    inout("bl") state_local,
+                    out("rdx") _,
+                    out("r10") _,
+                    out("r9") _,
+                    hb = in(reg) heartbeat,
+                    options(nostack)
+                );
+            }
+            runner.head_pointer = head_local;
+            runner.state_id = state_local;
+            runner.step_count += steps_taken_local;
+            match status_code {
+                0 => Status::OkChunk,
+                1 => Status::Halted,
+                2 => Status::Boundary,
+                other => panic!("unexpected status code from asm: {other}"),
+            }
+        }
     };
-    runner.head_pointer = head_local;
-    runner.state_id = state_local;
-    runner.step_count += steps_taken_local;
-    match status_code {
-        0 => Status::OkChunk,
-        1 => Status::Halted,
-        2 => Status::Boundary,
-        other => panic!("unexpected status code from asm: {other}"),
-    }
 }
 
-/// BB6 Contender heartbeat using the macro-generated asm template
-#[allow(clippy::too_many_lines)]
-unsafe fn bb6_contender_compiled(runner: &mut Runner) -> Status {
-    let mut head_local: *mut u8 = runner.head_pointer;
-    let mut state_local: u8 = runner.state_id;
-    let step_limit: u64 = runner.max_steps.min(runner.report_at_step);
-    assert!(step_limit > runner.step_count);
-    let heartbeat: u64 = step_limit - runner.step_count;
-    let mut status_code: u8;
-    let mut steps_taken_local: u64;
-    unsafe {
-        core::arch::asm!(
-            "mov r9, {hb}",
-            tm_prog!(BB6,
-                // 0: A 1RB, B 1RC, C 1LC, D 0LE, E 1LF, F 0RC
-                // 1: A 0LD, B 0RF, C 1LA, D 1RH, E 0RB, F 0RE
-                (A, 0, (1, R, B), (0, L, D)),
-                (B, 1, (1, R, C), (0, R, F)),
-                (C, 2, (1, L, C), (1, L, A)),
-                (D, 3, (0, L, E), (1, R, HALT)),
-                (E, 4, (1, L, F), (0, R, B)),
-                (F, 5, (0, R, C), (0, R, E)),
-            ),
-            inout("rsi") head_local,
-            lateout("r8") steps_taken_local,
-            lateout("al") status_code,
-            inout("bl") state_local,
-            out("rdx") _,
-            out("r10") _,
-            out("r9") _,
-            hb = in(reg) heartbeat,
-            options(nostack)
-        );
-    };
-    runner.head_pointer = head_local;
-    runner.state_id = state_local;
-    runner.step_count += steps_taken_local;
-    match status_code {
-        0 => Status::OkChunk,
-        1 => Status::Halted,
-        2 => Status::Boundary,
-        other => panic!("unexpected status code from asm: {other}"),
-    }
-}
+define_compiled_stepper!(
+    bb5_champ_compiled,
+    (A, 0, (1, R, B), (1, L, C)),
+    (B, 1, (1, R, C), (1, R, B)),
+    (C, 2, (1, R, D), (0, L, E)),
+    (D, 3, (1, L, A), (1, L, D)),
+    (E, 4, (1, R, HALT), (0, L, A)),
+);
 
-// moved extend_tape_left/right into impl CompiledMachine
+define_compiled_stepper!(
+    bb6_contender_compiled,
+    (A, 0, (1, R, B), (0, L, D)),
+    (B, 1, (1, R, C), (0, R, F)),
+    (C, 2, (1, L, C), (1, L, A)),
+    (D, 3, (0, L, E), (1, R, HALT)),
+    (E, 4, (1, L, F), (0, R, B)),
+    (F, 5, (0, R, C), (0, R, E)),
+);
 
 #[cfg(test)]
 mod tests {
