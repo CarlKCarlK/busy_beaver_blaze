@@ -356,30 +356,7 @@ impl CompiledMachine {
             }
             match status {
                 CompiledStatus::OkChunk => {
-                    if step_count >= report_at_step {
-                        let crossed = (step_count - report_at_step) / interval + 1;
-                        let last = report_at_step + (crossed - 1) * interval.get();
-                        let elapsed = start_time.elapsed().as_secs_f64();
-                        let done = last as f64; // Convert last to f64 directly
-                        let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-                        let remaining = (max_steps.saturating_sub(last)) as f64;
-                        let eta = if steps_per_sec > 0.0 { remaining / steps_per_sec } else { f64::INFINITY };
-                        let total = if eta.is_finite() { format_duration(elapsed + eta) } else { String::from("--:--:--") };
-                        println!(
-                            "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
-                            last.separate_with_commas(),
-                            total,
-                            eta,
-                            elapsed
-                        );
-                        println!(
-                            "{} steps ({} steps/s, elapsed {:.3} s)",
-                            last.separate_with_commas(),
-                            format_steps_per_sec(steps_per_sec),
-                            elapsed
-                        );
-                        report_at_step = last.saturating_add(interval.get());
-                    }
+                    maybe_report(step_count, &mut report_at_step, interval, max_steps, &start_time);
                     continue;
                 }
                 CompiledStatus::Halted => {
@@ -444,38 +421,7 @@ impl CompiledMachine {
                     }
                 }
             }
-            if step_count >= report_at_step {
-                let crossed = (step_count - report_at_step) / interval + 1;
-                let last = report_at_step + (crossed - 1) * interval.get();
-                let elapsed = start_time.elapsed().as_secs_f64();
-                let done = step_count as f64;
-                let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-                let remaining = (max_steps.saturating_sub(step_count)) as f64;
-                let eta = if steps_per_sec > 0.0 {
-                    remaining / steps_per_sec
-                } else {
-                    f64::INFINITY
-                };
-                let total = if eta.is_finite() {
-                    format_duration(elapsed + eta)
-                } else {
-                    String::from("--:--:--")
-                };
-                println!(
-                    "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
-                    last.separate_with_commas(),
-                    total,
-                    eta,
-                    elapsed
-                );
-                println!(
-                    "{} steps ({} steps/s, elapsed {:.3} s)",
-                    last.separate_with_commas(),
-                    format_steps_per_sec(steps_per_sec),
-                    elapsed
-                );
-                report_at_step = last.saturating_add(interval.get());
-            }
+            maybe_report(step_count, &mut report_at_step, interval, max_steps, &start_time);
         }
     }
 }
@@ -529,6 +475,46 @@ unsafe fn bb5_champ_compiled(
         1 => CompiledStatus::Halted,
         2 => CompiledStatus::Boundary,
         other => panic!("unexpected status code from asm: {other}"),
+    }
+}
+fn maybe_report(
+    step_count: u64,
+    report_at_step: &mut u64,
+    interval: NonZeroU64,
+    max_steps: u64,
+    start_time: &Instant,
+) {
+    if step_count >= *report_at_step {
+        let crossed = (step_count - *report_at_step) / interval + 1;
+        let last = *report_at_step + (crossed - 1) * interval.get();
+        let elapsed = start_time.elapsed().as_secs_f64();
+        let done = last as f64;
+        let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
+        let remaining = (max_steps.saturating_sub(last)) as f64;
+        let eta = if steps_per_sec > 0.0 {
+            remaining / steps_per_sec
+        } else {
+            f64::INFINITY
+        };
+        let total = if eta.is_finite() {
+            format_duration(elapsed + eta)
+        } else {
+            String::from("--:--:--")
+        };
+        println!(
+            "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
+            last.separate_with_commas(),
+            total,
+            eta,
+            elapsed
+        );
+        println!(
+            "{} steps ({} steps/s, elapsed {:.3} s)",
+            last.separate_with_commas(),
+            format_steps_per_sec(steps_per_sec),
+            elapsed
+        );
+        *report_at_step = last.saturating_add(interval.get());
     }
 }
 
