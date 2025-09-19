@@ -8,7 +8,7 @@ cargo test --example compile_machine
 cargo run --example compile_machine --release -- --program bb6-contender --interval 100_000_000_000  --min-tape 4 --max-tape 1,000,000,000,000,000
 cargo run --example compile_machine --release -- --program bb6-contender --interval 1_000_000_000 --max-steps 25,000,000,000
 
-// expand the assembly code (then ask AI to annotate it)
+# expand the assembly code (then ask AI to annotate it)
 cargo expand --example compile_machine bb6_contender_compiled
 ```
 
