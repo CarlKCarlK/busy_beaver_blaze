@@ -65,7 +65,6 @@ shadow_reuse = "allow"
 # arithmetic_side_effects = "deny"
 float_cmp_const = "deny"
 # indexing_slicing = "deny"
-pedantic = { level = "deny", priority = -2 }
 semicolon_if_nothing_returned = "warn"
 semicolon_inside_block = "warn"
 str_to_string = "warn"

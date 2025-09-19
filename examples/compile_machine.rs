@@ -8,6 +8,7 @@
 // -- when used elsewhere likely want to return the final tape contents, not just step count.
 // -- haven't carefully review the tape growth code.
 
+#![deny(clippy::pedantic)]
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
 use clap::{Parser, ValueEnum};
 use derive_more::{Display, Error};
@@ -887,7 +888,7 @@ mod tests {
         assert_eq!(summary.step_count, 355_317);
         // Cross-check with interpreter to avoid ambiguity in symbol tallies.
         use busy_beaver_blaze::Machine;
-        let mut interpeter =
+        let mut interpreter =
             Machine::from_string("1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB").expect("parse BB(3,3)");
         let mut steps = 1u64;
         while interpeter.step() {

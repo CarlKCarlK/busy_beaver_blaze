@@ -1,4 +1,5 @@
 #![cfg_attr(feature = "simd", feature(portable_simd))]
+#![deny(clippy::pedantic)]
 
 // cmk00 make custom size details reflected in the URL
 // cmk00 Test 9 symbols

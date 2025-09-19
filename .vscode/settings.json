@@ -36,4 +36,6 @@
     // "rust-analyzer.server.path": "C:/Users/carlk/.rustup/toolchains/nightly-2025-08-13-x86_64-pc-windows-msvc/bin/rust-analyzer.exe"
     // Re-enable clippy automatically on save after things are stable:
     // "rust-analyzer.check.command": "clippy"
+    
+    // Ensure pedantic policy is controlled in-code (not via CLI)
 }
