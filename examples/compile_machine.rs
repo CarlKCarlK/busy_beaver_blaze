@@ -1,3 +1,13 @@
+// cmk notes
+// This is good. To refine the API and structure further, need to know our use case more, e.g. using it in
+// the larger program.
+// Other things to do:
+// -- support more symbols
+// -- use derive macros to make the use of the asm template more ergonomic.
+//           we might be able to more optimizations, e.g. if both 0/1 branch write same value or move same dir.
+// -- when used elsewhere likely want to return the final tape contents, not just step count.
+// -- haven't carefully review the tape growth code.
+
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
 use clap::{Parser, ValueEnum};
 use derive_more::{Display, Error};
@@ -5,6 +15,8 @@ use std::{
     num::NonZeroU64,
     time::{Duration, Instant},
 };
+
+const SENTINEL: u8 = 255;
 
 fn format_steps_per_sec(steps_per_sec: f64) -> String {
     let value = if steps_per_sec.is_finite() {
@@ -105,7 +117,7 @@ macro_rules! tm_state_block {
             /* persist current state id    */ asmline!("mov bl, ", s!($id)),
             /* load cell                   */ asmline!("mov dl, [rsi]"),
             // cmk000 The boundary check is virtually free because of branch prediction
-            /* boundary sentinel?          */ asmline!("cmp dl, 2"),
+            /* boundary sentinel?          */ asmline!("cmp dl, 255"),
             /* jump if boundary            */ asmline!("je ", s!($P), "_BOUNDARY_", s!($S)),
             // cmk000 end
             /* is cell == 0?               */ asmline!("test dl, dl"),
@@ -162,8 +174,8 @@ fn format_duration(total_secs: f64) -> String {
     about = "Fast Turing machine runner with inline asm"
 )]
 struct Args {
-    #[arg(long, value_enum, default_value_t = ProgramSelect::Bb5Champ)]
-    program: ProgramSelect,
+    #[arg(long, value_enum, default_value_t = CompiledFnId::Bb5Champ)]
+    program: CompiledFnId,
 
     /// Status print interval in steps. Omit to disable periodic reports.
     #[arg(long, value_parser = parse_clean::<u64>, default_value_t = 10_000_000)]
@@ -184,31 +196,44 @@ struct Args {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 #[value(rename_all = "kebab-case")]
-pub enum ProgramSelect {
+pub enum CompiledFnId {
     Bb5Champ,
     Bb6Contender,
+    Bb33_355K,
+}
+
+impl CompiledFnId {
+    fn compiled_fn(self) -> CompiledFn {
+        match self {
+            CompiledFnId::Bb5Champ => bb5_champ_compiled,
+            CompiledFnId::Bb6Contender => bb6_contender_compiled,
+            CompiledFnId::Bb33_355K => bb33_355K_compiled,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompiledStatus {
+pub enum Status {
     OkChunk,
     Halted,
     Boundary,
 }
 
-// Compiled function type: three &mut inout params, returns status enum
-type CompiledFn = unsafe fn(&mut *mut u8, &mut u8, &mut u64) -> CompiledStatus;
+// Compiled function type: operates on RuntimeState state.
+// Must update head_pointer/state_index and add executed steps to step_count,
+// respecting runtime_state.max_steps and runtime_state.report_at_step.
+type CompiledFn = unsafe fn(&mut RuntimeState<'_>) -> Status;
 
 #[derive(Debug, Clone)]
-pub struct CompiledMachine {
+pub struct Config {
     pub min_tape: usize,
     pub interval: NonZeroU64,
     pub max_tape: usize,
     pub max_steps: u64,
-    pub compiled_fn: CompiledFn,
+    compiled_fn: CompiledFn,
 }
 
-impl TryFrom<Args> for CompiledMachine {
+impl TryFrom<Args> for Config {
     type Error = Error;
 
     fn try_from(
@@ -224,9 +249,9 @@ impl TryFrom<Args> for CompiledMachine {
     }
 }
 
-impl CompiledMachine {
+impl Config {
     pub fn new(
-        program: ProgramSelect,
+        compiled_fn_id: CompiledFnId,
         interval: u64,
         max_steps: u64,
         min_tape: usize,
@@ -239,12 +264,7 @@ impl CompiledMachine {
             return Err(Error::MaxTapeTooSmall { max_tape });
         }
         let interval = NonZeroU64::new(interval).ok_or(Error::IntervalTooSmall { interval })?;
-
-        let compiled_fn: CompiledFn = match program {
-            ProgramSelect::Bb5Champ => bb5_champ_compiled,
-            ProgramSelect::Bb6Contender => bb6_contender_compiled,
-        };
-
+        let compiled_fn = compiled_fn_id.compiled_fn();
         Ok(Self {
             min_tape,
             interval,
@@ -273,13 +293,108 @@ pub enum RunTermination {
     MaxMemoryRight,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Summary {
     pub step_count: u64,
-    pub final_state_id: u8,
+    pub state_index: u8,
     pub run_termination: RunTermination,
-    pub elapsed_seconds: f64,
-    pub tape_len: usize,
+    pub elapsed_secs: f64,
+    // Full tape contents including sentinels at [0] and [len-1]
+    // Note: this can be large; returned on terminal summaries only.
+    pub tape: Vec<u8>,
+    // Index in `tape` that corresponds to the original logical 0 cell
+    pub origin_index: usize,
+}
+
+// 3-symbol (0,1,2) stepper generator for A/B/C states
+#[rustfmt::skip]
+macro_rules! define_compiled_stepper_3sym {
+    ($fn_name:ident,
+        ($A:ident, $idA:expr, ($a0w:literal, $a0d:ident, $a0n:ident), ($a1w:literal, $a1d:ident, $a1n:ident), ($a2w:literal, $a2d:ident, $a2n:ident)),
+        ($B:ident, $idB:expr, ($b0w:literal, $b0d:ident, $b0n:ident), ($b1w:literal, $b1d:ident, $b1n:ident), ($b2w:literal, $b2d:ident, $b2n:ident)),
+        ($C:ident, $idC:expr, ($c0w:literal, $c0d:ident, $c0n:ident), ($c1w:literal, $c1d:ident, $c1n:ident), ($c2w:literal, $c2d:ident, $c2n:ident))
+        $(,)?
+    ) => {
+        unsafe fn $fn_name(runtime_state: &mut RuntimeState<'_>) -> Status {
+            let mut head_local: *mut u8 = runtime_state.head_pointer;
+            let mut state_local: u8 = runtime_state.state_index;
+            let step_limit: u64 = runtime_state.config.max_steps.min(runtime_state.report_at_step);
+            assert!(step_limit > runtime_state.step_count);
+            let heartbeat: u64 = step_limit - runtime_state.step_count;
+            let mut status_code: u8;
+            let mut steps_taken_local: u64;
+            core::arch::asm!(
+                "mov r9, {hb}",
+                asmline!("mov r10, r9"),
+                // dispatch
+                asmline!("cmp bl, ", s!($idA)), asmline!("je ", s!($fn_name), "_", s!($A)),
+                asmline!("cmp bl, ", s!($idB)), asmline!("je ", s!($fn_name), "_", s!($B)),
+                asmline!("cmp bl, ", s!($idC)), asmline!("je ", s!($fn_name), "_", s!($C)),
+                asmline!("jmp ", s!($fn_name), "_", s!($A)),
+                // A
+                asmline!(s!($fn_name), "_", s!($A), ":"),
+                asmline!("mov bl, ", s!($idA)),
+                asmline!("mov dl, [rsi]"),
+                asmline!("cmp dl, 255"), asmline!("je ", s!($fn_name), "_BOUNDARY_", s!($A)),
+                asmline!("cmp dl, 0"), asmline!("je ", s!($fn_name), "_", s!($A), "_ZERO"),
+                asmline!("cmp dl, 1"), asmline!("je ", s!($fn_name), "_", s!($A), "_ONE"),
+                asmline!("jmp ", s!($fn_name), "_", s!($A), "_TWO"),
+                asmline!(s!($fn_name), "_", s!($A), "_ZERO:"), tm_store_any!($a0w), tm_move!($a0d), tm_next!($fn_name, $a0n, $idA),
+                asmline!(s!($fn_name), "_", s!($A), "_ONE:"),  tm_store_any!($a1w), tm_move!($a1d), tm_next!($fn_name, $a1n, $idA),
+                asmline!(s!($fn_name), "_", s!($A), "_TWO:"),  tm_store_any!($a2w), tm_move!($a2d), tm_next!($fn_name, $a2n, $idA),
+                asmline!(s!($fn_name), "_BOUNDARY_", s!($A), ":"), asmline!("mov bl, ", s!($idA)), asmline!("jmp ", s!($fn_name), "_BOUNDARY"),
+                // B
+                asmline!(s!($fn_name), "_", s!($B), ":"),
+                asmline!("mov bl, ", s!($idB)),
+                asmline!("mov dl, [rsi]"),
+                asmline!("cmp dl, 255"), asmline!("je ", s!($fn_name), "_BOUNDARY_", s!($B)),
+                asmline!("cmp dl, 0"), asmline!("je ", s!($fn_name), "_", s!($B), "_ZERO"),
+                asmline!("cmp dl, 1"), asmline!("je ", s!($fn_name), "_", s!($B), "_ONE"),
+                asmline!("jmp ", s!($fn_name), "_", s!($B), "_TWO"),
+                asmline!(s!($fn_name), "_", s!($B), "_ZERO:"), tm_store_any!($b0w), tm_move!($b0d), tm_next!($fn_name, $b0n, $idB),
+                asmline!(s!($fn_name), "_", s!($B), "_ONE:"),  tm_store_any!($b1w), tm_move!($b1d), tm_next!($fn_name, $b1n, $idB),
+                asmline!(s!($fn_name), "_", s!($B), "_TWO:"),  tm_store_any!($b2w), tm_move!($b2d), tm_next!($fn_name, $b2n, $idB),
+                asmline!(s!($fn_name), "_BOUNDARY_", s!($B), ":"), asmline!("mov bl, ", s!($idB)), asmline!("jmp ", s!($fn_name), "_BOUNDARY"),
+                // C
+                asmline!(s!($fn_name), "_", s!($C), ":"),
+                asmline!("mov bl, ", s!($idC)),
+                asmline!("mov dl, [rsi]"),
+                asmline!("cmp dl, 255"), asmline!("je ", s!($fn_name), "_BOUNDARY_", s!($C)),
+                asmline!("cmp dl, 0"), asmline!("je ", s!($fn_name), "_", s!($C), "_ZERO"),
+                asmline!("cmp dl, 1"), asmline!("je ", s!($fn_name), "_", s!($C), "_ONE"),
+                asmline!("jmp ", s!($fn_name), "_", s!($C), "_TWO"),
+                asmline!(s!($fn_name), "_", s!($C), "_ZERO:"), tm_store_any!($c0w), tm_move!($c0d), tm_next!($fn_name, $c0n, $idC),
+                asmline!(s!($fn_name), "_", s!($C), "_ONE:"),  tm_store_any!($c1w), tm_move!($c1d), tm_next!($fn_name, $c1n, $idC),
+                asmline!(s!($fn_name), "_", s!($C), "_TWO:"),  tm_store_any!($c2w), tm_move!($c2d), tm_next!($fn_name, $c2n, $idC),
+                asmline!(s!($fn_name), "_BOUNDARY_", s!($C), ":"), asmline!("mov bl, ", s!($idC)), asmline!("jmp ", s!($fn_name), "_BOUNDARY"),
+                // end
+                asmline!(s!($fn_name), "_BOUNDARY:"), asmline!("mov al, 2"),
+                asmline!(s!($fn_name), "_END:"), asmline!("mov r8, r9"), asmline!("sub r8, r10"),
+                inout("rsi") head_local,
+                lateout("r8") steps_taken_local,
+                lateout("al") status_code,
+                inout("bl") state_local,
+                out("rdx") _, out("r10") _, out("r9") _,
+                hb = in(reg) heartbeat,
+                options(nostack)
+            );
+            runtime_state.head_pointer = head_local;
+            runtime_state.state_index = state_local;
+            runtime_state.step_count += steps_taken_local;
+            match status_code {
+                0 => Status::OkChunk,
+                1 => Status::Halted,
+                2 => Status::Boundary,
+                other => panic!("unexpected status code from asm: {other}"),
+            }
+        }
+    };
+}
+
+// Unconditional store for any symbol value (0..=254)
+#[rustfmt::skip]
+macro_rules! tm_store_any {
+    ($val:literal) => { asmline!("mov byte ptr [rsi], ", s!($val)) };
 }
 
 fn parse_clean<T>(s: &str) -> Result<T, String>
@@ -293,346 +408,292 @@ where
 }
 
 fn main() {
-    let compiled_machine: CompiledMachine = Args::parse().try_into().unwrap_or_else(|e| {
+    let config: Config = Args::parse().try_into().unwrap_or_else(|e| {
         eprintln!("error: {e}");
         std::process::exit(1);
     });
-    if let Err(error) = compiled_machine.run() {
-        eprintln!("{error}");
-        std::process::exit(2);
+    let _summary = config.run();
+}
+
+impl Config {
+    pub fn run(self) -> Summary {
+        RuntimeState::new(&self).run()
     }
 }
 
-impl CompiledMachine {
-    pub fn run(self) -> Result<Summary, Error> {
-        let Self {
-            min_tape,
-            interval,
-            max_tape,
-            max_steps,
-            compiled_fn,
-        } = self;
+#[derive(Debug)]
+struct RuntimeState<'a> {
+    // configuration (borrowed)
+    config: &'a Config,
+    // runtime state
+    tape: Vec<u8>,
+    head_pointer: *mut u8,
+    state_index: u8,
+    report_at_step: u64,
+    step_count: u64,
+    start_time: Instant,
+    origin_index: usize,
+}
 
-        let mut tape_len = min_tape;
-        let mut tape: Vec<u8> = vec![0; tape_len];
+impl<'a> RuntimeState<'a> {
+    fn new(config: &'a Config) -> Self {
+        let mut tape: Vec<u8> = vec![0; config.min_tape];
         tape[0] = 2;
-        tape[tape_len - 1] = 2;
-        let mut head_pointer = unsafe { tape.as_mut_ptr().add(tape_len >> 1) };
-
-        let mut report_at_step: u64 = interval.get();
-        let mut step_count: u64 = 0;
-        let mut state_id: u8 = 0;
-
-        let start_time: Instant = Instant::now();
-        loop {
-            assert!(step_count < max_steps, "real assert");
-            assert!(step_count < report_at_step, "real assert");
-
-            // Compute the smaller of the two limits first, then subtract once
-            let mut steps_delta = self.max_steps.min(report_at_step) - step_count;
-
-            let status = unsafe { compiled_fn(&mut head_pointer, &mut state_id, &mut steps_delta) };
-
-            step_count += steps_delta; // add actual steps taken
-            match status {
-                CompiledStatus::OkChunk => {
-                    assert!(step_count <= max_steps, "real assert");
-                    if step_count == max_steps {
-                        println!(
-                            "reached max steps {}; stopping",
-                            step_count.separate_with_commas()
-                        );
-                        let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                        println!("{:.3} s", elapsed_seconds);
-                        return Ok(Summary {
-                            step_count,
-                            final_state_id: state_id,
-                            run_termination: RunTermination::MaxSteps,
-                            elapsed_seconds,
-                            tape_len,
-                        });
-                    }
-                    // Advance reporting window if crossed, then continue.
-                    maybe_report(
-                        step_count,
-                        &mut report_at_step,
-                        interval,
-                        max_steps,
-                        &start_time,
-                    );
-                    continue;
-                }
-                CompiledStatus::Halted => {
-                    println!("halted after {} steps", step_count.separate_with_commas());
-                    let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                    println!("{:.3} s", elapsed_seconds);
-                    return Ok(Summary {
-                        step_count,
-                        final_state_id: state_id,
-                        run_termination: RunTermination::Halted,
-                        elapsed_seconds,
-                        tape_len,
-                    });
-                }
-                CompiledStatus::Boundary => {
-                    assert!(step_count < max_steps, "real assert");
-
-                    let left_sentinel_ptr = tape.as_ptr();
-                    let right_sentinel_ptr = unsafe { tape.as_ptr().add(tape_len - 1) };
-                    let hit_left = head_pointer.cast_const() == left_sentinel_ptr;
-                    let hit_right = head_pointer.cast_const() == right_sentinel_ptr;
-                    if hit_left {
-                        match extend_tape_left(&mut tape, &mut tape_len, max_tape) {
-                            Some(ptr) => head_pointer = ptr,
-                            None => {
-                                println!(
-                                    "reached max memory {} cells; stopping at {} steps",
-                                    (max_tape - 2).separate_with_commas(),
-                                    step_count.separate_with_commas()
-                                );
-                                let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                                println!("{:.3} s", elapsed_seconds);
-                                return Ok(Summary {
-                                    step_count,
-                                    final_state_id: state_id,
-                                    run_termination: RunTermination::MaxMemoryLeft,
-                                    elapsed_seconds,
-                                    tape_len,
-                                });
-                            }
-                        }
-                    } else if hit_right {
-                        match extend_tape_right(&mut tape, &mut tape_len, max_tape) {
-                            Some(ptr) => head_pointer = ptr,
-                            None => {
-                                println!(
-                                    "reached max memory {} cells; stopping at {} steps",
-                                    (max_tape - 2).separate_with_commas(),
-                                    step_count.separate_with_commas()
-                                );
-                                let elapsed_seconds = start_time.elapsed().as_secs_f64();
-                                println!("{:.3} s", elapsed_seconds);
-                                return Ok(Summary {
-                                    step_count,
-                                    final_state_id: state_id,
-                                    run_termination: RunTermination::MaxMemoryRight,
-                                    elapsed_seconds,
-                                    tape_len,
-                                });
-                            }
-                        }
-                    } else {
-                        panic!("unexpected boundary pointer returned from asm");
-                    }
-                }
-            }
-            maybe_report(
-                step_count,
-                &mut report_at_step,
-                interval,
-                max_steps,
-                &start_time,
-            );
+        *tape.last_mut().unwrap() = 2;
+        let middle = tape.len() >> 1;
+        let head_pointer = unsafe { tape.as_mut_ptr().add(middle) };
+        let report_at_step = config.interval.get();
+        let step_count = 0u64;
+        assert!(step_count < report_at_step, "real assert");
+        Self {
+            config,
+            tape,
+            head_pointer,
+            state_index: 0,
+            report_at_step,
+            step_count,
+            start_time: Instant::now(),
+            origin_index: middle,
         }
+    }
+
+    fn on_ok_chunk(&mut self) -> Option<Summary> {
+        assert!(self.step_count <= self.config.max_steps, "real assert");
+        let elapsed_secs = self.start_time.elapsed().as_secs_f64();
+        if self.step_count == self.config.max_steps {
+            println!(
+                "reached max steps {}; stopping",
+                self.step_count.separate_with_commas()
+            );
+            println!("{:.3} s", elapsed_secs);
+            use std::mem;
+            return Some(Summary {
+                step_count: self.step_count,
+                state_index: self.state_index,
+                run_termination: RunTermination::MaxSteps,
+                elapsed_secs,
+                tape: mem::take(&mut self.tape),
+                origin_index: self.origin_index,
+            });
+        }
+        assert!(self.step_count == self.report_at_step, "real assert");
+        let (steps_per_sec, eta, total) = if elapsed_secs > 0.0 {
+            let steps_per_sec = (self.step_count as f64) / elapsed_secs;
+            let eta = ((self.config.max_steps - self.step_count) as f64) / steps_per_sec;
+            let total = format_duration(elapsed_secs + eta);
+            (steps_per_sec, eta, total)
+        } else {
+            (0.0, f64::INFINITY, String::from("--:--:--"))
+        };
+        println!(
+            "{} steps ({} steps/s, ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
+            self.step_count.separate_with_commas(),
+            format_steps_per_sec(steps_per_sec),
+            eta,
+            total,
+            elapsed_secs
+        );
+        assert!(self.report_at_step <= u64::MAX - self.config.interval.get());
+        self.report_at_step += self.config.interval.get();
+        None
+    }
+
+    fn step(&mut self) -> Option<Summary> {
+        match unsafe { (self.config.compiled_fn)(self) } {
+            Status::OkChunk => self.on_ok_chunk(),
+            Status::Halted => Some(self.on_halted()),
+            Status::Boundary => self.on_boundary(),
+        }
+    }
+
+    fn run(mut self) -> Summary {
+        loop {
+            assert!(self.step_count < self.config.max_steps, "real assert");
+            if let Some(summary) = self.step() {
+                return summary;
+            }
+        }
+    }
+
+    fn on_halted(&mut self) -> Summary {
+        let elapsed_secs = self.start_time.elapsed().as_secs_f64();
+        println!(
+            "halted after {} steps",
+            self.step_count.separate_with_commas()
+        );
+        println!("{:.3} s", elapsed_secs);
+        Summary {
+            step_count: self.step_count,
+            state_index: self.state_index,
+            run_termination: RunTermination::Halted,
+            elapsed_secs,
+            tape: std::mem::take(&mut self.tape),
+            origin_index: self.origin_index,
+        }
+    }
+
+    fn on_boundary(&mut self) -> Option<Summary> {
+        assert!(self.step_count < self.config.max_steps, "real assert");
+        assert!(self.tape.len() >= 3, "real assert");
+        if self.head_pointer.cast_const() == self.tape.as_ptr() {
+            match self.extend_tape_left() {
+                Some(ptr) => self.head_pointer = ptr,
+                None => return Some(self.max_mem_summary(RunTermination::MaxMemoryLeft)),
+            }
+        } else {
+            let right = unsafe { self.tape.as_ptr().add(self.tape.len() - 1) };
+            assert!(
+                self.head_pointer.cast_const() == right,
+                "real assert: boundary else-branch must be at right sentinel"
+            );
+            match self.extend_tape_right() {
+                Some(ptr) => self.head_pointer = ptr,
+                None => return Some(self.max_mem_summary(RunTermination::MaxMemoryRight)),
+            }
+        }
+        None
+    }
+
+    fn max_mem_summary(&mut self, side: RunTermination) -> Summary {
+        let elapsed_secs = self.start_time.elapsed().as_secs_f64();
+        println!(
+            "reached max memory {} cells; stopping at {} steps",
+            (self.config.max_tape - 2).separate_with_commas(),
+            self.step_count.separate_with_commas()
+        );
+        println!("{:.3} s", elapsed_secs);
+        Summary {
+            step_count: self.step_count,
+            state_index: self.state_index,
+            run_termination: side,
+            elapsed_secs,
+            tape: std::mem::take(&mut self.tape),
+            origin_index: self.origin_index,
+        }
+    }
+
+    fn extend_tape_left(&mut self) -> Option<*mut u8> {
+        assert!(self.tape.len() >= 3, "real assert");
+        let old_interior = self.tape.len() - 2;
+        let new_total = old_interior * 2 + 2;
+        if new_total > self.config.max_tape {
+            return None;
+        }
+        // Allocate exact new size and copy interior shifted right by old_interior.
+        let mut new_tape = vec![0u8; new_total];
+        new_tape[0] = 2;
+        *new_tape.last_mut().unwrap() = 2;
+        let dst_start = 1 + old_interior;
+        let dst_end = dst_start + old_interior;
+        new_tape[dst_start..dst_end].copy_from_slice(&self.tape[1..(old_interior + 1)]);
+        self.tape = new_tape;
+        println!(
+            "tape grown LEFT to {} cells",
+            (new_total - 2).separate_with_commas()
+        );
+        self.origin_index += old_interior;
+        Some(unsafe { self.tape.as_mut_ptr().add(old_interior) })
+    }
+
+    fn extend_tape_right(&mut self) -> Option<*mut u8> {
+        assert!(self.tape.len() >= 3, "real assert");
+        let old_total = self.tape.len();
+        let old_interior = old_total - 2; // >= 1 by invariant
+        let new_total = old_total + old_interior;
+        if new_total > self.config.max_tape {
+            return None;
+        }
+        let old_right = old_total - 1;
+        let mut new_tape = vec![0u8; new_total];
+        new_tape[0] = 2;
+        *new_tape.last_mut().unwrap() = 2;
+        // Copy old interior at same offset starting at 1.
+        new_tape[1..(1 + old_interior)].copy_from_slice(&self.tape[1..(old_total - 1)]);
+        self.tape = new_tape;
+        println!(
+            "tape grown RIGHT to {} cells",
+            (new_total - 2).separate_with_commas()
+        );
+        // First newly-added interior cell is at the old sentinel position.
+        Some(unsafe { self.tape.as_mut_ptr().add(old_right) })
     }
 }
 /// Executes up to `*step_budget_in_out` steps starting at `*head_in_out`.
 /// Mutates inputs in place and returns `status_code`:
 /// - `status_code`: 0 = ran heartbeat fully, 1 = halted, 2 = boundary encountered
 /// - `*head_in_out`: updated head pointer
-/// - `*state_id_in_out`: updated state id
+/// - `*state_index_in_out`: updated state index
 /// - `*step_budget_in_out`: overwritten with steps taken during this heartbeat
 ///
 /// Safety: Uses inline assembly and relies on `head_in_out` pointing to a valid
 /// tape cell within an allocation that includes boundary sentinels. The asm
 /// only reads/writes the current cell and moves within the allocation; it also
 /// preserves alignment/stack and does not touch memory beyond the tape.
-unsafe fn bb5_champ_compiled(
-    head_in_out: &mut *mut u8,
-    state_id_in_out: &mut u8,
-    step_budget_in_out: &mut u64,
-) -> CompiledStatus {
-    let mut head_local: *mut u8 = *head_in_out;
-    let mut state_local: u8 = *state_id_in_out;
-    let heartbeat: u64 = *step_budget_in_out;
-    let mut status_code: u8;
-    let mut steps_taken_local: u64;
-    unsafe {
-        core::arch::asm!(
-            "mov r9, {hb}",
-            tm_prog!(BB5,
-                (A, 0, (1, R, B), (1, L, C)),
-                (B, 1, (1, R, C), (1, R, B)),
-                (C, 2, (1, R, D), (0, L, E)),
-                (D, 3, (1, L, A), (1, L, D)),
-                (E, 4, (1, R, HALT), (0, L, A)),
-            ),
-            inout("rsi") head_local,          // head pointer in/out
-            lateout("r8") steps_taken_local,  // steps taken this heartbeat
-            lateout("al") status_code,        // status code in AL
-            inout("bl") state_local,          // state id in/out
-            out("rdx") _,                     // clobber DL container
-            out("r10") _,                    // clobber: R10 used as heartbeat counter
-            out("r9") _,                      // clobber: R9 holds heartbeat shadow
-            hb = in(reg) heartbeat,
-            options(nostack)
-        );
+// Shared generator for compiled steppers differing only by program spec
+macro_rules! define_compiled_stepper {
+    ($fn_name:ident, $( $prog_spec:tt )+ ) => {
+        unsafe fn $fn_name(runner: &mut RuntimeState<'_>) -> Status {
+            let mut head_local: *mut u8 = runner.head_pointer;
+            let mut state_local: u8 = runner.state_index;
+            let step_limit: u64 = runner.config.max_steps.min(runner.report_at_step);
+            assert!(step_limit > runner.step_count);
+            let heartbeat: u64 = step_limit - runner.step_count;
+            let mut status_code: u8;
+            let mut steps_taken_local: u64;
+            unsafe {
+                core::arch::asm!(
+                    "mov r9, {hb}",
+                    tm_prog!($fn_name, $( $prog_spec )+),
+                    inout("rsi") head_local,
+                    lateout("r8") steps_taken_local,
+                    lateout("al") status_code,
+                    inout("bl") state_local,
+                    out("rdx") _,
+                    out("r10") _,
+                    out("r9") _,
+                    hb = in(reg) heartbeat,
+                    options(nostack)
+                );
+            }
+            runner.head_pointer = head_local;
+            runner.state_index = state_local;
+            runner.step_count += steps_taken_local;
+            match status_code {
+                0 => Status::OkChunk,
+                1 => Status::Halted,
+                2 => Status::Boundary,
+                other => panic!("unexpected status code from asm: {other}"),
+            }
+        }
     };
-    *head_in_out = head_local;
-    *state_id_in_out = state_local;
-    *step_budget_in_out = steps_taken_local;
-    match status_code {
-        0 => CompiledStatus::OkChunk,
-        1 => CompiledStatus::Halted,
-        2 => CompiledStatus::Boundary,
-        other => panic!("unexpected status code from asm: {other}"),
-    }
-}
-fn maybe_report(
-    step_count: u64,
-    report_at_step: &mut u64,
-    interval: NonZeroU64,
-    max_steps: u64,
-    start_time: &Instant,
-) {
-    // cmk00
-    assert!(step_count == *report_at_step, "real assert");
-    if step_count >= *report_at_step {
-        let crossed = (step_count - *report_at_step) / interval + 1;
-        let last = *report_at_step + (crossed - 1) * interval.get();
-        let elapsed = start_time.elapsed().as_secs_f64();
-        let done = last as f64;
-        let steps_per_sec = if elapsed > 0.0 { done / elapsed } else { 0.0 };
-        let remaining = (max_steps.saturating_sub(last)) as f64;
-        let eta = if steps_per_sec > 0.0 {
-            remaining / steps_per_sec
-        } else {
-            f64::INFINITY
-        };
-        let total = if eta.is_finite() {
-            format_duration(elapsed + eta)
-        } else {
-            String::from("--:--:--")
-        };
-        println!(
-            "{} steps (ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
-            last.separate_with_commas(),
-            eta,
-            total,
-            elapsed
-        );
-        println!(
-            "{} steps ({} steps/s, elapsed {:.3} s)",
-            last.separate_with_commas(),
-            format_steps_per_sec(steps_per_sec),
-            elapsed
-        );
-        *report_at_step = last.saturating_add(interval.get());
-    }
 }
 
-/// BB6 Contender heartbeat using the macro-generated asm template
-#[allow(clippy::too_many_lines)]
-unsafe fn bb6_contender_compiled(
-    head_in_out: &mut *mut u8,
-    state_id_in_out: &mut u8,
-    step_budget_in_out: &mut u64,
-) -> CompiledStatus {
-    let mut head_local: *mut u8 = *head_in_out;
-    let mut state_local: u8 = *state_id_in_out;
-    let heartbeat: u64 = *step_budget_in_out;
-    let mut status_code: u8;
-    let mut steps_taken_local: u64;
-    unsafe {
-        core::arch::asm!(
-            "mov r9, {hb}",
-            tm_prog!(BB6,
-                // 0: A 1RB, B 1RC, C 1LC, D 0LE, E 1LF, F 0RC
-                // 1: A 0LD, B 0RF, C 1LA, D 1RH, E 0RB, F 0RE
-                (A, 0, (1, R, B), (0, L, D)),
-                (B, 1, (1, R, C), (0, R, F)),
-                (C, 2, (1, L, C), (1, L, A)),
-                (D, 3, (0, L, E), (1, R, HALT)),
-                (E, 4, (1, L, F), (0, R, B)),
-                (F, 5, (0, R, C), (0, R, E)),
-            ),
-            inout("rsi") head_local,
-            lateout("r8") steps_taken_local,
-            lateout("al") status_code,
-            inout("bl") state_local,
-            out("rdx") _,
-            out("r10") _,
-            out("r9") _,
-            hb = in(reg) heartbeat,
-            options(nostack)
-        );
-    };
-    *head_in_out = head_local;
-    *state_id_in_out = state_local;
-    *step_budget_in_out = steps_taken_local;
-    match status_code {
-        0 => CompiledStatus::OkChunk,
-        1 => CompiledStatus::Halted,
-        2 => CompiledStatus::Boundary,
-        other => panic!("unexpected status code from asm: {other}"),
-    }
-}
+define_compiled_stepper!(
+    bb5_champ_compiled,
+    (A, 0, (1, R, B), (1, L, C)),
+    (B, 1, (1, R, C), (1, R, B)),
+    (C, 2, (1, R, D), (0, L, E)),
+    (D, 3, (1, L, A), (1, L, D)),
+    (E, 4, (1, R, HALT), (0, L, A)),
+);
 
-fn extend_tape_left(
-    tape: &mut Vec<u8>,
-    total_len: &mut usize,
-    max_total: usize,
-) -> Option<*mut u8> {
-    let old_total = *total_len;
-    let old_interior = old_total.saturating_sub(2);
-    let growth = old_interior.max(1);
-    let new_total = old_total + growth;
-    if new_total > max_total {
-        return None;
-    }
-    let mut new_tape = vec![0u8; new_total];
-    new_tape[0] = 2;
-    new_tape[new_total - 1] = 2;
-    // Copy old interior shifted right by `growth`.
-    let dst_start = 1 + growth;
-    let dst_end = dst_start + old_interior;
-    new_tape[dst_start..dst_end].copy_from_slice(&tape[1..(old_total - 1)]);
-    *tape = new_tape;
-    *total_len = new_total;
-    println!(
-        "tape grown LEFT to {} cells",
-        (new_total - 2).separate_with_commas()
-    );
-    // Head should be at the first newly-added interior cell.
-    Some(unsafe { tape.as_mut_ptr().add(growth) })
-}
+define_compiled_stepper!(
+    bb6_contender_compiled,
+    (A, 0, (1, R, B), (0, L, D)),
+    (B, 1, (1, R, C), (0, R, F)),
+    (C, 2, (1, L, C), (1, L, A)),
+    (D, 3, (0, L, E), (1, R, HALT)),
+    (E, 4, (1, L, F), (0, R, B)),
+    (F, 5, (0, R, C), (0, R, E)),
+);
 
-fn extend_tape_right(
-    tape: &mut Vec<u8>,
-    total_len: &mut usize,
-    max_total: usize,
-) -> Option<*mut u8> {
-    let old_total = *total_len;
-    let old_interior = old_total.saturating_sub(2);
-    let growth = old_interior.max(1);
-    let new_total = old_total + growth;
-    if new_total > max_total {
-        return None;
-    }
-    let mut new_tape = vec![0u8; new_total];
-    new_tape[0] = 2;
-    new_tape[new_total - 1] = 2;
-    // Copy old interior at the same offset.
-    new_tape[1..(1 + old_interior)].copy_from_slice(&tape[1..(old_total - 1)]);
-    *tape = new_tape;
-    *total_len = new_total;
-    println!(
-        "tape grown RIGHT to {} cells",
-        (new_total - 2).separate_with_commas()
-    );
-    // Head should be the first newly-added interior cell to the right of the old end.
-    Some(unsafe { tape.as_mut_ptr().add(old_total - 1) })
-}
+// BB(3,3) champion (~355,317 steps) spec: 1RB 2LA 1RA_1LA 1RZ 1RC_2RB 1RC 2RB
+define_compiled_stepper_3sym!(
+    bb33_355K_compiled,
+    (A, 0, (1, R, B), (2, L, A), (1, R, A)),
+    (B, 1, (1, L, A), (1, R, HALT), (1, R, C)),
+    (C, 2, (2, R, B), (1, R, C), (2, R, B)),
+);
 
 #[cfg(test)]
 mod tests {
@@ -641,34 +702,31 @@ mod tests {
     #[test]
     fn args_try_from_copies_fields() {
         let args = Args {
-            program: ProgramSelect::Bb6Contender,
+            program: CompiledFnId::Bb6Contender,
             interval: 42,
             max_steps: 7,
             min_tape: 128,
             max_tape: 256,
         };
-        let compiled_machine: CompiledMachine = args.try_into().expect("conversion should succeed");
+        let config: Config = args.try_into().expect("conversion should succeed");
         // Verify constructor selected the correct compiled function
-        assert_eq!(
-            compiled_machine.compiled_fn as usize,
-            bb6_contender_compiled as usize
-        );
-        assert_eq!(compiled_machine.interval.get(), 42);
-        assert_eq!(compiled_machine.max_steps, 7);
-        assert_eq!(compiled_machine.min_tape, 128);
-        assert_eq!(compiled_machine.max_tape, 256);
+        assert_eq!(config.compiled_fn as usize, bb6_contender_compiled as usize);
+        assert_eq!(config.interval.get(), 42);
+        assert_eq!(config.max_steps, 7);
+        assert_eq!(config.min_tape, 128);
+        assert_eq!(config.max_tape, 256);
     }
 
     #[test]
     fn args_try_from_rejects_zero_interval() {
         let args = Args {
-            program: ProgramSelect::Bb5Champ,
+            program: CompiledFnId::Bb5Champ,
             interval: 0,
             max_steps: 1,
             min_tape: 128,
             max_tape: 256,
         };
-        match CompiledMachine::try_from(args) {
+        match Config::try_from(args) {
             Err(Error::IntervalTooSmall { interval }) => assert_eq!(interval, 0),
             other => panic!("expected IntervalTooSmall error, got {:?}", other),
         }
@@ -677,13 +735,13 @@ mod tests {
     #[test]
     fn args_try_from_rejects_short_tape() {
         let args = Args {
-            program: ProgramSelect::Bb5Champ,
+            program: CompiledFnId::Bb5Champ,
             interval: 1_000,
             max_steps: 1,
             min_tape: 2,
             max_tape: 64,
         };
-        match CompiledMachine::try_from(args) {
+        match Config::try_from(args) {
             Err(Error::TapeTooShort { min_tape }) => assert_eq!(min_tape, 2),
             other => panic!("expected TapeTooShort error, got {:?}", other),
         }
@@ -692,13 +750,13 @@ mod tests {
     #[test]
     fn args_try_from_rejects_small_max_tape() {
         let args = Args {
-            program: ProgramSelect::Bb5Champ,
+            program: CompiledFnId::Bb5Champ,
             interval: 1_000,
             max_steps: 1,
             min_tape: 4,
             max_tape: 2,
         };
-        match CompiledMachine::try_from(args) {
+        match Config::try_from(args) {
             Err(Error::MaxTapeTooSmall { max_tape }) => assert_eq!(max_tape, 2),
             other => panic!("expected MaxTapeTooSmall error, got {:?}", other),
         }
@@ -706,8 +764,8 @@ mod tests {
 
     #[test]
     fn run_stops_at_max_steps() {
-        let compiled_machine: CompiledMachine = Args {
-            program: ProgramSelect::Bb5Champ,
+        let compiled_machine: Config = Args {
+            program: CompiledFnId::Bb5Champ,
             interval: 1_000_000,
             max_steps: 1_000,
             min_tape: 128,
@@ -716,12 +774,12 @@ mod tests {
         .try_into()
         .expect("conversion should succeed");
 
-        let summary = compiled_machine.run().expect("run should succeed");
+        let summary = compiled_machine.run();
         assert_eq!(summary.step_count, 1_000);
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
-        assert!(summary.final_state_id <= 4);
-        assert!(summary.elapsed_seconds >= 0.0);
-        assert!(summary.tape_len >= 3);
+        assert!(summary.state_index <= 4);
+        assert!(summary.elapsed_secs >= 0.0);
+        assert!(summary.tape.len() >= 3);
     }
 
     // This mirrors `cargo run --example compile_machine --release` defaults
@@ -729,8 +787,8 @@ mod tests {
     // in debug mode, so we only run it in release builds.
     #[test]
     fn bb5_champ_halts_at_47_million_steps() {
-        let compiled_machine: CompiledMachine = Args {
-            program: ProgramSelect::Bb5Champ,
+        let compiled_machine: Config = Args {
+            program: CompiledFnId::Bb5Champ,
             interval: 20_000_000,
             max_steps: u64::MAX,
             min_tape: 2_097_152,
@@ -739,7 +797,7 @@ mod tests {
         .try_into()
         .expect("conversion should succeed");
 
-        let summary = compiled_machine.run().expect("run should succeed");
+        let summary = compiled_machine.run();
         assert_eq!(summary.run_termination, RunTermination::Halted);
         assert_eq!(summary.step_count, 47_176_870);
     }
@@ -749,8 +807,8 @@ mod tests {
         // Reproduce the bug where resuming at chunk boundaries jumps to a wrong state
         // and halts around ~10,003,798 steps. With the fix, this run should not halt
         // and instead stop at the max_steps limit.
-        let compiled_machine: CompiledMachine = Args {
-            program: ProgramSelect::Bb5Champ,
+        let compiled_machine: Config = Args {
+            program: CompiledFnId::Bb5Champ,
             interval: 10_000_000,
             max_steps: 20_000_000,
             min_tape: 2_097_152,
@@ -759,30 +817,62 @@ mod tests {
         .try_into()
         .expect("conversion should succeed");
 
-        let summary = compiled_machine.run().expect("run should succeed");
+        let summary = compiled_machine.run();
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
         assert_eq!(summary.step_count, 20_000_000);
         // Should still be in a valid state id (0..=4) for BB5
-        assert!(summary.final_state_id <= 4);
+        assert!(summary.state_index <= 4);
     }
 
     #[test]
-    fn bb5_compiled_runs_to_halt_with_10m_reports() {
-        // Ensure the compiled runner reaches the true BB5 halt step
-        // while still emitting periodic messages every 10 million.
-        let compiled_machine: CompiledMachine = Args {
-            program: ProgramSelect::Bb5Champ,
-            interval: 10_000_000,
-            max_steps: u64::MAX,
-            min_tape: 2_097_152,
-            max_tape: 16_777_216,
-        }
-        .try_into()
-        .expect("conversion should succeed");
+    fn bb5_run() -> Result<(), Error> {
+        let summary = Config::new(
+            CompiledFnId::Bb5Champ,
+            10_000_000,
+            u64::MAX,
+            2_097_152,
+            16_777_216,
+        )?
+        .run();
 
-        let summary = compiled_machine.run().expect("run should succeed");
         assert_eq!(summary.run_termination, RunTermination::Halted);
         assert_eq!(summary.step_count, 47_176_870);
-        assert!(summary.final_state_id <= 4);
+        assert_eq!(summary.state_index, 4);
+        Ok(())
+    }
+
+    #[test]
+    fn bb33_compiled_halts_and_has_expected_nonzeros() -> Result<(), Error> {
+        // BB(3,3): 1RB 2LA 1RA_1LA 1RZ 1RC_2RB 1RC 2RB
+        // Expect: halts at exactly 355,317 steps and has 772 nonzeros.
+        let summary = Config::new(
+            CompiledFnId::Bb33_355K,
+            10_000_000,
+            u64::MAX,
+            2_097_152,
+            16_777_216,
+        )?
+        .run();
+
+        assert_eq!(summary.run_termination, RunTermination::Halted);
+        assert_eq!(summary.step_count, 355_317);
+        // Cross-check with interpreter to avoid ambiguity in symbol tallies.
+        use busy_beaver_blaze::Machine;
+        let mut interp =
+            Machine::from_string("1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB").expect("parse BB(3,3)");
+        let mut steps = 1u64;
+        while interp.step() {
+            steps += 1;
+        }
+        assert_eq!(steps, summary.step_count);
+        let nonblanks = interp.count_nonblanks() as usize;
+        let compiled_nonblanks = summary
+            .tape
+            .iter()
+            .filter(|&&v| v != 0 && v != SENTINEL)
+            .count();
+        assert_eq!(compiled_nonblanks, nonblanks);
+        assert_eq!(nonblanks, 772);
+        Ok(())
     }
 }
