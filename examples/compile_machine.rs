@@ -16,7 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const SENTINEL: u8 = 255;
+// cmk00 Sentinel value is handled internally by the runner/asm; users see only interior via Summary::tape().
 
 fn format_steps_per_sec(steps_per_sec: f64) -> String {
     let value = if steps_per_sec.is_finite() {
@@ -207,7 +207,7 @@ impl CompiledFnId {
         match self {
             CompiledFnId::Bb5Champ => bb5_champ_compiled,
             CompiledFnId::Bb6Contender => bb6_contender_compiled,
-            CompiledFnId::Bb33_355K => bb33_355K_compiled,
+            CompiledFnId::Bb33_355K => bb33_355_k_compiled,
         }
     }
 }
@@ -299,11 +299,25 @@ pub struct Summary {
     pub state_index: u8,
     pub run_termination: RunTermination,
     pub elapsed_secs: f64,
-    // Full tape contents including sentinels at [0] and [len-1]
-    // Note: this can be large; returned on terminal summaries only.
-    pub tape: Vec<u8>,
-    // Index in `tape` that corresponds to the original logical 0 cell
-    pub origin_index: usize,
+    // Own the full tape so Summary is self-contained; expose only the
+    // interior to users via the `tape()` accessor.
+    tape: Vec<u8>,
+    // Index into `tape` that corresponds to the original logical 0 cell.
+    origin_index: usize,
+}
+
+impl Summary {
+    // Returns a view of the interior tape, excluding boundary sentinels.
+    pub fn tape(&self) -> &[u8] {
+        debug_assert!(self.tape.len() >= 3);
+        &self.tape[1..self.tape.len() - 1]
+    }
+
+    // Origin index within the interior slice returned by `tape()`.
+    pub fn origin_index(&self) -> usize {
+        debug_assert!(self.origin_index >= 1);
+        self.origin_index - 1
+    }
 }
 
 // 3-symbol (0,1,2) stepper generator for A/B/C states
@@ -323,12 +337,20 @@ macro_rules! define_compiled_stepper_3sym {
             let heartbeat: u64 = step_limit - runtime_state.step_count;
             let mut status_code: u8;
             let mut steps_taken_local: u64;
-            core::arch::asm!(
-                "mov r9, {hb}",
-                asmline!("mov r10, r9"),
-                // dispatch
-                asmline!("cmp bl, ", s!($idA)), asmline!("je ", s!($fn_name), "_", s!($A)),
-                asmline!("cmp bl, ", s!($idB)), asmline!("je ", s!($fn_name), "_", s!($B)),
+            // Safety: Uses x86_64 inline assembly to step the Turing machine.
+            // - `head_local` (in/out via RSI) points to a valid tape cell within an
+            //   allocation that includes left/right SENTINELs (255), and the code only
+            //   reads/writes the current cell and moves within the allocation.
+            // - Clobbers are declared; stack is not touched (options(nostack)).
+            // - State is carried in BL (state id), step budget in R9/R10, and steps taken
+            //   are returned via R8. Control flow stays within this asm block.
+            unsafe {
+                core::arch::asm!(
+                    "mov r9, {hb}",
+                    asmline!("mov r10, r9"),
+                    // dispatch
+                    asmline!("cmp bl, ", s!($idA)), asmline!("je ", s!($fn_name), "_", s!($A)),
+                    asmline!("cmp bl, ", s!($idB)), asmline!("je ", s!($fn_name), "_", s!($B)),
                 asmline!("cmp bl, ", s!($idC)), asmline!("je ", s!($fn_name), "_", s!($C)),
                 asmline!("jmp ", s!($fn_name), "_", s!($A)),
                 // A
@@ -377,7 +399,8 @@ macro_rules! define_compiled_stepper_3sym {
                 out("rdx") _, out("r10") _, out("r9") _,
                 hb = in(reg) heartbeat,
                 options(nostack)
-            );
+                );
+            }
             runtime_state.head_pointer = head_local;
             runtime_state.state_index = state_local;
             runtime_state.step_count += steps_taken_local;
@@ -467,12 +490,14 @@ impl<'a> RuntimeState<'a> {
             );
             println!("{:.3} s", elapsed_secs);
             use std::mem;
+            let full_tape = mem::take(&mut self.tape);
+            assert!(full_tape.len() >= 3);
             return Some(Summary {
                 step_count: self.step_count,
                 state_index: self.state_index,
                 run_termination: RunTermination::MaxSteps,
                 elapsed_secs,
-                tape: mem::take(&mut self.tape),
+                tape: full_tape,
                 origin_index: self.origin_index,
             });
         }
@@ -522,12 +547,14 @@ impl<'a> RuntimeState<'a> {
             self.step_count.separate_with_commas()
         );
         println!("{:.3} s", elapsed_secs);
+        let full_tape = std::mem::take(&mut self.tape);
+        assert!(full_tape.len() >= 3);
         Summary {
             step_count: self.step_count,
             state_index: self.state_index,
             run_termination: RunTermination::Halted,
             elapsed_secs,
-            tape: std::mem::take(&mut self.tape),
+            tape: full_tape,
             origin_index: self.origin_index,
         }
     }
@@ -562,12 +589,14 @@ impl<'a> RuntimeState<'a> {
             self.step_count.separate_with_commas()
         );
         println!("{:.3} s", elapsed_secs);
+        let full_tape = std::mem::take(&mut self.tape);
+        assert!(full_tape.len() >= 3);
         Summary {
             step_count: self.step_count,
             state_index: self.state_index,
             run_termination: side,
             elapsed_secs,
-            tape: std::mem::take(&mut self.tape),
+            tape: full_tape,
             origin_index: self.origin_index,
         }
     }
@@ -689,7 +718,7 @@ define_compiled_stepper!(
 
 // BB(3,3) champion (~355,317 steps) spec: 1RB 2LA 1RA_1LA 1RZ 1RC_2RB 1RC 2RB
 define_compiled_stepper_3sym!(
-    bb33_355K_compiled,
+    bb33_355_k_compiled,
     (A, 0, (1, R, B), (2, L, A), (1, R, A)),
     (B, 1, (1, L, A), (1, R, HALT), (1, R, C)),
     (C, 2, (2, R, B), (1, R, C), (2, R, B)),
@@ -779,7 +808,7 @@ mod tests {
         assert_eq!(summary.run_termination, RunTermination::MaxSteps);
         assert!(summary.state_index <= 4);
         assert!(summary.elapsed_secs >= 0.0);
-        assert!(summary.tape.len() >= 3);
+        assert!(summary.tape().len() >= 1);
     }
 
     // This mirrors `cargo run --example compile_machine --release` defaults
@@ -858,19 +887,15 @@ mod tests {
         assert_eq!(summary.step_count, 355_317);
         // Cross-check with interpreter to avoid ambiguity in symbol tallies.
         use busy_beaver_blaze::Machine;
-        let mut interp =
+        let mut interpeter =
             Machine::from_string("1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB").expect("parse BB(3,3)");
         let mut steps = 1u64;
-        while interp.step() {
+        while interpeter.step() {
             steps += 1;
         }
         assert_eq!(steps, summary.step_count);
-        let nonblanks = interp.count_nonblanks() as usize;
-        let compiled_nonblanks = summary
-            .tape
-            .iter()
-            .filter(|&&v| v != 0 && v != SENTINEL)
-            .count();
+        let nonblanks = interpeter.count_nonblanks() as usize;
+        let compiled_nonblanks = summary.tape().iter().filter(|&&v| v != 0).count();
         assert_eq!(compiled_nonblanks, nonblanks);
         assert_eq!(nonblanks, 772);
         Ok(())
