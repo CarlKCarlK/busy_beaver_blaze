@@ -166,3 +166,35 @@ Reference `src/code_notes.md` for sampling vs binning implementation locations a
 - In Rust, I like using the same name when unwrapping, if let Some(max_steps) = max_steps {
 
 - I like asserts and using asserts. So, if the difference between two values must always be nonnegative, I would NOT use saturating_sub, I would use assert!(a >= b); let diff = a - b; because I want to catch any violations. Likewise, if a match requires a catch all, I wold use unreachable or panic. I would not use_ => {}.
+
+### Shadow Names (Rust)
+
+Use shadowing to keep identifiers stable when unwrapping, narrowing types, or parsing values. This keeps code concise, avoids suffix noise (like `_opt`, `_u32`), and clearly communicates that the variable’s invariants/precision have been tightened at that point.
+
+Patterns we prefer:
+
+- Option unwrap (narrowing scope and invariants):
+
+```rust
+if let Some(max_steps) = max_steps {
+    // use max_steps here (shadowed)
+}
+```
+
+- Type narrowing with checked conversion (fail fast):
+
+```rust
+let count = u32::try_from(count).expect("count must fit in u32");
+```
+
+- Parsing into a stronger type:
+
+```rust
+let width = width.parse::<u32>()?;
+```
+
+Guidelines:
+
+- Prefer shadowing at the smallest reasonable scope so the “new” meaning doesn’t leak too far.
+- Use assertions or checked conversions before shadowing when truncation/overflow is possible.
+- Don’t shadow across long spans if it could confuse readers—shadow near the point of use.

@@ -161,7 +161,9 @@ impl Spaceline {
         let mut result: AVec<Pixel, _> = AVec::with_capacity(ALIGN, capacity);
         result.resize(capacity, Pixel::WHITE);
 
-        let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
+        let exp = LANES.trailing_zeros();
+        let lanes_exp: u8 = exp.try_into().unwrap();
+        let lanes = PowerOfTwo::from_exp(lanes_exp);
         let slice_u8 = values.as_slice().as_bytes();
         let (prefix, chunks, _suffix) = slice_u8.as_simd::<LANES>();
 
@@ -173,7 +175,7 @@ impl Spaceline {
         if lanes_per_chunk == PowerOfTwo::ONE {
             for (average, chunk) in result.iter_mut().zip(chunks.iter()) {
                 let sum = chunk.simd_eq(select_vec).to_bitmask().count_ones();
-                *average = (step.divide_into(sum * 255) as u8).into();
+                *average = step.divide_into(sum * 255).into();
             }
         } else {
             let mut chunk_iter = chunks.chunks_exact(lanes_per_chunk.as_usize());
@@ -227,7 +229,9 @@ impl Spaceline {
             prefix.is_empty() && suffix.is_empty(),
             "Expected empty prefix due to alignment"
         );
-        let lanes = PowerOfTwo::from_exp(LANES.trailing_zeros() as u8);
+        let exp = LANES.trailing_zeros();
+        let lanes_exp: u8 = exp.try_into().unwrap();
+        let lanes = PowerOfTwo::from_exp(lanes_exp);
         let lanes_per_chunk = step.saturating_div(lanes);
         debug_assert!(step.divides_usize(chunk.len()));
 
@@ -236,13 +240,13 @@ impl Spaceline {
         if lanes_per_chunk == PowerOfTwo::ONE {
             debug_assert!(sub_chunks.len() == 1, "Expected one chunk");
             let sum = sub_chunks[0].simd_eq(select_vec).to_bitmask().count_ones();
-            (step.divide_into(sum * 255) as u8).into()
+            step.divide_into(sum * 255).into()
         } else {
             let sum: u32 = sub_chunks
                 .iter()
                 .map(|sub_chunk| sub_chunk.simd_eq(select_vec).to_bitmask().count_ones())
                 .sum();
-            (step.divide_into(sum * 255) as u8).into()
+            step.divide_into(sum * 255).into()
         }
     }
 
@@ -264,7 +268,7 @@ impl Spaceline {
             .map(|symbol| symbol.select_to_u32(select))
             .sum();
 
-        (x_stride.divide_into(sum * 255) as u8).into()
+        x_stride.divide_into(sum * 255).into()
     }
 
     #[must_use]
@@ -323,8 +327,14 @@ impl Spaceline {
     // This lets us compare the start of spaceline's with different x_strides.
     #[inline]
     #[must_use]
+    /// Returns the starting tape index (in symbols) represented by the first pixel of this spaceline.
+    ///
+    /// # Panics
+    /// Panics if the product `self.x_stride * self.negative.len()` does not fit in an `i64`.
     pub fn tape_start(&self) -> i64 {
-        -((self.x_stride * self.negative.len()) as i64)
+        let width = self.x_stride * self.negative.len();
+        let width = i64::try_from(width).expect("tape_start width must fit in i64");
+        -width
     }
 
     #[cfg(feature = "simd")]
@@ -586,6 +596,13 @@ impl Spaceline {
     }
 
     #[inline]
+    /// Recomputes one pixel corresponding to the last tape change, if possible.
+    ///
+    /// # Panics
+    /// Panics if any computed index does not fit in the target integer type when converting:
+    /// - Converting the previous negative tape index magnitude to `u64`.
+    /// - Converting a non-negative `previous_tape_index` to `u64`.
+    /// - Converting the computed `pixel_index` to `usize`.
     pub fn redo_pixel(
         &mut self,
         previous_tape_index: i64,
@@ -605,13 +622,17 @@ impl Spaceline {
         }
         self.time = step_index;
         let (part, pixels, part_index) = if previous_tape_index < 0 {
-            let part_index = (-previous_tape_index - 1) as u64;
+            let idx = (-previous_tape_index) - 1;
+            let part_index =
+                u64::try_from(idx).expect("negative tape index magnitude must fit in u64");
             (&tape.negative, &mut self.negative, part_index)
         } else {
-            let part_index = previous_tape_index as u64;
+            let part_index =
+                u64::try_from(previous_tape_index).expect("tape index must be non-negative u64");
             (&tape.nonnegative, &mut self.nonnegative, part_index)
         };
-        let pixel_index = x_stride.divide_into(part_index) as usize;
+        let pixel_index = x_stride.divide_into(part_index);
+        let pixel_index = usize::try_from(pixel_index).expect("pixel index must fit in usize");
         debug_assert!(pixel_index <= pixels.len());
         if pixel_index == pixels.len() {
             pixels.push(Pixel::WHITE);
@@ -626,8 +647,7 @@ impl Spaceline {
                     let sum: u32 = (tape_slice_start..part.len())
                         .map(|i| part[i].select_to_u32(self.select))
                         .sum();
-                    let mean = x_stride.divide_into(sum * 255) as u8;
-                    *pixel = Pixel::from(mean);
+                    *pixel = Pixel::from(x_stride.divide_into(sum * 255));
                 } else {
                     let slice = &part[tape_slice_start..tape_slice_end];
 
@@ -643,7 +663,7 @@ impl Spaceline {
                                     .iter()
                                     .map(|symbol| symbol.select_to_u32(self.select))
                                     .sum();
-                                (x_stride.divide_into(sum * 255) as u8).into()
+                                x_stride.divide_into(sum * 255).into()
                             }
                             PowerOfTwo::EIGHT => {
                                 Self::average_chunk_with_simd::<8>(self.select, slice, x_stride)

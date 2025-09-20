@@ -33,6 +33,10 @@ impl Iterator for SpaceByTimeMachine {
 #[allow(clippy::missing_panics_doc)]
 impl SpaceByTimeMachine {
     #[wasm_bindgen(constructor)]
+    /// Creates a `SpaceByTimeMachine` by parsing the program, optionally skipping initial steps, and initializing visualization layers for the given goals and pixel policy.
+    ///
+    /// # Errors
+    /// Returns an error if the program cannot be parsed into a `Machine`, or if the machine halts during the initial skip phase.
     pub fn from_str(
         program: &str,
         goal_x: u32,
@@ -148,6 +152,12 @@ impl SpaceByTimeMachine {
 
     #[wasm_bindgen]
     #[inline]
+    /// Encodes the current space-time visualization into a PNG byte vector using the provided RGB palette.
+    ///
+    /// The `colors` slice must have a length that is a multiple of 3 (RGB triplets); image dimensions are taken from the first layer.
+    ///
+    /// # Errors
+    /// Returns an error if the `colors` length is not a multiple of 3 or if PNG packing fails in the underlying layers.
     pub fn to_png(&mut self, colors: &[u8]) -> Result<Vec<u8>, String> {
         let (colors, remainder) = colors.as_chunks::<3>();
         if !remainder.is_empty() {

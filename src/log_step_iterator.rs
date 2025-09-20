@@ -20,7 +20,10 @@ impl LogStepIterator {
 #[allow(
     clippy::missing_trait_methods,
     clippy::min_ident_chars,
-    clippy::float_cmp
+    clippy::float_cmp,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
 )]
 impl Iterator for LogStepIterator {
     type Item = u64;

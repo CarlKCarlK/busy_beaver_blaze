@@ -9,8 +9,8 @@
     "rust-analyzer.cargo.useRustcWrapper": false,
     // NOTE: temporarily disabled below to avoid stale proc-macro diagnostics
     // "rust-analyzer.procMacro.enable": true,
-    // Use plain cargo check here for faster / simpler metadata (you can switch back to clippy later)
-    // "rust-analyzer.check.command": "check",
+    // Use plain cargo check in-editor to avoid user/global clippy forbid flags
+    "rust-analyzer.check.command": "check",
     // IMPORTANT: Correct the (mis-typed) global setting "rust-analyzer.rustc.source": "rustup".
     // The correct key is rust-analyzer.rustcSource; setting it here overrides the broken user value
     // that caused RA to probe a bogus manifest path named 'rustup'.
@@ -27,7 +27,9 @@
     "rust-analyzer.cargo.target": "x86_64-pc-windows-msvc",
     // Force the toolchain inside RA-initiated cargo invocations
     "rust-analyzer.cargo.extraEnv": {
-        "RUSTUP_TOOLCHAIN": "nightly-2025-08-13"
+        "RUSTUP_TOOLCHAIN": "nightly-2025-08-13",
+        // Neutralize any machine/user-level RUSTFLAGS that forbid warnings
+        "RUSTFLAGS": ""
     },
     "python-envs.defaultEnvManager": "ms-python.python:system",
     "python-envs.pythonProjects": [],

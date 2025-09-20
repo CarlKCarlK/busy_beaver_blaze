@@ -116,14 +116,20 @@ impl PowerOfTwo {
     #[must_use]
     pub fn from_u64_unchecked(value: u64) -> Self {
         debug_assert!(value.is_power_of_two(), "Value must be a power of two");
-        Self::from_exp(value.trailing_zeros() as u8)
+        let exp = value.trailing_zeros();
+        debug_assert!(exp <= u32::from(Self::MAX.0), "Exponent must be <= 63");
+        let exp_u8 = u8::try_from(exp).expect("Exponent must fit in u8");
+        Self::from_exp(exp_u8)
     }
 
     #[inline]
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     pub const fn from_usize_unchecked(value: usize) -> Self {
         debug_assert!(value.is_power_of_two(), "Value must be a power of two");
-        Self::from_exp(value.trailing_zeros() as u8)
+        let exp = value.trailing_zeros();
+        debug_assert!(exp <= Self::MAX.0 as u32, "Exponent must be <= 63");
+        Self::from_exp(exp as u8)
     }
 
     // from u64
@@ -132,15 +138,21 @@ impl PowerOfTwo {
     #[must_use]
     pub fn from_u64(value: u64) -> Self {
         assert!(value.is_power_of_two(), "Value must be a power of two");
-        Self::from_exp(value.trailing_zeros() as u8)
+        let exp = value.trailing_zeros();
+        assert!(exp <= u32::from(Self::MAX.0), "Exponent must be <= 63");
+        let exp_u8 = u8::try_from(exp).expect("Exponent must fit in u8");
+        Self::from_exp(exp_u8)
     }
 
     #[inline]
     #[must_use]
     #[allow(clippy::missing_panics_doc)]
+    #[allow(clippy::cast_possible_truncation)]
     pub const fn from_usize(value: usize) -> Self {
         assert!(value.is_power_of_two(), "Value must be a power of two");
-        Self::from_exp(value.trailing_zeros() as u8)
+        let exp = value.trailing_zeros();
+        assert!(exp <= Self::MAX.0 as u32, "Exponent must be <= 63");
+        Self::from_exp(exp as u8)
     }
 
     //     // #[inline]

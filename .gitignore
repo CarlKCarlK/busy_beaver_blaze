@@ -7,3 +7,4 @@ src/busy_beaver_blaze.egg-info/*
 examples/delme.rs
 examples/compile_machine.rsdelme
 ignore.c
+clippy_verbose.txt

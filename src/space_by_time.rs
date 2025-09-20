@@ -154,6 +154,11 @@ impl SpaceByTime {
         }
     }
 
+    /// Converts the space-by-time diagram to PNG format.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if PNG encoding fails or if the packed data conversion fails.
     pub fn to_png_internal(
         &mut self,
         tape_negative_len: usize,
@@ -183,6 +188,15 @@ impl SpaceByTime {
         clippy::too_many_lines,
         clippy::shadow_reuse // TODO turn this off globally
     )]
+    /// Converts the accumulated spacelines into a packed row-major buffer and returns `(width, height, data)`.
+    ///
+    /// # Errors
+    ///
+    /// This function is currently infallible and always returns `Ok`; it returns an error type only for API consistency.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `tape_nonnegative_len == 0` or if `goal_width < 2`.
     pub fn to_packed_data(
         &mut self,
         tape_negative_len: usize,
@@ -250,17 +264,20 @@ impl SpaceByTime {
         }
 
         assert!(y_actual <= 2 * goal_height);
+        let goal_height = u32::try_from(goal_height).expect("goal_height must fit u32");
+        let x_actual = u32::try_from(x_actual).expect("x_actual must fit u32");
+        let y_actual = u32::try_from(y_actual).expect("y_actual must fit u32");
         let (packed_data, y_actual) = compress_packed_data_if_one_too_big(
             packed_data,
             self.pixel_policy,
-            goal_height as u32,
-            x_actual as u32,
-            y_actual as u32,
+            goal_height,
+            x_actual,
+            y_actual,
         );
 
         // cmk 00 let png = encode_png(x_actual as u32, y_actual, &packed_data)?;
 
-        Ok((/*png,*/ x_actual as u32, y_actual, packed_data))
+        Ok((/*png,*/ x_actual, y_actual, packed_data))
     }
 
     pub(crate) fn merge(&mut self, other: Self) {

@@ -334,11 +334,15 @@ impl PngDataIterator {
         let mut rows_per_part = early_stop.div_ceil(part_count_goal as u64);
 
         let y_stride = find_y_stride(rows_per_part, goal_y);
-        rows_per_part += y_stride.offset_to_align(rows_per_part as usize) as u64;
+        let align_off = y_stride
+            .offset_to_align(usize::try_from(rows_per_part).expect("rows_per_part must fit usize"))
+            as u64;
+        rows_per_part += align_off;
         assert!(y_stride.divides_u64(rows_per_part), "even?");
 
+        let step = usize::try_from(rows_per_part).expect("rows_per_part must fit usize");
         (0..early_stop)
-            .step_by(rows_per_part as usize)
+            .step_by(step)
             .map(|start| start..(start + rows_per_part).min(early_stop))
             .collect()
     }

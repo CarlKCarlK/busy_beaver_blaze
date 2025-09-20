@@ -125,6 +125,9 @@ pub const DEFAULT_COLORS: &[[u8; 3]] = &[
 
 /// Normalize a color palette for a given symbol count, cycling as needed.
 /// Returns an error if fewer than 2 colors are provided.
+///
+/// # Errors
+/// Returns [`Error::UnexpectedColorCount`] if the input color palette has fewer than 2 colors.
 pub fn normalize_colors(input: &[[u8; 3]], symbol_count: usize) -> Result<Vec<[u8; 3]>, Error> {
     let colors = if input.is_empty() {
         DEFAULT_COLORS
@@ -222,9 +225,17 @@ impl From<core::num::ParseIntError> for Error {
     }
 }
 
+/// Compute a Y-axis stride as a power of two so that the number of sampled rows
+/// stays within 2x of the requested `y_goal`.
+///
+/// # Panics
+/// Panics if the computed exponent would exceed `63` (the maximum supported by `PowerOfTwo`).
 #[inline]
 #[must_use]
-#[allow(clippy::integer_division_remainder_used)]
+#[allow(
+    clippy::integer_division_remainder_used,
+    clippy::cast_possible_truncation
+)]
 pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
     let threshold = 2 * y_goal as u64;
     // Compute the ceiling of (len + 1) / threshold.
@@ -232,6 +243,9 @@ pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
     let ceiling_ratio = (len + threshold) / threshold;
     let floor_log2 = 63 - ceiling_ratio.leading_zeros();
     let exponent = floor_log2 + ((!ceiling_ratio.is_power_of_two()) as u32);
+
+    // Minimal guard: ensure exponent fits in u8 and PowerOfTwo::MAX (=63)
+    assert!(exponent <= 63);
 
     PowerOfTwo::from_exp(exponent as u8)
 }

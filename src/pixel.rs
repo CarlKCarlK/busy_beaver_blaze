@@ -247,8 +247,8 @@ impl From<&u8> for Pixel {
 impl From<u32> for Pixel {
     #[inline]
     fn from(value: u32) -> Self {
-        debug_assert!(value <= 255, "Value must be less than or equal to 255");
-        Self(value as u8)
+        let byte = u8::try_from(value).expect("Pixel::from(u32): value must be <= 255");
+        Self(byte)
     }
 }
 

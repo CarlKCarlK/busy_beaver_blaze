@@ -22,26 +22,39 @@ impl Default for Tape {
 impl Tape {
     #[inline]
     #[must_use]
+    /// Returns the symbol at `index`, or `STATE_ZERO` if `index` is beyond the current tape bounds.
+    ///
+    /// # Panics
+    /// Panics if the tape index magnitude cannot be represented as a `usize` on this target.
     pub fn read(&self, index: i64) -> Symbol {
         if index >= 0 {
+            let i = usize::try_from(index).expect("tape index must fit in usize");
             self.nonnegative
-                .get(index as usize)
+                .get(i)
                 .copied()
                 .unwrap_or(Symbol::STATE_ZERO)
         } else {
-            self.negative
-                .get((-index - 1) as usize)
-                .copied()
-                .unwrap_or(Symbol::STATE_ZERO)
+            // Avoid overflow on i64::MIN by computing magnitude as -(index + 1)
+            let mag = -(index + 1);
+            let i = usize::try_from(mag).expect("negative tape index magnitude must fit in usize");
+            self.negative.get(i).copied().unwrap_or(Symbol::STATE_ZERO)
         }
     }
 
     #[inline]
+    #[allow(clippy::shadow_unrelated)]
+    /// # Panics
+    /// Panics if the tape index magnitude cannot be represented as a `usize` on this target.
     pub fn write(&mut self, index: i64, value: Symbol) {
         let (index, vec) = if index >= 0 {
-            (index as usize, &mut self.nonnegative)
+            let index = usize::try_from(index).expect("tape index must fit in usize");
+            (index, &mut self.nonnegative)
         } else {
-            ((-index - 1) as usize, &mut self.negative) // TODO this code appear more than once
+            // Avoid overflow on i64::MIN by computing magnitude as -(index + 1)
+            let mag = -(index + 1);
+            let index =
+                usize::try_from(mag).expect("negative tape index magnitude must fit in usize");
+            (index, &mut self.negative) // TODO this code appear more than once
         };
 
         if index == vec.len() {

@@ -13,6 +13,11 @@ pub struct Machine {
 
 #[wasm_bindgen]
 impl Machine {
+    /// Creates a new Machine from a program string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the program string cannot be parsed into a valid Turing machine program.
     #[wasm_bindgen(constructor)]
     pub fn from_string(program: &str) -> Result<Self, String> {
         program.parse().map_err(|error| format!("{error:?}"))
@@ -26,8 +31,10 @@ impl Machine {
     #[wasm_bindgen]
     #[inline]
     #[must_use]
+    /// # Panics
+    /// Panics if the number of nonblank cells exceeds `u32::MAX`.
     pub fn count_nonblanks(&self) -> u32 {
-        self.tape.count_nonblanks() as u32
+        u32::try_from(self.tape.count_nonblanks()).expect("count_nonblanks exceeds u32 range")
     }
 
     #[wasm_bindgen]
@@ -263,7 +270,8 @@ impl Program {
             })
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
-        let symbol_count = state_to_symbol_to_action[0].len() as u8;
+        let symbol_count =
+            u8::try_from(state_to_symbol_to_action[0].len()).expect("symbol_count must fit in u8");
         if symbol_count == 0 {
             return Err(Error::UnexpectedSymbolCount { got: 0 });
         }
@@ -276,7 +284,8 @@ impl Program {
         // }
 
         // Ensure proper dimensions (STATE_COUNT x 2)
-        let state_count = state_to_symbol_to_action.len() as u8;
+        let state_count =
+            u8::try_from(state_to_symbol_to_action.len()).expect("state_count must fit in u8");
         if state_count == 0 {
             return Err(Error::InvalidStatesCount {
                 expected: 1,
@@ -326,7 +335,8 @@ impl Program {
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
         // Ensure proper dimensions (STATE_COUNT x 2)
-        let state_count = state_to_symbol_to_action.len() as u8;
+        let state_count =
+            u8::try_from(state_to_symbol_to_action.len()).expect("state_count must fit in u8");
         if state_count == 0 {
             return Err(Error::InvalidStatesCount {
                 expected: 1,
@@ -334,7 +344,8 @@ impl Program {
             });
         }
 
-        let symbol_count = state_to_symbol_to_action[0].len() as u8;
+        let symbol_count =
+            u8::try_from(state_to_symbol_to_action[0].len()).expect("symbol_count must fit in u8");
         if symbol_count == 0 {
             return Err(Error::UnexpectedSymbolCount { got: 0 });
         }
@@ -428,8 +439,8 @@ impl Program {
         }
 
         Ok(Self {
-            state_count: state_count as u8,
-            symbol_count: symbol_count as u8, // cmk there are many "as" that could be removed
+            state_count: u8::try_from(state_count).expect("state_count must fit in u8"),
+            symbol_count: u8::try_from(symbol_count).expect("symbol_count must fit in u8"), // cmk there are many "as" that could be removed
             state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }
