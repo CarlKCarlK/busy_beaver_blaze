@@ -5,8 +5,8 @@
 // -- support more symbols
 // -- use derive macros to make the use of the asm template more ergonomic.
 //           we might be able to more optimizations, e.g. if both 0/1 branch write same value or move same dir.
-// -- when used elsewhere likely want to return the final tape contents, not just step count.
-// -- haven't carefully review the tape growth code.
+// -- Do JIT compilation of the asm template at runtime, to support arbitrary TMs.For example with `dynasmrt` crate.`
+//            (see private https://chatgpt.com/c/68c34ed8-b580-8323-99de-56334f3b227b discussion.)
 
 #![deny(clippy::pedantic)]
 #![allow(named_asm_labels)] // Allow alphabetic labels in inline asm for readability
@@ -891,11 +891,11 @@ mod tests {
         let mut interpreter =
             Machine::from_string("1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB").expect("parse BB(3,3)");
         let mut steps = 1u64;
-        while interpeter.step() {
+        while interpreter.step() {
             steps += 1;
         }
         assert_eq!(steps, summary.step_count);
-        let nonblanks = interpeter.count_nonblanks() as usize;
+        let nonblanks = interpreter.count_nonblanks() as usize;
         let compiled_nonblanks = summary.tape().iter().filter(|&&v| v != 0).count();
         assert_eq!(compiled_nonblanks, nonblanks);
         assert_eq!(nonblanks, 772);

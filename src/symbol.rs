@@ -53,7 +53,7 @@ impl From<Symbol> for usize {
 
 impl From<Symbol> for u32 {
     fn from(Symbol(symbol): Symbol) -> Self {
-        symbol as Self
+        Self::from(symbol)
     }
 }
 

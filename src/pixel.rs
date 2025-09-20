@@ -50,7 +50,7 @@ impl Pixel {
     #[inline]
     pub fn from_symbol(symbol: Symbol, select: NonZeroU8) -> Self {
         let value = u8::from(symbol);
-        Self((value == select.get()) as u8 * 255) // Maps 0 → 0, select → 255
+        Self(u8::from(value == select.get()) * 255) // Maps 0 → 0, select → 255
     }
 
     #[must_use]
@@ -212,7 +212,7 @@ impl Pixel {
 impl From<bool> for Pixel {
     #[inline]
     fn from(value: bool) -> Self {
-        Self(value as u8 * 255)
+        Self(u8::from(value) * 255)
     }
 }
 

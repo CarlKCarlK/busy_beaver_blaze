@@ -62,7 +62,7 @@ impl Tape {
         self.nonnegative
             .iter()
             .chain(self.negative.iter())
-            .map(|&x| (x != Symbol::STATE_ZERO) as usize)
+            .map(|&x| usize::from(x != Symbol::STATE_ZERO))
             .sum()
     }
 

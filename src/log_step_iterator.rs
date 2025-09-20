@@ -29,7 +29,7 @@ impl Iterator for LogStepIterator {
             return None;
         }
 
-        let t = self.current_frame as f64 / (self.total_frames - 1) as f64;
+        let t = f64::from(self.current_frame) / f64::from(self.total_frames - 1);
         let value = if t == 1.0 {
             self.max_value - 1
         } else {

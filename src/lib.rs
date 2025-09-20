@@ -276,13 +276,13 @@ fn encode_png(
                 let weight_nonzero = layer_data[pixel_index];
                 weight0 = weight0.saturating_sub(weight_nonzero);
                 for (acc, ch) in channels.iter_mut().zip(color) {
-                    *acc += (ch as u32) * (weight_nonzero as u32);
+                    *acc += u32::from(ch) * u32::from(weight_nonzero);
                 }
             }
 
             // Base color soaks up the remainder (branchless)
             for (acc, ch0) in channels.iter_mut().zip(colors[0]) {
-                *acc += (ch0 as u32) * (weight0 as u32);
+                *acc += u32::from(ch0) * u32::from(weight0);
             }
 
             // Divide once per channel and clamp to u8

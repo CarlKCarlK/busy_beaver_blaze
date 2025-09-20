@@ -54,7 +54,7 @@ impl PowerOfTwo {
     pub fn offset_to_align(self, len: usize) -> usize {
         let Self(exp) = self;
         debug_assert!(
-            (exp as u32) < usize::BITS,
+            u32::from(exp) < usize::BITS,
             "Cannot shift left by self.0 = {} for usize::BITS = {}, which would overflow.",
             exp,
             usize::BITS
