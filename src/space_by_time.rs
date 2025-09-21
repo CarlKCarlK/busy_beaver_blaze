@@ -225,7 +225,7 @@ impl SpaceByTime {
             }
             #[cfg(not(feature = "simd"))]
             spaceline.compress_x_if_needed_no_simd(x_stride);
-            #[cfg(feature = "simd")] // cmk000 ok
+            #[cfg(feature = "simd")]
             spaceline.compress_x_if_needed_simd(x_stride);
         }
         for spaceline in &mut self.spacelines.main {
@@ -275,9 +275,7 @@ impl SpaceByTime {
             y_actual,
         );
 
-        // cmk 00 let png = encode_png(x_actual as u32, y_actual, &packed_data)?;
-
-        Ok((/*png,*/ x_actual, y_actual, packed_data))
+        Ok((x_actual, y_actual, packed_data))
     }
 
     pub(crate) fn merge(&mut self, other: Self) {
@@ -355,7 +353,7 @@ impl SpaceByTime {
                     assert!(first.tape_start() >= second.tape_start());
 
                     // TODO remove from loop?
-                    #[cfg(not(feature = "simd"))] // cmk000 OK
+                    #[cfg(not(feature = "simd"))]
                     {
                         match self.pixel_policy {
                             PixelPolicy::Binning => first.merge_no_simd(&second),

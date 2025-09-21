@@ -68,6 +68,14 @@ impl SpaceByTimeMachine {
             );
             space_time_layers.insert(select, space_by_time);
         }
+        // Historically this code used an unordered collection; switching to a BTreeMap
+        // made iteration ordered by key. We generally expect the smallest-key layer
+        // to correspond to `select == 1`. Add a debug check to capture that
+        // invariant during development (does nothing in release builds).
+        debug_assert!(
+            space_time_layers.first().x_goal == SpaceByTime::new0(NonZeroU8::new(1).unwrap(), goal_x, goal_y, if binning { PixelPolicy::Binning } else { PixelPolicy::Sampling }).x_goal,
+            "Expected first SpaceTimeLayers entry to correspond to select==1"
+        );
         Ok(Self {
             machine,
             space_time_layers,
@@ -247,7 +255,7 @@ impl SpaceByTimeMachine {
     #[must_use]
     pub fn step_index(&self) -> u64 {
         self.space_time_layers.step_index()
-    } // cmk make const?
+    }
 
     #[inline]
     #[must_use]

@@ -18,7 +18,7 @@ fn small(criterion: &mut Criterion) {
     let step = PowerOfTwo::from_usize_unchecked(64);
     let seed = 0;
     let mut rng = StdRng::seed_from_u64(seed);
-    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
+    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random_range(0u8..=1).into()));
 
     let mut group = criterion.benchmark_group("small");
 
@@ -43,7 +43,7 @@ fn large(criterion: &mut Criterion) {
     let step = PowerOfTwo::from_usize_unchecked(512);
     let seed = 0;
     let mut rng = StdRng::seed_from_u64(seed);
-    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
+    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random_range(0u8..=1).into()));
 
     let mut group = criterion.benchmark_group("large");
 
@@ -94,7 +94,7 @@ fn len_100m(criterion: &mut Criterion) {
     let step = PowerOfTwo::from_usize(65536);
     let seed = 0;
     let mut rng = StdRng::seed_from_u64(seed);
-    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
+    let values = AVec::from_iter(ALIGN, (0..len).map(|_| rng.random_range(0u8..=1).into()));
 
     let mut group = criterion.benchmark_group("len_100m");
 
@@ -145,7 +145,7 @@ fn resample(criterion: &mut Criterion) {
     let seed = 1;
     let mut rng = StdRng::seed_from_u64(seed);
     let pixels: AVec<Pixel, _> =
-        AVec::from_iter(ALIGN, (0..len).map(|_| rng.random::<bool>().into()));
+        AVec::from_iter(ALIGN, (0..len).map(|_| rng.random_range(0u8..=1).into()));
 
     let mut group = criterion.benchmark_group("resample");
 

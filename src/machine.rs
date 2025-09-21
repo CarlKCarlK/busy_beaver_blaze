@@ -275,13 +275,6 @@ impl Program {
         if symbol_count == 0 {
             return Err(Error::UnexpectedSymbolCount { got: 0 });
         }
-        // cmk remove errorInvalidSymbolsCount
-        // if symbol_count != self.symbol_count {
-        //     return Err(Error::InvalidSymbolsCount {
-        //         expected: self.symbol_count as usize,
-        //         got: symbol_count as usize,
-        //     });
-        // }
 
         // Ensure proper dimensions (STATE_COUNT x 2)
         let state_count =
@@ -396,14 +389,6 @@ impl Program {
             return Err(Error::UnexpectedSymbolCount { got: 0 });
         }
 
-        // cmk remove errorInvalidSymbolsCount
-        // if symbol_count != Self::SYMBOL_COUNT {
-        //     return Err(Error::InvalidSymbolsCount {
-        //         expected: Self::SYMBOL_COUNT,
-        //         got: symbol_count,
-        //     });
-        // }
-
         let state_count = vec_of_vec[0].len();
         if state_count == 0 {
             return Err(Error::InvalidStatesCount {
@@ -440,7 +425,7 @@ impl Program {
 
         Ok(Self {
             state_count: u8::try_from(state_count).expect("state_count must fit in u8"),
-            symbol_count: u8::try_from(symbol_count).expect("symbol_count must fit in u8"), // cmk there are many "as" that could be removed
+            symbol_count: u8::try_from(symbol_count).expect("symbol_count must fit in u8"),
             state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
         })
     }

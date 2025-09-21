@@ -21,8 +21,9 @@ impl Snapshot {
         }
     }
 
+    #[inline]
     pub(crate) fn step_index(&self) -> u64 {
-        self.space_time_layers.step_index() // cmk unwrap
+        self.space_time_layers.step_index()
     }
 
     #[allow(clippy::wrong_self_convention)]

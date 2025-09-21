@@ -30,7 +30,6 @@ impl Symbol {
     pub const STATE_SEVEN: Self = Self(7);
     pub const STATE_EIGHT: Self = Self(8);
     pub const STATE_NINE: Self = Self(9);
-    // cmk what if more than 5 states?
 
     #[inline]
     pub const fn select_to_u32(self, select: NonZeroU8) -> u32 {
@@ -57,13 +56,20 @@ impl From<Symbol> for u32 {
     }
 }
 
-// cmk00 remove support for this because they may be more than two states
-impl From<bool> for Symbol {
-    fn from(value: bool) -> Self {
-        if value {
-            Self::STATE_ONE
-        } else {
-            Self::STATE_ZERO
+impl From<u8> for Symbol {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::STATE_ZERO,
+            1 => Self::STATE_ONE,
+            2 => Self::STATE_TWO,
+            3 => Self::STATE_THREE,
+            4 => Self::STATE_FOUR,
+            5 => Self::STATE_FIVE,
+            6 => Self::STATE_SIX,
+            7 => Self::STATE_SEVEN,
+            8 => Self::STATE_EIGHT,
+            9 => Self::STATE_NINE,
+            _ => panic!("Symbol must be in 0..=9, got {value}"), // TODO make this a Result
         }
     }
 }

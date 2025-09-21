@@ -539,7 +539,7 @@ impl Spaceline {
             Self::find_x_stride(tape.negative.len(), tape.nonnegative.len(), x_goal as usize);
         match pixel_policy {
             PixelPolicy::Binning => {
-                #[cfg(not(feature = "simd"))] // cmk000 OK
+                #[cfg(not(feature = "simd"))]
                 let (negative, nonnegative) =
                     // TODO move this to tape and give a better name
                     (
@@ -651,7 +651,7 @@ impl Spaceline {
                 } else {
                     let slice = &part[tape_slice_start..tape_slice_end];
 
-                    #[cfg(not(feature = "simd"))] // cmk000 OK
+                    #[cfg(not(feature = "simd"))]
                     {
                         *pixel = Self::average_chunk_with_iterator(self.select, slice, x_stride);
                     }

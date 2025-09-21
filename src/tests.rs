@@ -302,14 +302,14 @@ fn combo() {
                             // Must be the same length and a given value can vary by no more than y_stride.log2() + x_stride.log2()
                             let last_spacetime = space_by_time_machine
                                 .space_time_layers
-                                .first() // cmk00
+                                .first()
                                 .spacelines
                                 .main
                                 .last()
                                 .unwrap();
                             let max_diff = space_by_time_machine
                                 .space_time_layers
-                                .first() // cmk00
+                                .first()
                                 .y_stride
                                 .log2()
                                 + last_spacetime.x_stride.log2();
@@ -490,9 +490,9 @@ fn frames() {
 
     let folder = test_output_dir("bb/frames_test2");
     for (frame_index, (step_index, png_data_layers)) in png_data_iterator.enumerate() {
-        let cmk_file = folder.join(format!("cmk{frame_index:07}.png"));
+        let file = folder.join(format!("{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
-        fs::write(cmk_file, &png_data_layers).unwrap();
+        fs::write(file, &png_data_layers).unwrap();
     }
 }
 
@@ -530,9 +530,9 @@ fn stop_early() {
     let output_dir = test_output_dir("bb/stop_early");
 
     for (frame_index, (step_index, png_data_layers)) in png_data_iterator.enumerate() {
-        let cmk_file = output_dir.join(format!("cmk{frame_index:07}.png"));
+        let file = output_dir.join(format!("{frame_index:07}.png"));
         println!("Frame {}, Step {}", frame_index, step_index + 1);
-        fs::write(cmk_file, png_data_layers).unwrap();
+        fs::write(file, png_data_layers).unwrap();
     }
 }
 

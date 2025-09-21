@@ -7,7 +7,7 @@ use imageproc::drawing::draw_text_mut;
 use itertools::Itertools;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{PathBuf},
 };
 use thousands::Separable;
 
@@ -162,7 +162,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     // }];
 
     println!("Using resolution: ({goal_x}x{goal_y})");
-    let (output_dir, run_id) = create_sequential_subdir(&top_directory)?;
+    let (output_dir, run_id) = common::create_sequential_subdir(&top_directory)?;
     let _ = fs::create_dir_all(&output_dir);
     let file_prefix = run_id.to_string();
 
@@ -313,36 +313,6 @@ fn create_frame(
     );
 
     Ok(resized)
-}
-
-// cmk appears elsewhere
-fn create_sequential_subdir(top_dir: &Path) -> std::io::Result<(PathBuf, u32)> {
-    // create top_dir if it doesn't exist
-    fs::create_dir_all(top_dir)?;
-
-    // Read all entries in the top directory
-    let entries = fs::read_dir(top_dir)?;
-
-    // Find the highest numbered subdirectory
-    let mut max_num = 0;
-    for entry in entries.flatten() {
-        if entry.path().is_dir()
-            && let Some(num) = entry
-                .file_name()
-                .to_str()
-                .and_then(|name| name.parse::<u32>().ok())
-        {
-            max_num = max_num.max(num);
-        }
-    }
-
-    // Create a new subdirectory with the next sequential number
-    let new_dir_num = max_num + 1;
-    let new_dir_path = top_dir.join(new_dir_num.to_string());
-
-    fs::create_dir_all(&new_dir_path)?; // Handle error appropriately
-
-    Ok((new_dir_path, new_dir_num))
 }
 
 #[must_use]

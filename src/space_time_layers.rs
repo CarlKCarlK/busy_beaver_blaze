@@ -13,7 +13,7 @@ pub struct SpaceTimeLayers(BTreeMap<NonZeroU8, SpaceByTime>);
 impl SpaceTimeLayers {
     #[inline]
     pub fn first(&self) -> &SpaceByTime {
-        assert!(!self.0.is_empty()); // cmk00
+        assert!(!self.0.is_empty());
         &self.0[&NonZeroU8::new(1).unwrap()]
     }
 
@@ -55,16 +55,16 @@ impl SpaceTimeLayers {
 
     #[inline]
     pub fn merge(&mut self, mut other: Self) {
-        assert!(
+        debug_assert!(
             self.equal_keys(&other),
-            "cmk SpaceTimeLayers have different keys"
+            "SpaceTimeLayers have different keys"
         );
 
         for (key, mine) in self.iter_mut() {
             let theirs = other
                 .0
                 .remove(key)
-                .expect("cmk SpaceTimeLayers have different keys");
+                .expect("SpaceTimeLayers have different keys");
             mine.merge(theirs);
         }
     }

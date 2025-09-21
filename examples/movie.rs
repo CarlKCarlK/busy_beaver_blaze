@@ -11,7 +11,7 @@ use imageproc::drawing::draw_text_mut;
 use itertools::Itertools;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{Path},
 };
 use thousands::Separable;
 
@@ -75,32 +75,32 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
     // let (up_x, up_y) = (goal_x, goal_y);
     let (program_string, end_step, num_frames, (output_dir, run_id)) = match machine_name.as_str() {
         "bb5_champ" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb5_champ")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\bb5_champ")?;
             (BB5_CHAMP, 47_176_870, 1000, dir_info)
         }
         "bb5_champ2" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb5_champ2")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\bb5_champ2")?;
             (BB5_CHAMP, 100_000_000, 250, dir_info)
         }
         "bb6_contender" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
             (BB6_CONTENDER, 1_000_000_000_000u64, 2000, dir_info)
         }
         "bb6_contender10T" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
             (BB6_CONTENDER, 10_000_000_000_000u64, 4000, dir_info)
         }
         "bb6_contender100T" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\bb6_contender")?;
             (BB6_CONTENDER, 100_000_000_000_000u64, 4000, dir_info)
         }
         "bb6_contender2" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\bb6_contender2")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\bb6_contender2")?;
             (BB6_CONTENDER, 1_000_000_000u64, 1000, dir_info)
         }
         "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
             let dir_info =
-                create_sequential_subdir(r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
+                common::create_sequential_subdir(r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
             (
                 "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
                 1_000_000_000u64,
@@ -109,24 +109,24 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             )
         }
         "BB_3_3_355317" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\BB_3_3_355317")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\BB_3_3_355317")?;
             (BB_3_3_355317, 1_000_000_000u64, 1000, dir_info)
         }
         "Bigfoot33" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\Bigfoot33")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\Bigfoot33")?;
             (BIGFOOT33, 1_000_000_000u64, 1000, dir_info)
         }
         "Bigfoot72" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\Bigfoot72")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\Bigfoot72")?;
             (BIGFOOT72, 1_000_000_000u64, 1000, dir_info)
         }
         "Brady" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\Brady")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\Brady")?;
             (BRADY, 1_000_000_000u64, 1000, dir_info)
         }
 
         "BB_2_5_CHAMP_AUG25" => {
-            let dir_info = create_sequential_subdir(r"m:\deldir\bb\BB_2_5_CHAMP_AUG25")?;
+            let dir_info = common::create_sequential_subdir(r"m:\deldir\bb\BB_2_5_CHAMP_AUG25")?;
             (BB_2_5_CHAMP_AUG25, 1_000_000_000u64, 1000, dir_info)
         }
         _ => Err(format!("Unknown machine: {machine_name}"))?,
@@ -313,31 +313,4 @@ fn save_frame(
     Ok(())
 }
 
-fn create_sequential_subdir(top_dir: &str) -> std::io::Result<(PathBuf, u32)> {
-    // create top_dir if it doesn't exist
-    fs::create_dir_all(top_dir)?;
-
-    // Read all entries in the top directory
-    let entries = fs::read_dir(top_dir)?;
-
-    // Find the highest numbered subdirectory
-    let mut max_num = 0;
-    for entry in entries.flatten() {
-        if entry.path().is_dir()
-            && let Some(num) = entry
-                .file_name()
-                .to_str()
-                .and_then(|name| name.parse::<u32>().ok())
-        {
-            max_num = max_num.max(num);
-        }
-    }
-
-    // Create a new subdirectory with the next sequential number
-    let new_dir_num = max_num + 1;
-    let new_dir_path = Path::new(top_dir).join(new_dir_num.to_string());
-
-    fs::create_dir_all(&new_dir_path)?; // Handle error appropriately
-
-    Ok((new_dir_path, new_dir_num))
-}
+// moved to examples/common/mod.rs as common::create_sequential_subdir
