@@ -137,6 +137,7 @@ Reference `src/code_notes.md` for sampling vs binning implementation locations a
 - Feature flags: always provide a clear fallback path. Use `#[cfg(feature = "..."))]` and `#[cfg(not(feature = "..."))]` blocks with identical control flow where possible.
 - New optimizations: hide behind a feature flag defaulting appropriately. Update this guide and `Cargo.toml` features list.
 - Naming/style: avoid single-letter names; use project patterns (`x_goal`, `y_stride`, `step_index`, `tape_index`, `select`). Use `PowerOfTwo` helpers instead of raw shifts/divs.
+  - Avoid `get_`-prefixed function names. Prefer clear nouns/verbs like `portable_font()` instead of `get_portable_font()`.
 - Memory/perf: use `AVec` with `ALIGN` for hot paths; avoid extra allocations and unnecessary `clone()`; prefer slice views and in-place ops.
 - SIMD usage: guard with `simd` feature; keep safe fallbacks. Document any `unsafe` with a clear safety comment and alignment guarantees.
 - WASM constraints: avoid OS/thread-only APIs in shared code. Keep public APIs annotated with `#[wasm_bindgen]` where they are exposed.

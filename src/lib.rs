@@ -368,22 +368,7 @@ fn compress_packed_data_if_one_too_big(
 
 pub mod test_utils {
     use crate::{Pixel, is_even};
-    use ab_glyph::FontArc;
     use aligned_vec::AVec;
-
-    /// Portable font data for use in testing and examples.
-    /// This is a simple monospace font that works on any platform.
-    /// Source: Uses the embedded font from the `ab_glyph` crate's test data
-    const PORTABLE_FONT_DATA: &[u8] = include_bytes!("../examples/fonts/FiraCode-Regular.ttf");
-
-    /// Returns a portable monospace font that works on any platform.
-    /// This is a replacement for platform-specific font loading code.
-    ///
-    /// # Errors
-    /// Returns an error if the embedded font data cannot be parsed.
-    pub fn get_portable_font() -> Result<FontArc, &'static str> {
-        FontArc::try_from_slice(PORTABLE_FONT_DATA).map_err(|_| "Failed to load embedded font")
-    }
 
     #[inline]
     pub fn compress_x_no_simd_binning(pixels: &mut AVec<Pixel>) {
