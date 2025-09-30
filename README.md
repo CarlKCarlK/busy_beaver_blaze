@@ -5,10 +5,12 @@
 - [Run the visualizer in your web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
 - Watch [an animation](https://www.youtube.com/watch?v=qYi5_mNLppY) made with this program.
 
-## Articles
+## Articles & Talks
 
 - Python: [How to Optimize your Python Program for Slowness: Write a Short Program That Finishes After the Universe Dies](https://towardsdatascience.com/how-to-optimize-your-python-program-for-slowness/) in *Towards Data Science*.
 - Rust: [How to Optimize your Rust Program for Slowness: Write a Short Program That Finishes After the Universe Dies](https://medium.com/@carlmkadie/how-to-optimize-your-rust-program-for-slowness-eb2c1a64d184) on *Medium*.
+- [Video] Rust: [How to Optimize Rust for Slowness: Insired by new Turing Machine Results](https://www.youtube.com/watch?v=ec-ucXJ4x-0) for the Seattle Rust Users Group on *RustVideos*.
+
 
 ## Features
 
