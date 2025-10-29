@@ -1,5 +1,4 @@
 """Tests for PyO3 PngDataIterator bindings."""
-# cmk is this the right location for these tests?
 # cmk run these tests
 
 import pytest

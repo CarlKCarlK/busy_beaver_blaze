@@ -29,7 +29,7 @@ def main():
     start_time = time.time()
     
     # Configuration
-    output_dir = Path("output") / "bb5_demo"
+    output_dir = Path(r"m:\deldir\bbpy") / "bb5_demo"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     program = BB5_CHAMP

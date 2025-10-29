@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
+        "bbpy",
         "lanczos",
         "NONBOUND",
         "Spaceline",
@@ -33,8 +34,17 @@
         // Neutralize any machine/user-level RUSTFLAGS that forbid warnings
         "RUSTFLAGS": ""
     },
-    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
     "python-envs.pythonProjects": [],
+    
+    // Python configuration
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests/python"
+    ],
+    
     // (Optional) If your user settings hard-pin a stable rust-analyzer server, override with nightly's path.
     // Comment this out if you want RA to manage its own binary.
     // "rust-analyzer.server.path": "C:/Users/carlk/.rustup/toolchains/nightly-2025-08-13-x86_64-pc-windows-msvc/bin/rust-analyzer.exe"

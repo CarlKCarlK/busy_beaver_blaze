@@ -79,7 +79,6 @@ for step_index, png_bytes in iterator:
     frame.save(f"frame_{step_index:07d}.png")
 ```
 
-
 ## Run Turing Compiler
 
 ```bash
