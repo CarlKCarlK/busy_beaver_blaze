@@ -74,8 +74,7 @@ def create_frame(
     png_bytes: bytes,
     caption: str,
     step_index: int,
-    width: int,
-    height: int,
+    resolution: tuple[int, int],
     font_size: Optional[int] = None,
 ) -> Image.Image:
     """Create a visualization frame from PNG bytes with text overlay.
@@ -88,20 +87,21 @@ def create_frame(
         png_bytes: Raw PNG image data from PngDataIterator
         caption: Text to display (appended to step count)
         step_index: Current step number (0-based)
-        width: Target width in pixels
-        height: Target height in pixels
+        resolution: Target (width, height) in pixels
         font_size: Font size override (auto-scaled by default based on height)
         
     Returns:
         PIL Image ready to save or further process
         
     Example:
-        >>> from busy_beaver_blaze import PngDataIterator, BB5_CHAMP
+        >>> from busy_beaver_blaze import PngDataIterator, BB5_CHAMP, RESOLUTION_2K
         >>> iterator = PngDataIterator([0, 1000, 10000], program=BB5_CHAMP)
         >>> step_idx, png_data = next(iterator)
-        >>> img = create_frame(png_data, "BB5 Champion", step_idx, 1920, 1080)
+        >>> img = create_frame(png_data, "BB5 Champion", step_idx, RESOLUTION_2K)
         >>> img.save("frame_0000.png")
     """
+    width, height = resolution
+    
     # Load base image from memory
     base = Image.open(BytesIO(png_bytes))
     
@@ -129,32 +129,52 @@ def create_frame(
     step_display = f"{step_index + 1:,}"  # +1 to match Rust (step_index + 1)
     text = f"{step_display} {caption}".strip()
     
-    # Load system sans-serif font
+    # Load FiraCode font (same as Rust) or fallback to monospace
     if font_size is None:
-        base_font_size = 50.0  # Font size for 1080p
+        base_font_size = 50.0  # Font size for 1080p (matches Rust)
         font_size = int(base_font_size * scale_factor)
     
-    try:
-        font_path = findfont(FontProperties(family='sans-serif'))
-        font = ImageFont.truetype(font_path, font_size)
-    except Exception:
-        # Fallback to default font
-        font = ImageFont.load_default()
+    # Try to load FiraCode-Regular.ttf from examples/fonts (matching Rust)
+    font = None
+    from pathlib import Path
+    # Navigate from busy_beaver_blaze package to repository root
+    repo_root = Path(__file__).parent.parent
+    fira_code_path = repo_root / "examples" / "fonts" / "FiraCode-Regular.ttf"
+    
+    if fira_code_path.exists():
+        try:
+            font = ImageFont.truetype(str(fira_code_path), font_size)
+        except Exception:
+            pass
+    
+    if font is None:
+        try:
+            # Try to find monospace font on system
+            font_path = findfont(FontProperties(family='monospace'))
+            font = ImageFont.truetype(font_path, font_size)
+        except Exception:
+            # Last resort
+            font = ImageFont.load_default()
     
     # Calculate text dimensions
     draw = ImageDraw.Draw(resized)
     bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
     
-    # Position in bottom-right with padding
+    # Use a reference string without descenders for consistent height positioning
+    # This prevents the text from jumping when commas (with descenders) appear
+    ref_bbox = draw.textbbox((0, 0), "0123456789", font=font)
+    text_height = ref_bbox[3] - ref_bbox[1]
+    
+    # Position in bottom-right with padding (matching Rust behavior)
     horizontal_padding = int(25.0 * scale_factor)
     vertical_padding = int(10.0 * scale_factor)
     
     x_position = width - horizontal_padding - text_width
-    y_position = height - vertical_padding - text_height - (text_height >> 1)
+    # Add extra vertical offset to account for descenders and ensure bottom margin
+    y_position = height - vertical_padding - text_height - int(10.0 * scale_factor)
     
-    # Draw text
+    # Draw text (matching Rust: gray color, no stroke)
     draw.text(
         (x_position, y_position),
         text,
