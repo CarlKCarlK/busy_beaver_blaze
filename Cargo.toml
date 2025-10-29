@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["simd", "diff_row"]
 simd = []
 diff_row = []
+python = ["pyo3/extension-module"]
 
 [dependencies]
 aligned-vec = "0.6.2"
@@ -31,6 +32,11 @@ smallvec = "1.14.0"
 thousands = "0.2.0"
 wasm-bindgen = "0.2.100"
 zerocopy = { version = "0.8.21", features = ["std", "derive"] }
+
+[dependencies.pyo3]
+version = "0.22"
+features = ["abi3-py39"]
+optional = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rand = "0.9.0"

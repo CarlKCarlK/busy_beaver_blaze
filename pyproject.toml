@@ -1,14 +1,21 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+module-name = "busy_beaver_blaze._busy_beaver_blaze"
+features = ["python"]
+
 [project]
 name = "busy-beaver-blaze"
 version = "0.2.7"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = ["jupyter>=1.1.1", "gmpy2>=2.2.1"]
+requires-python = ">=3.9"
+dependencies = ["jupyter>=1.1.1", "gmpy2>=2.2.1", "pillow>=10.0.0", "matplotlib>=3.5.0"]
 license = { text = "MIT OR Apache-2.0" }
 
-
 [project.optional-dependencies]
-dev = ["pytest>=7.0.0"]
+dev = ["pytest>=7.0.0", "maturin>=1.0,<2.0"]
 
 
 [tool.pytest.ini_options]

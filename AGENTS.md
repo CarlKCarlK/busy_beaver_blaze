@@ -2,7 +2,11 @@
 
 ## Architecture Overview
 
-This is a high-performance Turing machine interpreter and space-time visualizer with **dual implementations** (Python + Rust) and **WebAssembly compilation** for browser deployment.
+This is a high-performance Turing machine interpreter and space-time visualizer with **three deployment targets**:
+
+1. **Python Extension (PyO3)**: High-performance frame generation for data analysis and visualization workflows
+2. **Native Rust**: Maximum performance for benchmarking and standalone tools
+3. **WebAssembly**: Browser-based interactive visualizations
 
 ### Core Components
 
@@ -12,6 +16,28 @@ This is a high-performance Turing machine interpreter and space-time visualizer 
 - `Spacelines` (`src/spacelines.rs`): Collection of spacelines with Y-axis compression buffering
 - `SpaceByTime` (`src/space_by_time.rs`): Full space-time diagram manager with adaptive sampling
 - `SpaceByTimeMachine` (`src/space_by_time_machine.rs`): WebAssembly-exposed API combining machine + visualization
+- `PngDataIterator` (`src/png_data_iterator.rs`): Multithreaded frame generator exposed to Python via PyO3
+
+### Python Integration (PyO3)
+
+The package follows the **Nine Rules for Writing Python Extensions in Rust** (see article in project docs):
+
+1. **Single repository**: Both Rust (`src/`) and Python (`busy_beaver_blaze/`) in same repo
+2. **Maturin + PyO3**: Build system in `pyproject.toml`, bindings in `src/python_bindings.rs`
+3. **Translator layer**: `PyPngDataIterator` wraps native `PngDataIterator`, converts types
+4. **Memory management**: Iterator yields PNG bytes to Python, avoiding shared memory complexity
+5. **Error handling**: Rust `Result<T, Error>` → Python exceptions (`ValueError`, `RuntimeError`)
+6. **Multithreading**: Rayon parallelism in Rust, GIL released via `py.allow_threads()`
+7. **Thread control**: `part_count` parameter (defaults to CPU count) exposed to Python
+8. **Type bridging**: Python strings → Rust enums, hex colors → RGB tuples
+9. **Dual testing**: Rust tests (`cargo test`) + Python tests (`pytest`)
+
+**Architecture layers**:
+- **Python side** (`busy_beaver_blaze/`): Pure Python `Machine` class (notebooks), `log_step_iterator()` helper, `create_frame()` image post-processing
+- **Rust translator** (`src/python_bindings.rs`): PyO3 `#[pyclass]` wrappers, type conversions, GIL management
+- **Rust core** (`src/*.rs`): "Nice" Rust functions with native types, generic implementations, multithreading
+
+**Coexistence strategy**: Pure Python and Rust implementations coexist in same namespace. Notebooks can use `Machine` (pure Python) for prototyping and `PngDataIterator` (Rust) for production runs.
 
 ### Performance Architecture
 
@@ -78,9 +104,17 @@ cargo run --example movie --release bb5_champ 2K true
 wasm-pack build --release --out-dir docs/v0.2.7/pkg --target web
 wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm
 
-# Python development
-uv pip install -e ".[dev]"
-python -m pytest
+# Python extension (PyO3)
+maturin develop --release --features python  # Install in dev mode
+maturin build --release --features python    # Build wheel
+pip install -e ".[dev]"                      # Install with dev dependencies
+python -m pytest                             # Run Python tests
+python examples/movie_list.py                # Run Python example
+
+# Combined testing
+cargo test --release                         # Rust tests
+cargo test --features python                 # Rust + PyO3 bindings
+pytest tests/python/                         # Python tests (requires maturin develop)
 ```
 
 ### Key Test Patterns
@@ -88,6 +122,8 @@ python -m pytest
 - Image comparison tests in `tests/expected/*.png`
 - SIMD vs non-SIMD equivalence testing
 - Cross-platform WASM target testing: `cargo test --target wasm32-unknown-unknown`
+- Python binding tests in `tests/python/test_png_iterator.py` (require PyO3 build)
+- Pure Python tests in `tests/python/test_turing_machine.py` (no Rust required)
 
 ## Common Pitfalls
 

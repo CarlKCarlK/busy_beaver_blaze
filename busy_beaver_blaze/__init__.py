@@ -1,3 +1,23 @@
+"""Busy Beaver Blaze - High-performance Turing machine visualization.
+
+This package provides both pure Python and Rust-accelerated implementations
+for working with Turing machines and generating space-time visualizations.
+
+Pure Python (notebooks, prototyping):
+    - Machine: Turing machine simulator
+    - Tape: Infinite tape data structure  
+    - Program: Program parser and storage
+
+Rust-accelerated (production, large simulations):
+    - PngDataIterator: Fast frame generation with multithreading
+    - BB5_CHAMP, BB6_CONTENDER: Busy Beaver champion programs
+    - log_step_iterator: Generate logarithmically-spaced step indices
+    - create_frame: Add text overlay and resize PNG frames
+    - blend_images: Smooth frame transitions
+    - Resolution constants: RESOLUTION_2K, RESOLUTION_4K, etc.
+"""
+
+# Pure Python implementation (always available)
 class Tape:
     def __init__(self):
         self.negative = []  # Cells at negative positions (reversed)
@@ -160,3 +180,62 @@ class Machine:
     def count_ones(self):
         """Count the number of 1s on the tape"""
         return self.tape.count_ones()
+
+
+# Try to import Rust bindings
+try:
+    from ._busy_beaver_blaze import (
+        PyPngDataIterator as PngDataIterator,
+        BB5_CHAMP,
+        BB6_CONTENDER,
+    )
+    _RUST_AVAILABLE = True
+except ImportError:
+    # Rust bindings not available (package not built with maturin)
+    PngDataIterator = None
+    BB5_CHAMP = None
+    BB6_CONTENDER = None
+    _RUST_AVAILABLE = False
+
+# Import frame utilities (always available if PIL installed)
+try:
+    from .frames import (
+        log_step_iterator,
+        create_frame,
+        blend_images,
+        RESOLUTION_TINY,
+        RESOLUTION_2K,
+        RESOLUTION_4K,
+        RESOLUTION_8K,
+    )
+except ImportError:
+    # frames.py requires PIL and matplotlib
+    log_step_iterator = None
+    create_frame = None
+    blend_images = None
+    RESOLUTION_TINY = None
+    RESOLUTION_2K = None
+    RESOLUTION_4K = None
+    RESOLUTION_8K = None
+
+
+__all__ = [
+    # Pure Python (always available)
+    "Machine",
+    "Tape",
+    "Program",
+    "Action",
+    # Rust bindings (if available)
+    "PngDataIterator",
+    "BB5_CHAMP",
+    "BB6_CONTENDER",
+    # Frame utilities (if PIL available)
+    "log_step_iterator",
+    "create_frame",
+    "blend_images",
+    "RESOLUTION_TINY",
+    "RESOLUTION_2K",
+    "RESOLUTION_4K",
+    "RESOLUTION_8K",
+]
+

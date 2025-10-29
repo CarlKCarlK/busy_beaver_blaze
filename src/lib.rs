@@ -28,6 +28,10 @@ mod spacelines;
 mod symbol;
 mod tape;
 
+// PyO3 Python bindings (conditional compilation)
+#[cfg(feature = "python")]
+mod python_bindings;
+
 use aligned_vec::AVec;
 use derive_more::{Error as DeriveError, derive::Display};
 use png::{BitDepth, ColorType, Encoder};
