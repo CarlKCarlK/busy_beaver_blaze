@@ -55,7 +55,7 @@ def main():
     program = BB6_CONTENDER
     program_name = "bb6_contender"  # Used for file naming
     resolution = RESOLUTION_4K
-    early_stop = 1_000_000_002 # _000_002
+    early_stop = 10_000_000_000_002
     frame_count = 1000
     part_count = 32  # Number of parallel workers (None = auto-detect CPU count)
     caption = ""
