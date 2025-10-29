@@ -14,11 +14,11 @@ from pathlib import Path
 
 from busy_beaver_blaze import (
     PngDataIterator,
-    BB5_CHAMP,
+    BB5_CHAMP,      # noqa: F401
     BB6_CONTENDER,  # noqa: F401
     log_step_iterator,
     create_frame,
-    RESOLUTION_2K,
+    RESOLUTION_2K,  # noqa: F401
     RESOLUTION_4K,  # noqa: F401
 )
 
@@ -52,16 +52,23 @@ def main():
     
     # Configuration
     
-    program = BB5_CHAMP
-    program_name = "bb5_champ"  # Used for file naming
+    program = BB6_CONTENDER
+    program_name = "bb6_contender"  # Used for file naming
     resolution = RESOLUTION_4K
-    early_stop = 47_176_870  # BB5 halts at this step
-    frame_count = 100
-    part_count = 8  # Number of parallel workers (None = auto-detect CPU count)
+    early_stop = 1_000_000_002 # _000_002
+    frame_count = 1000
+    part_count = 32  # Number of parallel workers (None = auto-detect CPU count)
     caption = ""
-    top_directory = Path(r"m:\deldir\bbpy") / program_name
-    
-    # Create sequential output directory
+
+    # program = BB5_CHAMP
+    # program_name = "bb5_champ"  # Used for file naming
+    # resolution = RESOLUTION_4K
+    # early_stop = 47_176_870  # BB5 halts at this step
+    # frame_count = 100
+    # part_count = 8  # Number of parallel workers (None = auto-detect CPU count)
+    # caption = ""
+
+    top_directory = Path(r"m:\deldir\bbpy") / program_name    
     output_dir, run_id = create_sequential_subdir(top_directory)
     print(f"Output directory: {output_dir}")
     print(f"Run ID: {run_id}")
@@ -81,15 +88,12 @@ def main():
         part_count=part_count,
     )
     
-    # Process frames
-    # Process frames
     print("Processing frames...")
     frame_index = 0
     
     for step_index, png_bytes in iterator:
         elapsed = time.time() - start_time
-        print(f"Frame {frame_index:04d}, Step {step_index + 1:,}, "
-              f"{len(png_bytes):,} bytes, {elapsed:.1f}s elapsed")
+        print(f"Frame {frame_index:04d}, Step {step_index + 1:,}, {elapsed:.1f}s elapsed")
         
         # Create frame with text overlay
         frame = create_frame(
