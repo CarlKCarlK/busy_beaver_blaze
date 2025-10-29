@@ -62,14 +62,11 @@ frame_steps = log_step_iterator(1_000_000, 100)
 
 # Create iterator (multithreaded in Rust)
 iterator = PngDataIterator(
+    frame_steps,
+    resolution=RESOLUTION_2K,
     early_stop=1_000_000,
     program=BB5_CHAMP,
-    width=RESOLUTION_2K[0],
-    height=RESOLUTION_2K[1],
-    pixel_policy="binning",
-    frame_steps=frame_steps,
-    colors=[],  # Empty = use defaults
-    part_count=0  # 0 = auto-detect CPU count
+    # part_count defaults to None (auto-detect CPU count)
 )
 
 # Process frames one-at-a-time (memory efficient)

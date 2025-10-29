@@ -102,25 +102,35 @@ struct PyPngDataIterator {
     inner: Option<RustPngDataIterator>,
 }
 
-// cmk set more Python defaults?
 #[pymethods]
 impl PyPngDataIterator {
     #[new]
-    #[pyo3(signature = (early_stop, program, width, height, pixel_policy, frame_steps, colors=vec![], part_count=0))]
+    #[pyo3(signature = (frame_steps, resolution=(1920, 1080), early_stop=50_000_000, program=None, pixel_policy="binning", colors=vec![], part_count=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
-        early_stop: u64,
-        program: String,
-        width: u32,
-        height: u32,
-        pixel_policy: String,
         frame_steps: Vec<u64>,
+        resolution: (u32, u32),
+        early_stop: u64,
+        program: Option<String>,
+        pixel_policy: &str,
         colors: Vec<String>,
-        part_count: usize,
+        part_count: Option<usize>,
     ) -> PyResult<Self> {
+        // Validate frame_steps is not empty
+        if frame_steps.is_empty() {
+            return Err(PyValueError::new_err(
+                "frame_steps cannot be empty - specify at least one step index to capture"
+            ));
+        }
+
+        let (width, height) = resolution;
+        
+        // Default program to BB6_CONTENDER
+        let program = program.unwrap_or_else(|| BB6_CONTENDER.to_string());
+        
         // Parse pixel policy
-        let pixel_policy = parse_pixel_policy(&pixel_policy)?;
+        let pixel_policy = parse_pixel_policy(pixel_policy)?;
 
         // Parse hex colors
         let colors_rgb: Result<Vec<[u8; 3]>, String> = colors
@@ -129,14 +139,12 @@ impl PyPngDataIterator {
             .collect();
         let colors_rgb = colors_rgb.map_err(|e| PyValueError::new_err(e))?;
 
-        // Use CPU count if part_count is 0
-        let part_count = if part_count == 0 {
+        // Use CPU count if part_count is None
+        let part_count = part_count.unwrap_or_else(|| {
             std::thread::available_parallelism()
                 .map(|n| n.get())
                 .unwrap_or(1)
-        } else {
-            part_count
-        };
+        });
 
         // Create iterator - release GIL during construction since it spawns threads
         let inner = py.allow_threads(|| {
@@ -157,7 +165,6 @@ impl PyPngDataIterator {
         })
     }
 
-    // cmk rename slf to self or this
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -186,8 +193,7 @@ impl PyPngDataIterator {
 fn _busy_beaver_blaze(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPngDataIterator>()?;
     
-    // cmk why are only these two models exported?
-    // Export constants
+    // Export most commonly used program constants
     m.add("BB5_CHAMP", BB5_CHAMP)?;
     m.add("BB6_CONTENDER", BB6_CONTENDER)?;
     

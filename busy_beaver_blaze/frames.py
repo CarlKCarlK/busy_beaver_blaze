@@ -97,7 +97,7 @@ def create_frame(
         
     Example:
         >>> from busy_beaver_blaze import PngDataIterator, BB5_CHAMP
-        >>> iterator = PngDataIterator(100000, BB5_CHAMP, 1920, 1080, "binning", [0, 1000, 10000], [])
+        >>> iterator = PngDataIterator([0, 1000, 10000], program=BB5_CHAMP)
         >>> step_idx, png_data = next(iterator)
         >>> img = create_frame(png_data, "BB5 Champion", step_idx, 1920, 1080)
         >>> img.save("frame_0000.png")

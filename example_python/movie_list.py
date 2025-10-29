@@ -33,12 +33,10 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     
     program = BB5_CHAMP
-    width, height = RESOLUTION_2K  # Use 2K resolution
+    resolution = RESOLUTION_2K  # Use 2K resolution
     early_stop = 47_176_870  # BB5 halts at this step
     frame_count = 100
-    pixel_policy = "binning"  # "binning" or "sampling"
-    colors = []  # Empty list uses default colors
-    part_count = 8  # Number of parallel workers (0 = auto-detect CPU count)
+    part_count = 8  # Number of parallel workers (None = auto-detect CPU count)
     caption = "BB5 Champion"
     
     # Generate logarithmically-spaced step indices
@@ -49,13 +47,10 @@ def main():
     # Create iterator
     print(f"Creating PngDataIterator with {part_count} workers...")
     iterator = PngDataIterator(
+        frame_steps,
+        resolution=resolution,
         early_stop=early_stop,
         program=program,
-        width=width,
-        height=height,
-        pixel_policy=pixel_policy,
-        frame_steps=frame_steps,
-        colors=colors,
         part_count=part_count,
     )
     
@@ -74,8 +69,8 @@ def main():
             png_bytes,
             caption,
             step_index,
-            width,
-            height
+            resolution[0],
+            resolution[1]
         )
         
         # Optional: Create transition frames from previous frame

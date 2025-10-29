@@ -1,6 +1,14 @@
 {
     "configurations": [
         {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "type": "lldb",
             "request": "launch",
             "name": "Debug Cargo Test",

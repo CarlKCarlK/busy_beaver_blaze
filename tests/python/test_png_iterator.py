@@ -29,6 +29,15 @@ class TestLogStepIterator:
         assert len(steps) == 10
         assert steps[0] == 0
         assert steps[-1] == 999
+    
+    def test_rust_compatibility(self):
+        """Test that Python log_step_iterator matches Rust LogStepIterator.
+        
+        Corresponds to Rust test: src/tests.rs::test_log_step
+        """
+        steps = log_step_iterator(10, 10)
+        # Same sequence as Rust: LogStepIterator::new(10, 10)
+        assert steps == [0, 0, 0, 1, 1, 2, 3, 4, 6, 9]
         # Should be monotonically increasing
         assert all(steps[i] <= steps[i+1] for i in range(len(steps)-1))
     
@@ -45,13 +54,10 @@ class TestPngDataIterator:
         """Test that we can create an iterator."""
         frame_steps = [0, 10, 100]
         iterator = PngDataIterator(
+            frame_steps,
+            resolution=(320, 180),
             early_stop=1000,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=frame_steps,
-            colors=[],
             part_count=1,
         )
         assert iterator is not None
@@ -60,13 +66,10 @@ class TestPngDataIterator:
         """Test that iterator yields step_index and png_bytes."""
         frame_steps = [0, 10]
         iterator = PngDataIterator(
+            frame_steps,
+            resolution=(320, 180),
             early_stop=100,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=frame_steps,
-            colors=[],
             part_count=1,
         )
         
@@ -82,15 +85,12 @@ class TestPngDataIterator:
         assert png_bytes[:8] == b'\x89PNG\r\n\x1a\n'
     
     def test_pixel_policy_binning(self):
-        """Test with binning pixel policy."""
+        """Test with binning pixel policy (default)."""
         iterator = PngDataIterator(
+            [0],
+            resolution=(320, 180),
             early_stop=100,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=[0],
-            colors=[],
             part_count=1,
         )
         results = list(iterator)
@@ -99,13 +99,11 @@ class TestPngDataIterator:
     def test_pixel_policy_sampling(self):
         """Test with sampling pixel policy."""
         iterator = PngDataIterator(
+            [0],
+            resolution=(320, 180),
             early_stop=100,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
             pixel_policy="sampling",
-            frame_steps=[0],
-            colors=[],
             part_count=1,
         )
         results = list(iterator)
@@ -115,25 +113,21 @@ class TestPngDataIterator:
         """Test that invalid pixel policy raises ValueError."""
         with pytest.raises(ValueError, match="Invalid pixel_policy"):
             PngDataIterator(
+                [0],
+                resolution=(320, 180),
                 early_stop=100,
                 program=BB5_CHAMP,
-                width=320,
-                height=180,
                 pixel_policy="invalid",
-                frame_steps=[0],
-                colors=[],
                 part_count=1,
             )
     
     def test_hex_colors_rrggbb(self):
         """Test hex color parsing with #RRGGBB format."""
         iterator = PngDataIterator(
+            [0],
+            resolution=(320, 180),
             early_stop=100,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=[0],
             colors=["#FF0000", "#00FF00", "#0000FF"],
             part_count=1,
         )
@@ -143,12 +137,10 @@ class TestPngDataIterator:
     def test_hex_colors_rgb(self):
         """Test hex color parsing with #RGB format."""
         iterator = PngDataIterator(
+            [0],
+            resolution=(320, 180),
             early_stop=100,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=[0],
             colors=["#F00", "#0F0", "#00F"],
             part_count=1,
         )
@@ -158,12 +150,10 @@ class TestPngDataIterator:
     def test_hex_colors_no_hash(self):
         """Test hex color parsing without # prefix."""
         iterator = PngDataIterator(
+            [0],
+            resolution=(320, 180),
             early_stop=100,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=[0],
             colors=["FF0000", "00FF00"],
             part_count=1,
         )
@@ -174,12 +164,10 @@ class TestPngDataIterator:
         """Test that invalid hex color raises ValueError."""
         with pytest.raises(ValueError, match="Invalid .* component in hex color"):
             PngDataIterator(
+                [0],
+                resolution=(320, 180),
                 early_stop=100,
                 program=BB5_CHAMP,
-                width=320,
-                height=180,
-                pixel_policy="binning",
-                frame_steps=[0],
                 colors=["#GGGGGG"],  # Invalid hex
                 part_count=1,
             )
@@ -187,13 +175,10 @@ class TestPngDataIterator:
     def test_empty_colors(self):
         """Test that empty color list uses defaults."""
         iterator = PngDataIterator(
+            [0],
+            resolution=(320, 180),
             early_stop=100,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=[0],
-            colors=[],
             part_count=1,
         )
         results = list(iterator)
@@ -202,29 +187,23 @@ class TestPngDataIterator:
     def test_bb6_contender(self):
         """Test with BB6 contender program."""
         iterator = PngDataIterator(
+            [0, 100],
+            resolution=(320, 180),
             early_stop=1000,
             program=BB6_CONTENDER,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=[0, 100],
-            colors=[],
             part_count=1,
         )
         results = list(iterator)
         assert len(results) == 2
     
     def test_auto_part_count(self):
-        """Test that part_count=0 auto-detects CPU count."""
+        """Test that part_count=None auto-detects CPU count."""
         iterator = PngDataIterator(
+            [0],
+            resolution=(320, 180),
             early_stop=100,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=[0],
-            colors=[],
-            part_count=0,  # Auto-detect
+            # part_count defaults to None which auto-detects
         )
         results = list(iterator)
         assert len(results) == 1
@@ -233,13 +212,10 @@ class TestPngDataIterator:
         """Test with multiple parallel workers."""
         frame_steps = log_step_iterator(10000, 20)
         iterator = PngDataIterator(
+            frame_steps,
+            resolution=(320, 180),
             early_stop=10000,
             program=BB5_CHAMP,
-            width=320,
-            height=180,
-            pixel_policy="binning",
-            frame_steps=frame_steps,
-            colors=[],
             part_count=4,
         )
         results = list(iterator)
@@ -248,3 +224,18 @@ class TestPngDataIterator:
         # Verify step indices match requested steps
         actual_steps = [step_idx for step_idx, _ in results]
         assert actual_steps == frame_steps
+    
+    def test_empty_frame_steps(self):
+        """Test that empty frame_steps raises ValueError."""
+        with pytest.raises(ValueError, match="frame_steps cannot be empty"):
+            PngDataIterator(
+                [],  # Empty frame_steps
+                resolution=(320, 180),
+            )
+    
+    def test_defaults(self):
+        """Test that defaults match web app values."""
+        # Should use BB6_CONTENDER, 1920x1080, 50M steps, binning
+        iterator = PngDataIterator([0, 1000])
+        results = list(iterator)
+        assert len(results) == 2

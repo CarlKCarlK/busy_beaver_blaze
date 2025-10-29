@@ -44,6 +44,12 @@
     "python.testing.pytestArgs": [
         "tests/python"
     ],
+    "python.analysis.inlayHints.functionReturnTypes": false,
+    "python.analysis.autoImportCompletions": true,
+    
+    // Enable CodeLens for all Python files
+    "python.languageServer": "Pylance",
+    "editor.codeLens": true,
     
     // (Optional) If your user settings hard-pin a stable rust-analyzer server, override with nightly's path.
     // Comment this out if you want RA to manage its own binary.

@@ -22,14 +22,10 @@ def main():
     print(f"Frame steps: {frame_steps}")
 
     iterator = PngDataIterator(
+        frame_steps,
+        resolution=RESOLUTION_TINY,
         early_stop=10000,
         program=BB5_CHAMP,
-        width=RESOLUTION_TINY[0],
-        height=RESOLUTION_TINY[1],
-        pixel_policy="binning",
-        frame_steps=frame_steps,
-        colors=[],
-        part_count=2  # Use 2 workers
     )
 
     for i, (step_idx, png_bytes) in enumerate(iterator):
