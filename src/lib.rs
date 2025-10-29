@@ -55,11 +55,18 @@ pub const BB2_CHAMP: &str = "
 1	1LB	1RH
 ";
 
-pub const BB3_CHAMP: &str = "
+pub const BB3_CHAMP_SUM: &str = "
 	A	B	C
 0	1RB	0RC	1LC
 1	1RH	1RB	1LA
-";
+"; // Σ(3)=6, halts in 14 steps
+
+pub const BB3_CHAMP_STEPS: &str = "
+	A	B	C
+0	1RB	1LB	1LC
+1	1RH	0RC	1LA
+"; // S(3)=21, leaves 5 ones
+
 pub const BB4_CHAMP: &str = "
 	A	B	C	D
 0	1RB	1LA	1RH	1RD

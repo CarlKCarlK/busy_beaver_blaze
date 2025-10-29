@@ -75,8 +75,8 @@ cargo test --release -- --nocapture
 cargo run --example movie --release bb5_champ 2K true
 
 # WebAssembly build
-wasm-pack build --release --out-dir docs/v0.2.6/pkg --target web
-wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.6/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.6/pkg/busy_beaver_blaze_bg.wasm
+wasm-pack build --release --out-dir docs/v0.2.7/pkg --target web
+wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm
 
 # Python development
 uv pip install -e ".[dev]"

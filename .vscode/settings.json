@@ -2,7 +2,8 @@
     "cSpell.words": [
         "NONBOUND",
         "Spaceline",
-        "spacelines"
+        "spacelines",
+        "WYCOM"
     ],
     // Force the intended nightly toolchain for this workspace
     "rust-analyzer.rustup.toolchain": "nightly-2025-08-13",

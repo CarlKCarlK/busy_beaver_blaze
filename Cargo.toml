@@ -1,6 +1,6 @@
 [package]
 name = "busy_beaver_blaze"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2024"
 
 [lib]

@@ -47,14 +47,14 @@ cargo test bb5_champ_space_by_time --release -- --nocapture
 
 ```bash
 #cargo install wasm-opt --locked
-wasm-pack build --release --out-dir docs/v0.2.6/pkg --target web && del docs\v0.2.6\pkg\.gitignore
-wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.6/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.6/pkg/busy_beaver_blaze_bg.wasm
+wasm-pack build --release --out-dir docs/v0.2.7/pkg --target web && del docs\v0.2.7\pkg\.gitignore
+wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm
 ```
 
 ### Debug
 
 ```bash
-wasm-pack build --out-dir docs/v0.2.6/pkg --target web && del docs\v0.2.6\pkg\.gitignore
+wasm-pack build --out-dir docs/v0.2.7/pkg --target web && del docs\v0.2.7\pkg\.gitignore
 ```
 
 ## Make movie frames
