@@ -1,4 +1,6 @@
 """Tests for PyO3 PngDataIterator bindings."""
+# cmk is this the right location for these tests?
+# cmk run these tests
 
 import pytest
 
@@ -171,7 +173,7 @@ class TestPngDataIterator:
     
     def test_invalid_hex_color(self):
         """Test that invalid hex color raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid hex color"):
+        with pytest.raises(ValueError, match="Invalid .* component in hex color"):
             PngDataIterator(
                 early_stop=100,
                 program=BB5_CHAMP,

@@ -3,6 +3,8 @@
 import sys
 import os
 
+# cmk move or remove
+
 # Add the target directory to Python path to import the built extension
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "target-nightly", "release"))
 

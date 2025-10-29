@@ -102,6 +102,7 @@ struct PyPngDataIterator {
     inner: Option<RustPngDataIterator>,
 }
 
+// cmk set more Python defaults?
 #[pymethods]
 impl PyPngDataIterator {
     #[new]
@@ -156,6 +157,7 @@ impl PyPngDataIterator {
         })
     }
 
+    // cmk rename slf to self or this
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
@@ -184,6 +186,7 @@ impl PyPngDataIterator {
 fn _busy_beaver_blaze(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPngDataIterator>()?;
     
+    // cmk why are only these two models exported?
     // Export constants
     m.add("BB5_CHAMP", BB5_CHAMP)?;
     m.add("BB6_CONTENDER", BB6_CONTENDER)?;

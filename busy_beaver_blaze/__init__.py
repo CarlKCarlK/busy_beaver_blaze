@@ -1,3 +1,4 @@
+# cmk review this comment
 """Busy Beaver Blaze - High-performance Turing machine visualization.
 
 This package provides both pure Python and Rust-accelerated implementations
@@ -181,7 +182,7 @@ class Machine:
         """Count the number of 1s on the tape"""
         return self.tape.count_ones()
 
-
+# cmk understand and clean up this section
 # Try to import Rust bindings
 try:
     from ._busy_beaver_blaze import (

@@ -2,6 +2,8 @@
 del.s
 src/busy_beaver_blaze.egg-info/*
 **/__pycache__/*
+*.pyd
+*.so
 
 /target-nightly
 examples/delme.rs
@@ -9,3 +11,4 @@ examples/compile_machine.rsdelme
 ignore.c
 clippy_verbose.txt
 output/*
+_busy_beaver_blaze/_busy_beaver_blaze.pyd

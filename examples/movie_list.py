@@ -1,3 +1,4 @@
+# cmk is this the right location for this example?
 """Generate Turing machine visualization frames using Python + Rust.
 
 This script demonstrates using the PyO3 bindings to generate high-quality

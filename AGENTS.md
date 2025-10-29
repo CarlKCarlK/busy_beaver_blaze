@@ -33,6 +33,7 @@ The package follows the **Nine Rules for Writing Python Extensions in Rust** (se
 9. **Dual testing**: Rust tests (`cargo test`) + Python tests (`pytest`)
 
 **Architecture layers**:
+
 - **Python side** (`busy_beaver_blaze/`): Pure Python `Machine` class (notebooks), `log_step_iterator()` helper, `create_frame()` image post-processing
 - **Rust translator** (`src/python_bindings.rs`): PyO3 `#[pyclass]` wrappers, type conversions, GIL management
 - **Rust core** (`src/*.rs`): "Nice" Rust functions with native types, generic implementations, multithreading
@@ -186,6 +187,15 @@ Reference `src/code_notes.md` for sampling vs binning implementation locations a
 - Benchmarks: validate perf-sensitive changes with `cargo bench` and compare to prior runs; ensure functional equivalence across feature variants.
 - Public API stability: avoid renaming exported types/functions without coordination. Add doc comments for any new public items.
 - Documentation: when adding a feature or toggling behavior, update this guide and any relevant docs/examples.
+- **Markdown formatting**: When creating or editing markdown files, follow these rules to avoid linter warnings:
+  - Add blank lines before and after lists (both bulleted and numbered)
+  - Add blank lines before and after code blocks (fenced with triple backticks)
+  - Add blank lines before and after headings
+  - Ensure consistent list marker style within a file
+  - Example violations to avoid:
+    - `**Title:**` followed immediately by a list (needs blank line)
+    - Code block followed immediately by text (needs blank line)
+    - Heading followed immediately by another heading (needs blank line or text between)
 
 ### Precision Over Future‑Proofing
 

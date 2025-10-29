@@ -1,5 +1,85 @@
 # Useful Commands
 
+<!-- cmk update these -->
+
+## Testing
+
+**Rust Tests:**
+
+```bash
+cargo test --features python
+```
+
+**Python Tests:**
+
+```bash
+maturin develop --release --features python
+pytest tests/python/
+```
+
+**Integration Test:**
+
+```bash
+python quick_demo.py
+python examples/movie_list.py
+```
+
+### Build & Install
+
+**Development Mode:**
+
+```bash
+# Set Python interpreter
+$env:PYO3_PYTHON = "py"
+
+# Install in editable mode
+maturin develop --release --features python
+
+# Or install with pip
+pip install -e ".[dev]"
+```
+
+**Production Build:**
+
+```bash
+maturin build --release --features python
+# Wheel created in target/wheels/
+```
+
+### Usage Example
+
+```python
+from busy_beaver_blaze import (
+    PngDataIterator,
+    BB5_CHAMP,
+    log_step_iterator,
+    create_frame,
+    RESOLUTION_2K,
+)
+
+# Generate frame indices
+frame_steps = log_step_iterator(1_000_000, 100)
+
+# Create iterator (multithreaded in Rust)
+iterator = PngDataIterator(
+    early_stop=1_000_000,
+    program=BB5_CHAMP,
+    width=RESOLUTION_2K[0],
+    height=RESOLUTION_2K[1],
+    pixel_policy="binning",
+    frame_steps=frame_steps,
+    colors=[],  # Empty = use defaults
+    part_count=0  # 0 = auto-detect CPU count
+)
+
+# Process frames one-at-a-time (memory efficient)
+for step_index, png_bytes in iterator:
+    # Add text overlay and resize (Python/PIL)
+    frame = create_frame(png_bytes, "BB5", step_index, 1920, 1080)
+    frame.save(f"frame_{step_index:07d}.png")
+```
+
+
 ## Run Turing Compiler
 
 ```bash
@@ -12,12 +92,47 @@ cargo run --example compile_machine --release -- --program bb6-contender --inter
 cargo expand --example compile_machine bb6_contender_compiled
 ```
 
-## Python Dev mode
+## Python Dev mode (uv workflow)
+
+**Initial setup (one time):**
 
 ```bash
-uv pip install -e .
-uv pip install -e ".[dev]"
-python -m pytest
+# Create venv and install all dependencies including dev extras
+uv sync --extra dev
+
+# Build and install the Rust extension
+uv run maturin develop --release --features python
+```
+
+**Activate the virtual environment:**
+
+```bash
+# PowerShell
+.\.venv\Scripts\Activate.ps1
+
+# CMD
+.venv\Scripts\activate.bat
+
+# Git Bash / WSL
+source .venv/Scripts/activate
+
+# Or use uv run to run commands without activating
+uv run pytest
+uv run python quick_demo.py
+```
+
+**After activating, you can run commands directly:**
+
+```bash
+pytest tests/python/
+maturin develop --release --features python
+python examples/movie_list.py
+```
+
+**Quick rebuild after code changes:**
+
+```bash
+uv run maturin develop --release --features python
 ```
 
 ## Run Fastest

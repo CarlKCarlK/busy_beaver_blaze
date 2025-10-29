@@ -1,4 +1,5 @@
 """Quick demo of PngDataIterator Python bindings."""
+# cmk move or remove
 
 import sys
 import io
