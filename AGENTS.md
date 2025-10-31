@@ -169,6 +169,7 @@ Reference `src/code_notes.md` for sampling vs binning implementation locations a
 
 ## AI Agent Guidelines
 
+- **Commit messages**: Always suggest a concise 1-2 line commit message when completing work. Include a brief summary line followed by key bullet points of changes.
 - Action-first workflow: read relevant modules before editing (`machine.rs`, `spaceline.rs`, `spacelines.rs`, `space_by_time.rs`, `space_time_layers.rs`). Prefer surgical diffs over large refactors.
 - Preserve comments: keep `cmk00`/`cmk0`/`TODO` comments. If they seem obsolete, append `(may no longer apply)` rather than deleting.
 - Feature flags: always provide a clear fallback path. Use `#[cfg(feature = "..."))]` and `#[cfg(not(feature = "..."))]` blocks with identical control flow where possible.

@@ -238,7 +238,7 @@ struct PySpaceByTimeMachine {
 #[pymethods]
 impl PySpaceByTimeMachine {
     #[new]
-    #[pyo3(signature = (program, resolution=(1920, 1080), binning=true, skip=0, colors=vec![]))]
+    #[pyo3(signature = (program, resolution=(320, 180), binning=true, skip=0, colors=vec![]))]
     fn new(
         program: String,
         resolution: (u32, u32),
@@ -252,16 +252,9 @@ impl PySpaceByTimeMachine {
         let inner = RustSpaceByTimeMachine::from_str(&program, width, height, binning, skip)
             .map_err(|e| PyValueError::new_err(format!("Failed to create machine: {}", e)))?;
         
-        // Parse colors or use defaults
+        // Parse colors or use empty (let Rust handle defaults)
         let colors_rgb: Vec<u8> = if colors.is_empty() {
-            // Default grayscale palette (5 colors = 15 bytes)
-            vec![
-                255, 255, 255, // white (symbol 0)
-                0, 0, 0,       // black (symbol 1)
-                128, 128, 128, // 50% gray (symbol 2)
-                64, 64, 64,    // 25% gray (symbol 3)
-                192, 192, 192  // 75% gray (symbol 4)
-            ]
+            vec![]
         } else {
             // Parse hex colors
             let parsed: Result<Vec<[u8; 3]>, String> = colors
@@ -347,6 +340,12 @@ impl PySpaceByTimeMachine {
     /// Check if machine has halted.
     fn is_halted(&self) -> bool {
         self.inner.is_halted()
+    }
+    
+    /// Get the target resolution (width, height) for this machine.
+    fn resolution(&self) -> (u32, u32) {
+        let space_by_time = self.inner.space_time_layers.first();
+        (space_by_time.x_goal, space_by_time.y_goal)
     }
 }
 

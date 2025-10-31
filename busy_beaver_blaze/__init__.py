@@ -213,6 +213,7 @@ try:
         log_step_iterator,
         create_frame,
         blend_images,
+        resize_png,
         RESOLUTION_TINY,
         RESOLUTION_2K,
         RESOLUTION_4K,
@@ -223,6 +224,7 @@ except ImportError:
     log_step_iterator = None
     create_frame = None
     blend_images = None
+    resize_png = None
     RESOLUTION_TINY = None
     RESOLUTION_2K = None
     RESOLUTION_4K = None
@@ -254,6 +256,7 @@ __all__ = [
     "log_step_iterator",
     "create_frame",
     "blend_images",
+    "resize_png",
     "RESOLUTION_TINY",
     "RESOLUTION_2K",
     "RESOLUTION_4K",

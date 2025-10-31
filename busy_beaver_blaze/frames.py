@@ -70,6 +70,57 @@ def log_step_iterator(max_steps: int, frame_count: int) -> list[int]:
     return result
 
 
+def resize_png(
+    png_bytes: bytes,
+    target_resolution: tuple[int, int],
+) -> bytes:
+    """Resize PNG to exact target dimensions with appropriate filtering.
+    
+    The Rust engine can produce PNGs up to 2× larger than requested for efficiency
+    (adaptive sampling). This function scales them down to the exact target size,
+    using appropriate resampling based on the scale factor.
+    
+    This logic is shared by create_frame() and the interactive visualizer.
+    
+    Args:
+        png_bytes: Raw PNG image data
+        target_resolution: Target (width, height) in pixels
+        
+    Returns:
+        Resized PNG as bytes
+        
+    Example:
+        >>> png_bytes = machine.to_png()
+        >>> resized = resize_png(png_bytes, (1920, 1080))
+    """
+    width, height = target_resolution
+    
+    # Load image from memory
+    base = Image.open(BytesIO(png_bytes))
+    
+    # If already exact size, return as-is (optimization)
+    if base.width == width and base.height == height:
+        return png_bytes
+    
+    # Resize with anti-aliasing (same logic as create_frame)
+    x_fraction = base.width / width
+    if x_fraction < 0.25:
+        # Very small source - use nearest neighbor
+        resized = base.resize((width, height), Image.NEAREST)
+    else:
+        # Blur and resize with lanczos for quality
+        blurred = base.filter(ImageFilter.GaussianBlur(radius=1.0))
+        if x_fraction < 1.0:
+            resized = blurred.resize((width, height), Image.LANCZOS)
+        else:
+            resized = blurred.resize((width, height), Image.NEAREST)
+    
+    # Save back to bytes
+    output = BytesIO()
+    resized.save(output, format='PNG')
+    return output.getvalue()
+
+
 def create_frame(
     png_bytes: bytes,
     caption: str,
@@ -102,28 +153,18 @@ def create_frame(
     """
     width, height = resolution
     
-    # Load base image from memory
+    # Resize to exact target resolution
+    png_bytes = resize_png(png_bytes, resolution)
+    
+    # Load resized image
     base = Image.open(BytesIO(png_bytes))
     
     # Compute scale factor based on 1920x1080 reference (vertical dimension)
     scale_factor = height / 1080.0
     
-    # Resize with anti-aliasing
-    x_fraction = base.width / width
-    if x_fraction < 0.25:
-        # Very small source - use nearest neighbor
-        resized = base.resize((width, height), Image.NEAREST)
-    else:
-        # Blur and resize with lanczos for quality
-        blurred = base.filter(ImageFilter.GaussianBlur(radius=1.0))
-        if x_fraction < 1.0:
-            resized = blurred.resize((width, height), Image.LANCZOS)
-        else:
-            resized = blurred.resize((width, height), Image.NEAREST)
-    
     # Convert to RGBA for text drawing
-    if resized.mode != 'RGBA':
-        resized = resized.convert('RGBA')
+    if base.mode != 'RGBA':
+        base = base.convert('RGBA')
     
     # Prepare text with thousand separators
     step_display = f"{step_index + 1:,}"  # +1 to match Rust (step_index + 1)
@@ -157,7 +198,7 @@ def create_frame(
             font = ImageFont.load_default()
     
     # Calculate text dimensions
-    draw = ImageDraw.Draw(resized)
+    draw = ImageDraw.Draw(base)
     bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
     
@@ -182,7 +223,7 @@ def create_frame(
         fill=(110, 110, 110, 255)
     )
     
-    return resized
+    return base
 
 
 def blend_images(img1: Image.Image, img2: Image.Image, fraction: float) -> Image.Image:

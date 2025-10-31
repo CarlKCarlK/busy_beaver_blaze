@@ -5,7 +5,7 @@ in Jupyter/VSCode notebooks, mirroring the WebAssembly interface for interactive
 exploration without predetermined endpoints.
 """
 
-from typing import Optional, List
+from typing import Optional
 import time
 
 try:
@@ -15,6 +15,12 @@ except ImportError as e:
         "IPython is required for interactive visualization. "
         "This module is intended for use in Jupyter notebooks."
     ) from e
+
+try:
+    from .frames import resize_png
+except ImportError:
+    # frames.py requires PIL - provide a no-op fallback
+    resize_png = None
 
 
 class LiveVisualizer:
@@ -73,11 +79,14 @@ class LiveVisualizer:
         
         Example:
             >>> # Run until 1M steps or halted
-            >>> viz.run(machine, early_stop=1_000_000, caption="Testing")
+        >>> visualize_live(machine, early_stop=1_000_000, caption="Testing")
             
             >>> # Run indefinitely (stop with Ctrl+C)
-            >>> viz.run(machine, caption="Forever")
+            >>> visualize_live(machine, caption="Forever")
         """
+        # Get target resolution from machine
+        target_width, target_height = machine.resolution()
+        
         last_update = time.time()
         
         try:
@@ -88,8 +97,11 @@ class LiveVisualizer:
                 # Check if enough time has passed for display update
                 now = time.time()
                 if now - last_update >= update_interval:
-                    # Render and display
+                    # Render and resize to exact target
                     png_bytes = machine.to_png()
+                    if resize_png is not None:
+                        png_bytes = resize_png(png_bytes, (target_width, target_height))
+                    
                     step_count = machine.step_count()
                     
                     self._update_display(
@@ -107,6 +119,8 @@ class LiveVisualizer:
                 if not can_continue:
                     # Final update
                     png_bytes = machine.to_png()
+                    if resize_png is not None:
+                        png_bytes = resize_png(png_bytes, (target_width, target_height))
                     step_count = machine.step_count()
                     self._update_display(
                         png_bytes,
@@ -128,6 +142,8 @@ class LiveVisualizer:
         except KeyboardInterrupt:
             # Graceful stop on Ctrl+C - show final frame
             png_bytes = machine.to_png()
+            if resize_png is not None:
+                png_bytes = resize_png(png_bytes, (target_width, target_height))
             step_count = machine.step_count()
             self._update_display(
                 png_bytes,
