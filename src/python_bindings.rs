@@ -16,7 +16,7 @@ use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
 
-use crate::{PixelPolicy, PngDataIterator as RustPngDataIterator, BB5_CHAMP, BB6_CONTENDER};
+use crate::{PixelPolicy, PngDataIterator as RustPngDataIterator, SpaceByTimeMachine as RustSpaceByTimeMachine, BB5_CHAMP, BB6_CONTENDER};
 
 /// Parse a hex color string to RGB tuple
 ///
@@ -188,10 +188,173 @@ impl PyPngDataIterator {
     }
 }
 
+/// Interactive Turing machine with space-time visualization (mirrors WebAssembly API).
+///
+/// This class provides the same API as the JavaScript/WASM interface, allowing
+/// notebooks to run indefinitely with periodic rendering. The machine can be
+/// stopped at any time and continues to support recoloring.
+///
+/// # Parameters
+///
+/// * `program` - Turing machine program string
+/// * `resolution` - Target (width, height) in pixels
+/// * `binning` - True for pixel averaging, False for sampling
+/// * `skip` - Number of initial steps to skip before visualization
+///
+/// # Example
+///
+/// ```python
+/// from busy_beaver_blaze import SpaceByTimeMachine, BB5_CHAMP
+/// 
+/// # Create machine
+/// machine = SpaceByTimeMachine(
+///     program=BB5_CHAMP,
+///     resolution=(1920, 1080),
+///     binning=True,
+///     skip=0
+/// )
+///
+/// # Run for 0.1 seconds, max 1M steps
+/// while machine.step_for_secs(0.1, early_stop=1_000_000):
+///     png_bytes = machine.to_png()
+///     # Display png_bytes...
+///     
+///     # Check if we want to stop
+///     if machine.step_count() > 500_000:
+///         break
+///
+/// # Get final state
+/// print(f"Steps: {machine.step_count()}")
+/// print(f"Nonblanks: {machine.count_nonblanks()}")
+/// print(f"Halted: {machine.is_halted()}")
+/// ```
+#[pyclass]
+struct PySpaceByTimeMachine {
+    inner: RustSpaceByTimeMachine,
+    /// Current color palette (15 bytes = 5 RGB colors)
+    colors: Vec<u8>,
+}
+
+#[pymethods]
+impl PySpaceByTimeMachine {
+    #[new]
+    #[pyo3(signature = (program, resolution=(1920, 1080), binning=true, skip=0, colors=vec![]))]
+    fn new(
+        program: String,
+        resolution: (u32, u32),
+        binning: bool,
+        skip: u64,
+        colors: Vec<String>,
+    ) -> PyResult<Self> {
+        let (width, height) = resolution;
+        
+        // Create machine
+        let inner = RustSpaceByTimeMachine::from_str(&program, width, height, binning, skip)
+            .map_err(|e| PyValueError::new_err(format!("Failed to create machine: {}", e)))?;
+        
+        // Parse colors or use defaults
+        let colors_rgb: Vec<u8> = if colors.is_empty() {
+            // Default grayscale palette (5 colors = 15 bytes)
+            vec![
+                255, 255, 255, // white (symbol 0)
+                0, 0, 0,       // black (symbol 1)
+                128, 128, 128, // 50% gray (symbol 2)
+                64, 64, 64,    // 25% gray (symbol 3)
+                192, 192, 192  // 75% gray (symbol 4)
+            ]
+        } else {
+            // Parse hex colors
+            let parsed: Result<Vec<[u8; 3]>, String> = colors
+                .iter()
+                .map(|s| parse_hex_color(s))
+                .collect();
+            let parsed = parsed.map_err(|e| PyValueError::new_err(e))?;
+            
+            // Flatten to Vec<u8>
+            parsed.into_iter().flatten().collect()
+        };
+        
+        Ok(Self {
+            inner,
+            colors: colors_rgb,
+        })
+    }
+    
+    /// Step the machine for a specified duration.
+    ///
+    /// Returns True if more steps are available, False if halted or early_stop reached.
+    ///
+    /// # Arguments
+    ///
+    /// * `seconds` - Duration to run (e.g., 0.1)
+    /// * `early_stop` - Optional maximum step count
+    /// * `loops_per_time_check` - How often to check elapsed time (default: 10000)
+    #[pyo3(signature = (seconds, early_stop=None, loops_per_time_check=10_000))]
+    fn step_for_secs(
+        &mut self,
+        py: Python<'_>,
+        seconds: f32,
+        early_stop: Option<u64>,
+        loops_per_time_check: u64,
+    ) -> PyResult<bool> {
+        // Release GIL while stepping
+        let result = py.allow_threads(|| {
+            self.inner.step_for_secs_js(seconds, early_stop, loops_per_time_check)
+        });
+        Ok(result)
+    }
+    
+    /// Render current state to PNG bytes.
+    ///
+    /// Uses the color palette set during construction or via `set_colors()`.
+    fn to_png(&mut self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
+        // Release GIL during rendering
+        let png_data = py.allow_threads(|| {
+            self.inner.to_png(&self.colors)
+        });
+        
+        let png_data = png_data.map_err(|e| PyValueError::new_err(format!("PNG generation failed: {}", e)))?;
+        
+        Ok(PyBytes::new_bound(py, &png_data).into())
+    }
+    
+    /// Update the color palette.
+    ///
+    /// # Arguments
+    ///
+    /// * `colors` - List of hex color strings (e.g., ["#FF0000", "#00FF00"])
+    fn set_colors(&mut self, colors: Vec<String>) -> PyResult<()> {
+        let parsed: Result<Vec<[u8; 3]>, String> = colors
+            .iter()
+            .map(|s| parse_hex_color(s))
+            .collect();
+        let parsed = parsed.map_err(|e| PyValueError::new_err(e))?;
+        
+        self.colors = parsed.into_iter().flatten().collect();
+        Ok(())
+    }
+    
+    /// Get current step count (1-indexed).
+    fn step_count(&self) -> u64 {
+        self.inner.step_count()
+    }
+    
+    /// Count non-blank symbols on tape.
+    fn count_nonblanks(&self) -> u32 {
+        self.inner.count_nonblanks()
+    }
+    
+    /// Check if machine has halted.
+    fn is_halted(&self) -> bool {
+        self.inner.is_halted()
+    }
+}
+
 /// Python module for busy_beaver_blaze Rust bindings
 #[pymodule]
 fn _busy_beaver_blaze(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPngDataIterator>()?;
+    m.add_class::<PySpaceByTimeMachine>()?;
     
     // Export most commonly used program constants
     m.add("BB5_CHAMP", BB5_CHAMP)?;

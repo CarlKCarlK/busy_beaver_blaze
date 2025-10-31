@@ -10,12 +10,19 @@ Pure Python (notebooks, prototyping):
     - Program: Program parser and storage
 
 Rust-accelerated (production, large simulations):
-    - PngDataIterator: Fast frame generation with multithreading
+    - SpaceByTimeMachine: Interactive machine with live rendering (mirrors WASM API)
+    - PngDataIterator: Batch frame generation with multithreading
     - BB5_CHAMP, BB6_CONTENDER: Busy Beaver champion programs
+
+Frame utilities:
     - log_step_iterator: Generate logarithmically-spaced step indices
     - create_frame: Add text overlay and resize PNG frames
     - blend_images: Smooth frame transitions
     - Resolution constants: RESOLUTION_2K, RESOLUTION_4K, etc.
+
+Interactive notebook support:
+    - LiveVisualizer: IPython display with live updates
+    - visualize_live: Convenience function for quick visualization
 """
 
 # Pure Python implementation (always available)
@@ -187,6 +194,7 @@ class Machine:
 try:
     from ._busy_beaver_blaze import (
         PyPngDataIterator as PngDataIterator,
+        PySpaceByTimeMachine as SpaceByTimeMachine,
         BB5_CHAMP,
         BB6_CONTENDER,
     )
@@ -194,6 +202,7 @@ try:
 except ImportError:
     # Rust bindings not available (package not built with maturin)
     PngDataIterator = None
+    SpaceByTimeMachine = None
     BB5_CHAMP = None
     BB6_CONTENDER = None
     _RUST_AVAILABLE = False
@@ -219,6 +228,16 @@ except ImportError:
     RESOLUTION_4K = None
     RESOLUTION_8K = None
 
+# Import interactive utilities (notebook support)
+try:
+    from .interactive import (
+        LiveVisualizer,
+        visualize_live,
+    )
+except ImportError:
+    # interactive.py requires IPython (notebook environment)
+    LiveVisualizer = None
+    visualize_live = None
 
 __all__ = [
     # Pure Python (always available)
@@ -228,6 +247,7 @@ __all__ = [
     "Action",
     # Rust bindings (if available)
     "PngDataIterator",
+    "SpaceByTimeMachine",
     "BB5_CHAMP",
     "BB6_CONTENDER",
     # Frame utilities (if PIL available)
@@ -238,5 +258,9 @@ __all__ = [
     "RESOLUTION_2K",
     "RESOLUTION_4K",
     "RESOLUTION_8K",
+    # Interactive utilities (if IPython available)
+    "LiveVisualizer",
+    "visualize_live",
 ]
+
 
