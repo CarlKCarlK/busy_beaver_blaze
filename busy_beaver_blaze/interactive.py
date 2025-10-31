@@ -258,7 +258,9 @@ try:
             out_file: Optional path where the rendered PNG should be saved.
 
         Returns:
-            PIL.Image.Image when Pillow is available; otherwise raw PNG bytes.
+            Tuple of (image, step_count). ``image`` is a ``PIL.Image.Image`` when Pillow
+            is available, otherwise raw PNG bytes. ``step_count`` is the 1-based total
+            number of steps executed.
         """
         if early_stop <= 0:
             raise ValueError("early_stop must be positive")
@@ -289,17 +291,20 @@ try:
         if _resize_png is not None:
             png_bytes = _resize_png(png_bytes, target_resolution)
 
+        step_count = self.step_count()
+        print(f"Step count: {step_count:,}")
+
         if _PILImage is None:
             if out_file is not None:
                 with open(_fspath(out_file), "wb") as handle:
                     handle.write(png_bytes)
-            return png_bytes
+            return png_bytes, step_count
 
         image = _PILImage.open(_BytesIO(png_bytes)).convert("RGBA")
 
         if out_file is not None:
             image.save(_fspath(out_file))
-        return image
+        return image, step_count
 
     # Monkey-patch methods
     _Visualizer.run_live = _run_live
