@@ -34,11 +34,11 @@ class LiveVisualizer:
     mirrors the JavaScript API's `step_for_secs()` approach for indefinite running.
     
     Example:
-        >>> from busy_beaver_blaze import SpaceByTimeMachine, BB5_CHAMP
+        >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP
         >>> from busy_beaver_blaze.interactive import LiveVisualizer
         >>> 
         >>> # Create machine (can run indefinitely)
-        >>> machine = SpaceByTimeMachine(
+        >>> machine = Visualizer(
         ...     program=BB5_CHAMP,
         ...     resolution=(1920, 1080),
         ...     binning=True
@@ -46,7 +46,7 @@ class LiveVisualizer:
         >>> 
         >>> # Display live updates (stop with Ctrl+C)
         >>> viz = LiveVisualizer()
-        >>> viz.run(machine, run_for_secs=0.1, caption="BB5 Champion")
+        >>> viz.run(machine, update_secs=0.1, caption="BB5 Champion")
     """
     
     def __init__(self):
@@ -56,7 +56,7 @@ class LiveVisualizer:
     def run(
         self,
         machine,  # SpaceByTimeMachine instance
-        run_for_secs: float = 0.1,
+        update_secs: float = 0.1,
         early_stop: Optional[int] = None,
         loops_per_check: int = 10_000,
         caption: str = "",
@@ -67,7 +67,7 @@ class LiveVisualizer:
         
         Args:
             machine: SpaceByTimeMachine instance to visualize
-            run_for_secs: How long to step before rendering (e.g., 0.1 seconds)
+            update_secs: How long to step before rendering (e.g., 0.1 seconds)
             early_stop: Optional maximum step count to halt at
             loops_per_check: How often to check time during stepping
             caption: Optional caption text to display
@@ -92,7 +92,7 @@ class LiveVisualizer:
         try:
             while True:
                 # Step the machine
-                can_continue = machine.step_for_secs(run_for_secs, early_stop, loops_per_check)
+                can_continue = machine.step_for_secs(update_secs, early_stop, loops_per_check)
                 
                 # Check if enough time has passed for display update
                 now = time.time()
@@ -182,8 +182,8 @@ class LiveVisualizer:
 
 
 def visualize_live(
-    machine,  # SpaceByTimeMachine instance
-    run_for_secs: float = 0.1,
+    machine,  # Visualizer/SpaceByTimeMachine instance
+    update_secs: float = 0.1,
     early_stop: Optional[int] = None,
     loops_per_check: int = 10_000,
     caption: str = "",
@@ -197,7 +197,7 @@ def visualize_live(
     
     Args:
         machine: SpaceByTimeMachine instance to visualize
-        run_for_secs: How long to step before rendering (e.g., 0.1 seconds)
+        update_secs: How long to step before rendering (e.g., 0.1 seconds)
         early_stop: Optional maximum step count to halt at
         loops_per_check: How often to check time during stepping
         caption: Optional caption text to display
@@ -205,11 +205,11 @@ def visualize_live(
         update_interval: Minimum seconds between display updates
         
     Example:
-        >>> from busy_beaver_blaze import SpaceByTimeMachine, BB5_CHAMP
+        >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP
         >>> from busy_beaver_blaze.interactive import visualize_live
         >>> 
         >>> # Create machine
-        >>> machine = SpaceByTimeMachine(
+        >>> machine = Visualizer(
         ...     program=BB5_CHAMP,
         ...     resolution=(800, 600),
         ...     binning=True
@@ -219,5 +219,92 @@ def visualize_live(
         >>> visualize_live(machine, early_stop=1_000_000, caption="BB5 Champion")
     """
     viz = LiveVisualizer()
-    viz.run(machine, run_for_secs, early_stop, loops_per_check, caption, show_stats, update_interval)
+    viz.run(machine, update_secs, early_stop, loops_per_check, caption, show_stats, update_interval)
+
+
+# Attach convenient methods to the Visualizer class (Python-level extension)
+try:
+    from . import Visualizer as _Visualizer
+    from os import fspath as _fspath
+    from typing import Optional as _Optional
+    from io import BytesIO as _BytesIO
+    try:
+        from .frames import resize_png as _resize_png
+        from PIL import Image as _PILImage
+    except Exception:  # PIL not available
+        _resize_png = None
+        _PILImage = None
+
+    def _run_live(self, update_secs: float = 0.1, early_stop: _Optional[int] = None,
+                  loops_per_check: int = 10_000, caption: str = "", show_stats: bool = True,
+                  update_interval: float = 0.0) -> None:
+        """Interactive live visualization attached as a method.
+
+        Mirrors visualize_live() but callable as: viz.run_live(...)
+        """
+        viz = LiveVisualizer()
+        viz.run(self, update_secs, early_stop, loops_per_check, caption, show_stats, update_interval)
+
+    def _run(
+        self,
+        *,
+        early_stop: int,
+        out_file: _Optional[str] = None,
+    ):
+        """Advance to ``early_stop`` (or halt) and render the current frame.
+
+        Args:
+            early_stop: Target step count to reach before rendering. Must be positive.
+            out_file: Optional path where the rendered PNG should be saved.
+
+        Returns:
+            PIL.Image.Image when Pillow is available; otherwise raw PNG bytes.
+        """
+        if early_stop <= 0:
+            raise ValueError("early_stop must be positive")
+
+        if early_stop < self.step_count():
+            raise ValueError("early_stop must be greater than or equal to the current step count")
+
+        # Step the machine until we reach the requested step count or the machine halts.
+        while True:
+            current_steps = self.step_count()
+            if current_steps >= early_stop:
+                break
+
+            can_continue = self.step_for_secs(0.05, early_stop=early_stop)
+            advanced_steps = self.step_count()
+
+            if advanced_steps <= current_steps:
+                if not can_continue:
+                    break
+                raise RuntimeError("step_for_secs did not advance the machine")
+
+            if not can_continue:
+                break
+
+        png_bytes = self.to_png()
+        target_resolution = self.resolution()
+
+        if _resize_png is not None:
+            png_bytes = _resize_png(png_bytes, target_resolution)
+
+        if _PILImage is None:
+            if out_file is not None:
+                with open(_fspath(out_file), "wb") as handle:
+                    handle.write(png_bytes)
+            return png_bytes
+
+        image = _PILImage.open(_BytesIO(png_bytes)).convert("RGBA")
+
+        if out_file is not None:
+            image.save(_fspath(out_file))
+        return image
+
+    # Monkey-patch methods
+    _Visualizer.run_live = _run_live
+    _Visualizer.run = _run
+except Exception:
+    # If Visualizer or PIL isn't available in this env, skip attaching methods
+    pass
 

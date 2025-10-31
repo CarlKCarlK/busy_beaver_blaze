@@ -238,7 +238,7 @@ struct PySpaceByTimeMachine {
 #[pymethods]
 impl PySpaceByTimeMachine {
     #[new]
-    #[pyo3(signature = (program, resolution=(320, 180), binning=true, skip=0, colors=vec![]))]
+    #[pyo3(signature = (program, resolution=(800, 600), binning=true, skip=0, colors=vec![]))]
     fn new(
         program: String,
         resolution: (u32, u32),

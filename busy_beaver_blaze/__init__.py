@@ -194,14 +194,18 @@ class Machine:
 try:
     from ._busy_beaver_blaze import (
         PyPngDataIterator as PngDataIterator,
-        PySpaceByTimeMachine as SpaceByTimeMachine,
+        PySpaceByTimeMachine,
         BB5_CHAMP,
         BB6_CONTENDER,
     )
+    # Public Python-friendly names
+    Visualizer = PySpaceByTimeMachine  # Preferred name
+    SpaceByTimeMachine = PySpaceByTimeMachine  # Backward compatibility
     _RUST_AVAILABLE = True
 except ImportError:
     # Rust bindings not available (package not built with maturin)
     PngDataIterator = None
+    Visualizer = None
     SpaceByTimeMachine = None
     BB5_CHAMP = None
     BB6_CONTENDER = None
@@ -249,6 +253,7 @@ __all__ = [
     "Action",
     # Rust bindings (if available)
     "PngDataIterator",
+    "Visualizer",
     "SpaceByTimeMachine",
     "BB5_CHAMP",
     "BB6_CONTENDER",

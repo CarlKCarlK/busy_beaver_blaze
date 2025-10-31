@@ -12,3 +12,4 @@ ignore.c
 clippy_verbose.txt
 output/*
 _busy_beaver_blaze/_busy_beaver_blaze.pyd
+busy_beaver_blaze/_busy_beaver_blaze.pyd
