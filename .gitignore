@@ -11,3 +11,4 @@ examples/compile_machine.rsdelme
 ignore.c
 clippy_verbose.txt
 output/*
+.venv/*

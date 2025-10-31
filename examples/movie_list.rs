@@ -5,10 +5,7 @@ use image::{DynamicImage, imageops::FilterType};
 use image::{Rgba, RgbaImage};
 use imageproc::drawing::draw_text_mut;
 use itertools::Itertools;
-use std::{
-    fs,
-    path::{PathBuf},
-};
+use std::{fs, path::PathBuf};
 use thousands::Separable;
 
 pub const RESOLUTION_TINY: (u32, u32) = (320, 180); // Tiny (320x180)

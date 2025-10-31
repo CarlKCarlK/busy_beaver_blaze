@@ -195,6 +195,7 @@ try:
     from ._busy_beaver_blaze import (
         PyPngDataIterator as PngDataIterator,
         PySpaceByTimeMachine,
+        run_machine_steps,
         BB5_CHAMP,
         BB6_CONTENDER,
     )
@@ -207,6 +208,7 @@ except ImportError:
     PngDataIterator = None
     Visualizer = None
     SpaceByTimeMachine = None
+    run_machine_steps = None
     BB5_CHAMP = None
     BB6_CONTENDER = None
     _RUST_AVAILABLE = False
@@ -255,6 +257,7 @@ __all__ = [
     "PngDataIterator",
     "Visualizer",
     "SpaceByTimeMachine",
+    "run_machine_steps",
     "BB5_CHAMP",
     "BB6_CONTENDER",
     # Frame utilities (if PIL available)

@@ -9,10 +9,7 @@ use image::Rgba;
 use image::{DynamicImage, imageops::FilterType};
 use imageproc::drawing::draw_text_mut;
 use itertools::Itertools;
-use std::{
-    fs,
-    path::{Path},
-};
+use std::{fs, path::Path};
 use thousands::Separable;
 
 #[derive(Debug)]
@@ -99,8 +96,9 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
             (BB6_CONTENDER, 1_000_000_000u64, 1000, dir_info)
         }
         "bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---" => {
-            let dir_info =
-                common::create_sequential_subdir(r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---")?;
+            let dir_info = common::create_sequential_subdir(
+                r"m:\deldir\bb\bb5_1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
+            )?;
             (
                 "1RB1RE_0RC1RA_1RD0LD_1LC1LB_0RA---",
                 1_000_000_000u64,

@@ -12,18 +12,22 @@
 //! 8. Dynamic types in Python → generic Rust functions
 //! 9. Test both Rust and Python
 
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+use pyo3::wrap_pyfunction;
 
-use crate::{PixelPolicy, PngDataIterator as RustPngDataIterator, SpaceByTimeMachine as RustSpaceByTimeMachine, BB5_CHAMP, BB6_CONTENDER};
+use crate::{
+    BB5_CHAMP, BB6_CONTENDER, Machine, PixelPolicy, PngDataIterator as RustPngDataIterator,
+    SpaceByTimeMachine as RustSpaceByTimeMachine,
+};
 
 /// Parse a hex color string to RGB tuple
 ///
 /// Accepts formats: "#RRGGBB", "RRGGBB", "#RGB"
 fn parse_hex_color(hex: &str) -> Result<[u8; 3], String> {
     let hex = hex.trim_start_matches('#');
-    
+
     match hex.len() {
         6 => {
             // #RRGGBB format
@@ -43,9 +47,12 @@ fn parse_hex_color(hex: &str) -> Result<[u8; 3], String> {
                 .map_err(|_| format!("Invalid green component in hex color: {}", hex))?;
             let b = u8::from_str_radix(&hex[2..3], 16)
                 .map_err(|_| format!("Invalid blue component in hex color: {}", hex))?;
-            Ok([r * 17, g * 17, b * 17])  // 0xF -> 0xFF
+            Ok([r * 17, g * 17, b * 17]) // 0xF -> 0xFF
         }
-        _ => Err(format!("Invalid hex color format: {}. Expected #RRGGBB, RRGGBB, or #RGB", hex))
+        _ => Err(format!(
+            "Invalid hex color format: {}. Expected #RRGGBB, RRGGBB, or #RGB",
+            hex
+        )),
     }
 }
 
@@ -57,8 +64,39 @@ fn parse_pixel_policy(policy: &str) -> PyResult<PixelPolicy> {
         _ => Err(PyValueError::new_err(format!(
             "Invalid pixel_policy: '{}'. Expected 'binning' or 'sampling'",
             policy
-        )))
+        ))),
     }
+}
+
+/// Run a Turing machine program up to a step limit, returning steps executed and nonblank count.
+#[pyfunction]
+#[pyo3(signature = (program_text, step_limit))]
+fn run_machine_steps(py: Python<'_>, program_text: &str, step_limit: u64) -> PyResult<(u64, u64)> {
+    if step_limit == 0 {
+        return Err(PyValueError::new_err("step_limit must be at least 1"));
+    }
+
+    let machine_result: Result<Machine, _> = program_text.parse();
+    let machine = machine_result
+        .map_err(|error| PyValueError::new_err(format!("Failed to parse program: {}", error)))?;
+
+    let result = py.allow_threads(move || {
+        let mut machine = machine;
+        let mut steps_run = 0_u64;
+
+        while steps_run < step_limit {
+            match machine.next() {
+                Some(_) => {
+                    steps_run += 1;
+                }
+                None => break,
+            }
+        }
+
+        let nonzero_count = u64::from(machine.count_nonblanks());
+        (steps_run, nonzero_count)
+    });
+    Ok(result)
 }
 
 /// Iterator that generates PNG frames of Turing machine space-time diagrams.
@@ -81,7 +119,7 @@ fn parse_pixel_policy(policy: &str) -> PyResult<PixelPolicy> {
 ///
 /// ```python
 /// from busy_beaver_blaze import PngDataIterator, BB5_CHAMP
-/// 
+///
 /// frame_steps = [0, 100, 1000, 10000, 100000]
 /// iterator = PngDataIterator(
 ///     early_stop=1000000,
@@ -120,23 +158,21 @@ impl PyPngDataIterator {
         // Validate frame_steps is not empty
         if frame_steps.is_empty() {
             return Err(PyValueError::new_err(
-                "frame_steps cannot be empty - specify at least one step index to capture"
+                "frame_steps cannot be empty - specify at least one step index to capture",
             ));
         }
 
         let (width, height) = resolution;
-        
+
         // Default program to BB6_CONTENDER
         let program = program.unwrap_or_else(|| BB6_CONTENDER.to_string());
-        
+
         // Parse pixel policy
         let pixel_policy = parse_pixel_policy(pixel_policy)?;
 
         // Parse hex colors
-        let colors_rgb: Result<Vec<[u8; 3]>, String> = colors
-            .iter()
-            .map(|s| parse_hex_color(s))
-            .collect();
+        let colors_rgb: Result<Vec<[u8; 3]>, String> =
+            colors.iter().map(|s| parse_hex_color(s)).collect();
         let colors_rgb = colors_rgb.map_err(|e| PyValueError::new_err(e))?;
 
         // Use CPU count if part_count is None
@@ -160,16 +196,17 @@ impl PyPngDataIterator {
             )
         });
 
-        Ok(Self {
-            inner: Some(inner),
-        })
+        Ok(Self { inner: Some(inner) })
     }
 
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<'_, Self>, py: Python<'_>) -> PyResult<Option<(u64, Py<PyBytes>)>> {
+    fn __next__(
+        mut slf: PyRefMut<'_, Self>,
+        py: Python<'_>,
+    ) -> PyResult<Option<(u64, Py<PyBytes>)>> {
         let Some(ref mut inner) = slf.inner else {
             return Ok(None);
         };
@@ -205,7 +242,7 @@ impl PyPngDataIterator {
 ///
 /// ```python
 /// from busy_beaver_blaze import SpaceByTimeMachine, BB5_CHAMP
-/// 
+///
 /// # Create machine
 /// machine = SpaceByTimeMachine(
 ///     program=BB5_CHAMP,
@@ -247,32 +284,30 @@ impl PySpaceByTimeMachine {
         colors: Vec<String>,
     ) -> PyResult<Self> {
         let (width, height) = resolution;
-        
+
         // Create machine
         let inner = RustSpaceByTimeMachine::from_str(&program, width, height, binning, skip)
             .map_err(|e| PyValueError::new_err(format!("Failed to create machine: {}", e)))?;
-        
+
         // Parse colors or use empty (let Rust handle defaults)
         let colors_rgb: Vec<u8> = if colors.is_empty() {
             vec![]
         } else {
             // Parse hex colors
-            let parsed: Result<Vec<[u8; 3]>, String> = colors
-                .iter()
-                .map(|s| parse_hex_color(s))
-                .collect();
+            let parsed: Result<Vec<[u8; 3]>, String> =
+                colors.iter().map(|s| parse_hex_color(s)).collect();
             let parsed = parsed.map_err(|e| PyValueError::new_err(e))?;
-            
+
             // Flatten to Vec<u8>
             parsed.into_iter().flatten().collect()
         };
-        
+
         Ok(Self {
             inner,
             colors: colors_rgb,
         })
     }
-    
+
     /// Step the machine for a specified duration.
     ///
     /// Returns True if more steps are available, False if halted or early_stop reached.
@@ -292,56 +327,54 @@ impl PySpaceByTimeMachine {
     ) -> PyResult<bool> {
         // Release GIL while stepping
         let result = py.allow_threads(|| {
-            self.inner.step_for_secs_js(seconds, early_stop, loops_per_time_check)
+            self.inner
+                .step_for_secs_js(seconds, early_stop, loops_per_time_check)
         });
         Ok(result)
     }
-    
+
     /// Render current state to PNG bytes.
     ///
     /// Uses the color palette set during construction or via `set_colors()`.
     fn to_png(&mut self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
         // Release GIL during rendering
-        let png_data = py.allow_threads(|| {
-            self.inner.to_png(&self.colors)
-        });
-        
-        let png_data = png_data.map_err(|e| PyValueError::new_err(format!("PNG generation failed: {}", e)))?;
-        
+        let png_data = py.allow_threads(|| self.inner.to_png(&self.colors));
+
+        let png_data =
+            png_data.map_err(|e| PyValueError::new_err(format!("PNG generation failed: {}", e)))?;
+
         Ok(PyBytes::new_bound(py, &png_data).into())
     }
-    
+
     /// Update the color palette.
     ///
     /// # Arguments
     ///
     /// * `colors` - List of hex color strings (e.g., ["#FF0000", "#00FF00"])
     fn set_colors(&mut self, colors: Vec<String>) -> PyResult<()> {
-        let parsed: Result<Vec<[u8; 3]>, String> = colors
-            .iter()
-            .map(|s| parse_hex_color(s))
-            .collect();
+        let parsed: Result<Vec<[u8; 3]>, String> =
+            colors.iter().map(|s| parse_hex_color(s)).collect();
         let parsed = parsed.map_err(|e| PyValueError::new_err(e))?;
-        
+
         self.colors = parsed.into_iter().flatten().collect();
         Ok(())
     }
-    
+
     /// Get current step count (1-indexed).
     fn step_count(&self) -> u64 {
         self.inner.step_count()
     }
-    
+
     /// Count non-blank symbols on tape.
     fn count_nonblanks(&self) -> u32 {
         self.inner.count_nonblanks()
     }
-    
+
     /// Check if machine has halted.
     fn is_halted(&self) -> bool {
         self.inner.is_halted()
     }
-    
+
     /// Get the target resolution (width, height) for this machine.
     fn resolution(&self) -> (u32, u32) {
         let space_by_time = self.inner.space_time_layers.first();
@@ -352,12 +385,13 @@ impl PySpaceByTimeMachine {
 /// Python module for busy_beaver_blaze Rust bindings
 #[pymodule]
 fn _busy_beaver_blaze(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(run_machine_steps, m)?)?;
     m.add_class::<PyPngDataIterator>()?;
     m.add_class::<PySpaceByTimeMachine>()?;
-    
+
     // Export most commonly used program constants
     m.add("BB5_CHAMP", BB5_CHAMP)?;
     m.add("BB6_CONTENDER", BB6_CONTENDER)?;
-    
+
     Ok(())
 }
