@@ -55,7 +55,8 @@ def main():
     program = BB6_CONTENDER
     program_name = "bb6_contender"  # Used for file naming
     resolution = RESOLUTION_4K
-    early_stop = 1_000_000_002 # _000_002
+    early_stop = 10_000_000_000_002
+    start = 3_108_082_173_869
     frame_count = 1000
     part_count = 32  # Number of parallel workers (None = auto-detect CPU count)
     caption = ""
@@ -76,7 +77,14 @@ def main():
     # Generate logarithmically-spaced step indices
     print(f"Generating {frame_count} frames up to step {early_stop:,}")
     frame_steps = log_step_iterator(early_stop, frame_count)
+
+    # If start is not None, then filter out frames in frame_steps before start
+    if start is not None:
+        frame_steps = [step for step in frame_steps if step >= start]
+
     print(f"Frame steps: {frame_steps[:5]}...{frame_steps[-5:]}")
+
+
     
     # Create iterator
     print(f"Creating PngDataIterator with {part_count} workers...")
