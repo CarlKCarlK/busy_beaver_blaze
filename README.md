@@ -25,6 +25,41 @@
 - Optional **perfect binning** for tape visualization. By default, ever pixel in the image is the average of the (sometimes billions of) tape values that it represents.
 - You can set settings via the URL hash fragment, for example, `#program=bb5&earlyStop=false`. Include `run=true` to run the program immediately.
 
+## Python Quickstart (uv)
+
+After cloning the repository, use [uv](https://github.com/astral-sh/uv) to set up a Python environment and build the Rust extension before running notebooks or tests.
+
+1. Create a virtual environment:
+
+   ```bash
+   uv venv
+   ```
+
+2. Activate it: `source .venv/bin/activate` (macOS/Linux) or `.venv\Scripts\Activate.ps1` (PowerShell).
+3. Install the Python dependencies in editable mode:
+
+   ```bash
+   uv pip install -e ".[dev]"
+   ```
+
+4. Build and install the Rust/PyO3 extension into that environment:
+
+   ```bash
+   uv tool run maturin develop --release --features python
+   ```
+
+5. (Optional) Run the Python test suite:
+
+   ```bash
+   uv run pytest
+   ```
+
+6. Launch notebooks:
+
+   ```bash
+   uv run jupyter lab
+   ```
+
 ## Techniques
 
 - The Turing machine interpreter is a straightforward Rust implementation.
