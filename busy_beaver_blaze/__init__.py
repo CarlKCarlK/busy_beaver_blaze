@@ -210,33 +210,55 @@ except ImportError as error:
     ) from error
 
 
-def run_machine_steps(program_text, step_limit, force_python_only=False):
-    """Execute a Turing machine program via Rust or (optionally) the Python interpreter.
+def _run_machine_steps_python(program_text, step_limit):
+    if BB5_CHAMP is not None and program_text.strip() == BB5_CHAMP.strip():
+        program_text = "1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA"
+    python_machine = Machine(program_text)
+    tape = python_machine.tape
+    program = python_machine.program
+    current_state = python_machine.state
+    tape_index = python_machine.tape_index
+    steps_taken = 0
 
-    When `force_python_only` is True, this function runs the pure Python implementation
-    to help compare behaviour and timing against the Rust-backed path.
+    while steps_taken < step_limit and current_state < program.state_count:
+        tape_symbol = tape[tape_index]
+        action = program.action(current_state, tape_symbol)
+        tape[tape_index] = action.next_symbol
+        tape_index += action.direction
+        current_state = action.next_state
+        steps_taken += 1
+
+    python_machine.state = current_state
+    python_machine.tape_index = tape_index
+    return steps_taken, python_machine.count_ones()
+
+
+def run_machine_steps(program_text, step_limit, force=None):
+    """Execute a Turing machine program with selectable backend.
+
+    Parameters
+    ----------
+    program_text : str
+        Turing machine definition.
+    step_limit : int
+        Maximum number of steps to execute (must be >= 1).
+    force : {None, "python", "rust"}
+        Selects the backend. ``None`` lets Rust choose automatically, ``"rust"``
+        forces the interpreter even when an assembly variant is available, and
+        ``"python"`` runs the pure Python implementation.
     """
-    if force_python_only:
-        python_machine = Machine(program_text)
-        tape = python_machine.tape
-        program = python_machine.program
-        current_state = python_machine.state
-        tape_index = python_machine.tape_index
-        steps_taken = 0
 
-        while steps_taken < step_limit and current_state < program.state_count:
-            tape_symbol = tape[tape_index]
-            action = program.action(current_state, tape_symbol)
-            tape[tape_index] = action.next_symbol
-            tape_index += action.direction
-            current_state = action.next_state
-            steps_taken += 1
+    if step_limit <= 0:
+        raise ValueError("step_limit must be at least 1")
 
-        python_machine.state = current_state
-        python_machine.tape_index = tape_index
-        return steps_taken, python_machine.count_ones()
+    if force not in (None, "python", "rust"):
+        raise ValueError("force must be None, 'python', or 'rust'")
 
-    return _rust_run_machine_steps(program_text, step_limit)
+    if force == "python":
+        return _run_machine_steps_python(program_text, step_limit)
+
+    rust_force = "rust" if force == "rust" else None
+    return _rust_run_machine_steps(program_text, step_limit, rust_force)
 
 # Import frame utilities (always available if PIL installed)
 try:

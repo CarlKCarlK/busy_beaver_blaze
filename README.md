@@ -60,6 +60,10 @@ After cloning the repository, use [uv](https://github.com/astral-sh/uv) to set u
    uv run jupyter lab
    ```
 
+When comparing backends from Python, call `run_machine_steps(program, steps, force=...)` with
+`force="python"` or `force="rust"` to pin the implementation, or leave `force=None` (default) to
+let Rust automatically choose the inline-assembly path for supported programs.
+
 ## Rust Benchmark (BB5)
 
 Compare the pure Rust interpreter to the inline-assembly runner by executing 50 full halting runs of `BB5_CHAMP` in release mode:

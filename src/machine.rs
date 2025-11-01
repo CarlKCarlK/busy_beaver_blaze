@@ -138,7 +138,7 @@ impl Iterator for Machine {
 
 type StateToSymbolToAction = ArrayVec<Action, { Program::MAX_STATE_COUNT }>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program {
     state_count: u8,
     pub(crate) symbol_count: u8,
@@ -431,7 +431,7 @@ impl Program {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Action {
     next_state: u8,
     next_symbol: Symbol,

@@ -12,11 +12,15 @@
 //! 8. Dynamic types in Python → generic Rust functions
 //! 9. Test both Rust and Python
 
+use std::sync::OnceLock;
+
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::wrap_pyfunction;
 
+use crate::compiled_runner::{CompiledProgram, run_compiled_program};
+use crate::machine::Program;
 use crate::{
     BB5_CHAMP, BB6_CONTENDER, Machine, PixelPolicy, PngDataIterator as RustPngDataIterator,
     SpaceByTimeMachine as RustSpaceByTimeMachine,
@@ -68,34 +72,93 @@ fn parse_pixel_policy(policy: &str) -> PyResult<PixelPolicy> {
     }
 }
 
+#[derive(Clone, Copy)]
+enum ForceMode {
+    Auto,
+    Rust,
+}
+
+fn parse_force_mode(force: Option<&str>) -> PyResult<ForceMode> {
+    match force {
+        None => Ok(ForceMode::Auto),
+        Some(value) if value.eq_ignore_ascii_case("rust") => Ok(ForceMode::Rust),
+        Some(value) => Err(PyValueError::new_err(format!(
+            "force must be None or 'rust'; python fallback is handled in busy_beaver_blaze.run_machine_steps (got '{value}')"
+        ))),
+    }
+}
+
 /// Run a Turing machine program up to a step limit, returning steps executed and nonblank count.
 #[pyfunction]
-#[pyo3(signature = (program_text, step_limit))]
-fn run_machine_steps(py: Python<'_>, program_text: &str, step_limit: u64) -> PyResult<(u64, u64)> {
+#[pyo3(signature = (program_text, step_limit, force=None))]
+fn run_machine_steps(
+    py: Python<'_>,
+    program_text: &str,
+    step_limit: u64,
+    force: Option<&str>,
+) -> PyResult<(u64, u64)> {
     if step_limit == 0 {
         return Err(PyValueError::new_err("step_limit must be at least 1"));
     }
 
-    let machine_result: Result<Machine, _> = program_text.parse();
-    let machine = machine_result
+    let machine: Machine = program_text
+        .parse()
         .map_err(|error| PyValueError::new_err(format!("Failed to parse program: {}", error)))?;
 
-    let result = py.allow_threads(move || {
-        let mut machine = machine;
-        let mut steps_run = 0_u64;
+    let compiled_candidate = detect_compiled_program(&machine.program);
+    let force_mode = parse_force_mode(force)?;
 
-        while steps_run < step_limit {
-            let halted = machine.next().is_none();
-            steps_run += 1;
-            if halted {
-                break;
-            }
+    enum RunMode {
+        Rust(Machine),
+        Asm(CompiledProgram),
+    }
+
+    let run_mode = match (force_mode, compiled_candidate) {
+        (ForceMode::Rust, _) | (ForceMode::Auto, None) => RunMode::Rust(machine),
+        (ForceMode::Auto, Some(compiled)) => {
+            drop(machine);
+            RunMode::Asm(compiled)
         }
+    };
 
-        let nonzero_count = u64::from(machine.count_nonblanks());
-        (steps_run, nonzero_count)
+    let result = py.allow_threads(move || match run_mode {
+        RunMode::Rust(mut machine) => {
+            let mut steps_run = 0_u64;
+
+            while steps_run < step_limit {
+                let halted = machine.next().is_none();
+                steps_run += 1;
+                if halted {
+                    break;
+                }
+            }
+
+            let nonzero_count = u64::from(machine.count_nonblanks());
+            (steps_run, nonzero_count)
+        }
+        RunMode::Asm(compiled) => {
+            let summary = run_compiled_program(compiled, step_limit);
+            (summary.step_count, u64::from(summary.nonzero_count))
+        }
     });
     Ok(result)
+}
+
+fn detect_compiled_program(program: &Program) -> Option<CompiledProgram> {
+    static BB5_PROGRAM: OnceLock<Program> = OnceLock::new();
+    static BB6_PROGRAM: OnceLock<Program> = OnceLock::new();
+
+    let bb5 = BB5_PROGRAM.get_or_init(|| BB5_CHAMP.parse().expect("BB5 program must parse"));
+    if program == bb5 {
+        return Some(CompiledProgram::Bb5Champ);
+    }
+
+    let bb6 = BB6_PROGRAM.get_or_init(|| BB6_CONTENDER.parse().expect("BB6 program must parse"));
+    if program == bb6 {
+        return Some(CompiledProgram::Bb6Contender);
+    }
+
+    None
 }
 
 /// Iterator that generates PNG frames of Turing machine space-time diagrams.

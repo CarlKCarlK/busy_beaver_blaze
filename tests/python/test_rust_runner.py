@@ -4,10 +4,7 @@ import pytest
 
 pytest.importorskip("busy_beaver_blaze._busy_beaver_blaze")
 
-from busy_beaver_blaze import Machine, run_machine_steps
-
-if run_machine_steps is None:
-    pytest.skip("Rust extension is not available", allow_module_level=True)
+from busy_beaver_blaze import BB5_CHAMP, Machine, run_machine_steps
 
 
 def _run_python_machine(program_text: str, step_limit: int) -> tuple[int, int]:
@@ -56,16 +53,29 @@ def test_step_limit_must_be_positive() -> None:
         run_machine_steps("1RB1LA_1LB1RH", 0)
 
 
-def test_force_python_only_flag() -> None:
+def test_force_modes() -> None:
     program_text = "1RB1LA_1LB1RH"
     step_limit = 10
 
-    rust_steps, rust_nonzeros = run_machine_steps(program_text, step_limit)
-    python_steps, python_nonzeros = run_machine_steps(
-        program_text,
-        step_limit,
-        force_python_only=True,
-    )
+    rust_steps, rust_nonzeros = run_machine_steps(program_text, step_limit, force="rust")
+    python_steps, python_nonzeros = run_machine_steps(program_text, step_limit, force="python")
 
     assert python_steps == rust_steps
     assert python_nonzeros == rust_nonzeros
+
+    auto_steps, auto_nonzeros = run_machine_steps(program_text, step_limit)
+    assert auto_steps == rust_steps
+    assert auto_nonzeros == rust_nonzeros
+
+
+def test_invalid_force_value() -> None:
+    with pytest.raises(ValueError, match="force must be None"):
+        run_machine_steps("1RB1LA_1LB1RH", 10, force="invalid")
+
+
+def test_auto_selects_asm_for_bb5() -> None:
+    manual_steps, manual_nonzeros = run_machine_steps(BB5_CHAMP, 1_000, force="rust")
+    asm_steps, asm_nonzeros = run_machine_steps(BB5_CHAMP, 1_000)
+
+    assert manual_steps == asm_steps
+    assert manual_nonzeros == asm_nonzeros

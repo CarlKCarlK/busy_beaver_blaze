@@ -11,6 +11,7 @@
 mod tests;
 
 // Add modules
+mod compiled_runner;
 mod log_step_iterator;
 mod machine;
 mod message0;
@@ -39,6 +40,9 @@ use snapshot::Snapshot;
 use symbol::Symbol;
 use thousands::Separable;
 // Export types from modules
+pub use compiled_runner::{
+    CompiledProgram, RunSummary as CompiledRunSummary, run_compiled_program,
+};
 pub use log_step_iterator::LogStepIterator;
 pub use machine::Machine;
 pub use pixel::Pixel;
