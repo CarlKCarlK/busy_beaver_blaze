@@ -5,6 +5,7 @@ in Jupyter/VSCode notebooks, mirroring the WebAssembly interface for interactive
 exploration without predetermined endpoints.
 """
 
+from pathlib import Path
 from typing import Optional
 import time
 
@@ -303,6 +304,7 @@ try:
         image = _PILImage.open(_BytesIO(png_bytes)).convert("RGBA")
 
         if out_file is not None:
+            Path(out_file).parent.mkdir(parents=True, exist_ok=True)
             image.save(_fspath(out_file))
         return image, step_count
 

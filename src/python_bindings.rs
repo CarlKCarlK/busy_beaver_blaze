@@ -83,7 +83,7 @@ fn parse_force_mode(force: Option<&str>) -> PyResult<ForceMode> {
         None => Ok(ForceMode::Auto),
         Some(value) if value.eq_ignore_ascii_case("rust") => Ok(ForceMode::Rust),
         Some(value) => Err(PyValueError::new_err(format!(
-            "force must be None or 'rust'; python fallback is handled in busy_beaver_blaze.run_machine_steps (got '{value}')"
+            "force must be None, 'python', or 'rust'; got '{value}'"
         ))),
     }
 }
