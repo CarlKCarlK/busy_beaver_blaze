@@ -218,13 +218,22 @@ def run_machine_steps(program_text, step_limit, force_python_only=False):
     """
     if force_python_only:
         python_machine = Machine(program_text)
+        tape = python_machine.tape
+        program = python_machine.program
+        current_state = python_machine.state
+        tape_index = python_machine.tape_index
         steps_taken = 0
-        try:
-            while steps_taken < step_limit:
-                next(python_machine)
-                steps_taken += 1
-        except StopIteration:
-            pass
+
+        while steps_taken < step_limit and current_state < program.state_count:
+            tape_symbol = tape[tape_index]
+            action = program.action(current_state, tape_symbol)
+            tape[tape_index] = action.next_symbol
+            tape_index += action.direction
+            current_state = action.next_state
+            steps_taken += 1
+
+        python_machine.state = current_state
+        python_machine.tape_index = tape_index
         return steps_taken, python_machine.count_ones()
 
     return _rust_run_machine_steps(program_text, step_limit)

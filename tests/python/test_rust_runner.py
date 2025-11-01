@@ -15,12 +15,15 @@ def _run_python_machine(program_text: str, step_limit: int) -> tuple[int, int]:
     machine = Machine(program_text)
     steps_run = 0
 
-    try:
-        while steps_run < step_limit:
+    for _ in range(step_limit):
+        try:
             next(machine)
+        except StopIteration:
             steps_run += 1
-    except StopIteration:
-        pass
+            break
+        steps_run += 1
+    else:
+        return steps_run, machine.count_ones()
 
     nonzero_count = machine.count_ones()
     return steps_run, nonzero_count

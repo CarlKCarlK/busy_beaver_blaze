@@ -85,11 +85,10 @@ fn run_machine_steps(py: Python<'_>, program_text: &str, step_limit: u64) -> PyR
         let mut steps_run = 0_u64;
 
         while steps_run < step_limit {
-            match machine.next() {
-                Some(_) => {
-                    steps_run += 1;
-                }
-                None => break,
+            let halted = machine.next().is_none();
+            steps_run += 1;
+            if halted {
+                break;
             }
         }
 
