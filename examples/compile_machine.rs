@@ -193,6 +193,10 @@ struct Args {
     /// Maximum allowed total tape length (cells incl. sentinels)
     #[arg(long, default_value = "16_777_216", value_parser = parse_clean::<usize>)]
     max_tape: usize,
+
+    /// Suppress progress output
+    #[arg(long, default_value_t = false)]
+    quiet: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -232,6 +236,7 @@ pub struct Config {
     pub max_tape: usize,
     pub max_steps: u64,
     compiled_fn: CompiledFn,
+    quiet: bool,
 }
 
 impl TryFrom<Args> for Config {
@@ -244,9 +249,11 @@ impl TryFrom<Args> for Config {
             max_steps,
             min_tape,
             max_tape,
+            quiet,
         }: Args,
     ) -> Result<Self, Self::Error> {
         Self::new(program, interval, max_steps, min_tape, max_tape)
+            .map(|config| config.with_quiet(quiet))
     }
 }
 
@@ -272,7 +279,16 @@ impl Config {
             max_tape,
             max_steps,
             compiled_fn,
+            quiet: false,
         })
+    }
+}
+
+impl Config {
+    #[must_use]
+    pub fn with_quiet(mut self, quiet: bool) -> Self {
+        self.quiet = quiet;
+        self
     }
 }
 
@@ -485,11 +501,13 @@ impl<'a> RuntimeState<'a> {
         assert!(self.step_count <= self.config.max_steps, "real assert");
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
         if self.step_count == self.config.max_steps {
-            println!(
-                "reached max steps {}; stopping",
-                self.step_count.separate_with_commas()
-            );
-            println!("{:.3} s", elapsed_secs);
+            if !self.config.quiet {
+                println!(
+                    "reached max steps {}; stopping",
+                    self.step_count.separate_with_commas()
+                );
+                println!("{:.3} s", elapsed_secs);
+            }
             use std::mem;
             let full_tape = mem::take(&mut self.tape);
             assert!(full_tape.len() >= 3);
@@ -511,14 +529,16 @@ impl<'a> RuntimeState<'a> {
         } else {
             (0.0, f64::INFINITY, String::from("--:--:--"))
         };
-        println!(
-            "{} steps ({} steps/s, ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
-            self.step_count.separate_with_commas(),
-            format_steps_per_sec(steps_per_sec),
-            eta,
-            total,
-            elapsed_secs
-        );
+        if !self.config.quiet {
+            println!(
+                "{} steps ({} steps/s, ETA {:.3} s, total ~ {}, elapsed {:.3} s)",
+                self.step_count.separate_with_commas(),
+                format_steps_per_sec(steps_per_sec),
+                eta,
+                total,
+                elapsed_secs
+            );
+        }
         assert!(self.report_at_step <= u64::MAX - self.config.interval.get());
         self.report_at_step += self.config.interval.get();
         None
@@ -543,11 +563,13 @@ impl<'a> RuntimeState<'a> {
 
     fn on_halted(&mut self) -> Summary {
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
-        println!(
-            "halted after {} steps",
-            self.step_count.separate_with_commas()
-        );
-        println!("{:.3} s", elapsed_secs);
+        if !self.config.quiet {
+            println!(
+                "halted after {} steps",
+                self.step_count.separate_with_commas()
+            );
+            println!("{:.3} s", elapsed_secs);
+        }
         let full_tape = std::mem::take(&mut self.tape);
         assert!(full_tape.len() >= 3);
         Summary {
@@ -584,12 +606,14 @@ impl<'a> RuntimeState<'a> {
 
     fn max_mem_summary(&mut self, side: RunTermination) -> Summary {
         let elapsed_secs = self.start_time.elapsed().as_secs_f64();
-        println!(
-            "reached max memory {} cells; stopping at {} steps",
-            (self.config.max_tape - 2).separate_with_commas(),
-            self.step_count.separate_with_commas()
-        );
-        println!("{:.3} s", elapsed_secs);
+        if !self.config.quiet {
+            println!(
+                "reached max memory {} cells; stopping at {} steps",
+                (self.config.max_tape - 2).separate_with_commas(),
+                self.step_count.separate_with_commas()
+            );
+            println!("{:.3} s", elapsed_secs);
+        }
         let full_tape = std::mem::take(&mut self.tape);
         assert!(full_tape.len() >= 3);
         Summary {
@@ -617,10 +641,12 @@ impl<'a> RuntimeState<'a> {
         let dst_end = dst_start + old_interior;
         new_tape[dst_start..dst_end].copy_from_slice(&self.tape[1..(old_interior + 1)]);
         self.tape = new_tape;
-        println!(
-            "tape grown LEFT to {} cells",
-            (new_total - 2).separate_with_commas()
-        );
+        if !self.config.quiet {
+            println!(
+                "tape grown LEFT to {} cells",
+                (new_total - 2).separate_with_commas()
+            );
+        }
         self.origin_index += old_interior;
         Some(unsafe { self.tape.as_mut_ptr().add(old_interior) })
     }
@@ -640,10 +666,12 @@ impl<'a> RuntimeState<'a> {
         // Copy old interior at same offset starting at 1.
         new_tape[1..(1 + old_interior)].copy_from_slice(&self.tape[1..(old_total - 1)]);
         self.tape = new_tape;
-        println!(
-            "tape grown RIGHT to {} cells",
-            (new_total - 2).separate_with_commas()
-        );
+        if !self.config.quiet {
+            println!(
+                "tape grown RIGHT to {} cells",
+                (new_total - 2).separate_with_commas()
+            );
+        }
         // First newly-added interior cell is at the old sentinel position.
         Some(unsafe { self.tape.as_mut_ptr().add(old_right) })
     }
@@ -737,6 +765,7 @@ mod tests {
             max_steps: 7,
             min_tape: 128,
             max_tape: 256,
+            quiet: false,
         };
         let config: Config = args.try_into().expect("conversion should succeed");
         // Verify constructor selected the correct compiled function
@@ -755,6 +784,7 @@ mod tests {
             max_steps: 1,
             min_tape: 128,
             max_tape: 256,
+            quiet: false,
         };
         match Config::try_from(args) {
             Err(Error::IntervalTooSmall { interval }) => assert_eq!(interval, 0),
@@ -770,6 +800,7 @@ mod tests {
             max_steps: 1,
             min_tape: 2,
             max_tape: 64,
+            quiet: false,
         };
         match Config::try_from(args) {
             Err(Error::TapeTooShort { min_tape }) => assert_eq!(min_tape, 2),
@@ -785,6 +816,7 @@ mod tests {
             max_steps: 1,
             min_tape: 4,
             max_tape: 2,
+            quiet: false,
         };
         match Config::try_from(args) {
             Err(Error::MaxTapeTooSmall { max_tape }) => assert_eq!(max_tape, 2),
@@ -800,6 +832,7 @@ mod tests {
             max_steps: 1_000,
             min_tape: 128,
             max_tape: 1usize << 16,
+            quiet: false,
         }
         .try_into()
         .expect("conversion should succeed");
@@ -823,6 +856,7 @@ mod tests {
             max_steps: u64::MAX,
             min_tape: 2_097_152,
             max_tape: 16_777_216,
+            quiet: false,
         }
         .try_into()
         .expect("conversion should succeed");
@@ -843,6 +877,7 @@ mod tests {
             max_steps: 20_000_000,
             min_tape: 2_097_152,
             max_tape: 16_777_216,
+            quiet: false,
         }
         .try_into()
         .expect("conversion should succeed");

@@ -60,6 +60,16 @@ After cloning the repository, use [uv](https://github.com/astral-sh/uv) to set u
    uv run jupyter lab
    ```
 
+## Rust Benchmark (BB5)
+
+Compare the pure Rust interpreter to the inline-assembly runner by executing 50 full halting runs of `BB5_CHAMP` in release mode:
+
+```bash
+cargo run --release --example bb5_benchmark
+```
+
+The example prints the average time per run for each implementation, their total wall-clock time, the shared step count (47,176,870), the number of nonzero tape cells, and the overall speedup.
+
 ## Techniques
 
 - The Turing machine interpreter is a straightforward Rust implementation.
