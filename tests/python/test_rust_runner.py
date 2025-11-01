@@ -51,3 +51,18 @@ def test_run_machine_steps_respects_limit() -> None:
 def test_step_limit_must_be_positive() -> None:
     with pytest.raises(ValueError, match="step_limit must be at least 1"):
         run_machine_steps("1RB1LA_1LB1RH", 0)
+
+
+def test_force_python_only_flag() -> None:
+    program_text = "1RB1LA_1LB1RH"
+    step_limit = 10
+
+    rust_steps, rust_nonzeros = run_machine_steps(program_text, step_limit)
+    python_steps, python_nonzeros = run_machine_steps(
+        program_text,
+        step_limit,
+        force_python_only=True,
+    )
+
+    assert python_steps == rust_steps
+    assert python_nonzeros == rust_nonzeros

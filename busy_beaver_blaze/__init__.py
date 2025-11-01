@@ -195,7 +195,7 @@ try:
     from ._busy_beaver_blaze import (
         PyPngDataIterator as PngDataIterator,
         PySpaceByTimeMachine,
-        run_machine_steps,
+        run_machine_steps as _rust_run_machine_steps,
         BB5_CHAMP,
         BB6_CONTENDER,
     )
@@ -203,15 +203,31 @@ try:
     Visualizer = PySpaceByTimeMachine  # Preferred name
     SpaceByTimeMachine = PySpaceByTimeMachine  # Backward compatibility
     _RUST_AVAILABLE = True
-except ImportError:
-    # Rust bindings not available (package not built with maturin)
-    PngDataIterator = None
-    Visualizer = None
-    SpaceByTimeMachine = None
-    run_machine_steps = None
-    BB5_CHAMP = None
-    BB6_CONTENDER = None
-    _RUST_AVAILABLE = False
+except ImportError as error:
+    raise ImportError(
+        "busy_beaver_blaze failed to load its Rust extension. "
+        "Run `maturin develop --release --features python` from the project root."
+    ) from error
+
+
+def run_machine_steps(program_text, step_limit, force_python_only=False):
+    """Execute a Turing machine program via Rust or (optionally) the Python interpreter.
+
+    When `force_python_only` is True, this function runs the pure Python implementation
+    to help compare behaviour and timing against the Rust-backed path.
+    """
+    if force_python_only:
+        python_machine = Machine(program_text)
+        steps_taken = 0
+        try:
+            while steps_taken < step_limit:
+                next(python_machine)
+                steps_taken += 1
+        except StopIteration:
+            pass
+        return steps_taken, python_machine.count_ones()
+
+    return _rust_run_machine_steps(program_text, step_limit)
 
 # Import frame utilities (always available if PIL installed)
 try:
