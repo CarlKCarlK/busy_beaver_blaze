@@ -5,23 +5,14 @@ in Jupyter/VSCode notebooks, mirroring the WebAssembly interface for interactive
 exploration without predetermined endpoints.
 """
 
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
 import time
 
-try:
-    from IPython.display import display, Image as IPImage, clear_output
-except ImportError as e:
-    raise ImportError(
-        "IPython is required for interactive visualization. "
-        "This module is intended for use in Jupyter notebooks."
-    ) from e
-
-try:
-    from .frames import resize_png
-except ImportError:
-    # frames.py requires PIL - provide a no-op fallback
-    resize_png = None
+from IPython.display import display, Image as IPImage, clear_output
+from PIL import Image as PILImage
+from .frames import resize_png
 
 
 class LiveVisualizer:
@@ -103,8 +94,7 @@ class LiveVisualizer:
                 if now - last_update >= update_interval:
                     # Render and resize to exact target
                     png_bytes = machine.to_png()
-                    if resize_png is not None:
-                        png_bytes = resize_png(png_bytes, (target_width, target_height))
+                    png_bytes = resize_png(png_bytes, (target_width, target_height))
                     
                     step_count = machine.step_count()
                     
@@ -123,8 +113,7 @@ class LiveVisualizer:
                 if not can_continue:
                     # Final update
                     png_bytes = machine.to_png()
-                    if resize_png is not None:
-                        png_bytes = resize_png(png_bytes, (target_width, target_height))
+                    png_bytes = resize_png(png_bytes, (target_width, target_height))
                     step_count = machine.step_count()
                     self._update_display(
                         png_bytes,
@@ -229,91 +218,80 @@ def visualize_live(
 # Attach convenient methods to the Visualizer class (Python-level extension)
 try:
     from . import Visualizer as _Visualizer
-    from typing import Optional as _Optional
-    from io import BytesIO as _BytesIO
-    try:
-        from .frames import resize_png as _resize_png
-        from PIL import Image as _PILImage
-    except Exception:  # PIL not available
-        _resize_png = None
-        _PILImage = None
+except ImportError as e:
+    raise ImportError(
+        "Visualizer class not available. "
+        "Run `maturin develop --release --features python` to build the Rust extension."
+    ) from e
 
-    def _run_live(self, update_secs: float = 0.1, early_stop: _Optional[int] = None,
-                  loops_per_check: int = 10_000, caption: str = "", show_stats: bool = True,
-                  update_interval: float = 0.0) -> None:
-        """Interactive live visualization attached as a method.
 
-        Mirrors visualize_live() but callable as: viz.run_live(...)
-        """
-        viz = LiveVisualizer()
-        viz.run(self, update_secs, early_stop, loops_per_check, caption, show_stats, update_interval)
+def _run_live(self, update_secs: float = 0.1, early_stop: Optional[int] = None,
+              loops_per_check: int = 10_000, caption: str = "", show_stats: bool = True,
+              update_interval: float = 0.0) -> None:
+    """Interactive live visualization attached as a method.
 
-    def _run(
-        self,
-        *,
-        early_stop: int,
-        out_file: _Optional[str] = None,
-    ):
-        """Advance to ``early_stop`` (or halt) and render the current frame.
+    Mirrors visualize_live() but callable as: viz.run_live(...)
+    """
+    viz = LiveVisualizer()
+    viz.run(self, update_secs, early_stop, loops_per_check, caption, show_stats, update_interval)
 
-        Args:
-            early_stop: Target step count to reach before rendering. Must be positive.
-            out_file: Optional path where the rendered PNG should be saved.
 
-        Returns:
-            Tuple of (image, step_count). ``image`` is a ``PIL.Image.Image`` when Pillow
-            is available, otherwise raw PNG bytes. ``step_count`` is the 1-based total
-            number of steps executed.
-        """
-        if early_stop <= 0:
-            raise ValueError("early_stop must be positive")
+def _run(
+    self,
+    *,
+    early_stop: int,
+    out_file: Optional[str] = None,
+):
+    """Advance to ``early_stop`` (or halt) and render the current frame.
 
-        if early_stop < self.step_count():
-            raise ValueError("early_stop must be greater than or equal to the current step count")
+    Args:
+        early_stop: Target step count to reach before rendering. Must be positive.
+        out_file: Optional path where the rendered PNG should be saved.
 
-        # Step the machine until we reach the requested step count or the machine halts.
-        while True:
-            current_steps = self.step_count()
-            if current_steps >= early_stop:
-                break
+    Returns:
+        Tuple of (image, step_count). ``image`` is a ``PIL.Image.Image`` when Pillow
+        is available, otherwise raw PNG bytes. ``step_count`` is the 1-based total
+        number of steps executed.
+    """
+    if early_stop <= 0:
+        raise ValueError("early_stop must be positive")
 
-            can_continue = self.step_for_secs(0.05, early_stop=early_stop)
-            advanced_steps = self.step_count()
+    if early_stop < self.step_count():
+        raise ValueError("early_stop must be greater than or equal to the current step count")
 
-            if advanced_steps <= current_steps:
-                if not can_continue:
-                    break
-                raise RuntimeError("step_for_secs did not advance the machine")
+    # Step the machine until we reach the requested step count or the machine halts.
+    while True:
+        current_steps = self.step_count()
+        if current_steps >= early_stop:
+            break
 
+        can_continue = self.step_for_secs(0.05, early_stop=early_stop)
+        advanced_steps = self.step_count()
+
+        if advanced_steps <= current_steps:
             if not can_continue:
                 break
+            raise RuntimeError("step_for_secs did not advance the machine")
 
-        png_bytes = self.to_png()
-        target_resolution = self.resolution()
+        if not can_continue:
+            break
 
-        if _resize_png is not None:
-            png_bytes = _resize_png(png_bytes, target_resolution)
+    png_bytes = self.to_png()
+    target_resolution = self.resolution()
+    png_bytes = resize_png(png_bytes, target_resolution)
 
-        step_count = self.step_count()
-        print(f"Step count: {step_count:,}")
+    step_count = self.step_count()
+    print(f"Step count: {step_count:,}")
 
-        if _PILImage is None:
-            if out_file is not None:
-                with open(out_file, "wb") as handle:
-                    handle.write(png_bytes)
-            return png_bytes, step_count
+    image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
 
-        image = _PILImage.open(_BytesIO(png_bytes)).convert("RGBA")
+    if out_file is not None:
+        Path(out_file).parent.mkdir(parents=True, exist_ok=True)
+        image.save(out_file)
+    return image, step_count
 
-        if out_file is not None:
-            Path(out_file).parent.mkdir(parents=True, exist_ok=True)
-            image.save(out_file)
-        return image, step_count
 
-    # Monkey-patch methods
-    _Visualizer.run_live = _run_live
-    _Visualizer.run = _run
-except Exception:
-    # If Visualizer or PIL isn't available in this env, skip attaching methods
-    pass
+# Monkey-patch methods
+_Visualizer.run_live = _run_live
+_Visualizer.run = _run
 

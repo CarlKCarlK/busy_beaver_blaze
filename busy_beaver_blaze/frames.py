@@ -9,14 +9,8 @@ import math
 from io import BytesIO
 from typing import Optional
 
-try:
-    from PIL import Image, ImageDraw, ImageFont, ImageFilter
-    from matplotlib.font_manager import FontProperties, findfont
-except ImportError as e:
-    raise ImportError(
-        "PIL (Pillow) and matplotlib are required for frame processing. "
-        "Install with: pip install pillow matplotlib"
-    ) from e
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from matplotlib.font_manager import FontProperties, findfont
 
 # Resolution constants matching Rust examples/movie_list.rs
 RESOLUTION_TINY = (320, 180)    # Tiny (320x180)

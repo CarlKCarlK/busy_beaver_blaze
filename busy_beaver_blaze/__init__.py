@@ -260,39 +260,23 @@ def run_machine_steps(program_text, step_limit, force=None):
     rust_force = "rust" if force == "rust" else None
     return _rust_run_machine_steps(program_text, step_limit, rust_force)
 
-# Import frame utilities (always available if PIL installed)
-try:
-    from .frames import (
-        log_step_iterator,
-        create_frame,
-        blend_images,
-        resize_png,
-        RESOLUTION_TINY,
-        RESOLUTION_2K,
-        RESOLUTION_4K,
-        RESOLUTION_8K,
-    )
-except ImportError:
-    # frames.py requires PIL and matplotlib
-    log_step_iterator = None
-    create_frame = None
-    blend_images = None
-    resize_png = None
-    RESOLUTION_TINY = None
-    RESOLUTION_2K = None
-    RESOLUTION_4K = None
-    RESOLUTION_8K = None
+# Import frame utilities (always available - PIL/matplotlib are core dependencies)
+from .frames import (  # noqa: E402
+    log_step_iterator,
+    create_frame,
+    blend_images,
+    resize_png,
+    RESOLUTION_TINY,
+    RESOLUTION_2K,
+    RESOLUTION_4K,
+    RESOLUTION_8K,
+)
 
-# Import interactive utilities (notebook support)
-try:
-    from .interactive import (
-        LiveVisualizer,
-        visualize_live,
-    )
-except ImportError:
-    # interactive.py requires IPython (notebook environment)
-    LiveVisualizer = None
-    visualize_live = None
+# Import interactive utilities (IPython is a core dependency via jupyter)
+from .interactive import (  # noqa: E402
+    LiveVisualizer,
+    visualize_live,
+)
 
 __all__ = [
     # Pure Python (always available)
