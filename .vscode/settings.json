@@ -1,10 +1,12 @@
 {
     "cSpell.words": [
+        "addopts",
         "bbpy",
         "lanczos",
         "NONBOUND",
         "Spaceline",
         "spacelines",
+        "testpaths",
         "WYCOM"
     ],
     // Force the intended nightly toolchain for this workspace

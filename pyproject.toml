@@ -24,11 +24,13 @@ dev = [
 
 
 [tool.pytest.ini_options]
-testpaths = ["tests/python"]
+testpaths = ["tests/python", "notebooks"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-# Notebook testing: run with `pytest --nbmake notebooks/`
-# Use --nbmake-timeout=120 for per-cell timeout
-# Use --ignore=notebooks/slow_notebook.ipynb to skip specific notebooks
-addopts = "--ignore=notebooks"  # Don't auto-run notebooks unless explicitly requested
+# Notebook testing: runs automatically with pytest
+# Cells tagged with 'skip-execution' are skipped (see notebooks/conftest.py)
+addopts = "--nbmake --nbmake-timeout=10 --ignore=notebooks/rule_set_1_and_2.ipynb"
+markers = [
+    "notebooks: marks tests as notebook tests (deselect with '-m \"not notebooks\"')",
+]
