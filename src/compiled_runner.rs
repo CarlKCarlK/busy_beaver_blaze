@@ -1,5 +1,7 @@
 #![allow(named_asm_labels)]
 
+use crate::{asmline, s, tm_dispatch, tm_move, tm_next, tm_prog, tm_state_block, tm_store_on_0, tm_store_on_1};
+
 const DEFAULT_MIN_TAPE: usize = 2_097_152;
 const DEFAULT_MAX_TAPE: usize = 16_777_216;
 const DEFAULT_INTERVAL: u64 = 10_000_000;
@@ -180,121 +182,6 @@ impl Runner {
         self.tape = new_tape;
         Some(unsafe { self.tape.as_mut_ptr().add(old_right) })
     }
-}
-
-macro_rules! tm_move {
-    (R) => {
-        "add rsi, 1\n"
-    };
-    (L) => {
-        "sub rsi, 1\n"
-    };
-}
-
-macro_rules! asmline {
-    ($($p:expr),* $(,)?) => {
-        concat!($($p),*, "\n")
-    };
-}
-
-macro_rules! s {
-    ($x:expr) => {
-        stringify!($x)
-    };
-}
-
-macro_rules! tm_store_on_0 {
-    (0) => {
-        ""
-    };
-    (1) => {
-        asmline!("mov byte ptr [rsi], 1")
-    };
-    ($other:tt) => {
-        asmline!("mov byte ptr [rsi], ", s!($other))
-    };
-}
-
-macro_rules! tm_store_on_1 {
-    (0) => {
-        asmline!("mov byte ptr [rsi], 0")
-    };
-    (1) => {
-        ""
-    };
-    ($other:tt) => {
-        asmline!("mov byte ptr [rsi], ", s!($other))
-    };
-}
-
-macro_rules! tm_next {
-    ($P:ident, HALT, $id:expr) => {
-        concat!(
-            asmline!("dec r10"),
-            asmline!("mov al, 1"),
-            asmline!("mov bl, ", s!($id)),
-            asmline!("jmp ", s!($P), "_END"),
-        )
-    };
-    ($P:ident, $N:ident, $id:expr) => {
-        concat!(
-            asmline!("dec r10"),
-            asmline!("jz ", s!($P), "_END"),
-            asmline!("jmp ", s!($P), "_", s!($N)),
-        )
-    };
-}
-
-macro_rules! tm_dispatch {
-    ( $P:ident, $S:ident, $id:expr ) => {
-        concat!(
-            asmline!("cmp bl, ", s!($id)),
-            asmline!("je ", s!($P), "_", s!($S)),
-        )
-    };
-}
-
-macro_rules! tm_state_block {
-    ( $P:ident, $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
-        concat!(
-            asmline!(s!($P), "_", s!($S), ":"),
-            asmline!("mov bl, ", s!($id)),
-            asmline!("mov dl, [rsi]"),
-            asmline!("cmp dl, 255"),
-            asmline!("je ", s!($P), "_BOUNDARY_", s!($S)),
-            asmline!("test dl, dl"),
-            asmline!("jnz ", s!($P), "_", s!($S), "_ONE"),
-            tm_store_on_0!($w0),
-            tm_move!($d0),
-            tm_next!($P, $n0, $id),
-            asmline!(s!($P), "_", s!($S), "_ONE:"),
-            tm_store_on_1!($w1),
-            tm_move!($d1),
-            tm_next!($P, $n1, $id),
-            asmline!(s!($P), "_BOUNDARY_", s!($S), ":"),
-            asmline!("mov bl, ", s!($id)),
-            asmline!("jmp ", s!($P), "_BOUNDARY"),
-        )
-    };
-}
-
-macro_rules! tm_prog {
-    ( $P:ident, ($S0:ident, $id0:expr, $z0:tt, $o0:tt) $(, ($S:ident, $id:expr, $z:tt, $o:tt) )* $(,)? ) => {
-        concat!(
-            asmline!("xor eax, eax"),
-            asmline!("mov r10, r9"),
-            tm_dispatch!($P, $S0, $id0),
-            $( tm_dispatch!($P, $S, $id), )*
-            asmline!("jmp ", s!($P), "_", s!($S0)),
-            tm_state_block!($P, $S0, $id0, $z0, $o0),
-            $( tm_state_block!($P, $S, $id, $z, $o), )*
-            asmline!(s!($P), "_BOUNDARY:"),
-            asmline!("mov al, 2"),
-            asmline!(s!($P), "_END:"),
-            asmline!("mov r8, r9"),
-            asmline!("sub r8, r10"),
-        )
-    };
 }
 
 macro_rules! define_compiled_stepper {

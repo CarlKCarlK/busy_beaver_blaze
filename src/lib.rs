@@ -11,6 +11,7 @@
 mod tests;
 
 // Add modules
+mod compiled_macros;
 mod compiled_runner;
 mod log_step_iterator;
 mod machine;
