@@ -1,10 +1,10 @@
 """Generate Turing machine visualization frames using Python + Rust.
 
 This script demonstrates using the PyO3 bindings to generate high-quality
-visualization frames. It's a simplified Python version of examples/movie_list.rs
-that focuses on a single Turing machine rather than batch processing.
+visualization frames. It's a Python version of Rust's examples/movie_list.rs.
 
 Example usage:
+    <update the parameters in main() as desired>
     python examples/movie.py
 """
 

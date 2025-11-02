@@ -18,7 +18,7 @@ pub struct SpaceByTimeMachine {
 impl Iterator for SpaceByTimeMachine {
     type Item = ();
 
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     fn next(&mut self) -> Option<Self::Item> {
         let previous_tape_index = self.machine.next()?;
         for space_by_time in self.space_time_layers.values_mut() {
@@ -170,7 +170,7 @@ impl SpaceByTimeMachine {
     }
 
     #[wasm_bindgen]
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     /// Encodes the current space-time visualization into a PNG byte vector using the provided RGB palette.
     ///
     /// The `colors` slice must have a length that is a multiple of 3 (RGB triplets); image dimensions are taken from the first layer.
@@ -207,7 +207,7 @@ impl SpaceByTimeMachine {
 
     // TODO why is it step_count and count_ones. That doesn't make sense.
     #[wasm_bindgen]
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn step_count(&self) -> u64 {
@@ -215,14 +215,14 @@ impl SpaceByTimeMachine {
     }
 
     #[wasm_bindgen]
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     pub fn count_nonblanks(&self) -> u32 {
         self.machine.count_nonblanks()
     }
 
     #[wasm_bindgen]
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     pub fn is_halted(&self) -> bool {
         self.machine.is_halted()
@@ -235,7 +235,7 @@ impl SpaceByTimeMachine {
     clippy::shadow_reuse
 )]
 impl SpaceByTimeMachine {
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     pub fn png_data_and_packed_data(
         &mut self,
@@ -256,25 +256,25 @@ impl SpaceByTimeMachine {
             .expect("Failed to collect packed data")
     }
 
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     pub const fn machine(&self) -> &Machine {
         &self.machine
     }
 
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     pub fn step_index(&self) -> u64 {
         self.space_time_layers.step_index()
     }
 
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     pub fn state(&self) -> u8 {
         self.machine.state()
     }
 
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     pub fn tape_index(&self) -> i64 {
         self.machine.tape_index()

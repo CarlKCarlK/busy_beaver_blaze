@@ -1,6 +1,6 @@
 # Busy Beaver Blaze
 
-**A Turing machine interpreter (in Python and Rust) and space-time visualizer (in Rust compiled to native & WebAssembly).**
+**A Turing machine interpreter and visualizer** in Rust, Python, and WebAssembly.
 
 - [Run the visualizer in your web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
 - Watch [an animation](https://www.youtube.com/watch?v=qYi5_mNLppY) made with this program.
@@ -13,7 +13,7 @@
 
 ## Features
 
-- Python notebooks for [Turing machines](notebooks/turing_machines.ipynb) and implementing [fast-growing functions](notebooks/tetration.ipynb).
+- Python notebooks: [Turing machine basics](notebooks/turing_machines.ipynb), [interactive visualization](notebooks/interactive.ipynb), [fast-growing functions (tetration)](notebooks/tetration.ipynb), and [counting to infinity](notebooks/rule_set_1_and_2.ipynb). (See [Python Quickstart](#python-quickstart) below.)
 - Run the champion [Busy Beaver](https://en.wikipedia.org/wiki/Busy_beaver) Turing machines for millions of steps in less than a second.
 - Simulate your own Turing machines.
 - Visualize space-time diagrams as the Turing machine runs.
@@ -25,54 +25,6 @@
 - Optional **perfect binning** for tape visualization. By default, ever pixel in the image is the average of the (sometimes billions of) tape values that it represents.
 - You can set settings via the URL hash fragment, for example, `#program=bb5&earlyStop=false`. Include `run=true` to run the program immediately.
 
-## Python Quickstart (uv)
-
-After cloning the repository, use [uv](https://github.com/astral-sh/uv) to set up a Python environment and build the Rust extension before running notebooks or tests.
-
-1. Create a virtual environment:
-
-   ```bash
-   uv venv
-   ```
-
-2. Activate it: `source .venv/bin/activate` (macOS/Linux) or `.venv\Scripts\Activate.ps1` (PowerShell).
-3. Install the Python dependencies in editable mode:
-
-   ```bash
-   uv pip install -e ".[dev]"
-   ```
-
-4. Build and install the Rust/PyO3 extension into that environment:
-
-   ```bash
-   uv tool run maturin develop --release --features python
-   ```
-
-5. (Optional) Run the Python test suite:
-
-   ```bash
-   uv run pytest
-   ```
-
-6. Launch notebooks:
-
-   ```bash
-   uv run jupyter lab
-   ```
-
-When comparing backends from Python, call `run_machine_steps(program, steps, force=...)` with
-`force="python"` or `force="rust"` to pin the implementation, or leave `force=None` (default) to
-let Rust automatically choose the inline-assembly path for supported programs.
-
-## Rust Benchmark (BB5)
-
-Compare the pure Rust interpreter to the inline-assembly runner by executing 50 full halting runs of `BB5_CHAMP` in release mode:
-
-```bash
-cargo run --release --example bb5_benchmark
-```
-
-The example prints the average time per run for each implementation, their total wall-clock time, the shared step count (47,176,870), the number of nonzero tape cells, and the overall speedup.
 
 ## Techniques
 
@@ -85,23 +37,18 @@ The example prints the average time per run for each implementation, their total
 of the image size, not of the Turing run.
 - Uses SIMD, even in WebAssembly, to speed up the pixel binning.
 - For movie creation, multithreads rendering.
-- Tips on porting Rust to WASM: [Nine Rules for Running Rust in the Browser](https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1) in *Towards Data Science*.
-- Tips on SIMD in Rust: [Nine Rules for SIMD Acceleration of Your Rust Code](https://www.youtube.com/watch?v=IBcJ2vRHGAY) in *Towards Data Science*.
 
+- Tips on Python integration with Rust: [*Nine Rules for Writing Python Extensions in Rust*](https://medium.com/data-science/nine-rules-for-writing-python-extensions-in-rust-d35ea3a4ec29) in *Towards Data Science*  
+
+- Tips on porting Rust to WebAssembly: [*Nine Rules for Running Rust in the Browser*](https://medium.com/towards-data-science/nine-rules-for-running-rust-in-the-browser-8228353649d1) in *Towards Data Science*  
+  
+- Tips on SIMD in Rust:[*Nine Rules for SIMD Acceleration of Your Rust Code*](https://medium.com/data-science/nine-rules-for-simd-acceleration-of-your-rust-code-part-1-c16fe639ce21) in *Towards Data Science*  
+  
 ## Web App Screenshot
 
 ![Busy Beaver Space-Time Diagram](Screenshot.png)
+- [Run the visualizer in your web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
 
-A space-time diagram of the best-known 6-state Busy Beaver after 10 billion steps. Each vertical slice represents the tape at a moment in time—dark pixels are 1s, light pixels are 0s. Time flows downward.
-
-## Video
-
-- [Turing Machine "BB6 Contender": 1 Trillion Steps with Exponential Acceleration (YouTube)](https://www.youtube.com/watch?v=IBcJ2vRHGAY)
-- To render a video, edit `examples/movie.rs` to set the output directory, font, etc., then run:
-
-  ```bash
-  cargo run --example movie --release
-  ```
 
 ## Related Work
 
@@ -109,6 +56,48 @@ A space-time diagram of the best-known 6-state Busy Beaver after 10 billion step
 - [Quanta Magazine article](https://www.quantamagazine.org/amateur-mathematicians-find-fifth-busy-beaver-turing-machine-20240702/) and ["Up and Atom" video](https://www.youtube.com/watch?v=pQWFSj1CXeg&t=977s) on recent progress.
 - [Fiery’s full-featured visualizer](https://fiery.pages.dev/turing/1RB1LC_0RD0RB_1RA0LC_1LD1RA) (TypeScript), used in the [Busy Beaver Challenge](https://bbchallenge.org/). It processes up to ~4 billion steps but does not animate the diagram’s development.
 - For running Turing machines beyond trillions of steps, see this [math.stackexchange.com thread](https://math.stackexchange.com/questions/1202334/how-was-the-busy-beaver-candidate-fReador-6-states-calculated).
+
+## Python Quickstart
+
+Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a Python environment and build the Rust extension before running notebooks or tests.
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/CarlKCarlK/busy_beaver_blaze.git
+   cd busy_beaver_blaze
+   ```
+
+2. Create a virtual environment with [uv](https://github.com/astral-sh/uv):
+
+   ```bash
+   uv venv
+   ```
+
+3. Activate it: `source .venv/bin/activate` (macOS/Linux) or `.venv\Scripts\Activate.ps1` (PowerShell).
+4. Install the Python dependencies in editable mode:
+
+   ```bash
+   uv pip install -e ".[dev]"
+   ```
+
+5. Build and install the Rust/PyO3 extension into that environment:
+
+   ```bash
+   uv tool run maturin develop --release --features python
+   ```
+
+6. (Optional) Run the Python test suite:
+
+   ```bash
+   uv run pytest
+   ```
+
+7. Launch notebooks:
+
+   ```bash
+   uv run jupyter lab
+   ```
 
 ## License
 

@@ -54,14 +54,17 @@ imageproc = "0.25.0"
 num-bigint = "0.4.6"
 num-traits = "0.2.14"
 glob = "0.3.2"
-criterion = "0.5.1"
 clap = { version = "4", features = ["derive"] }
 humantime = "2.1"
 ab_glyph = "0.2.29"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion = "0.5.1"
+
 [[bench]]
 name = "benchmark"
 harness = false
+required-features = []  # Benches don't run on WASM anyway
 
 [profile.release]
 debug = true

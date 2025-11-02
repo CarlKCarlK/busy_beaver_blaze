@@ -1,13 +1,16 @@
 use crate::{
     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
     PowerOfTwo, SpaceByTime, SpaceByTimeMachine, pixel::Pixel, spaceline::Spaceline,
-    symbol::Symbol, test_utils::compress_x_no_simd_binning,
+    symbol::Symbol,
 };
+#[cfg(all(feature = "simd", not(target_arch = "wasm32")))]
+use crate::test_utils::compress_x_no_simd_binning;
 use aligned_vec::AVec;
 use core::num::NonZeroU8;
 #[cfg(feature = "simd")]
 use core::simd::Simd;
 use itertools::Itertools;
+#[cfg(not(target_arch = "wasm32"))]
 use rand::{Rng, SeedableRng};
 use std::{
     collections::{HashMap, HashSet},
@@ -207,7 +210,7 @@ fn test_average() {
     assert_eq!(result, expected);
 }
 
-#[cfg(feature = "simd")]
+#[cfg(all(feature = "simd", not(target_arch = "wasm32")))]
 #[test]
 fn resample_simd() {
     for len in [0, 1, 2, 3, 5, 101, 111, 4001] {

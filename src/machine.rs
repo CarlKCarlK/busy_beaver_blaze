@@ -29,7 +29,7 @@ impl Machine {
     }
 
     #[wasm_bindgen]
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     /// # Panics
     /// Panics if the number of nonblank cells exceeds `u32::MAX`.
@@ -38,7 +38,7 @@ impl Machine {
     }
 
     #[wasm_bindgen]
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn is_halted(&self) -> bool {
@@ -57,7 +57,7 @@ impl Machine {
     }
 
     #[wasm_bindgen]
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn state(&self) -> u8 {
@@ -65,7 +65,7 @@ impl Machine {
     }
 
     #[wasm_bindgen]
-    #[inline]
+    #[cfg_attr(not(target_arch = "wasm32"), inline)]
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
     pub fn tape_index(&self) -> i64 {

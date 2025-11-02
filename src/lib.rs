@@ -12,6 +12,7 @@ mod tests;
 
 // Add modules
 mod compiled_macros;
+#[cfg(target_arch = "x86_64")]
 mod compiled_runner;
 mod log_step_iterator;
 mod machine;
@@ -41,6 +42,7 @@ use snapshot::Snapshot;
 use symbol::Symbol;
 use thousands::Separable;
 // Export types from modules
+#[cfg(target_arch = "x86_64")]
 pub use compiled_runner::{
     CompiledFnId, CompiledProgram, Config, ConfigError, RunSummary as CompiledRunSummary,
     RunTermination, Summary, run_compiled_program,
