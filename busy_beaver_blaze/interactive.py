@@ -229,7 +229,6 @@ def visualize_live(
 # Attach convenient methods to the Visualizer class (Python-level extension)
 try:
     from . import Visualizer as _Visualizer
-    from os import fspath as _fspath
     from typing import Optional as _Optional
     from io import BytesIO as _BytesIO
     try:
@@ -300,7 +299,7 @@ try:
 
         if _PILImage is None:
             if out_file is not None:
-                with open(_fspath(out_file), "wb") as handle:
+                with open(out_file, "wb") as handle:
                     handle.write(png_bytes)
             return png_bytes, step_count
 
@@ -308,7 +307,7 @@ try:
 
         if out_file is not None:
             Path(out_file).parent.mkdir(parents=True, exist_ok=True)
-            image.save(_fspath(out_file))
+            image.save(out_file)
         return image, step_count
 
     # Monkey-patch methods
