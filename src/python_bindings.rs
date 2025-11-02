@@ -121,7 +121,7 @@ fn run_machine_steps(
         }
     };
 
-    let result = py.allow_threads(move || match run_mode {
+    let result = py.detach(move || match run_mode {
         RunMode::Rust(mut machine) => {
             let mut steps_run = 0_u64;
 
@@ -245,7 +245,7 @@ impl PyPngDataIterator {
         });
 
         // Create iterator - release GIL during construction since it spawns threads
-        let inner = py.allow_threads(|| {
+        let inner = py.detach(|| {
             RustPngDataIterator::new(
                 early_stop,
                 part_count,
@@ -274,12 +274,12 @@ impl PyPngDataIterator {
         };
 
         // Release GIL while waiting for next frame (iterator blocks on channel recv)
-        let result = py.allow_threads(|| inner.next());
+        let result = py.detach(|| inner.next());
 
         match result {
             Some((step_index, png_data)) => {
                 // Convert Vec<u8> to Python bytes
-                let py_bytes = PyBytes::new_bound(py, &png_data).into();
+                let py_bytes = PyBytes::new(py, &png_data).into();
                 Ok(Some((step_index, py_bytes)))
             }
             None => Ok(None),
@@ -388,7 +388,7 @@ impl PySpaceByTimeMachine {
         loops_per_time_check: u64,
     ) -> PyResult<bool> {
         // Release GIL while stepping
-        let result = py.allow_threads(|| {
+        let result = py.detach(|| {
             self.inner
                 .step_for_secs_js(seconds, early_stop, loops_per_time_check)
         });
@@ -400,12 +400,12 @@ impl PySpaceByTimeMachine {
     /// Uses the color palette set during construction or via `set_colors()`.
     fn to_png(&mut self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
         // Release GIL during rendering
-        let png_data = py.allow_threads(|| self.inner.to_png(&self.colors));
+        let png_data = py.detach(|| self.inner.to_png(&self.colors));
 
         let png_data =
             png_data.map_err(|e| PyValueError::new_err(format!("PNG generation failed: {}", e)))?;
 
-        Ok(PyBytes::new_bound(py, &png_data).into())
+        Ok(PyBytes::new(py, &png_data).into())
     }
 
     /// Update the color palette.
