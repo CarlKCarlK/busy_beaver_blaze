@@ -20,6 +20,7 @@ dev = ["pytest>=7.0.0", "maturin>=1.0,<2.0", "ipykernel", "nbmake>=1.5.0"]
 [dependency-groups]
 dev = [
     "nbmake>=1.5.5",
+    "ruff>=0.8.0",
 ]
 
 

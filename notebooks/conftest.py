@@ -1,6 +1,5 @@
 """Pytest configuration for notebook testing."""
 
-import pytest
 from nbclient import NotebookClient
 
 
