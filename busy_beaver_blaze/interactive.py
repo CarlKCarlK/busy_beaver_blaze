@@ -38,16 +38,20 @@ class LiveVisualizer:
         >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP
         >>> from busy_beaver_blaze.interactive import LiveVisualizer
         >>>
-        >>> # Create visualizer (can run indefinitely)
-        >>> visualizer = Visualizer(  # doctest:
+        >>> # Create visualizer (ready for live stepping)
+        >>> visualizer = Visualizer(
         ...     program=BB5_CHAMP,
         ...     resolution=(1920, 1080),
         ...     binning=True
         ... )
         >>>
-        >>> # Display live updates (stop with Ctrl+C)
-        >>> viz = LiveVisualizer()  # doctest:
-        >>> viz.run(visualizer, update_secs=0.1, caption="BB5 Champion")  # doctest:
+        >>> # Display live updates (up to 10K steps or Ctrl+C)
+        >>> viz = LiveVisualizer()
+        >>> from contextlib import redirect_stdout
+        >>> from io import StringIO
+        >>> output_buffer = StringIO()
+        >>> with redirect_stdout(output_buffer):
+        ...     viz.run(visualizer, update_secs=0.05, early_stop=10_000, caption="BB5 Champion")
     """
     
     def __init__(self):
@@ -79,13 +83,17 @@ class LiveVisualizer:
         early_stop, or the user interrupts with Ctrl+C.
         
         Example:
-            >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP  # doctest:
-            >>> visualizer = Visualizer(program=BB5_CHAMP)  # doctest:
-            >>> # Run until 1M steps or halted
-            >>> visualize_live(visualizer, early_stop=1_000_000, caption="Testing")  # doctest:
+            >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP
+            >>> visualizer = Visualizer(program=BB5_CHAMP)
+            >>> # Run until 10K steps or halted
+            >>> from contextlib import redirect_stdout
+            >>> from io import StringIO
+            >>> run_output = StringIO()
+            >>> with redirect_stdout(run_output):
+            ...     visualize_live(visualizer, early_stop=10_000, caption="Testing")
             
             >>> # Run indefinitely (stop with Ctrl+C)
-            >>> visualize_live(visualizer, caption="Forever")  # doctest:
+            >>> # visualize_live(visualizer, caption="Forever")
         """
         # Get target resolution from machine
         target_width, target_height = machine.resolution()
@@ -212,14 +220,18 @@ def visualize_live(
         >>> from busy_beaver_blaze.interactive import visualize_live
         >>>
         >>> # Create visualizer
-        >>> visualizer = Visualizer(  # doctest:
+        >>> visualizer = Visualizer(
         ...     program=BB5_CHAMP,
         ...     resolution=(800, 600),
         ...     binning=True
         ... )
         >>>
-        >>> # Visualize live (stop with Ctrl+C or at 1M steps)
-        >>> visualize_live(visualizer, early_stop=1_000_000, caption="BB5 Champion")  # doctest:
+        >>> # Visualize live (stop with Ctrl+C or at 10K steps)
+        >>> from contextlib import redirect_stdout
+        >>> from io import StringIO
+        >>> live_output = StringIO()
+        >>> with redirect_stdout(live_output):
+        ...     visualize_live(visualizer, early_stop=10_000, caption="BB5 Champion")
     """
     viz = LiveVisualizer()
     viz.run(machine, update_secs, early_stop, loops_per_check, caption, show_stats, update_interval)

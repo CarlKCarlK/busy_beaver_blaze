@@ -153,6 +153,7 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
+    { name = "ipykernel" },
     { name = "maturin" },
     { name = "pytest" },
 ]
@@ -160,6 +161,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "gmpy2", specifier = ">=2.2.1" },
+    { name = "ipykernel", marker = "extra == 'dev'" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.5.0" },
     { name = "maturin", marker = "extra == 'dev'", specifier = ">=1.0,<2.0" },

@@ -105,12 +105,12 @@ cargo run --example movie --release bb5_champ 2K true
 wasm-pack build --release --out-dir docs/v0.2.7/pkg --target web
 wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm
 
-# Python extension (PyO3)
-maturin develop --release --features python  # Install in dev mode
-maturin build --release --features python    # Build wheel
-pip install -e ".[dev]"                      # Install with dev dependencies
-python -m pytest                             # Run Python tests
-python examples/movie_list.py                # Run Python example
+# Python extension (PyO3) - this is a uv project
+uv sync --extra dev                                   # Sync dependencies including dev tools
+uv run maturin develop --release --features python    # Build and install Rust extension in dev mode
+uv run maturin build --release --features python      # Build wheel
+uv run pytest                                         # Run Python tests
+uv run python examples/movie_list.py                  # Run Python example
 
 # Combined testing
 cargo test --release                         # Rust tests
