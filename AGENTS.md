@@ -40,6 +40,16 @@ The package follows the **Nine Rules for Writing Python Extensions in Rust** (se
 
 **Coexistence strategy**: Pure Python and Rust implementations coexist in same namespace. Notebooks can use `Machine` (pure Python) for prototyping and `PngDataIterator` (Rust) for production runs.
 
+**Type stub maintenance** (`busy_beaver_blaze/__init__.pyi`):
+
+- Provides type hints for Rust classes and monkey-patched Python methods
+- **Must be manually updated** when:
+  - PyO3 bindings change in `src/python_bindings.rs` (add/remove/modify methods on `Visualizer`, `PngDataIterator`, etc.)
+  - Monkey-patched methods change in `busy_beaver_blaze/interactive.py` (e.g., `Visualizer.run()`, `Visualizer.run_live()`)
+- Run `mypy busy_beaver_blaze/` to catch type mismatches
+- Run `pytest --doctest-modules` to verify examples match signatures
+- Keep stub minimal: only stub Rust bindings and runtime-added methods, not pure Python with inline types
+
 ### Performance Architecture
 
 **Adaptive Sampling**: Memory scales with image size, NOT step count or tape width

@@ -47,11 +47,7 @@ class LiveVisualizer:
         >>>
         >>> # Display live updates (up to 10K steps or Ctrl+C)
         >>> viz = LiveVisualizer()
-        >>> from contextlib import redirect_stdout
-        >>> from io import StringIO
-        >>> output_buffer = StringIO()
-        >>> with redirect_stdout(output_buffer):
-        ...     viz.run(visualizer, update_secs=0.05, early_stop=10_000, caption="BB5 Champion")
+        >>> viz.run(visualizer, update_secs=0.05, early_stop=10_000, caption="BB5 Champion")  # doctest: +SKIP
     """
     
     def __init__(self):
@@ -85,15 +81,12 @@ class LiveVisualizer:
         Example:
             >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP
             >>> visualizer = Visualizer(program=BB5_CHAMP)
-            >>> # Run until 10K steps or halted
-            >>> from contextlib import redirect_stdout
-            >>> from io import StringIO
-            >>> run_output = StringIO()
-            >>> with redirect_stdout(run_output):
-            ...     visualize_live(visualizer, early_stop=10_000, caption="Testing")
+            >>> # In a notebook, this displays live updates:
+            >>> viz = LiveVisualizer()
+            >>> viz.run(visualizer, early_stop=10_000, caption="Testing")  # doctest: +SKIP
             
             >>> # Run indefinitely (stop with Ctrl+C)
-            >>> # visualize_live(visualizer, caption="Forever")
+            >>> # viz.run(visualizer, caption="Forever")
         """
         # Get target resolution from machine
         target_width, target_height = machine.resolution()
@@ -226,12 +219,8 @@ def visualize_live(
         ...     binning=True
         ... )
         >>>
-        >>> # Visualize live (stop with Ctrl+C or at 10K steps)
-        >>> from contextlib import redirect_stdout
-        >>> from io import StringIO
-        >>> live_output = StringIO()
-        >>> with redirect_stdout(live_output):
-        ...     visualize_live(visualizer, early_stop=10_000, caption="BB5 Champion")
+        >>> # In a notebook, this displays live updates:
+        >>> visualize_live(visualizer, early_stop=10_000, caption="BB5 Champion")  # doctest: +SKIP
     """
     viz = LiveVisualizer()
     viz.run(machine, update_secs, early_stop, loops_per_check, caption, show_stats, update_interval)

@@ -15,7 +15,12 @@ dependencies = ["jupyter>=1.1.1", "gmpy2>=2.2.1", "pillow>=10.0.0", "matplotlib>
 license = { text = "MIT OR Apache-2.0" }
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0.0", "maturin>=1.0,<2.0", "ipykernel"]
+dev = ["pytest>=7.0.0", "maturin>=1.0,<2.0", "ipykernel", "nbmake>=1.5.0"]
+
+[dependency-groups]
+dev = [
+    "nbmake>=1.5.5",
+]
 
 
 [tool.pytest.ini_options]
@@ -23,3 +28,7 @@ testpaths = ["tests/python"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+# Notebook testing: run with `pytest --nbmake notebooks/`
+# Use --nbmake-timeout=120 for per-cell timeout
+# Use --ignore=notebooks/slow_notebook.ipynb to skip specific notebooks
+addopts = "--ignore=notebooks"  # Don't auto-run notebooks unless explicitly requested
