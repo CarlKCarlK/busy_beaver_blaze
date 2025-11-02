@@ -28,8 +28,19 @@ class Visualizer:
         resolution: Tuple[int, int] = (1920, 1080),
         binning: bool = True,
         colors: Optional[list] = None,
-        select: int = 1,
-    ) -> None: ...
+    ) -> None:
+        """Create a space-time diagram visualizer.
+        
+        Args:
+            program: Turing machine specification string
+            resolution: Target (width, height) in pixels
+            binning: True for pixel averaging (smoother), False for sampling (faster)
+            colors: Optional list of hex color strings (e.g., ["#FFFFFF", "#FF5500"]).
+                   For multi-symbol machines, each symbol (1, 2, 3, ...) gets a color.
+                   Symbol 0 is always background (first color). If fewer colors than symbols,
+                   colors cycle.
+        """
+        ...
     
     # Core Rust methods
     def step_for_secs(
