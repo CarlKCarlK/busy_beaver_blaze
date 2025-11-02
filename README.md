@@ -81,7 +81,7 @@ Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a P
    uv pip install -e ".[dev]"
    ```
 
-5. Build and install the Rust/PyO3 extension into that environment:
+5. Build and install the Rust/PyO3 extension into that environment (requires [Rust](https://www.rust-lang.org/tools/install)):
 
    ```bash
    uv tool run maturin develop --release --features python
@@ -96,8 +96,11 @@ Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a P
 7. Launch notebooks:
 
    ```bash
+   cd notebooks
    uv run jupyter lab
    ```
+
+   **Note for WSL users:** The browser may not open automatically. Copy the URL from the terminal output (e.g., `http://localhost:8888/lab?token=...`) and paste it into your Windows browser.
 
 ## License
 
