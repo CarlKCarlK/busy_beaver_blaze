@@ -1,5 +1,4 @@
 """Tests for PyO3 PngDataIterator bindings."""
-# cmk run these tests
 
 import pytest
 

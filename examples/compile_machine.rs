@@ -1,4 +1,4 @@
-// cmk notes
+// TODO notes
 // This is good. To refine the API and structure further, need to know our use case more, e.g. using it in
 // the larger program.
 // Other things to do:
@@ -16,8 +16,6 @@ use std::{
     num::NonZeroU64,
     time::{Duration, Instant},
 };
-
-// cmk00 Sentinel value is handled internally by the runner/asm; users see only interior via Summary::tape().
 
 fn format_steps_per_sec(steps_per_sec: f64) -> String {
     let value = if steps_per_sec.is_finite() {

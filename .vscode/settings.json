@@ -4,6 +4,7 @@
         "bbpy",
         "lanczos",
         "NONBOUND",
+        "pymodule",
         "Spaceline",
         "spacelines",
         "testpaths",

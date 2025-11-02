@@ -39,7 +39,7 @@ impl PngDataIterator {
         assert!(part_count_goal > 0, "part_count_goal must be > 0");
         assert!(early_stop > 0); // panic if early_stop is 0
 
-        // cmk0 for multithreading reasons???? this must be a Vec
+        // this must be a Vec
         let colors_owned: Vec<[u8; 3]> = colors.to_vec();
 
         // TODO for now require that values in frame_index_to_step_index be increasing and in range. This could be removed later.

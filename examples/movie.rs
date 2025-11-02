@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         .nth(2)
         .map(|str| Resolution::from_str(&str))
         .transpose()?
-        .unwrap_or(Resolution::Tiny); // cmk2K
+        .unwrap_or(Resolution::Tiny);
     let (goal_x, goal_y) = resolution.dimensions();
 
     let binning = std::env::args()
@@ -130,7 +130,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         _ => Err(format!("Unknown machine: {machine_name}"))?,
     };
 
-    // cmk0 review this code
+    // TODO review this code -- now mostly using movie_list.rs instead
     // Determine symbol count by parsing the machine once (cheap) to validate colors length
     let machine_tmp = Machine::from_string(program_string)?;
     let symbol_count = machine_tmp.symbol_count() as usize;
@@ -159,7 +159,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         }
         parsed_colors
     } else {
-        // cmk000 shouldn't reuse the 0th color. See lib.rs's list of default colors
+        // TODO shouldn't reuse the 0th color. See lib.rs's list of default colors
         // Default palette starting with white, yellow, orange; repeat to fill
         let default_palette: &[[u8; 3]] = &[
             [255, 255, 255], // white

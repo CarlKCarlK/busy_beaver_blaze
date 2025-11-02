@@ -1,10 +1,10 @@
 #![cfg_attr(feature = "simd", feature(portable_simd))]
 #![deny(clippy::pedantic)]
 
-// cmk00 make custom size details reflected in the URL
-// cmk00 Test 9 symbols
-// cmk00 generalize parser to support multi-numeral symbols and multi-letter states
-// cmk00 should we support L/R/S
+// TODO make custom size details reflected in the URL
+// TODO Test 9 symbols
+// TODO generalize parser to support multi-numeral symbols and multi-letter states
+// TODO should we support L/R/S
 
 // Add the tests module
 #[cfg(test)]
@@ -266,9 +266,7 @@ pub const fn find_y_stride(len: u64, y_goal: u32) -> PowerOfTwo {
     PowerOfTwo::from_exp(exponent as u8)
 }
 
-// cmk0 later consider mixing with gamma
-// cmk0 consider special cases 2 symbols (1 layer) and 3 symbols (2 layers)
-//       with a palette.
+// TODO later consider mixing with gamma
 #[allow(clippy::integer_division_remainder_used)]
 fn encode_png(
     width: u32,

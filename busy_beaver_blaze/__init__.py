@@ -1,31 +1,7 @@
-# cmk review this comment
 """Busy Beaver Blaze - High-performance Turing machine visualization.
-
-This package provides both pure Python and Rust-accelerated implementations
-for working with Turing machines and generating space-time visualizations.
-
-Pure Python (notebooks, prototyping):
-    - Machine: Turing machine simulator
-    - Tape: Infinite tape data structure  
-    - Program: Program parser and storage
-
-Rust-accelerated (production, large simulations):
-    - SpaceByTimeMachine: Interactive machine with live rendering (mirrors WASM API)
-    - PngDataIterator: Batch frame generation with multithreading
-    - BB5_CHAMP, BB6_CONTENDER: Busy Beaver champion programs
-
-Frame utilities:
-    - log_step_iterator: Generate logarithmically-spaced step indices
-    - create_frame: Add text overlay and resize PNG frames
-    - blend_images: Smooth frame transitions
-    - Resolution constants: RESOLUTION_2K, RESOLUTION_4K, etc.
-
-Interactive notebook support:
-    - LiveVisualizer: IPython display with live updates
-    - visualize_live: Convenience function for quick visualization
 """
 
-# Pure Python implementation (always available)
+# Pure Python implementation
 class Tape:
     def __init__(self):
         self.negative = []  # Cells at negative positions (reversed)
@@ -189,7 +165,6 @@ class Machine:
         """Count the number of 1s on the tape"""
         return self.tape.count_ones()
 
-# cmk understand and clean up this section
 # Try to import Rust bindings
 try:
     from ._busy_beaver_blaze import (
@@ -202,7 +177,6 @@ try:
     # Public Python-friendly names
     Visualizer = PySpaceByTimeMachine  # Preferred name
     SpaceByTimeMachine = PySpaceByTimeMachine  # Backward compatibility
-    _RUST_AVAILABLE = True
 except ImportError as error:
     raise ImportError(
         "busy_beaver_blaze failed to load its Rust extension. "

@@ -208,7 +208,7 @@ impl Program {
             b'7' => Symbol::STATE_SEVEN,
             b'8' => Symbol::STATE_EIGHT,
             b'9' => Symbol::STATE_NINE,
-            // cmk catch at compile time?
+            // TODO catch at compile time?
             _ => {
                 return Err(Error::InvalidChar {
                     got: asciis[0] as char,
