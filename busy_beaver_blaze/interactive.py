@@ -37,17 +37,17 @@ class LiveVisualizer:
     Example:
         >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP
         >>> from busy_beaver_blaze.interactive import LiveVisualizer
-        >>> 
-        >>> # Create machine (can run indefinitely)
-        >>> machine = Visualizer(
+        >>>
+        >>> # Create visualizer (can run indefinitely)
+        >>> visualizer = Visualizer(  # doctest:
         ...     program=BB5_CHAMP,
         ...     resolution=(1920, 1080),
         ...     binning=True
         ... )
-        >>> 
+        >>>
         >>> # Display live updates (stop with Ctrl+C)
-        >>> viz = LiveVisualizer()
-        >>> viz.run(machine, update_secs=0.1, caption="BB5 Champion")
+        >>> viz = LiveVisualizer()  # doctest:
+        >>> viz.run(visualizer, update_secs=0.1, caption="BB5 Champion")  # doctest:
     """
     
     def __init__(self):
@@ -79,11 +79,13 @@ class LiveVisualizer:
         early_stop, or the user interrupts with Ctrl+C.
         
         Example:
+            >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP  # doctest:
+            >>> visualizer = Visualizer(program=BB5_CHAMP)  # doctest:
             >>> # Run until 1M steps or halted
-        >>> visualize_live(machine, early_stop=1_000_000, caption="Testing")
+            >>> visualize_live(visualizer, early_stop=1_000_000, caption="Testing")  # doctest:
             
             >>> # Run indefinitely (stop with Ctrl+C)
-            >>> visualize_live(machine, caption="Forever")
+            >>> visualize_live(visualizer, caption="Forever")  # doctest:
         """
         # Get target resolution from machine
         target_width, target_height = machine.resolution()
@@ -208,16 +210,16 @@ def visualize_live(
     Example:
         >>> from busy_beaver_blaze import Visualizer, BB5_CHAMP
         >>> from busy_beaver_blaze.interactive import visualize_live
-        >>> 
-        >>> # Create machine
-        >>> machine = Visualizer(
+        >>>
+        >>> # Create visualizer
+        >>> visualizer = Visualizer(  # doctest:
         ...     program=BB5_CHAMP,
         ...     resolution=(800, 600),
         ...     binning=True
         ... )
-        >>> 
+        >>>
         >>> # Visualize live (stop with Ctrl+C or at 1M steps)
-        >>> visualize_live(machine, early_stop=1_000_000, caption="BB5 Champion")
+        >>> visualize_live(visualizer, early_stop=1_000_000, caption="BB5 Champion")  # doctest:
     """
     viz = LiveVisualizer()
     viz.run(machine, update_secs, early_stop, loops_per_check, caption, show_stats, update_interval)
