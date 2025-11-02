@@ -3,13 +3,8 @@
 use std::str::FromStr;
 use std::time::Instant;
 
-use busy_beaver_blaze::{BB5_CHAMP, Machine};
+use busy_beaver_blaze::{BB5_CHAMP, CompiledFnId, Config, Machine};
 use thousands::Separable;
-
-#[path = "compile_machine.rs"]
-mod compile_machine_example;
-
-use compile_machine_example::{CompiledFnId, Config};
 
 const RUNS: usize = 50;
 const MIN_TAPE: usize = 2_097_152;

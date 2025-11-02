@@ -42,7 +42,8 @@ use symbol::Symbol;
 use thousands::Separable;
 // Export types from modules
 pub use compiled_runner::{
-    CompiledProgram, RunSummary as CompiledRunSummary, run_compiled_program,
+    CompiledFnId, CompiledProgram, Config, ConfigError, RunSummary as CompiledRunSummary,
+    RunTermination, Summary, run_compiled_program,
 };
 pub use log_step_iterator::LogStepIterator;
 pub use machine::Machine;

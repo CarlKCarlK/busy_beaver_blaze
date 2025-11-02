@@ -7,7 +7,8 @@
 **Rust Tests:**
 
 ```bash
-cargo test --features python
+cargo check --all-features --all-targets
+cargo test --all-features --all-targets --release
 ```
 
 **Python Tests:**
