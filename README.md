@@ -25,7 +25,6 @@
 - Optional **perfect binning** for tape visualization. By default, ever pixel in the image is the average of the (sometimes billions of) tape values that it represents.
 - You can set settings via the URL hash fragment, for example, `#program=bb5&earlyStop=false`. Include `run=true` to run the program immediately.
 
-
 ## Techniques
 
 - The Turing machine interpreter is a straightforward Rust implementation.
@@ -47,8 +46,8 @@ of the image size, not of the Turing run.
 ## Web App Screenshot
 
 ![Busy Beaver Space-Time Diagram](Screenshot.png)
-- [Run the visualizer in your web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
 
+- [Run the visualizer in your web browser](https://carlkcarlk.github.io/busy_beaver_blaze/).
 
 ## Related Work
 
