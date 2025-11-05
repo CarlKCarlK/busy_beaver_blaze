@@ -59,11 +59,18 @@ source .venv/Scripts/activate
 rustup target add wasm32-unknown-unknown
 ```
 
-### Release
+### Release (ES6 modules - for GitHub Pages with HTTPS)
 
 ```bash
 #cargo install wasm-opt --locked
 wasm-pack build --release --out-dir docs/v0.2.7/pkg --target web && del docs\v0.2.7\pkg\.gitignore
+wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm
+```
+
+### Release (no-modules - for Pico W http:// non-secure context)
+
+```bash
+wasm-pack build --release --out-dir docs/v0.2.7/pkg --target no-modules && del docs\v0.2.7\pkg\.gitignore
 wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm
 ```
 
