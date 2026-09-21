@@ -1,6 +1,6 @@
 use core::num::NonZeroU8;
 #[cfg(feature = "simd")]
-use core::simd::{LaneCount, Simd, SupportedLaneCount, prelude::*};
+use core::simd::{Simd, prelude::*};
 
 use crate::pixel::Pixel;
 use crate::symbol::Symbol;
@@ -146,8 +146,6 @@ impl Spaceline {
         values: &AVec<Symbol>,
         step: PowerOfTwo,
     ) -> AVec<Pixel>
-    where
-        LaneCount<LANES>: SupportedLaneCount,
     {
         debug_assert!(
             { LANES } <= step.as_usize() && { LANES } <= { ALIGN },
@@ -211,8 +209,6 @@ impl Spaceline {
         chunk: &[Symbol],
         step: PowerOfTwo,
     ) -> Pixel
-    where
-        LaneCount<LANES>: SupportedLaneCount,
     {
         debug_assert!(
             { LANES } <= step.as_usize() && { LANES } <= { ALIGN },

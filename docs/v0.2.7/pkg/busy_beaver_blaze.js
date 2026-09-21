@@ -167,17 +167,17 @@ function getDataViewMemory0() {
     return cachedDataViewMemory0;
 }
 
-function takeFromExternrefTable0(idx) {
-    const value = wasm.__wbindgen_export_2.get(idx);
-    wasm.__externref_table_dealloc(idx);
-    return value;
-}
-
 function passArray8ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 1, 1) >>> 0;
     getUint8ArrayMemory0().set(arg, ptr / 1);
     WASM_VECTOR_LEN = arg.length;
     return ptr;
+}
+
+function takeFromExternrefTable0(idx) {
+    const value = wasm.__wbindgen_export_2.get(idx);
+    wasm.__externref_table_dealloc(idx);
+    return value;
 }
 
 function getArrayU8FromWasm0(ptr, len) {
@@ -203,6 +203,13 @@ export class Machine {
         wasm.__wbg_machine_free(ptr, 0);
     }
     /**
+     * @returns {bigint}
+     */
+    tape_index() {
+        const ret = wasm.machine_tape_index(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * Creates a new Machine from a program string.
      *
      * # Errors
@@ -222,13 +229,6 @@ export class Machine {
         return this;
     }
     /**
-     * @returns {boolean}
-     */
-    step() {
-        const ret = wasm.machine_step(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
      * # Panics
      * Panics if the number of nonblank cells exceeds `u32::MAX`.
      * @returns {number}
@@ -240,9 +240,16 @@ export class Machine {
     /**
      * @returns {boolean}
      */
-    is_halted() {
-        const ret = wasm.machine_is_halted(this.__wbg_ptr);
+    step() {
+        const ret = wasm.machine_step(this.__wbg_ptr);
         return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    state() {
+        const ret = wasm.machine_state(this.__wbg_ptr);
+        return ret;
     }
     /**
      * @param {boolean} early_stop_is_some
@@ -254,18 +261,11 @@ export class Machine {
         return BigInt.asUintN(64, ret);
     }
     /**
-     * @returns {number}
+     * @returns {boolean}
      */
-    state() {
-        const ret = wasm.machine_state(this.__wbg_ptr);
-        return ret;
-    }
-    /**
-     * @returns {bigint}
-     */
-    tape_index() {
-        const ret = wasm.machine_tape_index(this.__wbg_ptr);
-        return ret;
+    is_halted() {
+        const ret = wasm.machine_is_halted(this.__wbg_ptr);
+        return ret !== 0;
     }
 }
 
@@ -287,34 +287,18 @@ export class SpaceByTimeMachine {
         wasm.__wbg_spacebytimemachine_free(ptr, 0);
     }
     /**
-     * Creates a `SpaceByTimeMachine` by parsing the program, optionally skipping initial steps, and initializing visualization layers for the given goals and pixel policy.
-     *
-     * # Errors
-     * Returns an error if the program cannot be parsed into a `Machine`, or if the machine halts during the initial skip phase.
-     * @param {string} program
-     * @param {number} goal_x
-     * @param {number} goal_y
-     * @param {boolean} binning
-     * @param {bigint} skip
+     * @returns {bigint}
      */
-    constructor(program, goal_x, goal_y, binning, skip) {
-        const ptr0 = passStringToWasm0(program, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.spacebytimemachine_from_str(ptr0, len0, goal_x, goal_y, binning, skip);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        this.__wbg_ptr = ret[0] >>> 0;
-        SpaceByTimeMachineFinalization.register(this, this.__wbg_ptr, this);
-        return this;
+    step_count() {
+        const ret = wasm.spacebytimemachine_step_count(this.__wbg_ptr);
+        return BigInt.asUintN(64, ret);
     }
     /**
-     * @param {bigint} n
-     * @returns {boolean}
+     * @returns {number}
      */
-    nth(n) {
-        const ret = wasm.spacebytimemachine_nth(this.__wbg_ptr, n);
-        return ret !== 0;
+    count_nonblanks() {
+        const ret = wasm.spacebytimemachine_count_nonblanks(this.__wbg_ptr);
+        return ret >>> 0;
     }
     /**
      * @param {number} seconds
@@ -324,6 +308,14 @@ export class SpaceByTimeMachine {
      */
     step_for_secs(seconds, early_stop, loops_per_time_check) {
         const ret = wasm.spacebytimemachine_step_for_secs(this.__wbg_ptr, seconds, !isLikeNone(early_stop), isLikeNone(early_stop) ? BigInt(0) : early_stop, loops_per_time_check);
+        return ret !== 0;
+    }
+    /**
+     * @param {bigint} n
+     * @returns {boolean}
+     */
+    nth(n) {
+        const ret = wasm.spacebytimemachine_nth(this.__wbg_ptr, n);
         return ret !== 0;
     }
     /**
@@ -348,18 +340,26 @@ export class SpaceByTimeMachine {
         return v2;
     }
     /**
-     * @returns {bigint}
+     * Creates a `SpaceByTimeMachine` by parsing the program, optionally skipping initial steps, and initializing visualization layers for the given goals and pixel policy.
+     *
+     * # Errors
+     * Returns an error if the program cannot be parsed into a `Machine`, or if the machine halts during the initial skip phase.
+     * @param {string} program
+     * @param {number} goal_x
+     * @param {number} goal_y
+     * @param {boolean} binning
+     * @param {bigint} skip
      */
-    step_count() {
-        const ret = wasm.spacebytimemachine_step_count(this.__wbg_ptr);
-        return BigInt.asUintN(64, ret);
-    }
-    /**
-     * @returns {number}
-     */
-    count_nonblanks() {
-        const ret = wasm.spacebytimemachine_count_nonblanks(this.__wbg_ptr);
-        return ret >>> 0;
+    constructor(program, goal_x, goal_y, binning, skip) {
+        const ptr0 = passStringToWasm0(program, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.spacebytimemachine_from_str(ptr0, len0, goal_x, goal_y, binning, skip);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        SpaceByTimeMachineFinalization.register(this, this.__wbg_ptr, this);
+        return this;
     }
     /**
      * @returns {boolean}

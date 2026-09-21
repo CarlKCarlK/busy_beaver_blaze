@@ -122,7 +122,6 @@ impl Pixel {
     fn simd_precondition<T, const LANES: usize>(left: &[T], right: &[T]) -> bool
     where
         T: simd::SimdElement,
-        simd::LaneCount<LANES>: simd::SupportedLaneCount,
     {
         if left.len() != right.len() {
             return false;
