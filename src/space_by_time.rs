@@ -74,6 +74,7 @@ impl SpaceByTime {
     }
 
     #[inline]
+    #[cfg_attr(not(feature = "diff_row"), allow(unused_variables))]
     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
         self.vis_step += 1;
         let inside_index = self.y_stride.rem_into_u64(self.vis_step);

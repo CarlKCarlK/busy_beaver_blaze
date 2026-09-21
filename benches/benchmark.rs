@@ -1,5 +1,4 @@
 #![cfg(not(target_arch = "wasm32"))]
-#![feature(portable_simd)]
 
 use core::num::NonZeroU8;
 

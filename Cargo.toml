@@ -17,8 +17,6 @@ aligned-vec = "0.6.2"
 arrayvec = "0.7.6"
 clap = { version = "4", features = ["derive"] }
 crossbeam = "0.8.4"      # look at features
-csscolorparser = "0.7.0"
-
 derive_more = { version = "2.0.1", default-features = false, features = [
     "debug",
     "display",
@@ -30,7 +28,6 @@ instant = { version = "0.1.13", features = ["wasm-bindgen"] }
 itertools = "0.14.0"
 png = "0.17.16"
 rayon = "1.10.0"
-smallvec = "1.14.0"
 thousands = "0.2.0"
 wasm-bindgen = "0.2.100"
 zerocopy = { version = "0.8.21", features = ["std", "derive"] }
@@ -39,13 +36,6 @@ zerocopy = { version = "0.8.21", features = ["std", "derive"] }
 version = "0.27"
 features = ["abi3-py39"]
 optional = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-rand = "0.9.0"
-
-[dependencies.web-sys]
-version = "0.3.77"
-features = ["console"]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.50"
@@ -57,9 +47,11 @@ glob = "0.3.2"
 clap = { version = "4", features = ["derive"] }
 humantime = "2.1"
 ab_glyph = "0.2.29"
+csscolorparser = "0.7.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = "0.5.1"
+rand = "0.9.0"
 
 [[bench]]
 name = "benchmark"
@@ -96,10 +88,10 @@ equatable_if_let = "warn"
 error_impl_error = "allow"
 implicit_return = "allow"
 integer_division_remainder_used = "warn"
-items-after-statements = "warn"
+items_after_statements = "warn"
 iter_nth_zero = "warn"
 match_bool = "warn"
-match-same-arms = "warn"
+match_same_arms = "warn"
 min_ident_chars = "warn"
 missing_docs_in_private_items = { level = "allow", priority = -1 }
 # missing_errors_doc = "warn"

@@ -72,7 +72,7 @@ macro_rules! tm_next {
         concat!(
             asmline!("dec r10"),
             asmline!("mov al, 1"),
-            asmline!("mov bl, ", s!($id)),
+            asmline!("mov cl, ", s!($id)),
             asmline!("jmp ", s!($P), "_END"),
         )
     };
@@ -90,7 +90,7 @@ macro_rules! tm_next {
 macro_rules! tm_dispatch {
     ( $P:ident, $S:ident, $id:expr ) => {
         concat!(
-            asmline!("cmp bl, ", s!($id)),
+            asmline!("cmp cl, ", s!($id)),
             asmline!("je ", s!($P), "_", s!($S)),
         )
     };
@@ -102,7 +102,7 @@ macro_rules! tm_state_block {
     ( $P:ident, $S:ident, $id:expr, ( $w0:literal, $d0:ident, $n0:ident ), ( $w1:literal, $d1:ident, $n1:ident ) ) => {
         concat!(
             asmline!(s!($P), "_", s!($S), ":"),
-            asmline!("mov bl, ", s!($id)),
+            asmline!("mov cl, ", s!($id)),
             asmline!("mov dl, [rsi]"),
             asmline!("cmp dl, 255"),
             asmline!("je ", s!($P), "_BOUNDARY_", s!($S)),
@@ -116,7 +116,7 @@ macro_rules! tm_state_block {
             tm_move!($d1),
             tm_next!($P, $n1, $id),
             asmline!(s!($P), "_BOUNDARY_", s!($S), ":"),
-            asmline!("mov bl, ", s!($id)),
+            asmline!("mov cl, ", s!($id)),
             asmline!("jmp ", s!($P), "_BOUNDARY"),
         )
     };
