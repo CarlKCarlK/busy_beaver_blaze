@@ -4,8 +4,10 @@ use core::num::NonZeroU8;
 
 use aligned_vec::AVec;
 use busy_beaver_blaze::test_utils::compress_x_no_simd_binning;
-#[cfg(feature = "gpu")]
+#[cfg(feature = "gpu-cutile")]
 use busy_beaver_blaze::{average_with_gpu, GpuAverage};
+#[cfg(feature = "gpu-oxide")]
+use busy_beaver_blaze::{average_with_cuda_oxide, CudaOxideAverage};
 use busy_beaver_blaze::{Pixel, PowerOfTwo, Spaceline, ALIGN};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -198,7 +200,7 @@ fn len_100m(criterion: &mut Criterion) {
         );
     });
 
-    #[cfg(feature = "gpu")]
+    #[cfg(feature = "gpu-cutile")]
     {
         let expected = Spaceline::average_with_iterators(SELECT_ONE, &values, step);
         let mut gpu_average = GpuAverage::from_values(SELECT_ONE, &values, step).unwrap();
@@ -212,13 +214,13 @@ fn len_100m(criterion: &mut Criterion) {
             busy_beaver_blaze::GpuAverage::timing_breakdown(SELECT_ONE, &values, step).unwrap()
         );
 
-        group.bench_function("gpu_kernel", |bencher| {
+        group.bench_function("gpu_cutile_kernel", |bencher| {
             bencher.iter(|| gpu_average.run_kernel().unwrap());
         });
 
         // Includes host padding/copy preparation, device allocation and H→D copy,
         // kernel execution, output readback, and synchronization.
-        group.bench_function("gpu_end_to_end_full", |bencher| {
+        group.bench_function("gpu_cutile_end_to_end_full", |bencher| {
             bencher.iter(|| {
                 average_with_gpu(SELECT_ONE, black_box(&values), black_box(step)).unwrap()
             });
@@ -227,7 +229,7 @@ fn len_100m(criterion: &mut Criterion) {
         let prepared_input = GpuAverage::prepare_input(&values, step);
         // Excludes host padding/copy preparation. The Arc clone is cheap; the
         // prepared bytes are still uploaded and device buffers are reallocated.
-        group.bench_function("gpu_end_to_end_prepared", |bencher| {
+        group.bench_function("gpu_cutile_end_to_end_prepared", |bencher| {
             bencher.iter(|| {
                 let mut gpu_average = GpuAverage::from_prepared_input(
                     SELECT_ONE,
@@ -237,6 +239,46 @@ fn len_100m(criterion: &mut Criterion) {
                 .unwrap();
                 gpu_average.run_kernel().unwrap();
                 gpu_average.readback().unwrap()
+            });
+        });
+    }
+
+    #[cfg(feature = "gpu-oxide")]
+    {
+        let expected = Spaceline::average_with_iterators(SELECT_ONE, &values, step);
+        let mut cuda_oxide = CudaOxideAverage::new(SELECT_ONE, &values, step).unwrap();
+        cuda_oxide.run_kernel().unwrap();
+        cuda_oxide.readback().unwrap();
+        assert_eq!(cuda_oxide.pixels().as_slice(), expected.as_slice());
+
+        // Warm the generated module and driver launch path before timing.
+        cuda_oxide.refill_run_readback(&values).unwrap();
+
+        group.bench_function("cuda_oxide_kernel", |bencher| {
+            bencher.iter(|| cuda_oxide.run_kernel().unwrap());
+        });
+
+        group.bench_function("cuda_oxide_reuse_device_allocation", |bencher| {
+            bencher.iter(|| cuda_oxide.refill_run_readback(black_box(&values)).unwrap());
+        });
+
+        group.bench_function("cuda_oxide_end_to_end", |bencher| {
+            bencher.iter(|| {
+                average_with_cuda_oxide(SELECT_ONE, black_box(&values), black_box(step)).unwrap()
+            });
+        });
+
+        let mut pinned_input = cuda_core::simt::PinnedHostBuffer::zeroed(
+            cuda_oxide.context(),
+            cuda_oxide.input_len(),
+        )
+        .unwrap();
+        cuda_oxide.refill_run_readback_pinned(&values, &mut pinned_input).unwrap();
+        group.bench_function("cuda_oxide_reuse_pinned", |bencher| {
+            bencher.iter(|| {
+                cuda_oxide
+                    .refill_run_readback_pinned(black_box(&values), &mut pinned_input)
+                    .unwrap()
             });
         });
     }

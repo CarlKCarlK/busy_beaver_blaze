@@ -14,8 +14,10 @@ mod tests;
 mod compiled_macros;
 #[cfg(target_arch = "x86_64")]
 mod compiled_runner;
-#[cfg(feature = "gpu")]
+#[cfg(feature = "gpu-cutile")]
 mod gpu;
+#[cfg(feature = "gpu-oxide")]
+mod gpu_oxide;
 mod log_step_iterator;
 mod machine;
 mod message0;
@@ -49,8 +51,10 @@ pub use compiled_runner::{
     CompiledFnId, CompiledProgram, Config, ConfigError, RunSummary as CompiledRunSummary,
     RunTermination, Summary, run_compiled_program,
 };
-#[cfg(feature = "gpu")]
+#[cfg(feature = "gpu-cutile")]
 pub use gpu::{GpuAverage, GpuTimingBreakdown, average_with_gpu};
+#[cfg(feature = "gpu-oxide")]
+pub use gpu_oxide::{CudaOxideAverage, average_with_cuda_oxide};
 pub use log_step_iterator::LogStepIterator;
 pub use machine::Machine;
 pub use pixel::Pixel;

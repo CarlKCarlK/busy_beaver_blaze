@@ -11,7 +11,9 @@ default = ["simd", "diff_row"]
 simd = []
 diff_row = []
 python = ["pyo3/extension-module"]
-gpu = ["dep:cutile"]
+gpu-cutile = ["dep:cutile"]
+gpu-oxide = ["dep:cuda-core", "dep:cuda-device", "dep:cuda-host"]
+gpu = ["gpu-cutile"]
 
 [dependencies]
 aligned-vec = "0.6.2"
@@ -31,6 +33,9 @@ thousands = "0.2.0"
 wasm-bindgen = "0.2.100"
 zerocopy = { version = "0.8.21", features = ["std", "derive"] }
 cutile = { git = "https://github.com/NVlabs/cutile-rs.git", branch = "main", optional = true }
+cuda-core = { version = "0.3.1", optional = true }
+cuda-device = { git = "https://github.com/NVlabs/cuda-oxide.git", rev = "b0f961df3af0ff140b3b006fa2b6750b71f43f62", optional = true }
+cuda-host = { git = "https://github.com/NVlabs/cuda-oxide.git", rev = "b0f961df3af0ff140b3b006fa2b6750b71f43f62", optional = true }
 
 [patch."https://github.com/NVlabs/cutile-rs.git"]
 cutile-macro = { path = "vendor/cutile-macro" }
