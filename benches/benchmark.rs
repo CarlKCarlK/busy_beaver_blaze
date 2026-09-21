@@ -91,6 +91,13 @@ fn large(criterion: &mut Criterion) {
 }
 
 fn len_100m(criterion: &mut Criterion) {
+    // Approximate reference measurements are documented in src/gpu.rs. The GPU
+    // names below describe distinct paths, rather than interchangeable timings:
+    // - gpu_kernel: device-resident input, synchronized kernel only.
+    // - gpu_end_to_end_prepared: prepared host bytes, device upload/allocation,
+    //   kernel, and result readback.
+    // - gpu_end_to_end_full: original Symbol/Spaceline representation through
+    //   host preparation, then the prepared end-to-end path.
     let len = 100_000_000;
     let step = PowerOfTwo::from_usize(65536);
     let seed = 0;
@@ -156,9 +163,27 @@ fn len_100m(criterion: &mut Criterion) {
             bencher.iter(|| gpu_average.run_kernel().unwrap());
         });
 
-        group.bench_function("gpu_end_to_end", |bencher| {
+        // Includes host padding/copy preparation, device allocation and H→D copy,
+        // kernel execution, output readback, and synchronization.
+        group.bench_function("gpu_end_to_end_full", |bencher| {
             bencher.iter(|| {
                 average_with_gpu(SELECT_ONE, black_box(&values), black_box(step)).unwrap()
+            });
+        });
+
+        let prepared_input = GpuAverage::prepare_input(&values, step);
+        // Excludes host padding/copy preparation. The Arc clone is cheap; the
+        // prepared bytes are still uploaded and device buffers are reallocated.
+        group.bench_function("gpu_end_to_end_prepared", |bencher| {
+            bencher.iter(|| {
+                let mut gpu_average = GpuAverage::from_prepared_input(
+                    SELECT_ONE,
+                    prepared_input.clone(),
+                    black_box(step),
+                )
+                .unwrap();
+                gpu_average.run_kernel().unwrap();
+                gpu_average.readback().unwrap()
             });
         });
     }

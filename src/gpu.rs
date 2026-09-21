@@ -1,9 +1,45 @@
+//! Experimental cuTile implementation of horizontal tape compression.
+//!
+//! The kernel computes one output pixel per `x_stride` symbols by counting the
+//! selected symbol and scaling the count to `[0, 255]`. It intentionally does
+//! not implement vertical/generation compression.
+//!
+//! The `len_100m` measurements below are approximate experimental results, not
+//! performance guarantees. They were collected on the experiment machine with
+//! 16 logical CPUs and an NVIDIA CUDA-capable GPU; the exact CPU/GPU models were
+//! not recorded in the repository:
+//!
+//! ```text
+//! CPU iterator             ~9.3 ms
+//! CPU SIMD32               ~9.3 ms
+//! CPU SIMD64               ~9.6 ms
+//! GPU resident kernel      ~4.2 ms
+//! GPU prepared end-to-end ~11.1 ms
+//! GPU full end-to-end     ~67 ms
+//! ```
+//!
+//! Portable SIMD is substantially faster on the smaller `large` workload but
+//! provides little or no advantage on the 100-million-symbol workload, which
+//! is consistent with the larger scan becoming memory-bandwidth dominated.
+//! The resident horizontal GPU reduction is about 2.2x faster than the best CPU
+//! implementation on that workload, but one-shot GPU offload is slower than
+//! the CPU. The full path is dominated by host preparation because cuTile's
+//! public host-copy API requires an owned `Arc<Vec<T>>`.
+//!
+//! cuTile does not currently expose a public operation to upload host data into
+//! an already allocated device tensor, so device-allocation reuse cannot be
+//! benchmarked without extending cuTile or using lower-level CUDA. Vertical
+//! compression is adaptive and stateful: a future full GPU pipeline would need
+//! to keep rows and their weights on-device and reproduce the pairwise,
+//! power-of-two merge behavior in `Spacelines`.
+
 use core::num::NonZeroU8;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use aligned_vec::AVec;
 use cutile::prelude::*;
+use zerocopy::IntoBytes;
 
 use crate::{Pixel, PowerOfTwo, Symbol, ALIGN};
 
@@ -52,15 +88,14 @@ pub struct GpuTimingBreakdown {
     pub total: Duration,
 }
 
-fn prepared_input(values: &AVec<Symbol>, step: PowerOfTwo) -> (Vec<u8>, usize, usize) {
+fn prepared_input(values: &AVec<Symbol>, step: PowerOfTwo) -> (Arc<Vec<u8>>, usize, usize) {
     let step_size = step.as_usize();
     let output_len = step.div_ceil_into(values.len());
-    let mut input = values
-        .iter()
-        .map(|symbol| u8::from(*symbol))
-        .collect::<Vec<_>>();
-    input.resize(output_len * step_size, 0);
-    (input, output_len, step_size)
+    let input_len = output_len * step_size;
+    let mut input = Vec::with_capacity(input_len);
+    input.extend_from_slice(values.as_slice().as_bytes());
+    input.resize(input_len, 0);
+    (Arc::new(input), output_len, step_size)
 }
 
 impl GpuAverage {
@@ -73,7 +108,7 @@ impl GpuAverage {
         let (input, output_len, step_size) = prepared_input(values, step);
         assert!(output_len > 0, "GPU benchmark input must not be empty");
 
-        let input = api::copy_host_vec_to_device(&Arc::new(input))
+        let input = api::copy_host_vec_to_device(&input)
             .sync()
             .map_err(|error| error.to_string())?
             .reshape(&[output_len, step_size])
@@ -90,6 +125,42 @@ impl GpuAverage {
         })
     }
 
+    /// Uploads already-prepared, padded byte input and allocates the output.
+    pub fn from_prepared_input(
+        select: NonZeroU8,
+        input: Arc<Vec<u8>>,
+        step: PowerOfTwo,
+    ) -> Result<Self, String> {
+        let step_size = step.as_usize();
+        assert!(input.len() > 0, "GPU benchmark input must not be empty");
+        assert!(
+            step.divides_usize(input.len()),
+            "Prepared GPU input must contain complete step groups"
+        );
+        let output_len = input.len() / step_size;
+
+        let input = api::copy_host_vec_to_device(&input)
+            .sync()
+            .map_err(|error| error.to_string())?
+            .reshape(&[output_len, step_size])
+            .map_err(|error| error.to_string())?;
+        let output = api::copy_host_vec_to_device(&Arc::new(vec![0u32; output_len]))
+            .sync()
+            .map_err(|error| error.to_string())?;
+
+        Ok(Self {
+            input,
+            output: Some(output),
+            selected_symbol: select.get(),
+            step_size,
+        })
+    }
+
+    /// Prepares the padded byte representation used by the GPU input tensor.
+    pub fn prepare_input(values: &AVec<Symbol>, step: PowerOfTwo) -> Arc<Vec<u8>> {
+        prepared_input(values, step).0
+    }
+
     /// Launches and synchronizes the resident GPU kernel, excluding transfers.
     pub fn run_kernel(&mut self) -> Result<(), String> {
         let output = self.output.take().expect("GPU output must be present");
@@ -102,7 +173,7 @@ impl GpuAverage {
         Ok(())
     }
 
-    /// Measures the resident kernel after warming the JIT, plus host/device stages.
+    /// Measures one complete prepared-input operation after warming the JIT.
     ///
     /// cuTile's current host-copy helper allocates device storage and copies in one
     /// operation, so those two costs are intentionally reported together.
@@ -111,6 +182,12 @@ impl GpuAverage {
         values: &AVec<Symbol>,
         step: PowerOfTwo,
     ) -> Result<GpuTimingBreakdown, String> {
+        // Compile and warm the specialization before starting the clock. The warm-up
+        // is not part of any reported stage or of `total`.
+        let mut warmup = Self::from_values(select, values, step)?;
+        warmup.run_kernel()?;
+        drop(warmup);
+
         let total_start = Instant::now();
 
         let host_start = Instant::now();
@@ -119,7 +196,7 @@ impl GpuAverage {
         assert!(output_len > 0, "GPU benchmark input must not be empty");
 
         let input_start = Instant::now();
-        let input = api::copy_host_vec_to_device(&Arc::new(input))
+        let input = api::copy_host_vec_to_device(&input)
             .sync()
             .map_err(|error| error.to_string())?
             .reshape(&[output_len, step_size])
@@ -138,7 +215,6 @@ impl GpuAverage {
             selected_symbol: select.get(),
             step_size,
         };
-        gpu_average.run_kernel()?;
 
         let kernel_start = Instant::now();
         gpu_average.run_kernel()?;
@@ -212,6 +288,16 @@ mod tests {
         let expected = Spaceline::average_with_iterators(NonZeroU8::new(1).unwrap(), &values, step);
         let actual = average_with_gpu(NonZeroU8::new(1).unwrap(), &values, step).unwrap();
         assert_eq!(actual.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn prepared_input_is_byte_equivalent_and_padded() {
+        let values = AVec::from_iter(ALIGN, [0u8, 1, 2, 1].into_iter().map(Symbol::from));
+        let input = GpuAverage::prepare_input(&values, PowerOfTwo::from_usize(4));
+        assert_eq!(input.as_slice(), &[0, 1, 2, 1]);
+
+        let input = GpuAverage::prepare_input(&values, PowerOfTwo::from_usize(8));
+        assert_eq!(input.as_slice(), &[0, 1, 2, 1, 0, 0, 0, 0]);
     }
 
     #[test]
