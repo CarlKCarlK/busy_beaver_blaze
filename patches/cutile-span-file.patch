@@ -1,0 +1,12 @@
+diff --git a/cutile-macro/src/_module.rs b/cutile-macro/src/_module.rs
+index 7150622..29ab275 100644
+--- a/cutile-macro/src/_module.rs
++++ b/cutile-macro/src/_module.rs
+@@ -1137,7 +1137,7 @@ pub fn emit_module_ast_self_and_registry_entry(
+         syn::Visibility::Restricted(vis_r) => vis_r.pub_token.span,
+         syn::Visibility::Inherited => item.mod_token.span,
+     };
+-    let source_file = item_start_span.file().to_string();
++    let source_file = "unknown".to_string();
+     let base_line = item_start_span.start().line;
+     let base_col = item_start_span.start().column;

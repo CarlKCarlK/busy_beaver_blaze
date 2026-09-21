@@ -4,9 +4,11 @@ use core::num::NonZeroU8;
 
 use aligned_vec::AVec;
 use busy_beaver_blaze::test_utils::compress_x_no_simd_binning;
-use busy_beaver_blaze::{ALIGN, Pixel, PowerOfTwo, Spaceline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use rand::{Rng, SeedableRng, rngs::StdRng};
+#[cfg(feature = "gpu")]
+use busy_beaver_blaze::{average_with_gpu, GpuAverage};
+use busy_beaver_blaze::{Pixel, PowerOfTwo, Spaceline, ALIGN};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 const SELECT_ONE: NonZeroU8 = NonZeroU8::new(1).unwrap();
 
@@ -135,6 +137,31 @@ fn len_100m(criterion: &mut Criterion) {
             },
         );
     });
+
+    #[cfg(feature = "gpu")]
+    {
+        let expected = Spaceline::average_with_iterators(SELECT_ONE, &values, step);
+        let mut gpu_average = GpuAverage::from_values(SELECT_ONE, &values, step).unwrap();
+        gpu_average.run_kernel().unwrap();
+        assert_eq!(
+            gpu_average.readback().unwrap().as_slice(),
+            expected.as_slice()
+        );
+        eprintln!(
+            "gpu_breakdown {:?}",
+            busy_beaver_blaze::GpuAverage::timing_breakdown(SELECT_ONE, &values, step).unwrap()
+        );
+
+        group.bench_function("gpu_kernel", |bencher| {
+            bencher.iter(|| gpu_average.run_kernel().unwrap());
+        });
+
+        group.bench_function("gpu_end_to_end", |bencher| {
+            bencher.iter(|| {
+                average_with_gpu(SELECT_ONE, black_box(&values), black_box(step)).unwrap()
+            });
+        });
+    }
 
     group.finish();
 }

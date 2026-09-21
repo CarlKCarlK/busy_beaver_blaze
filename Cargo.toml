@@ -11,6 +11,7 @@ default = ["simd", "diff_row"]
 simd = []
 diff_row = []
 python = ["pyo3/extension-module"]
+gpu = ["dep:cutile"]
 
 [dependencies]
 aligned-vec = "0.6.2"
@@ -29,6 +30,10 @@ rayon = "1.10.0"
 thousands = "0.2.0"
 wasm-bindgen = "0.2.100"
 zerocopy = { version = "0.8.21", features = ["std", "derive"] }
+cutile = { git = "https://github.com/NVlabs/cutile-rs.git", branch = "main", optional = true }
+
+[patch."https://github.com/NVlabs/cutile-rs.git"]
+cutile-macro = { path = "vendor/cutile-macro" }
 
 [dependencies.pyo3]
 version = "0.27"
