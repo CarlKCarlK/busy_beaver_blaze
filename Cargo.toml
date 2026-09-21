@@ -15,7 +15,6 @@ python = ["pyo3/extension-module"]
 [dependencies]
 aligned-vec = "0.6.2"
 arrayvec = "0.7.6"
-clap = { version = "4", features = ["derive"] }
 crossbeam = "0.8.4"      # look at features
 derive_more = { version = "2.0.1", default-features = false, features = [
     "debug",
@@ -23,7 +22,6 @@ derive_more = { version = "2.0.1", default-features = false, features = [
     "error",
     "from",
 ] }
-humantime = "2.1"
 instant = { version = "0.1.13", features = ["wasm-bindgen"] }
 itertools = "0.14.0"
 png = "0.17.16"
@@ -36,6 +34,10 @@ zerocopy = { version = "0.8.21", features = ["std", "derive"] }
 version = "0.27"
 features = ["abi3-py39"]
 optional = true
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+clap = { version = "4", features = ["derive"] }
+humantime = "2.1"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.50"
