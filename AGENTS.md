@@ -179,9 +179,9 @@ pub fn step_count(&self) -> u64 { /* return step count */ }
 ## Integration Points
 
 - Web Worker: `docs/*/worker.js` handles heavy computation off main thread
-- Three Parsing Formats: Symbol Major, State Major, BB Challenge Standard Format
+- Three Parsing Formats: Symbol Major, State Major, BB Challenge Standard Format. The extended alphabet uses `0–9a–z` for symbols 0–35 while state names remain uppercase A–Z; transitions stay three characters. Table symbol labels accept decimal numbers or lowercase base-36 letters. Transition tables are boxed slices, and offsets use `usize` to avoid overflow for large alphabets. `---` preserves the historical reported halt state 25 for programs with up to 25 states; 26-state programs use sentinel 255 so Z can be a working state.
 - Color Customization: `normalize_colors()` cycles through palettes for multi-symbol visualization
-- Writing State Colors (web v0.2.8): `docs/v0.2.8/state-color.js` rewrites binary programs into multisymbol programs when `colorBy=state`. Nonzero symbols identify the state performing the last write; zero clears provenance. The original program remains in the editor. Supports up to nine states because transition symbols use single decimal digits; palettes and legends include blank plus one entry per state. Changing the coloring mode requires a new run; palette edits recolor live.
+- Writing State Colors (web v0.2.8): `docs/v0.2.8/state-color.js` rewrites binary programs into multisymbol programs when `colorBy=state`. Nonzero symbols identify the state performing the last write; zero clears provenance. The original program remains in the editor. Supports up to 26 states with base-36 symbols (`0–9a–z`); palettes and legends include blank plus one entry per state. Changing the coloring mode requires a new run; palette edits recolor live.
 - Web presets list binary programs first and omit `,2` in their names. Selecting a nonbinary program switches to Symbol coloring and disables Writing state without adding explanatory text above the image. Named preset transition tables have source links in `docs/v0.2.8/index.html`.
 - URL State: Web app supports hash fragments like `#program=bb5&earlyStop=false&run=true`
 

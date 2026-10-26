@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { parseProgram, stateColoredProgram, statePalette } from '../../docs/v0.2.8/state-color.js';
+import { parseProgram, stateColoredProgram, statePalette, SYMBOL_ALPHABET } from '../../docs/v0.2.8/state-color.js';
 import init, { Machine, SpaceByTimeMachine } from '../../docs/v0.2.8/pkg/busy_beaver_blaze.js';
 
 await init({ module_or_path: await readFile(new URL('../../docs/v0.2.8/pkg/busy_beaver_blaze_bg.wasm', import.meta.url)) });
 
 const champion = '1RB1LB_1LA1RH';
+const bb10 = '1RB0RA_1LC1LF_1RD0LB_1RA1LE_1LI0LC_0RG1LD_1RH1LG_1LC0RG_0LJ0LI_1RZ0LC';
 
 test('all three program formats produce the same colored program', () => {
     const formats = [champion, 'A B\n0 1RB 1LA\n1 1LB 1RH', '0 1\nA 1RB 1LB\nB 1LA 1RH'];
@@ -58,7 +59,7 @@ test('six-state palettes render through WASM in sampling and binning modes', () 
 
 test('unsupported and malformed programs report actionable errors', () => {
     assert.throws(() => stateColoredProgram('1RA2RA0RA'), /Symbol/);
-    assert.throws(() => stateColoredProgram(Array(10).fill('1RA1RA').join('_')), /nine/);
+    assert.throws(() => stateColoredProgram(Array(27).fill('1RA1RA').join('_')), /26/);
     assert.throws(() => stateColoredProgram('1RA1RA_1RA'), /same number/);
     assert.throws(() => stateColoredProgram('2RA1RA'), /write symbol/);
 });
@@ -83,7 +84,81 @@ test('every menu preset parses in WASM and binary presets precede multisymbol pr
             colored.free();
         }
     }
-    for (const [key, count] of Object.entries({ binary_counter: 2, bouncer: 3, bell: 3, spaghetti_sandwich: 4, irregular_bell: 4, skelet1: 5, antihydra: 6 })) {
+    for (const [key, count] of Object.entries({ binary_counter: 2, bouncer: 3, bell: 3, spaghetti_sandwich: 4, irregular_bell: 4, skelet1: 5, antihydra: 6, bb10: 10 })) {
         assert.equal(parseProgram(presets[key]).length, count, key);
+    }
+});
+
+
+test('BB10 rewriting uses 11 symbols and preserves the complete tape after projection', () => {
+    const transformed = stateColoredProgram(bb10);
+    const rows = parseProgram(transformed);
+    assert.equal(rows.length, 10);
+    assert.equal(rows[0].length, 11);
+    assert.equal(rows[9][0], 'aRZ');
+    const original = new Machine(bb10);
+    const colored = new Machine(transformed);
+    const sourceRows = parseProgram(bb10);
+    const expectedTape = new Map();
+    const actualTape = new Map();
+    for (let stepIndex = 0; stepIndex < 100_000; stepIndex++) {
+        const state = original.state();
+        const tapeIndex = original.tape_index();
+        const sourceAction = sourceRows[state][expectedTape.get(tapeIndex) || 0];
+        const coloredAction = rows[state][actualTape.get(tapeIndex) || 0];
+        const sourceWrite = Number(sourceAction[0]);
+        const coloredWrite = SYMBOL_ALPHABET.indexOf(coloredAction[0]);
+        expectedTape.set(tapeIndex, sourceWrite);
+        actualTape.set(tapeIndex, coloredWrite);
+        assert.equal(coloredWrite, sourceWrite === 0 ? 0 : state + 1);
+        const continues = original.step();
+        assert.equal(colored.step(), continues);
+        assert.equal(colored.state(), original.state());
+        assert.equal(colored.tape_index(), original.tape_index());
+        if (!continues) break;
+    }
+    assert.equal(colored.count_nonblanks(), original.count_nonblanks());
+    for (const [tapeIndex, value] of expectedTape) assert.equal(Number(actualTape.get(tapeIndex) !== 0), value);
+    original.free(); colored.free();
+});
+
+test('extended symbols render and palettes remain distinct up to 26 states', () => {
+    for (const stateCount of [10, 26]) {
+        for (const mode of ['light', 'light2', 'dark']) {
+            const palette = statePalette(mode, stateCount);
+            assert.equal(palette.length, (stateCount + 1) * 3);
+            assert.equal(new Set(Array.from({ length: stateCount + 1 }, (_, index) => String(palette.slice(index * 3, index * 3 + 3)))).size, stateCount + 1);
+        }
+    }
+    for (const binning of [true, false]) {
+        const machine = new SpaceByTimeMachine(stateColoredProgram(bb10), 96, 96, binning, 0n);
+        machine.step_for_secs(0.01, 10_000n, 1n);
+        assert.deepEqual(Array.from(machine.to_png(statePalette('light', 10)).slice(0, 8)), [137, 80, 78, 71, 13, 10, 26, 10]);
+        machine.free();
+    }
+});
+
+
+test('WASM executes symbol a and transition offsets beyond 255', () => {
+    const program = Array.from({ length: 11 }, (_, stateIndex) => `zR${stateIndex === 10 ? 'Z' : String.fromCharCode(66 + stateIndex)}`.repeat(36)).join('_');
+    const machine = new Machine(program);
+    for (let stepIndex = 0; stepIndex < 10; stepIndex++) assert.ok(machine.step());
+    assert.equal(machine.step(), false);
+    assert.equal(machine.count_nonblanks(), 11);
+    machine.free();
+    const haltingWrite = new Machine('aRZ' + '0RA'.repeat(10));
+    assert.equal(haltingWrite.step(), false);
+    assert.equal(haltingWrite.count_nonblanks(), 1);
+    haltingWrite.free();
+});
+
+
+test('undefined transitions preserve the reported halt state of existing programs', () => {
+    for (const stateCount of [1, 2, 10, 25, 26]) {
+        const machine = new Machine(Array(stateCount).fill('---').join('_'));
+        assert.equal(machine.step(), false);
+        assert.equal(machine.is_halted(), true);
+        assert.equal(machine.state(), stateCount < 26 ? 25 : 255);
+        machine.free();
     }
 });

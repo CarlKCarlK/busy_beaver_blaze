@@ -58,18 +58,8 @@ impl From<Symbol> for u32 {
 
 impl From<u8> for Symbol {
     fn from(value: u8) -> Self {
-        match value {
-            0 => Self::STATE_ZERO,
-            1 => Self::STATE_ONE,
-            2 => Self::STATE_TWO,
-            3 => Self::STATE_THREE,
-            4 => Self::STATE_FOUR,
-            5 => Self::STATE_FIVE,
-            6 => Self::STATE_SIX,
-            7 => Self::STATE_SEVEN,
-            8 => Self::STATE_EIGHT,
-            9 => Self::STATE_NINE,
-            _ => panic!("Symbol must be in 0..=9, got {value}"), // TODO make this a Result
-        }
+        // TODO make this a Result (may no longer apply)
+        assert!(value < 36, "Symbol must be in 0..36, got {value}");
+        Self(value)
     }
 }

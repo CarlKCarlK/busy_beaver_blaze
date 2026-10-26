@@ -5,7 +5,7 @@ use core::num::NonZeroU8;
 
 use aligned_vec::AVec;
 use busy_beaver_blaze::test_utils::compress_x_no_simd_binning;
-use busy_beaver_blaze::{ALIGN, Pixel, PowerOfTwo, Spaceline};
+use busy_beaver_blaze::{ALIGN, BB5_CHAMP, Machine, Pixel, PowerOfTwo, Spaceline};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
@@ -166,5 +166,20 @@ fn resample(criterion: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, small, large, len_100m, resample);
+fn interpreter(criterion: &mut Criterion) {
+    criterion.bench_function("interpreter/bb5_million_steps", |bencher| {
+        bencher.iter_batched(
+            || Machine::from_string(BB5_CHAMP).unwrap(),
+            |mut machine| {
+                for _step_index in 0..1_000_000 {
+                    assert!(machine.step());
+                }
+                black_box(machine);
+            },
+            criterion::BatchSize::SmallInput,
+        );
+    });
+}
+
+criterion_group!(benches, small, large, len_100m, resample, interpreter);
 criterion_main!(benches);
