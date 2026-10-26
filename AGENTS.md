@@ -112,8 +112,14 @@ cargo test --release -- --nocapture
 cargo run --example movie --release bb5_champ 2K true
 
 # WebAssembly build
-wasm-pack build --release --out-dir docs/v0.2.7/pkg --target web
-wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.7/pkg/busy_beaver_blaze_bg.wasm
+wasm-pack build --release --out-dir docs/v0.2.8/pkg --target web
+wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.8/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.8/pkg/busy_beaver_blaze_bg.wasm
+
+# Local WASM preview (open http://localhost:8000/v0.2.8/)
+python3 -m http.server 8000 --directory docs
+
+# WASM state-color transformation and rendering checks (after building)
+node tests/wasm/state-color.test.mjs
 
 # Python extension (PyO3) - this is a uv project
 uv sync --extra dev                                   # Sync dependencies including dev tools
@@ -173,6 +179,8 @@ pub fn step_count(&self) -> u64 { /* return step count */ }
 - Web Worker: `docs/*/worker.js` handles heavy computation off main thread
 - Three Parsing Formats: Symbol Major, State Major, BB Challenge Standard Format
 - Color Customization: `normalize_colors()` cycles through palettes for multi-symbol visualization
+- Writing State Colors (web v0.2.8): `docs/v0.2.8/state-color.js` rewrites binary programs into multisymbol programs when `colorBy=state`. Nonzero symbols identify the state performing the last write; zero clears provenance. The original program remains in the editor. Supports up to nine states because transition symbols use single decimal digits; palettes and legends include blank plus one entry per state. Changing the coloring mode requires a new run; palette edits recolor live.
+- Web presets list binary programs first and omit `,2` in their names. Selecting a nonbinary program switches to Symbol coloring and disables Writing state without adding explanatory text above the image. Named preset transition tables have source links in `docs/v0.2.8/index.html`.
 - URL State: Web app supports hash fragments like `#program=bb5&earlyStop=false&run=true`
 
 Reference `src/code_notes.md` for sampling vs binning implementation locations across the codebase.
