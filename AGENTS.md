@@ -20,6 +20,8 @@ This is a high-performance Turing machine interpreter and space-time visualizer 
 
 ### Python Integration (PyO3)
 
+Python requires 3.11 or newer so the environment can use patched Pillow releases. Keep the security minimums in `[tool.uv].constraint-dependencies` and regenerate `uv.lock` when updating Python dependencies. Use `uv sync --locked --extra dev` to install the reviewed dependency set.
+
 The package follows the **Nine Rules for Writing Python Extensions in Rust** (see article in project docs):
 
 1. **Single repository**: Both Rust (`src/`) and Python (`busy_beaver_blaze/`) in same repo

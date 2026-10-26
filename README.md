@@ -58,7 +58,7 @@ of the image size, not of the Turing run.
 
 ## Python Quickstart
 
-Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a Python environment and build the Rust extension before running notebooks or tests.
+Python 3.11 or newer is required. Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a Python environment and build the Rust extension before running notebooks or tests.
 
 1. Clone the repository:
 
@@ -77,7 +77,7 @@ Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a P
 4. Install the Python dependencies in editable mode:
 
    ```bash
-   uv pip install -e ".[dev]"
+   uv sync --locked --extra dev
    ```
 
 5. Build and install the Rust/PyO3 extension into that environment (requires [Rust](https://www.rust-lang.org/tools/install)):
