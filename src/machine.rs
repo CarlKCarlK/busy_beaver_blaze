@@ -1,5 +1,4 @@
 use crate::{Error, Symbol, Tape};
-use arrayvec::ArrayVec;
 use core::{fmt, str::FromStr};
 use wasm_bindgen::prelude::*;
 
@@ -136,13 +135,13 @@ impl Iterator for Machine {
     }
 }
 
-type StateToSymbolToAction = ArrayVec<Action, { Program::MAX_STATE_COUNT }>;
+type StateToSymbolToAction = Box<[Action]>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program {
     state_count: u8,
     pub(crate) symbol_count: u8,
-    state_to_symbol_to_action: StateToSymbolToAction, // Changed from SmallVec
+    state_to_symbol_to_action: StateToSymbolToAction, // Changed from SmallVec, then ArrayVec
 }
 
 // impl a parser for the strings like this
@@ -168,11 +167,14 @@ impl FromStr for Program {
 
 impl Program {
     // pub const SYMBOL_COUNT: usize = 2;
-    pub const MAX_STATE_COUNT: usize = 100;
+    /// Maximum number of states named by the uppercase letters A–Z.
+    pub const MAX_STATE_COUNT: usize = 26;
+    /// Maximum number of symbols encoded by 0–9 and a–z.
+    pub const MAX_SYMBOL_COUNT: usize = 36;
 
     #[inline]
     fn action(&self, state: u8, symbol: Symbol) -> &Action {
-        let offset = (state * self.symbol_count) as usize + usize::from(symbol);
+        let offset = usize::from(state) * usize::from(self.symbol_count) + usize::from(symbol);
         &self.state_to_symbol_to_action[offset]
     }
 
@@ -192,22 +194,14 @@ impl Program {
         }
         if asciis == b"---" {
             return Ok(Action {
-                next_state: 25,
+                next_state: u8::MAX,
                 next_symbol: Symbol::STATE_ZERO,
                 direction: -1,
             });
         }
         let next_symbol = match asciis[0] {
-            b'0' => Symbol::STATE_ZERO,
-            b'1' => Symbol::STATE_ONE,
-            b'2' => Symbol::STATE_TWO,
-            b'3' => Symbol::STATE_THREE,
-            b'4' => Symbol::STATE_FOUR,
-            b'5' => Symbol::STATE_FIVE,
-            b'6' => Symbol::STATE_SIX,
-            b'7' => Symbol::STATE_SEVEN,
-            b'8' => Symbol::STATE_EIGHT,
-            b'9' => Symbol::STATE_NINE,
+            b'0'..=b'9' => Symbol::from(asciis[0] - b'0'),
+            b'a'..=b'z' => Symbol::from(asciis[0] - b'a' + 10),
             // TODO catch at compile time?
             _ => {
                 return Err(Error::InvalidChar {
@@ -270,34 +264,7 @@ impl Program {
             })
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
-        let symbol_count =
-            u8::try_from(state_to_symbol_to_action[0].len()).expect("symbol_count must fit in u8");
-        if symbol_count == 0 {
-            return Err(Error::UnexpectedSymbolCount { got: 0 });
-        }
-
-        // Ensure proper dimensions (STATE_COUNT x 2)
-        let state_count =
-            u8::try_from(state_to_symbol_to_action.len()).expect("state_count must fit in u8");
-        if state_count == 0 {
-            return Err(Error::InvalidStatesCount {
-                expected: 1,
-                got: 0,
-            });
-        }
-
-        if state_count as usize > Self::MAX_STATE_COUNT {
-            return Err(Error::InvalidStatesCount {
-                expected: Self::MAX_STATE_COUNT,
-                got: state_count as usize,
-            });
-        }
-
-        Ok(Self {
-            state_count,
-            symbol_count,
-            state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
-        })
+        Self::from_rows(state_to_symbol_to_action)
     }
 
     #[allow(
@@ -327,34 +294,7 @@ impl Program {
             })
             .collect::<Result<Vec<_>, _>>()?; // Collect and propagate errors
 
-        // Ensure proper dimensions (STATE_COUNT x 2)
-        let state_count =
-            u8::try_from(state_to_symbol_to_action.len()).expect("state_count must fit in u8");
-        if state_count == 0 {
-            return Err(Error::InvalidStatesCount {
-                expected: 1,
-                got: 0,
-            });
-        }
-
-        let symbol_count =
-            u8::try_from(state_to_symbol_to_action[0].len()).expect("symbol_count must fit in u8");
-        if symbol_count == 0 {
-            return Err(Error::UnexpectedSymbolCount { got: 0 });
-        }
-
-        if state_count as usize > Self::MAX_STATE_COUNT {
-            return Err(Error::InvalidStatesCount {
-                expected: Self::MAX_STATE_COUNT,
-                got: state_count as usize,
-            });
-        }
-
-        Ok(Self {
-            state_count,
-            symbol_count,
-            state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
-        })
+        Self::from_rows(state_to_symbol_to_action)
     }
 
     #[allow(clippy::assertions_on_constants, clippy::min_ident_chars)]
@@ -374,7 +314,11 @@ impl Program {
             .map(|(symbol, line)| {
                 let mut parts = line.split_whitespace();
 
-                let symbol_again = parts.next().ok_or(Error::MissingField)?.parse::<u8>()?;
+                let label = parts.next().ok_or(Error::MissingField)?;
+                let symbol_again = match label.as_bytes() {
+                    [symbol_char @ b'a'..=b'z'] => symbol_char - b'a' + 10,
+                    _ => label.parse::<u8>()?,
+                };
                 if symbol != symbol_again as usize {
                     return Err(Error::UnexpectedSymbol);
                 }
@@ -423,10 +367,52 @@ impl Program {
             }
         }
 
+        Self::from_rows(state_to_symbol_to_action)
+    }
+
+    fn from_rows(rows: Vec<Vec<Action>>) -> Result<Self, Error> {
+        let state_count = rows.len();
+        if !(1..=Self::MAX_STATE_COUNT).contains(&state_count) {
+            return Err(Error::InvalidStatesCount {
+                expected: Self::MAX_STATE_COUNT,
+                got: state_count,
+            });
+        }
+        let symbol_count = rows[0].len();
+        if !(1..=Self::MAX_SYMBOL_COUNT).contains(&symbol_count) {
+            return Err(Error::UnexpectedSymbolCount { got: symbol_count });
+        }
+        for row in &rows {
+            if row.len() != symbol_count {
+                return Err(Error::UnexpectedSymbolCount { got: row.len() });
+            }
+            if row
+                .iter()
+                .any(|action| usize::from(action.next_symbol) >= symbol_count)
+            {
+                return Err(Error::UnexpectedSymbol);
+            }
+        }
+        // Preserve the historical reported halt state Z for existing programs.
+        // A 26-state program uses Z as a working state and needs a separate sentinel.
+        let halt_state = if state_count < Self::MAX_STATE_COUNT {
+            b'Z' - b'A'
+        } else {
+            u8::MAX
+        };
         Ok(Self {
             state_count: u8::try_from(state_count).expect("state_count must fit in u8"),
             symbol_count: u8::try_from(symbol_count).expect("symbol_count must fit in u8"),
-            state_to_symbol_to_action: state_to_symbol_to_action.into_iter().flatten().collect(),
+            state_to_symbol_to_action: rows
+                .into_iter()
+                .flatten()
+                .map(|mut action| {
+                    if action.next_state == u8::MAX {
+                        action.next_state = halt_state;
+                    }
+                    action
+                })
+                .collect(),
         })
     }
 }
@@ -436,4 +422,175 @@ struct Action {
     next_state: u8,
     next_symbol: Symbol,
     direction: i8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BB10: &str = "1RB0RA_1LC1LF_1RD0LB_1RA1LE_1LI0LC_0RG1LD_1RH1LG_1LC0RG_0LJ0LI_1RZ0LC";
+
+    #[test]
+    fn extended_symbols_in_all_formats() {
+        let actions = format!("aRA{}", "0RA".repeat(10));
+        let standard = Machine::from_string(&actions).unwrap();
+        let symbol_major = format!(
+            "A\n{}",
+            actions
+                .as_bytes()
+                .chunks_exact(3)
+                .enumerate()
+                .map(|(symbol_index, action)| {
+                    let label = if symbol_index == 10 {
+                        "a".to_owned()
+                    } else {
+                        symbol_index.to_string()
+                    };
+                    format!("{label} {}", core::str::from_utf8(action).unwrap())
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        let state_major = format!(
+            "{}\nA {}",
+            (0..11)
+                .map(|symbol_index| symbol_index.to_string())
+                .collect::<Vec<_>>()
+                .join(" "),
+            actions
+                .as_bytes()
+                .chunks_exact(3)
+                .map(|action| core::str::from_utf8(action).unwrap())
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        for mut machine in [
+            standard,
+            Machine::from_string(&symbol_major).unwrap(),
+            Machine::from_string(&state_major).unwrap(),
+        ] {
+            assert!(machine.step());
+            assert_eq!(u8::from(machine.tape.read(0)), 10);
+            assert_eq!(machine.symbol_count(), 11);
+        }
+    }
+
+    #[test]
+    fn transition_offsets_exceed_u8_and_the_old_array_capacity() {
+        let program = (0..11)
+            .map(|state_index| {
+                let next_state = if state_index == 10 {
+                    'Z'
+                } else {
+                    char::from(b'A' + state_index + 1)
+                };
+                format!("zR{next_state}").repeat(36)
+            })
+            .collect::<Vec<_>>()
+            .join("_");
+        let mut machine = Machine::from_string(&program).unwrap();
+        assert_eq!(machine.program.state_to_symbol_to_action.len(), 396);
+        for _step_index in 0..10 {
+            assert!(machine.step());
+        }
+        assert!(!machine.step());
+        assert_eq!(machine.count_nonblanks(), 11);
+        for tape_index in 0..11 {
+            assert_eq!(u8::from(machine.tape.read(tape_index)), 35);
+        }
+    }
+
+    #[test]
+    fn bb10_colored_tape_preserves_behavior_and_write_provenance() {
+        let mut original = Machine::from_string(BB10).unwrap();
+        let rows = original
+            .program
+            .state_to_symbol_to_action
+            .chunks_exact(2)
+            .enumerate()
+            .map(|(state_index, row)| {
+                (0..11)
+                    .map(|symbol_index| {
+                        let mut action = row[usize::from(symbol_index != 0)].clone();
+                        if action.next_symbol != Symbol::STATE_ZERO {
+                            action.next_symbol =
+                                Symbol::from(u8::try_from(state_index + 1).unwrap());
+                        }
+                        action
+                    })
+                    .collect()
+            })
+            .collect();
+        let mut colored = Machine {
+            program: Program::from_rows(rows).unwrap(),
+            ..Machine::from_string(BB10).unwrap()
+        };
+        for _step_index in 0..100_000 {
+            let writing_state = original.state();
+            let tape_index = original.tape_index();
+            let continues = original.step();
+            assert_eq!(colored.step(), continues);
+            assert_eq!(original.state(), colored.state());
+            assert_eq!(original.tape_index(), colored.tape_index());
+            let expected = if original.tape.read(tape_index) == Symbol::STATE_ZERO {
+                0
+            } else {
+                writing_state + 1
+            };
+            assert_eq!(u8::from(colored.tape.read(tape_index)), expected);
+            if !continues {
+                break;
+            }
+        }
+        assert_eq!(original.count_nonblanks(), colored.count_nonblanks());
+        let lower = -i64::try_from(original.tape.negative.len()).unwrap();
+        let upper = i64::try_from(original.tape.nonnegative.len()).unwrap();
+        for tape_index in lower..upper {
+            assert_eq!(
+                original.tape.read(tape_index) != Symbol::STATE_ZERO,
+                colored.tape.read(tape_index) != Symbol::STATE_ZERO
+            );
+        }
+    }
+
+    #[test]
+    fn tenth_state_writes_extended_symbol_on_halting_transition() {
+        let mut original = Machine::from_string(BB10).unwrap();
+        original.state = 9;
+        let mut colored = Machine::from_string(&format!("aRZ{}", "0RA".repeat(10))).unwrap();
+        assert!(!original.step());
+        assert!(!colored.step());
+        assert_eq!(u8::from(original.tape.read(0)), 1);
+        assert_eq!(u8::from(colored.tape.read(0)), 10);
+    }
+
+    #[test]
+    fn malformed_extended_tables_are_rejected_before_execution() {
+        for program in [
+            "aRA",
+            "1RA1RA_1RA",
+            &"0RA".repeat(37),
+            &vec!["0RA"; 27].join("_"),
+        ] {
+            assert!(Machine::from_string(program).is_err(), "{program}");
+        }
+    }
+
+    #[test]
+    fn undefined_transition_preserves_legacy_reported_halt_state() {
+        for state_count in [1, 2, 10, 25] {
+            let mut machine = Machine::from_string(&vec!["---"; state_count].join("_")).unwrap();
+            assert!(!machine.step());
+            assert!(machine.is_halted());
+            assert_eq!(machine.state(), 25);
+        }
+    }
+
+    #[test]
+    fn undefined_transition_halts_even_with_a_state_named_z() {
+        let mut machine = Machine::from_string(&vec!["---"; 26].join("_")).unwrap();
+        assert!(!machine.step());
+        assert!(machine.is_halted());
+        assert_eq!(machine.state(), u8::MAX);
+    }
 }

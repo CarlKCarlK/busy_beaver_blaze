@@ -22,6 +22,8 @@
   - A billion steps in about 5 seconds.
   - 50 billion steps in about 10 minutes.
 - Supports common Turing machine formats: "Symbol Major," "State Major," and ["Standard Format"](https://discuss.bbchallenge.org/t/standard-tm-text-format/60).
+- Extended alphabets support up to 36 symbols (`0–9a–z`) and 26 states (`A–Z`). For example, `aRJ` writes symbol 10, moves right, and enters state J. Table symbol labels can use decimal numbers or lowercase base-36 letters.
+- The WASM visualizer can color binary programs by the state that last wrote each nonzero cell, including the BB(10) preset.
 - Optional **perfect binning** for tape visualization. By default, ever pixel in the image is the average of the (sometimes billions of) tape values that it represents.
 - You can set settings via the URL hash fragment, for example, `#program=bb5&earlyStop=false`. Include `run=true` to run the program immediately.
 
@@ -58,7 +60,7 @@ of the image size, not of the Turing run.
 
 ## Python Quickstart
 
-Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a Python environment and build the Rust extension before running notebooks or tests.
+Python 3.11 or newer is required. Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a Python environment and build the Rust extension before running notebooks or tests.
 
 1. Clone the repository:
 
@@ -77,7 +79,7 @@ Clone the repository and use [uv](https://github.com/astral-sh/uv) to set up a P
 4. Install the Python dependencies in editable mode:
 
    ```bash
-   uv pip install -e ".[dev]"
+   uv sync --locked --extra dev
    ```
 
 5. Build and install the Rust/PyO3 extension into that environment (requires [Rust](https://www.rust-lang.org/tools/install)):

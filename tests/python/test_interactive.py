@@ -144,3 +144,17 @@ def test_live_visualizer_import():
     except ImportError:
         # IPython not available in test environment - that's OK
         pytest.skip("IPython not available")
+
+
+def test_space_by_time_machine_extended_symbols():
+    """Rust-backed Python rendering accepts symbols above nine."""
+    from busy_beaver_blaze import SpaceByTimeMachine
+
+    machine = SpaceByTimeMachine(
+        program="aRA" + "0RA" * 10,
+        resolution=(64, 64),
+        binning=True,
+    )
+    machine.step_for_secs(0.01, early_stop=20)
+    assert machine.count_nonblanks() > 0
+    assert machine.to_png().startswith(b"\x89PNG\r\n\x1a\n")

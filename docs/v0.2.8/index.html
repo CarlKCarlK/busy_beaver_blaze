@@ -122,6 +122,7 @@
                 <option value="bb6" selected>BB(6) Contender</option>
                 <option value="bb6_no_name1">BB(6) no name</option>
                 <option value="antihydra">6-state Anti-hydra</option>
+                <option value="bb10">BB(10) Contender</option>
                 <!-- New program choices -->
                 <option value="bb_3_3_355317">BB(3,3) Runs 355,317 Steps </option>
                 <option value="bigfoot33">BB(3,3) Bigfoot</option>
@@ -226,7 +227,7 @@
 
         const isStateColor = () => document.getElementById('colorBy').value === 'state';
         function stateCount() {
-            try { return Math.min(9, parseProgram(document.getElementById('programInput').value).length); }
+            try { return parseProgram(document.getElementById('programInput').value).length; }
             catch { return 6; }
         }
         const paletteLength = () => isStateColor() ? (stateCount() + 1) * 3 : 15;
@@ -520,6 +521,9 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 skelet1: '1RB1RD_1LC0RC_1RA1LD_0RE0LB_---1RC',
                 // https://wiki.bbchallenge.org/wiki/Antihydra
                 antihydra: '1RB1RA_0LC1LE_1LD1LC_1LA0LB_1LF1RE_---0RA',
+
+                // BB(10) program supplied for the larger-alphabet prototype.
+                bb10: '1RB0RA_1LC1LF_1RD0LB_1RA1LE_1LI0LC_0RG1LD_1RH1LG_1LC0RG_0LJ0LI_1RZ0LC',
 
                 // New program strings
                 bb_3_3_355317: `1RB2LA1RA_1LA1RZ1RC_2RB1RC2RB`,
