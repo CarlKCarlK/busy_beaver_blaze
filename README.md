@@ -25,8 +25,6 @@
 - Extended alphabets support up to 36 symbols (`0–9a–z`) and 26 states (`A–Z`). For example, `aRJ` writes symbol 10, moves right, and enters state J. Table symbol labels can use decimal numbers or lowercase base-36 letters.
 - The WASM visualizer can color binary programs by the state that last wrote each nonzero cell, including the BB(10) preset.
 - Optional WASM sound assigns continuously running sine tones to states or read symbols. Visits smoothly retrigger each tone's volume and decay; the simulator continues at full speed. Choose Sound, adjust Volume and Decay, and press Run to listen.
-
-Try the separate [sound preview](https://carlkcarlk.github.io/busy_beaver_blaze/previews/sound/#program=bb10&colorBy=state&sound=states&earlyStop=false). Press Run to enable audio. The default visualizer remains unchanged.
 - Optional **perfect binning** for tape visualization. By default, ever pixel in the image is the average of the (sometimes billions of) tape values that it represents.
 - You can set settings via the URL hash fragment, for example, `#program=bb5&earlyStop=false`. Include `run=true` to run the program immediately.
 
