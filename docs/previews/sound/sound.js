@@ -8,13 +8,16 @@ export class MachineSound {
         this.generation = 0;
         this.nextTime = 0;
         this.enabled = false;
+        this.ready = false;
         this.volume = 0.2;
         this.decay = 0.15;
     }
 
-    async enable(count) {
+    async enable(count, { automatic = false } = {}) {
         clearTimeout(this.idleTimer);
         this.enabled = true;
+        this.ready = false;
+        this.pendingVisits = [];
         const generation = ++this.generation;
         if (!this.context) {
             this.context = new AudioContext();
@@ -26,19 +29,37 @@ export class MachineSound {
                 this.node.connect(this.master);
             });
         }
-        // Resume synchronously from the user's sound selector / Run gesture.
+        // A blocked autoplay resume may stay pending until a later user gesture.
         const resume = this.context.resume();
+        const loaded = this.loading.then(() => null, error => error);
         this.master.gain.setTargetAtTime(0, this.context.currentTime, 0.004);
-        await Promise.all([this.loading, resume, new Promise(resolve => setTimeout(resolve, 25))]);
-        if (!this.enabled || generation !== this.generation) return;
+        if (automatic) {
+            const resumed = await Promise.race([
+                resume.then(() => true),
+                new Promise(resolve => setTimeout(() => resolve(false), 150)),
+            ]);
+            if (!resumed) {
+                if (generation === this.generation) this.disable();
+                return false;
+            }
+        }
+        const [loadError] = await Promise.all([loaded, resume, new Promise(resolve => setTimeout(resolve, 25))]);
+        if (loadError !== null) throw loadError;
+        if (!this.enabled || generation !== this.generation) return false;
         this.node.port.postMessage({ type: 'configure', generation, frequencies: noteFrequencies(count), decay: this.decay });
         this.nextTime = this.context.currentTime + 0.05;
+        this.ready = true;
         this.master.gain.setTargetAtTime(this.volume, this.context.currentTime, 0.004);
+        for (const visits of this.pendingVisits) this.schedule(visits);
+        this.pendingVisits = [];
+        return true;
     }
 
     disable() {
         clearTimeout(this.idleTimer);
         this.enabled = false;
+        this.ready = false;
+        this.pendingVisits = [];
         if (this.node) this.node.port.postMessage({ type: 'release', generation: this.generation });
         this.generation++;
         if (this.master) {
@@ -58,14 +79,20 @@ export class MachineSound {
     }
 
     schedule(visits) {
-        if (!this.enabled || !this.node || visits.length <= 1) return;
+        if (!this.enabled || visits.length <= 1) return;
+        if (!this.ready) {
+            // Retain only a brief startup window while autoplay permission is checked.
+            if (this.pendingVisits.length === 4) this.pendingVisits.shift();
+            this.pendingVisits.push(visits);
+            return;
+        }
         const startTime = Math.max(this.nextTime, this.context.currentTime + 0.04);
         this.node.port.postMessage({ type: 'events', generation: this.generation, visits, startTime });
         this.nextTime = startTime + visits[0] / 1_000_000;
     }
 
     finish() {
-        if (!this.context || !this.enabled) return;
+        if (!this.context || !this.enabled || !this.ready) return;
         const generation = this.generation;
         const delay = Math.max(0, this.nextTime - this.context.currentTime) + this.decay * 8;
         this.idleTimer = setTimeout(() => {
