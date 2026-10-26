@@ -200,6 +200,7 @@
             </select></label>
             <label>Volume: <input id="soundVolume" aria-label="Sound volume" type="range" min="0" max="50" value="20"> <output id="soundVolumeValue">20%</output></label>
             <label>Decay: <input id="soundDecay" aria-label="Sound decay" type="range" min="20" max="1000" step="10" value="150"> <output id="soundDecayValue">150 ms</output></label>
+            <button id="soundEnable" type="button" hidden>Enable sound</button>
             <button id="soundMute" type="button" disabled>Mute</button>
             <span id="soundStatus" role="status" aria-live="polite">Off</span>
         </div>
@@ -235,19 +236,20 @@
     </div>
     <script type="module">
         import { parseProgram, statePalette } from './state-color.js';
-        import { MachineSound } from './sound.js';
+        import { MachineSound } from './sound.js?v=autoplay-1';
         const sonifier = new MachineSound();
         let soundMuted = false;
         function soundSettings() {
-            return { source: document.getElementById('soundMode').value, generation: sonifier.generation };
+            return { source: sonifier.enabled ? document.getElementById('soundMode').value : 'off', generation: sonifier.generation };
         }
         function updateSoundLabels() {
             document.getElementById('soundVolumeValue').value = document.getElementById('soundVolume').value + '%';
             document.getElementById('soundDecayValue').value = document.getElementById('soundDecay').value + ' ms';
             const off = document.getElementById('soundMode').value === 'off';
             document.getElementById('soundMute').disabled = off;
+            document.getElementById('soundEnable').hidden = off || (sonifier.ready && sonifier.context?.state === 'running');
         }
-        async function prepareSound(programText) {
+        async function prepareSound(programText, { automatic = false } = {}) {
             const mode = document.getElementById('soundMode').value;
             updateSoundLabels();
             if (mode === 'off') {
@@ -258,14 +260,21 @@
             const rows = parseProgram(programText);
             sonifier.setDecay(Number(document.getElementById('soundDecay').value) / 1000);
             sonifier.setVolume(soundMuted ? 0 : Number(document.getElementById('soundVolume').value) / 100);
-            await sonifier.enable(mode === 'states' ? rows.length : rows[0].length);
+            const ready = await sonifier.enable(mode === 'states' ? rows.length : rows[0].length, { automatic });
+            updateSoundLabels();
             sonifier.context.onstatechange = () => {
+                updateSoundLabels();
                 if (sonifier.context.state === 'suspended' && !isRunning) {
                     document.getElementById('soundStatus').textContent = document.getElementById('soundMode').value === 'off' ? 'Off' : (soundMuted ? 'Muted' : 'Ready — press Run');
                 }
             };
-            if (!sonifier.enabled || document.getElementById('soundMode').value !== mode) return;
+            if (document.getElementById('soundMode').value !== mode) return false;
+            if (!ready && !sonifier.ready) {
+                document.getElementById('soundStatus').textContent = 'Click Enable sound to hear audio';
+                return false;
+            }
             document.getElementById('soundStatus').textContent = soundMuted ? 'Muted' : (isRunning ? 'Playing' : 'Ready — press Run');
+            return true;
         }
         window.addEventListener('pagehide', () => sonifier.disable());
 
@@ -537,6 +546,7 @@
     let PROGRAM_TEXTS = {};
     let worker = null;
     let isRunning = false;
+    let uiRunCounter = 0;
     let progressTimer = null;  // Move this to global scope
     let currentColorsBytes = null; // active RGB palette
     let pendingRunResolve = null; // resolve current run when final frame or stop
@@ -801,9 +811,10 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 };
             }
 
-            async function runMachine() {
+            async function runMachine({ automatic = false } = {}) {
                 // If already running, treat click as Cancel and send stop to worker
                 if (isRunning) {
+                    uiRunCounter++;
                     sonifier.disable();
                     document.getElementById('soundStatus').textContent = 'Stopped';
                     const status = document.getElementById('status');
@@ -830,6 +841,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 status.classList.add('visible');
 
                 isRunning = true;
+                const runId = ++uiRunCounter;
                 ensureWorker();
                 wasStopped = false;
 
@@ -839,7 +851,22 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     const runButton = document.getElementById('runButton');
                     runButton.textContent = 'Cancel';
                     runButton.classList.add('loading');
-                    await prepareSound(textarea.value);
+                    if (automatic) {
+                        // Never wait for an autoplay permission check before starting WASM.
+                        prepareSound(textarea.value, { automatic: true }).then(() => {
+                            if (runId !== uiRunCounter) return;
+                            if (worker) worker.postMessage({ type: 'sound', sound: soundSettings() });
+                            if (!isRunning) sonifier.finish();
+                        }).catch(error => {
+                            if (runId !== uiRunCounter) return;
+                            sonifier.disable();
+                            updateSoundLabels();
+                            if (worker) worker.postMessage({ type: 'sound', sound: soundSettings() });
+                            document.getElementById('soundStatus').textContent = error.message;
+                        });
+                    } else {
+                        await prepareSound(textarea.value);
+                    }
                     container.textContent = 'Computing...';
                     const startTime = performance.now();
                     const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : undefined;
@@ -1053,7 +1080,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 sendPickerColors();
             });
 
-            document.getElementById('soundMode').addEventListener('change', async () => {
+            async function enableSelectedSound() {
                 try {
                     await prepareSound(isRunning && displayedProgram ? displayedProgram : textarea.value);
                     if (worker) worker.postMessage({ type: 'sound', sound: soundSettings() });
@@ -1067,7 +1094,9 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     document.getElementById('soundStatus').textContent = error.message;
                     updateHashFromUI();
                 }
-            });
+            }
+            document.getElementById('soundMode').addEventListener('change', enableSelectedSound);
+            document.getElementById('soundEnable').addEventListener('click', enableSelectedSound);
             document.getElementById('soundVolume').addEventListener('input', () => {
                 sonifier.setVolume(soundMuted ? 0 : Number(document.getElementById('soundVolume').value) / 100);
                 updateSoundLabels(); updateHashFromUI();
@@ -1107,10 +1136,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             }
 
             // Auto-run if specified in URL
-            if (shouldAutoRun && document.getElementById('soundMode').value === 'off') {
-                runMachine().catch(console.error);
-            } else if (shouldAutoRun) {
-                document.getElementById('soundStatus').textContent = 'Press Run to enable sound';
+            if (shouldAutoRun) {
+                runMachine({ automatic: true }).catch(console.error);
             }
 
             // Listen for hash changes without running
