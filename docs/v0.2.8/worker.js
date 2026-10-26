@@ -1,5 +1,5 @@
 import { stateColoredProgram } from './state-color.js';
-import init, { Machine, SpaceByTimeMachine } from './pkg/busy_beaver_blaze.js';
+import init, { SpaceByTimeMachine } from './pkg/busy_beaver_blaze.js';
 
 // Initialize WASM once
 let wasmReady = init();
@@ -8,6 +8,7 @@ let wasmReady = init();
 let space_by_time_machine = null;              // SpaceByTimeMachine
 let currentColors = null;     // Uint8Array of RGB triplets
 let stopRequested = false;    // flag to stop stepping but keep machine
+let sound = { source: 'off', generation: 0 };
 let runCounter = 0;           // increment per start to tag logs
 
 function formatPalette(bytes) {
@@ -75,23 +76,51 @@ self.onmessage = async function (e) {
             // Debug: log palette used for this run
             console.log('[worker] run #%d start colors (dark=%s): %s', runId, !!darkMode, formatPalette(currentColors));
 
+            sound = msg.sound || { source: 'off', generation: 0 };
             // Create/replace the machine
-            space_by_time_machine = new SpaceByTimeMachine(colorBy === 'state' ? stateColoredProgram(programText) : programText, goal_x, goal_y, binning, 0n);
+            const machine = new SpaceByTimeMachine(colorBy === 'state' ? stateColoredProgram(programText) : programText, goal_x, goal_y, binning, 0n);
+            if (space_by_time_machine) space_by_time_machine.free();
+            space_by_time_machine = machine;
             stopRequested = false;
 
-            const run_for_seconds = 0.1;
-            while (true) {
-                if (stopRequested || !space_by_time_machine.step_for_secs(run_for_seconds, early_stop, 10_000n)) {
-                    break;
+            let lastRender = performance.now();
+            while (!stopRequested && runId === runCounter) {
+                let continues;
+                if (sound.source === 'off') {
+                    // Preserve the original fast path when sound is disabled.
+                    continues = space_by_time_machine.step_for_secs(0.1, early_stop, 10_000n);
+                } else {
+                    const batchSound = { ...sound };
+                    const visits = space_by_time_machine.step_for_secs_with_sound(0.05, early_stop, batchSound.source === 'symbols');
+                    // Read symbols refer to the original binary tape, not state-color provenance.
+                    if (colorBy === 'state' && batchSound.source === 'symbols') {
+                        for (let index = 1; index < visits.length; index += 3) {
+                            visits[index + 1] = (visits[index + 1] & 1) | ((visits[index + 1] >>> 1 || visits[index + 2]) ? 2 : 0);
+                            visits[index + 2] = 0;
+                        }
+                    }
+                    self.postMessage({ type: 'audio', visits, generation: batchSound.generation }, [visits.buffer]);
+                    continues = !space_by_time_machine.is_halted()
+                        && (early_stop === undefined || space_by_time_machine.step_count() < early_stop);
                 }
-                await renderAndPost(true);
-                // Yield to event loop so we can process incoming 'colors' messages
-                await new Promise((resolve) => setTimeout(resolve, 0));
+                if (!continues) break;
+                if (sound.source === 'off' || performance.now() - lastRender >= 100) {
+                    await renderAndPost(true);
+                    lastRender = performance.now();
+                }
+                // Yield only to process controls; audio never throttles machine execution.
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
 
+            if (runId !== runCounter) return;
             // Final frame
             await renderAndPost(false);
             console.log('[worker] run #%d final frame posted', runId);
+            return;
+        }
+
+        if (type === 'sound') {
+            sound = msg.sound;
             return;
         }
 

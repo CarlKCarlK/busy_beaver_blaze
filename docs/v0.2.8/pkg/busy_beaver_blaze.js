@@ -173,6 +173,20 @@ function takeFromExternrefTable0(idx) {
     return value;
 }
 
+let cachedUint32ArrayMemory0 = null;
+
+function getUint32ArrayMemory0() {
+    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
+        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
+    }
+    return cachedUint32ArrayMemory0;
+}
+
+function getArrayU32FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint32ArrayMemory0().subarray(ptr / 4, ptr / 4 + len);
+}
+
 function passArray8ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 1, 1) >>> 0;
     getUint8ArrayMemory0().set(arg, ptr / 1);
@@ -315,6 +329,28 @@ export class SpaceByTimeMachine {
     nth(n) {
         const ret = wasm.spacebytimemachine_nth(this.__wbg_ptr, n);
         return ret !== 0;
+    }
+    /**
+     * Runs at full speed and records sound visits in roughly two-millisecond slices.
+     *
+     * Returns elapsed microseconds followed by triples of (slice end time in
+     * microseconds, low 32 voice bits, high voice bits). Voices identify the state
+     * performing a transition, or its read symbol. Includes halting transitions.
+     * The ordinary sound-free stepping path is unchanged.
+     *
+     * # Panics
+     * Panics unless `seconds` is finite and in (0, 1], or elapsed time exceeds
+     * the microsecond range of `u32`.
+     * @param {number} seconds
+     * @param {bigint | null | undefined} early_stop
+     * @param {boolean} read_symbols
+     * @returns {Uint32Array}
+     */
+    step_for_secs_with_sound(seconds, early_stop, read_symbols) {
+        const ret = wasm.spacebytimemachine_step_for_secs_with_sound(this.__wbg_ptr, seconds, !isLikeNone(early_stop), isLikeNone(early_stop) ? BigInt(0) : early_stop, read_symbols);
+        var v1 = getArrayU32FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
     }
     /**
      * @param {number} seconds
@@ -476,6 +512,7 @@ function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
     cachedDataViewMemory0 = null;
+    cachedUint32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
 
 

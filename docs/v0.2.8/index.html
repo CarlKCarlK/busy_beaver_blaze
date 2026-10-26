@@ -192,6 +192,17 @@
             <label><input type="color" id="color3" value="#ff00ff" aria-label="Symbol 3 color"> 3</label>
             <label><input type="color" id="color4" value="#00ffff" aria-label="Symbol 4 color"> 4</label>
         </div>
+        <div id="soundControls" class="sound-controls">
+            <label>Sound: <select id="soundMode" aria-label="Sound source">
+                <option value="off">Off</option>
+                <option value="states">States</option>
+                <option value="symbols">Read symbols</option>
+            </select></label>
+            <label>Volume: <input id="soundVolume" aria-label="Sound volume" type="range" min="0" max="50" value="20"> <output id="soundVolumeValue">20%</output></label>
+            <label>Decay: <input id="soundDecay" aria-label="Sound decay" type="range" min="20" max="1000" step="10" value="150"> <output id="soundDecayValue">150 ms</output></label>
+            <button id="soundMute" type="button" disabled>Mute</button>
+            <span id="soundStatus" role="status" aria-live="polite">Off</span>
+        </div>
         <button id="runButton">Run</button>
         <div class="run-time" style="margin: 0.5em 0; font-style: italic; color: #666;">
             Time: <span id="runTime">not run yet</span>
@@ -224,6 +235,39 @@
     </div>
     <script type="module">
         import { parseProgram, statePalette } from './state-color.js';
+        import { MachineSound } from './sound.js';
+        const sonifier = new MachineSound();
+        let soundMuted = false;
+        function soundSettings() {
+            return { source: document.getElementById('soundMode').value, generation: sonifier.generation };
+        }
+        function updateSoundLabels() {
+            document.getElementById('soundVolumeValue').value = document.getElementById('soundVolume').value + '%';
+            document.getElementById('soundDecayValue').value = document.getElementById('soundDecay').value + ' ms';
+            const off = document.getElementById('soundMode').value === 'off';
+            document.getElementById('soundMute').disabled = off;
+        }
+        async function prepareSound(programText) {
+            const mode = document.getElementById('soundMode').value;
+            updateSoundLabels();
+            if (mode === 'off') {
+                sonifier.disable();
+                document.getElementById('soundStatus').textContent = 'Off';
+                return;
+            }
+            const rows = parseProgram(programText);
+            sonifier.setDecay(Number(document.getElementById('soundDecay').value) / 1000);
+            sonifier.setVolume(soundMuted ? 0 : Number(document.getElementById('soundVolume').value) / 100);
+            await sonifier.enable(mode === 'states' ? rows.length : rows[0].length);
+            sonifier.context.onstatechange = () => {
+                if (sonifier.context.state === 'suspended' && !isRunning) {
+                    document.getElementById('soundStatus').textContent = document.getElementById('soundMode').value === 'off' ? 'Off' : (soundMuted ? 'Muted' : 'Ready — press Run');
+                }
+            };
+            if (!sonifier.enabled || document.getElementById('soundMode').value !== mode) return;
+            document.getElementById('soundStatus').textContent = soundMuted ? 'Muted' : (isRunning ? 'Playing' : 'Ready — press Run');
+        }
+        window.addEventListener('pagehide', () => sonifier.disable());
 
         const isStateColor = () => document.getElementById('colorBy').value === 'state';
         function stateCount() {
@@ -371,12 +415,30 @@
                 params.set('colors', hexes.join(','));
             })();
 
+            const soundMode = document.getElementById('soundMode').value;
+            if (soundMode !== 'off') {
+                params.set('sound', soundMode);
+                for (const [key, id, defaultValue] of [['decay', 'soundDecay', '150'], ['volume', 'soundVolume', '20']]) {
+                    const value = document.getElementById(id).value;
+                    if (value !== defaultValue) params.set(key, value);
+                }
+            }
+
             // Update URL without reloading
             history.replaceState(null, '', `${location.pathname}${location.search}#${params}`);
         }
 
         function applyHashToUI() {
             const params = getHashParams();
+
+            document.getElementById('soundMode').value = ['states', 'symbols'].includes(params.get('sound')) ? params.get('sound') : 'off';
+            for (const [key, id, defaultValue] of [['decay', 'soundDecay', 150], ['volume', 'soundVolume', 20]]) {
+                const input = document.getElementById(id);
+                const value = Number(params.get(key) ?? defaultValue);
+                input.value = Number.isFinite(value) && value >= Number(input.min) && value <= Number(input.max) ? value : defaultValue;
+            }
+            updateSoundLabels();
+            if (!isRunning && !sonifier.enabled) document.getElementById('soundStatus').textContent = document.getElementById('soundMode').value === 'off' ? 'Off' : 'Press Run to hear sound';
 
             // Apply params to UI elements first
             if (params.has('customProgram')) {
@@ -657,6 +719,10 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             // Persistent worker setup and message handling
             function handleWorkerMessage(e) {
                 const data = e.data;
+                if (data?.type === 'audio') {
+                    if (data.generation === sonifier.generation) sonifier.schedule(data.visits);
+                    return;
+                }
                 if (!data || !data.success) {
                     const errorMessage = (data && data.error) ? data.error : 'Unknown worker error';
 
@@ -738,6 +804,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             async function runMachine() {
                 // If already running, treat click as Cancel and send stop to worker
                 if (isRunning) {
+                    sonifier.disable();
+                    document.getElementById('soundStatus').textContent = 'Stopped';
                     const status = document.getElementById('status');
                     status.textContent = 'Worker status: stopping...';
                     status.classList.add('visible');
@@ -771,6 +839,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     const runButton = document.getElementById('runButton');
                     runButton.textContent = 'Cancel';
                     runButton.classList.add('loading');
+                    await prepareSound(textarea.value);
                     container.textContent = 'Computing...';
                     const startTime = performance.now();
                     const early_stop = useEarlyStop.checked ? BigInt(earlyStopValue.value) : undefined;
@@ -815,6 +884,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                             type: 'start',
                             programText: textarea.value,
                             colorBy: document.getElementById('colorBy').value,
+                            sound: soundSettings(),
                             goal_x: Number(container.style.width.replace('px','')) || undefined,
                             goal_y: Number(container.style.height.replace('px','')) || undefined,
                             early_stop,
@@ -840,6 +910,8 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         document.getElementById('haltedStatus').textContent = result.is_halted ? 'Halted' : 'Not Halted';
                     }
                 } catch (e) {
+                    sonifier.disable();
+                    document.getElementById('soundStatus').textContent = 'Sound stopped';
                     status.textContent = 'Worker status: error';
                     setTimeout(() => status.classList.remove('visible'), 2000);
                     clearTimeout(progressTimer);
@@ -851,6 +923,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     document.getElementById('onesCount').textContent = '-';
                     document.getElementById('haltedStatus').textContent = '-';
                 } finally {
+                    sonifier.finish();
                     isRunning = false;
                     setTimeout(() => status.classList.remove('visible'), 2000);
                     // Keep worker alive for live recoloring
@@ -980,6 +1053,36 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                 sendPickerColors();
             });
 
+            document.getElementById('soundMode').addEventListener('change', async () => {
+                try {
+                    await prepareSound(isRunning && displayedProgram ? displayedProgram : textarea.value);
+                    if (worker) worker.postMessage({ type: 'sound', sound: soundSettings() });
+                    if (!isRunning) sonifier.finish();
+                    updateHashFromUI();
+                } catch (error) {
+                    sonifier.disable();
+                    document.getElementById('soundMode').value = 'off';
+                    updateSoundLabels();
+                    if (worker) worker.postMessage({ type: 'sound', sound: soundSettings() });
+                    document.getElementById('soundStatus').textContent = error.message;
+                    updateHashFromUI();
+                }
+            });
+            document.getElementById('soundVolume').addEventListener('input', () => {
+                sonifier.setVolume(soundMuted ? 0 : Number(document.getElementById('soundVolume').value) / 100);
+                updateSoundLabels(); updateHashFromUI();
+            });
+            document.getElementById('soundDecay').addEventListener('input', () => {
+                sonifier.setDecay(Number(document.getElementById('soundDecay').value) / 1000);
+                updateSoundLabels(); updateHashFromUI();
+            });
+            document.getElementById('soundMute').addEventListener('click', () => {
+                soundMuted = !soundMuted;
+                sonifier.setVolume(soundMuted ? 0 : Number(document.getElementById('soundVolume').value) / 100);
+                document.getElementById('soundMute').textContent = soundMuted ? 'Unmute' : 'Mute';
+                document.getElementById('soundStatus').textContent = soundMuted ? 'Muted' : 'Playing';
+            });
+
             // Initial custom size visibility
             customSize.classList.toggle('visible', sizePreset.value === 'custom');
 
@@ -1004,8 +1107,10 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             }
 
             // Auto-run if specified in URL
-            if (shouldAutoRun) {
+            if (shouldAutoRun && document.getElementById('soundMode').value === 'off') {
                 runMachine().catch(console.error);
+            } else if (shouldAutoRun) {
+                document.getElementById('soundStatus').textContent = 'Press Run to enable sound';
             }
 
             // Listen for hash changes without running

@@ -174,3 +174,26 @@ textarea {
 #colorNotice:empty {
     display: none;
 }
+
+.sound-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6em 1em;
+    margin: 0.75em 0;
+}
+
+.sound-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+}
+
+.sound-controls input[type="range"] {
+    width: 90px;
+}
+
+#soundStatus {
+    color: #555;
+    font-size: 0.9em;
+}

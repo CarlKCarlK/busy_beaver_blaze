@@ -103,6 +103,78 @@ impl SpaceByTimeMachine {
         true
     }
 
+    /// Runs at full speed and records sound visits in roughly two-millisecond slices.
+    ///
+    /// Returns elapsed microseconds followed by triples of (slice end time in
+    /// microseconds, low 32 voice bits, high voice bits). Voices identify the state
+    /// performing a transition, or its read symbol. Includes halting transitions.
+    /// The ordinary sound-free stepping path is unchanged.
+    ///
+    /// # Panics
+    /// Panics unless `seconds` is finite and in (0, 1], or elapsed time exceeds
+    /// the microsecond range of `u32`.
+    #[wasm_bindgen]
+    pub fn step_for_secs_with_sound(
+        &mut self,
+        seconds: f32,
+        early_stop: Option<u64>,
+        read_symbols: bool,
+    ) -> Vec<u32> {
+        assert!(seconds.is_finite() && seconds > 0.0 && seconds <= 1.0);
+        let start = Instant::now();
+        let step_count = self.step_count();
+        let mut remaining = if let Some(early_stop) = early_stop {
+            if step_count >= early_stop {
+                return vec![0];
+            }
+            early_stop - step_count
+        } else {
+            u64::MAX
+        };
+        let mut slices = vec![0];
+        let mut visits = 0u64;
+        let mut last_slice_time = 0;
+        'stepping: loop {
+            let batch_size = remaining.min(10_000);
+            if batch_size == 0 || self.machine.is_halted() {
+                break;
+            }
+            for _step_index in 0..batch_size {
+                let voice = if read_symbols {
+                    u8::from(self.machine.tape.read(self.machine.tape_index()))
+                } else {
+                    self.machine.state()
+                };
+                assert!(voice < 36);
+                visits |= 1u64 << voice;
+                if self.next().is_none() {
+                    break 'stepping;
+                }
+            }
+            assert!(remaining >= batch_size);
+            remaining -= batch_size;
+            let elapsed = start.elapsed();
+            let elapsed_micros =
+                u32::try_from(elapsed.as_micros()).expect("sound time must fit in u32");
+            assert!(elapsed_micros >= last_slice_time);
+            if elapsed_micros - last_slice_time >= 2_000 {
+                slices.extend_from_slice(&[elapsed_micros, visits as u32, (visits >> 32) as u32]);
+                visits = 0;
+                last_slice_time = elapsed_micros;
+            }
+            if elapsed.as_secs_f32() >= seconds {
+                break;
+            }
+        }
+        let elapsed_micros =
+            u32::try_from(start.elapsed().as_micros()).expect("sound time must fit in u32");
+        if visits != 0 {
+            slices.extend_from_slice(&[elapsed_micros, visits as u32, (visits >> 32) as u32]);
+        }
+        slices[0] = elapsed_micros;
+        slices
+    }
+
     #[wasm_bindgen(js_name = "step_for_secs")]
     pub fn step_for_secs_js(
         &mut self,
@@ -278,5 +350,43 @@ impl SpaceByTimeMachine {
     #[must_use]
     pub fn tape_index(&self) -> i64 {
         self.machine.tape_index()
+    }
+}
+
+#[cfg(test)]
+mod sound_tests {
+    use super::SpaceByTimeMachine;
+
+    #[test]
+    fn sound_includes_the_halting_state_and_preserves_rendering() {
+        let program = "1RB1RH_1RC1RH_1RH1RH";
+        let mut audible = SpaceByTimeMachine::from_str(program, 64, 64, true, 0).unwrap();
+        let mut silent = SpaceByTimeMachine::from_str(program, 64, 64, true, 0).unwrap();
+        let packet = audible.step_for_secs_with_sound(0.01, None, false);
+        let visited = packet[1..]
+            .chunks_exact(3)
+            .fold(0, |mask, slice| mask | slice[1]);
+        assert_eq!(visited, 0b111);
+        assert!(!silent.nth_js(100));
+        assert!(audible.is_halted());
+        assert_eq!(audible.step_count(), silent.step_count());
+        assert_eq!(audible.count_nonblanks(), silent.count_nonblanks());
+        assert_eq!(audible.to_png(&[]).unwrap(), silent.to_png(&[]).unwrap());
+        assert_eq!(audible.step_for_secs_with_sound(0.01, None, false).len(), 1);
+    }
+
+    #[test]
+    fn sound_reads_extended_symbols_and_respects_step_limits() {
+        let program = format!("{}_{}", "zRB".repeat(36), "zLA".repeat(36));
+        let mut machine = SpaceByTimeMachine::from_str(&program, 64, 64, false, 0).unwrap();
+        assert_eq!(machine.step_for_secs_with_sound(0.01, Some(1), true), [0]);
+        let packet = machine.step_for_secs_with_sound(0.01, Some(128), true);
+        let high_voices = packet[1..]
+            .chunks_exact(3)
+            .fold(0, |mask, slice| mask | slice[2]);
+        assert_eq!(high_voices, 1 << 3); // Symbol 35 lives in bit 3 of the upper word.
+        assert_eq!(machine.step_count(), 128);
+        assert!(!machine.is_halted());
+        assert_eq!(machine.step_for_secs_with_sound(0.01, Some(128), true), [0]);
     }
 }
