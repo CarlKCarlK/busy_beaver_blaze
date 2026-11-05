@@ -1,6 +1,8 @@
 # Independent space and time scaling
 
 Use [the experimental preview](http://127.0.0.1:8000/time-scale-preview/).
+The **Time scale** selector offers only **Linear** and **Square Root**.
+Pyramid size/checkpoint debug information is not displayed.
 The **Space scale** selector offers only **Linear** and **1/Y**. Its Linear
 default preserves old hashes; `spaceScale=row` selects 1/Y. Unsupported old X
 settings fall back to Linear. The published `v0.2.8` app is unchanged.

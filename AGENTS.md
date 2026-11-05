@@ -271,7 +271,10 @@ Guidelines:
 
 The `image_pyramid` feature (off by default) adds `PyramidMachine` and cumulative
 native `SpaceTimeLayers` checkpoints for Linear B, Square Root, and Logarithmic
-time reconstruction. Linear A retains its existing stepping/rendering path.
+time reconstruction. The preview time selector offers only Linear and Square
+Root; Linear B/logarithmic remain internal validation modes. The pyramid size
+and checkpoint readout is not displayed. Linear A retains its existing
+stepping/rendering path.
 The isolated browser preview is `docs/time-scale-preview/`; the published
 `docs/v0.2.8/` assets are unchanged. Pyramid runs require Binning/Quality.
 
