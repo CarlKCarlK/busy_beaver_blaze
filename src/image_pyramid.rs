@@ -281,9 +281,24 @@ impl PyramidMachine {
         if !remainder.is_empty() || colors.len() < 2 {
             return Err("Provide at least two RGB triplets".into());
         }
-        let mut layers =
-            self.pyramid
-                .reconstruct_with_space(&self.active, self.scale, self.space_scale);
+        let space_scale = if self.space_scale == SpaceScale::RowStretch {
+            SpaceScale::Linear
+        } else {
+            self.space_scale
+        };
+        let mut layers = self
+            .pyramid
+            .reconstruct_with_space(&self.active, self.scale, space_scale);
+        if self.space_scale == SpaceScale::RowStretch {
+            let (width, height, packed) = crate::space_scale::spatial_data(
+                &mut layers,
+                self.active.machine.tape.negative.len(),
+                self.active.machine.tape.nonnegative.len(),
+                self.space_scale,
+            )?;
+            return crate::encode_png(width, height, colors, &packed)
+                .map_err(|error| error.to_string());
+        }
         let first = self.active.space_time_layers.first();
         layers
             .png_data_and_packed_data(
@@ -304,6 +319,7 @@ impl PyramidMachine {
             SpaceScale::Logarithmic => self.active.to_spatial_png(colors, "log"),
             SpaceScale::Square => self.active.to_spatial_png(colors, "square"),
             SpaceScale::Exponential => self.active.to_spatial_png(colors, "exp"),
+            SpaceScale::RowStretch => self.active.to_spatial_png(colors, "row"),
         }
     }
 

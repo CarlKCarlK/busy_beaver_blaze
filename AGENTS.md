@@ -299,3 +299,9 @@ also captures all nine mathematical X/Y combinations. Use
 `cargo run --release --features image_pyramid --example space_scale_measure`
 for rendering times and temporary allocator peaks. See
 `docs/time-scale-preview/SPACE-SCALE.md` for measurements and limitations.
+
+The `row` space-scale option stretches each final image row uniformly around
+tape zero by `1/max(row/(height-1), 1/height)`, with single-row images unchanged.
+It applies after temporal packing, so its Y fraction is the displayed row
+position for every time mode. This intentionally permits row-dependent X
+coordinates and loss of detail near the top; it captures no new history.

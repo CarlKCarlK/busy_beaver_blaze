@@ -17,6 +17,8 @@ pub enum SpaceScale {
     Square,
     /// Signed exponential, normalized to the global extent when rendering.
     Exponential,
+    /// Stretch each row linearly around tape zero according to its screen Y fraction.
+    RowStretch,
 }
 
 impl SpaceScale {
@@ -27,6 +29,7 @@ impl SpaceScale {
             "log" => Ok(Self::Logarithmic),
             "square" => Ok(Self::Square),
             "exp" => Ok(Self::Exponential),
+            "row" => Ok(Self::RowStretch),
             _ => Err(format!("Unknown space scale: {scale}")),
         }
     }
@@ -42,6 +45,7 @@ impl SpaceScale {
                 Self::Logarithmic => distance.ln_1p(),
                 Self::Square => distance * distance,
                 Self::Exponential => distance.exp_m1(),
+                Self::RowStretch => unreachable!("row stretch requires a screen row"),
             }
     }
 
@@ -56,12 +60,14 @@ impl SpaceScale {
                 Self::Logarithmic => distance.exp_m1(),
                 Self::Square => distance.sqrt(),
                 Self::Exponential => distance.ln_1p(),
+                Self::RowStretch => unreachable!("row stretch requires a screen row"),
             }
     }
 }
 
-/// One global map per render, including the reference image's blank edge padding.
-/// Its intervals are actual tape coordinates, never per-row occupied extents.
+/// Tape-coordinate intervals including the reference image's blank edge padding.
+/// Global maps use fixed intervals; row stretch scales them about the fixed origin.
+/// Neither mode normalizes to each row's occupied tape width.
 pub(crate) struct SpatialMap {
     pub(crate) intervals: Vec<(f64, f64)>,
     representatives: Vec<f64>,
@@ -113,6 +119,33 @@ impl SpatialMap {
         Self {
             intervals,
             representatives,
+        }
+    }
+
+    fn stretch_for_row(
+        &mut self,
+        negative_len: usize,
+        stride: PowerOfTwo,
+        row_index: usize,
+        height: usize,
+    ) {
+        assert!(height > 0 && row_index < height);
+        // Finite at the top, exactly 1x at the bottom; one-row images stay unchanged.
+        let fraction = if height == 1 {
+            1.0
+        } else {
+            (row_index as f64 / (height - 1) as f64).max(1.0 / height as f64)
+        };
+        let cell_width = stride.as_u64() as f64 * fraction;
+        for (column_index, (interval, representative)) in self
+            .intervals
+            .iter_mut()
+            .zip(&mut self.representatives)
+            .enumerate()
+        {
+            let start = (column_index as f64 - negative_len as f64) * cell_width;
+            *interval = (start, start + cell_width);
+            *representative = start + 0.5 * cell_width;
         }
     }
 
@@ -257,40 +290,67 @@ pub(crate) fn linear_spatial_data(
     scale: SpaceScale,
 ) -> Result<(u32, u32, Vec<AVec<u8>>), String> {
     let tape = machine.machine.tape();
-    let first = machine.space_time_layers.first();
+    let (negative_len, nonnegative_len) = (tape.negative.len(), tape.nonnegative.len());
+    spatial_data(
+        &mut machine.space_time_layers,
+        negative_len,
+        nonnegative_len,
+        scale,
+    )
+}
+
+/// Resample packed symbol layers after temporal packing. Row stretch therefore
+/// depends on final screen rows, including when temporal packing halves the height.
+pub(crate) fn spatial_data(
+    layers: &mut crate::space_time_layers::SpaceTimeLayers,
+    tape_negative_len: usize,
+    tape_nonnegative_len: usize,
+    scale: SpaceScale,
+) -> Result<(u32, u32, Vec<AVec<u8>>), String> {
+    let first = layers.first();
     let (x_goal, y_goal) = (first.x_goal as usize, first.y_goal as usize);
-    let stride = Spaceline::find_x_stride(tape.negative.len(), tape.nonnegative.len(), x_goal);
-    let negative_len = stride.div_ceil_into(tape.negative.len());
-    let nonnegative_len = stride.div_ceil_into(tape.nonnegative.len());
+    let stride = Spaceline::find_x_stride(tape_negative_len, tape_nonnegative_len, x_goal);
+    let negative_len = stride.div_ceil_into(tape_negative_len);
+    let nonnegative_len = stride.div_ceil_into(tape_nonnegative_len);
     let width = negative_len + nonnegative_len;
-    let map = SpatialMap::new(scale, negative_len, nonnegative_len, stride);
-    let mut layers = Vec::new();
+    let map_scale = if scale == SpaceScale::RowStretch {
+        SpaceScale::Linear
+    } else {
+        scale
+    };
+    let mut map = SpatialMap::new(map_scale, negative_len, nonnegative_len, stride);
+    let symbol_count =
+        u8::try_from(layers.values().count()).expect("symbol layer count must fit u8");
+    let mut output = Vec::new();
     let mut dimensions = None;
     let mut source = SpatialRow::default();
     let mut transformed: AVec<u8> = AVec::with_capacity(ALIGN, width);
     transformed.resize(width, 0);
     // Index layers only once per frame; keep a new mutable-iterator caller out of
     // the reference machine's native iterator monomorphization.
-    for select in 1..machine.machine.symbol_count() {
+    for select in 1..=symbol_count {
         let select = core::num::NonZeroU8::new(select).unwrap();
-        let layer = machine.space_time_layers.get_mut(select).unwrap();
+        let layer = layers.get_mut(select).unwrap();
         let (actual_width, actual_height, mut packed) = layer
-            .to_packed_data(tape.negative.len(), tape.nonnegative.len(), x_goal, y_goal)
+            .to_packed_data(tape_negative_len, tape_nonnegative_len, x_goal, y_goal)
             .map_err(|error| error.to_string())?;
         assert_eq!(actual_width as usize, width);
         if let Some(dimensions) = dimensions {
             assert_eq!(dimensions, (actual_width, actual_height));
         }
         dimensions = Some((actual_width, actual_height));
-        for row in packed.chunks_exact_mut(width) {
+        for (row_index, row) in packed.chunks_exact_mut(width).enumerate() {
+            if scale == SpaceScale::RowStretch {
+                map.stretch_for_row(negative_len, stride, row_index, actual_height as usize);
+            }
             source.replace_packed(row, negative_len, stride);
             map.render(&source, layer.pixel_policy, &mut transformed);
             row.copy_from_slice(&transformed);
         }
-        layers.push(packed);
+        output.push(packed);
     }
     let (width, height) = dimensions.expect("symbol layers must exist");
-    Ok((width, height, layers))
+    Ok((width, height, output))
 }
 
 #[cfg(test)]
@@ -461,6 +521,45 @@ mod outward_tests {
                     })
                     .sum();
                 assert!((source.average(start, end) - area / (end - start)).abs() < 1e-10);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod row_tests {
+    use super::*;
+
+    #[test]
+    fn row_stretch_is_linear_origin_anchored_and_finite() {
+        let mut map = SpatialMap::new(SpaceScale::Linear, 4, 4, PowerOfTwo::ONE);
+        for row_index in 0..5 {
+            map.stretch_for_row(4, PowerOfTwo::ONE, row_index, 5);
+            let width = map.intervals[0].1 - map.intervals[0].0;
+            assert!(width > 0.0 && width.is_finite());
+            assert_eq!(map.intervals[4].0, 0.0);
+            for &(start, end) in &map.intervals {
+                assert!((end - start - width).abs() < 1e-12);
+            }
+        }
+        assert_eq!(map.intervals[0], (-4.0, -3.0)); // Bottom row is exactly 1x.
+        map.stretch_for_row(4, PowerOfTwo::ONE, 0, 1);
+        assert_eq!(map.intervals[0], (-4.0, -3.0)); // Single-row images stay unchanged.
+    }
+
+    #[test]
+    fn row_stretch_removes_linear_widening_in_both_pixel_policies() {
+        for policy in [PixelPolicy::Binning, PixelPolicy::Sampling] {
+            let mut map = SpatialMap::new(SpaceScale::Linear, 0, 4, PowerOfTwo::ONE);
+            for row_index in 1..5 {
+                let values: Vec<u8> = (0..4)
+                    .map(|column| if column < row_index { 255 } else { 0 })
+                    .collect();
+                let source = SpatialRow::from_packed(&values, 0, PowerOfTwo::ONE);
+                map.stretch_for_row(0, PowerOfTwo::ONE, row_index, 5);
+                let mut output = [0u8; 4];
+                map.render(&source, policy, &mut output);
+                assert_eq!(output, [255; 4]);
             }
         }
     }

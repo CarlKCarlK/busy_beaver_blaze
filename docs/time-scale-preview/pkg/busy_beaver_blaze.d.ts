@@ -110,15 +110,6 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_spacebytimemachine_free: (a: number, b: number) => void;
-  readonly spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [number, number, number];
-  readonly spacebytimemachine_nth: (a: number, b: bigint) => number;
-  readonly spacebytimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
-  readonly spacebytimemachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
-  readonly spacebytimemachine_to_spatial_png: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-  readonly spacebytimemachine_step_count: (a: number) => bigint;
-  readonly spacebytimemachine_count_nonblanks: (a: number) => number;
-  readonly spacebytimemachine_is_halted: (a: number) => number;
   readonly __wbg_pyramidmachine_free: (a: number, b: number) => void;
   readonly pyramidmachine_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
   readonly pyramidmachine_set_time_scale: (a: number, b: number, c: number) => [number, number];
@@ -140,6 +131,15 @@ export interface InitOutput {
   readonly machine_count: (a: number, b: number, c: bigint) => bigint;
   readonly machine_state: (a: number) => number;
   readonly machine_tape_index: (a: number) => bigint;
+  readonly __wbg_spacebytimemachine_free: (a: number, b: number) => void;
+  readonly spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [number, number, number];
+  readonly spacebytimemachine_nth: (a: number, b: bigint) => number;
+  readonly spacebytimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
+  readonly spacebytimemachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly spacebytimemachine_to_spatial_png: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+  readonly spacebytimemachine_step_count: (a: number) => bigint;
+  readonly spacebytimemachine_count_nonblanks: (a: number) => number;
+  readonly spacebytimemachine_is_halted: (a: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;

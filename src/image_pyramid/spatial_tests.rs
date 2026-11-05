@@ -30,6 +30,7 @@ fn forward(coordinate: f64, scale: SpaceScale) -> f64 {
         SpaceScale::SquareRoot => coordinate.abs().sqrt().copysign(coordinate),
         SpaceScale::Logarithmic => (1.0 + coordinate.abs()).ln().copysign(coordinate),
         SpaceScale::Square => coordinate.powi(2).copysign(coordinate),
+        SpaceScale::RowStretch => unreachable!("row stretch is tested after temporal packing"),
         SpaceScale::Exponential => {
             unreachable!("normalized exponential has a separate reference test")
         }
@@ -41,6 +42,7 @@ fn inverse(coordinate: f64, scale: SpaceScale) -> f64 {
         SpaceScale::SquareRoot => coordinate.powi(2).copysign(coordinate),
         SpaceScale::Logarithmic => (coordinate.abs().exp() - 1.0).copysign(coordinate),
         SpaceScale::Square => coordinate.abs().sqrt().copysign(coordinate),
+        SpaceScale::RowStretch => unreachable!("row stretch is tested after temporal packing"),
         SpaceScale::Exponential => {
             unreachable!("normalized exponential has a separate reference test")
         }

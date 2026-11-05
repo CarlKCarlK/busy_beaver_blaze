@@ -182,6 +182,7 @@
                 Space scale:
                 <select id="spaceScale" aria-label="Space scale">
                     <option value="linear">Linear</option>
+                    <option value="row">Row stretch (1/Y)</option>
                     <option value="square">Square</option>
                     <option value="exp">Exponential</option>
                     <option value="sqrt">Square Root</option>
@@ -250,6 +251,7 @@
         let displayedPyramid = null;
         function updateSpaceScaleNotice() {
             document.getElementById('spaceScaleNotice').textContent = document.getElementById('spaceScale').value === 'linear' ? ''
+                : document.getElementById('spaceScale').value === 'row' ? 'Uniform horizontal stretch per row: earlier rows wider, bottom row unchanged.'
                 : 'Nonlinear space magnifies the retained tape resolution.' + (document.getElementById('binning').checked ? '' : ' Speed samples transformed column centers.');
         }
         function applySpaceScale() {
@@ -473,7 +475,7 @@
             }
 
             document.getElementById('timeScale').value = ['linear-b', 'sqrt', 'log'].includes(params.get('timeScale')) ? params.get('timeScale') : 'linear-a';
-            document.getElementById('spaceScale').value = ['square', 'exp', 'sqrt', 'log'].includes(params.get('spaceScale')) ? params.get('spaceScale') : 'linear';
+            document.getElementById('spaceScale').value = ['row', 'square', 'exp', 'sqrt', 'log'].includes(params.get('spaceScale')) ? params.get('spaceScale') : 'linear';
             updateTimeScaleAvailability();
             document.getElementById('colorBy').value = params.get('colorBy') === 'state' ? 'state' : 'symbol';
             updateColorModeAvailability();

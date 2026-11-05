@@ -18,6 +18,16 @@ Square Root and Logarithmic remain available for comparison.
 Examples with Square Root Y: [Square X](comparisons/x-square-y-sqrt.png) and
 [Exponential X](comparisons/x-exp-y-sqrt.png).
 
+**Row stretch (1/Y)** stretches each row uniformly in X, with a factor based on
+its fraction down the final image. With `u = row/(height-1)`, the stretch is
+`1/max(u, 1/height)`: strongest near the top, exactly 1× at the bottom. A
+single-row image is unchanged. Tape zero stays fixed; enlarged content can
+extend beyond the viewport. This option deliberately varies X scale by row,
+while the other spatial options keep their global coordinate mappings.
+Example: [Row stretch with Square Root Y](comparisons/x-row-y-sqrt.png).
+It uses the existing binning/sampling renderer after time packing, adds no
+history storage, and accepts loss of differentiation in enlarged early rows.
+
 ## Implementation
 
 `SpaceScale` supplies signed forward/inverse functions with a one-cell scale

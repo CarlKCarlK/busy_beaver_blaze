@@ -123,9 +123,13 @@ try {
         assert.equal(await page.locator('#pyramidStats').textContent(),stats);
         await page.screenshot({path:new URL(`x-${value}-y-sqrt.png`,output).pathname,fullPage:true});
     }
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=1001&timeScale=sqrt&spaceScale=exp&run=true`);
+    await space('row');
+    assert.equal(await page.locator('#stepCount').textContent(),'100,001');
+    assert.equal(await page.locator('#pyramidStats').textContent(),stats);
+    await page.screenshot({path:new URL('x-row-y-sqrt.png',output).pathname,fullPage:true});
+    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=1001&timeScale=sqrt&spaceScale=row&run=true`);
     await completed('1,001');
-    assert.equal(await page.locator('#spaceScale').inputValue(),'exp');
+    assert.equal(await page.locator('#spaceScale').inputValue(),'row');
     assert.deepEqual(errors,[]);
     console.log('Browser checks passed: defaults, restart notice, live scale/palette, stop, halt, state colors, hash, four time screenshots and nine X/Y screenshots.');
 } finally {
