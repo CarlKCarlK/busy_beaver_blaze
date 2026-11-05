@@ -1,0 +1,448 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-05T06:21:56.444Z",
+  "list": {
+    "count": 608,
+    "published": "2026-10-30",
+    "published_by": "mxdys (ccz181078)",
+    "discord_url": "https://discord.com/channels/960643023006490684/1239205785913790465/1565640345843138560",
+    "file": "https://bbchallenge.org/BB6_holdouts_608.txt",
+    "equivalence_file": "https://discord.com/channels/960643023006490684/1239205785913790465/1565584609176195113",
+    "equivalent_machines": 1303
+  },
+  "busycoq": {
+    "repo": "ccz181078/busycoq",
+    "branch": "BB6",
+    "head": {
+      "sha": "33209bc7dc282b38c8cd6be507bfc551fea56108",
+      "date": "2026-11-03T01:43:22+08:00",
+      "message": "add FIBv7, 23 2x5 proofs"
+    },
+    "snapshot_fetched_at": "2026-11-05T01:18:46.147Z",
+    "verify_files": 600,
+    "prs_url": "https://github.com/ccz181078/busycoq/pulls",
+    "pr_snapshot": [
+      {
+        "number": 57,
+        "state": "open",
+        "head_sha": "1aa94ada82cf667fa8e427a837d6ee26c98d1b03",
+        "updated_at": "2026-11-04T19:28:08Z"
+      },
+      {
+        "number": 56,
+        "state": "open",
+        "head_sha": "cf5696a9ec86e045799bff156c60915a963897b3",
+        "updated_at": "2026-11-04T17:41:43Z"
+      },
+      {
+        "number": 55,
+        "state": "open",
+        "head_sha": "2787cb8dfdc7baadb661484974768f611b1d39b8",
+        "updated_at": "2026-11-04T01:03:36Z"
+      },
+      {
+        "number": 54,
+        "state": "open",
+        "head_sha": "7a421d716f699e1b82c77389fdf156d291a08fd7",
+        "updated_at": "2026-11-03T19:02:11Z"
+      },
+      {
+        "number": 53,
+        "state": "open",
+        "head_sha": "fa808ff1883aa3ddab576012852a7b967a9636ba",
+        "updated_at": "2026-11-03T19:02:08Z"
+      },
+      {
+        "number": 52,
+        "state": "open",
+        "head_sha": "95b0fd7898b254f2681794970e3d2744f006b30d",
+        "updated_at": "2026-11-03T19:02:04Z"
+      },
+      {
+        "number": 51,
+        "state": "open",
+        "head_sha": "e43beb65fbac79c357fae862ee47801958183863",
+        "updated_at": "2026-11-03T19:02:01Z"
+      },
+      {
+        "number": 50,
+        "state": "open",
+        "head_sha": "a914351980a19b57244af4b6947c0ab5f6ad7015",
+        "updated_at": "2026-11-03T19:01:58Z"
+      },
+      {
+        "number": 49,
+        "state": "open",
+        "head_sha": "1909b9283e1eb8db4e63046d2b576e14f45c79a9",
+        "updated_at": "2026-11-03T19:01:55Z"
+      },
+      {
+        "number": 48,
+        "state": "open",
+        "head_sha": "e143605ec5333afb824f6e79339c8022c702fee6",
+        "updated_at": "2026-11-03T19:01:52Z"
+      },
+      {
+        "number": 47,
+        "state": "open",
+        "head_sha": "6cd7de822ff4d4bebb67d81971713c707d58ee07",
+        "updated_at": "2026-11-03T19:01:48Z"
+      },
+      {
+        "number": 46,
+        "state": "open",
+        "head_sha": "f5a5e58380af3a25fcb98c774ebca5120fbdfc08",
+        "updated_at": "2026-11-03T15:00:32Z"
+      },
+      {
+        "number": 45,
+        "state": "open",
+        "head_sha": "7920bd2017e4daf3af8c597e91623670a68f9947",
+        "updated_at": "2026-11-03T14:30:03Z"
+      },
+      {
+        "number": 44,
+        "state": "open",
+        "head_sha": "f870311ed2e887b7698cfbf749a7789132e9e7ea",
+        "updated_at": "2026-11-03T14:28:32Z"
+      },
+      {
+        "number": 43,
+        "state": "open",
+        "head_sha": "f78f735a9c4dba373e15b56e2945ed13543bd828",
+        "updated_at": "2026-11-03T14:26:36Z"
+      },
+      {
+        "number": 42,
+        "state": "closed",
+        "head_sha": "dcd6036a114d9494a8b807c2db46c35a93bfffc1",
+        "updated_at": "2026-10-29T06:32:52Z"
+      },
+      {
+        "number": 41,
+        "state": "merged",
+        "head_sha": "dce752ad1843b5bc194900349101122e9afe12b2",
+        "updated_at": "2026-10-30T04:27:19Z"
+      },
+      {
+        "number": 40,
+        "state": "open",
+        "head_sha": "069dc1eb72df69dfa595f491b5c315c3ce424ac6",
+        "updated_at": "2026-10-25T08:22:07Z"
+      },
+      {
+        "number": 39,
+        "state": "closed",
+        "head_sha": "720c177d9ac0aa5cc35801a85337026e09f4b2b9",
+        "updated_at": "2026-10-25T09:56:13Z"
+      },
+      {
+        "number": 38,
+        "state": "merged",
+        "head_sha": "baf97dfeb929edcd341a3fe1b13e1d732531459e",
+        "updated_at": "2026-10-23T17:14:40Z"
+      },
+      {
+        "number": 37,
+        "state": "merged",
+        "head_sha": "bea67188b999166fca661da2f659f267eb7630ed",
+        "updated_at": "2026-10-22T18:37:34Z"
+      },
+      {
+        "number": 36,
+        "state": "merged",
+        "head_sha": "c7dc0d53cef4c12f2319bfb4a6841054b2f30bf7",
+        "updated_at": "2026-10-22T18:37:17Z"
+      },
+      {
+        "number": 35,
+        "state": "merged",
+        "head_sha": "0913bd4fc552cc8213e7ecd9d39a224663a1481d",
+        "updated_at": "2026-10-22T18:36:59Z"
+      },
+      {
+        "number": 34,
+        "state": "merged",
+        "head_sha": "9cf9e8327ec04c3b5807cc39bed2ad3e41bc34f5",
+        "updated_at": "2026-10-22T18:36:40Z"
+      },
+      {
+        "number": 33,
+        "state": "closed",
+        "head_sha": "da91de54ac542662d1008c99addd6e6262ae393b",
+        "updated_at": "2026-10-20T12:32:07Z"
+      },
+      {
+        "number": 32,
+        "state": "merged",
+        "head_sha": "427fd6d752784e68ae58e3c660de878569ad8a97",
+        "updated_at": "2026-10-18T07:34:43Z"
+      },
+      {
+        "number": 31,
+        "state": "closed",
+        "head_sha": "c1c0671a61e384c33a41b8b820cac9a18fb27653",
+        "updated_at": "2026-10-17T13:03:01Z"
+      },
+      {
+        "number": 30,
+        "state": "closed",
+        "head_sha": "7a7bff64741ad28f5503941e0df7b9988698adc1",
+        "updated_at": "2026-10-17T08:00:21Z"
+      },
+      {
+        "number": 29,
+        "state": "merged",
+        "head_sha": "bcb95301c93afb961cb3ac3bcd83917767c12d1e",
+        "updated_at": "2026-10-18T07:34:27Z"
+      },
+      {
+        "number": 28,
+        "state": "merged",
+        "head_sha": "051e8bb8e95d65bd1b0d905760f7e66e6cbf7a31",
+        "updated_at": "2026-10-16T07:09:19Z"
+      },
+      {
+        "number": 27,
+        "state": "merged",
+        "head_sha": "94903f626ae503be6be39ac40e53038ab98ac4d8",
+        "updated_at": "2026-10-16T07:09:03Z"
+      },
+      {
+        "number": 26,
+        "state": "merged",
+        "head_sha": "c12a4d3727231fa0aefd58b42335e33b2ecb9352",
+        "updated_at": "2026-10-16T07:08:21Z"
+      },
+      {
+        "number": 25,
+        "state": "merged",
+        "head_sha": "b5060df30aabdde3b1eacd4a2cfa932557b0b53d",
+        "updated_at": "2026-10-16T07:08:02Z"
+      },
+      {
+        "number": 24,
+        "state": "merged",
+        "head_sha": "1b57cbac0ccf590232647c1b29389f2efe7f26a4",
+        "updated_at": "2026-10-16T07:07:18Z"
+      },
+      {
+        "number": 23,
+        "state": "merged",
+        "head_sha": "e08a9d078bc0403212c37bac734ceb9c8f4e42bd",
+        "updated_at": "2026-10-16T07:06:54Z"
+      },
+      {
+        "number": 22,
+        "state": "merged",
+        "head_sha": "1d630cbd43e9e20fa1fb15c4036474efcac92d71",
+        "updated_at": "2026-10-16T07:06:38Z"
+      },
+      {
+        "number": 21,
+        "state": "merged",
+        "head_sha": "d3d716e3575902d05de4189a69c246977c1dfd07",
+        "updated_at": "2026-10-16T07:06:23Z"
+      },
+      {
+        "number": 20,
+        "state": "merged",
+        "head_sha": "0caa879679df414617a3b7184d5ede2171c4d1a2",
+        "updated_at": "2026-10-16T07:06:01Z"
+      },
+      {
+        "number": 19,
+        "state": "merged",
+        "head_sha": "3dabf4647417f95399b99f2e78b4c41d8780b823",
+        "updated_at": "2026-10-16T07:05:45Z"
+      },
+      {
+        "number": 18,
+        "state": "merged",
+        "head_sha": "08db4597982005cc1fe3b2838201b97cf2d0fe18",
+        "updated_at": "2026-10-14T06:20:40Z"
+      },
+      {
+        "number": 17,
+        "state": "merged",
+        "head_sha": "7721923002811dd80c8da5794af01879a327e028",
+        "updated_at": "2026-10-14T06:20:18Z"
+      },
+      {
+        "number": 16,
+        "state": "merged",
+        "head_sha": "69c43b67312d6c35e9d116b0699d4992bc1b06de",
+        "updated_at": "2026-10-13T12:26:07Z"
+      },
+      {
+        "number": 15,
+        "state": "merged",
+        "head_sha": "feeffa19218bc7081f7b3875b13a91905a1657a2",
+        "updated_at": "2026-10-13T12:25:47Z"
+      },
+      {
+        "number": 14,
+        "state": "merged",
+        "head_sha": "59de13796aa9dbccedd52bc5d081e87980dd2f7e",
+        "updated_at": "2026-10-10T20:47:35Z"
+      },
+      {
+        "number": 13,
+        "state": "closed",
+        "head_sha": "51a11cccff1aafbf82509e5914e8f8fe81012017",
+        "updated_at": "2026-10-20T12:37:22Z"
+      },
+      {
+        "number": 12,
+        "state": "closed",
+        "head_sha": "75139d84bdeffd2d5f7b41e4e02e5be8ba696000",
+        "updated_at": "2026-10-10T20:58:55Z"
+      },
+      {
+        "number": 11,
+        "state": "closed",
+        "head_sha": "d74aa1951304afa1bf94262854cd0ba24fc425a3",
+        "updated_at": "2026-10-10T20:58:54Z"
+      },
+      {
+        "number": 10,
+        "state": "closed",
+        "head_sha": "f7bcbcc7aeef066be5c632fde969a5055dc4654b",
+        "updated_at": "2026-10-10T20:58:54Z"
+      },
+      {
+        "number": 9,
+        "state": "closed",
+        "head_sha": "3525b4bcc1b2ea859bfb5a13356f0aa6e0422864",
+        "updated_at": "2026-10-10T20:58:53Z"
+      },
+      {
+        "number": 8,
+        "state": "closed",
+        "head_sha": "f6e112f61482c7d029b00d368fd6dd47ffed4ee7",
+        "updated_at": "2026-10-10T20:58:52Z"
+      },
+      {
+        "number": 7,
+        "state": "closed",
+        "head_sha": "0b30894abf9b5d21ab3320520cc2a66615fa436e",
+        "updated_at": "2026-10-10T20:58:51Z"
+      },
+      {
+        "number": 6,
+        "state": "closed",
+        "head_sha": "9d60c66928c278ff2fed8e0570a6be0d951c2b08",
+        "updated_at": "2026-10-10T20:58:51Z"
+      },
+      {
+        "number": 5,
+        "state": "merged",
+        "head_sha": "dba975ef889967e44c2a9ed21ad688d2c1eed43a",
+        "updated_at": "2026-09-23T05:48:50Z"
+      },
+      {
+        "number": 4,
+        "state": "open",
+        "head_sha": "a93c2926e9f95fad7c06d3c985188913f763b9d3",
+        "updated_at": "2026-09-02T12:52:43Z"
+      },
+      {
+        "number": 3,
+        "state": "open",
+        "head_sha": "d85fc2e942d8ac293b2e499ec61eac1f4871cf45",
+        "updated_at": "2026-09-02T12:08:50Z"
+      },
+      {
+        "number": 2,
+        "state": "closed",
+        "head_sha": "25ae27c369295f73776609a80fbf643abec56e9e",
+        "updated_at": "2026-08-15T10:10:20Z"
+      },
+      {
+        "number": 1,
+        "state": "merged",
+        "head_sha": "92570fd3ff8bb3bf7c64e5a80d5738d5b6c7b19e",
+        "updated_at": "2025-10-31T00:34:14Z"
+      }
+    ]
+  },
+  "sources": {
+    "list": {
+      "name": "BB(6) holdouts list and equivalence groups",
+      "by": "mxdys",
+      "url": "https://discord.com/channels/960643023006490684/1239205785913790465/1565640345843138560",
+      "as_of": "2026-10-30"
+    },
+    "sheet": {
+      "name": "RobinCodes’s annotated BB(6) holdouts spreadsheet",
+      "url": "https://docs.google.com/spreadsheets/d/1mMp8bAcTFT91j7azn72liX8NSTwc2E_ozKnOGTfRCfw",
+      "as_of": "2026-10-09",
+      "keyed_to_list": 1534
+    },
+    "slugbird": {
+      "name": "slugbird’s BB(6) Holdout Guide",
+      "as_of": "November 3, 2026",
+      "url": "https://discord.com/channels/960643023006490684/1239205785913790465/1567309713971089418"
+    },
+    "busycoq": {
+      "name": "busycoq (verified Rocq proofs)",
+      "url": "https://github.com/ccz181078/busycoq/tree/BB6",
+      "as_of": "2026-11-05T01:18:46.147Z"
+    },
+    "discord": {
+      "name": "bbchallenge Discord (message links only, from a local copy)",
+      "url": "https://discord.com/channels/960643023006490684",
+      "as_of": "2026-11-04T23:21:12.893Z",
+      "covers_from": "2026-09-21"
+    },
+    "wiki": {
+      "name": "bbchallenge wiki",
+      "url": "https://wiki.bbchallenge.org",
+      "as_of": "2026-11-05T06:21:56.444Z"
+    }
+  },
+  "url_templates": {
+    "viewer": "https://bbchallenge.org/{tm}",
+    "fiery": "https://fiery.pages.dev/turing/{tm}",
+    "longacc": "https://ccz181078.github.io/TM/LongAcc/ (paste the code; the page takes no URL parameter)",
+    "wiki_page": "https://wiki.bbchallenge.org/wiki/{wiki_page}",
+    "busycoq_pr": "https://github.com/ccz181078/busycoq/pull/{number}",
+    "busycoq_file": "https://github.com/ccz181078/busycoq/blob/33209bc7dc282b38c8cd6be507bfc551fea56108/verify/{file}",
+    "discord_message": "https://discord.com/channels/960643023006490684/{channel_id}/{message}",
+    "sheet_cell": "https://docs.google.com/spreadsheets/d/1mMp8bAcTFT91j7azn72liX8NSTwc2E_ozKnOGTfRCfw/edit#gid={tab_gid}&range={ref}"
+  },
+  "sheet_tabs": {
+    "classifications": "105825363",
+    "results": "1330361301",
+    "direct-simulation": "806905077"
+  },
+  "counts": {
+    "by_status": {
+      "open": 575,
+      "pr_open": 32,
+      "solved": 1
+    },
+    "with_conflicts": 1
+  },
+  "downloaded_on": "2026-11-05",
+  "source_page": "https://denniskoshta.com/bbchallenge/bb6/",
+  "source_json": "https://denniskoshta.com/bbchallenge/bb6/holdouts.json",
+  "source_text": "https://denniskoshta.com/bbchallenge/BB6_holdouts_608.txt",
+  "format_notes": {
+    "tsv": "UTF-8 TSV with header, source list order, original 1-based id. name is blank when unnamed. program is standard BBChallenge format accepted by this repository. All machines included regardless of proof status.",
+    "structured_columns": [
+      "aliases",
+      "classifications",
+      "busycoq",
+      "wiki_pages",
+      "discord",
+      "conflicts",
+      "notes"
+    ],
+    "structured_encoding": "Structured columns contain JSON; parse TSV using a CSV/TSV parser, then decode JSON.",
+    "missing_scalars": "Empty fields indicate missing values. Missing structured values are JSON null.",
+    "simulation": "sheet_simulated_log10_min is the base-10 exponent lower bound; reported_simulated_steps retains the separate source report as text, without converting or rounding.",
+    "txt": "One standard-format machine per line, no header; line number equals TSV id.",
+    "proof_status": "Snapshot: open=no proof; pr_open=proof in open PR; solved=proved since list. See generated_at and sources for snapshot dates."
+  }
+}
