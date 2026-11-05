@@ -1,0 +1,51 @@
+   Compiling busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+warning: unused imports: `ALIGN`, `pixel::Pixel`, and `symbol::Symbol`
+ --> src/tests.rs:2:5
+  |
+2 |     ALIGN, BB5_CHAMP, BB6_CONTENDER, Error, LogStepIterator, Machine, PixelPolicy, PngDataIterator,
+  |     ^^^^^
+3 |     PowerOfTwo, SpaceByTime, SpaceByTimeMachine, pixel::Pixel, spaceline::Spaceline,
+  |                                                  ^^^^^^^^^^^^
+4 |     symbol::Symbol,
+  |     ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `aligned_vec::AVec`
+ --> src/tests.rs:8:5
+  |
+8 | use aligned_vec::AVec;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Rng` and `SeedableRng`
+  --> src/tests.rs:14:12
+   |
+14 | use rand::{Rng, SeedableRng};
+   |            ^^^  ^^^^^^^^^^^
+
+warning: `busy_beaver_blaze` (lib test) generated 3 warnings (run `cargo fix --lib -p busy_beaver_blaze --tests` to apply 3 suggestions)
+    Finished `release` profile [optimized + debuginfo] target(s) in 2.62s
+     Running unittests src/lib.rs (target-nightly/release/deps/busy_beaver_blaze-191565b91e61ef5a)
+
+running 7 tests
+test image_pyramid::tests::boundaries_remain_finite_and_monotone_for_large_times ... ok
+test image_pyramid::tests::independent_small_time_averages ... ok
+test image_pyramid::tests::reconstruct_near_u64_limit_without_endpoint_overflow ... ok
+test image_pyramid::tests::stopping_palette_changes_and_restart ... ok
+test image_pyramid::tests::exact_checkpoints_and_immutable_rendering ... ok
+Linear B raw pixels: max=1, mean=0.000337, differing=283/839569 (0.034%)
+test image_pyramid::tests::linear_comparison_report ... ok
+BB5: max=1 mean=0.002448 differing=888/362728 (0.2448%)
+BB6: max=2 mean=0.011141 differing=3745/342794 (1.0925%)
+BB5 writing state: max=2 mean=0.005132 differing=9119/1813640 (0.5028%)
+multisymbol: max=1 mean=0.000627 differing=676/1078689 (0.0627%)
+test image_pyramid::tests::million_step_comparison_report ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 3.54s
+
+     Running tests/integration_tests.rs (target-nightly/release/deps/integration_tests-6579f2fca1a0b7f4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.00s
+

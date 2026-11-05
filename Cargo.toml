@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["simd", "diff_row"]
 simd = []
 diff_row = []
+image_pyramid = []
 python = ["pyo3/extension-module"]
 
 [dependencies]
@@ -60,6 +61,10 @@ ab_glyph = "0.2.29"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = "0.5.1"
+
+[[example]]
+name = "time_scale_measure"
+required-features = ["image_pyramid"]
 
 [[bench]]
 name = "benchmark"

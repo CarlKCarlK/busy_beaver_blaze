@@ -18,7 +18,15 @@ pub struct SpaceByTimeMachine {
 impl Iterator for SpaceByTimeMachine {
     type Item = ();
 
-    #[cfg_attr(not(target_arch = "wasm32"), inline)]
+    // Extra experimental callers otherwise discourage inlining the layer iterator in native builds.
+    #[cfg_attr(
+        all(not(target_arch = "wasm32"), not(feature = "image_pyramid")),
+        inline
+    )]
+    #[cfg_attr(
+        all(not(target_arch = "wasm32"), feature = "image_pyramid"),
+        inline(always)
+    )]
     fn next(&mut self) -> Option<Self::Item> {
         let previous_tape_index = self.machine.next()?;
         for space_by_time in self.space_time_layers.values_mut() {

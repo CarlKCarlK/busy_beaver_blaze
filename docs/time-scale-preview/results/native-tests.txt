@@ -1,0 +1,60 @@
+   Compiling busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+    Finished `release` profile [optimized + debuginfo] target(s) in 4.79s
+     Running unittests src/lib.rs (target-nightly/release/deps/busy_beaver_blaze-e4e4224a662f5c56)
+
+running 26 tests
+test image_pyramid::tests::boundaries_remain_finite_and_monotone_for_large_times ... ok
+test image_pyramid::tests::reconstruct_near_u64_limit_without_endpoint_overflow ... ok
+test image_pyramid::tests::independent_small_time_averages ... ok
+test machine::tests::extended_symbols_in_all_formats ... ok
+test image_pyramid::tests::stopping_palette_changes_and_restart ... ok
+test image_pyramid::tests::exact_checkpoints_and_immutable_rendering ... ok
+test machine::tests::malformed_extended_tables_are_rejected_before_execution ... ok
+test machine::tests::tenth_state_writes_extended_symbol_on_halting_transition ... ok
+test machine::tests::transition_offsets_exceed_u8_and_the_old_array_capacity ... ok
+test machine::tests::undefined_transition_halts_even_with_a_state_named_z ... ok
+test machine::tests::bb10_colored_tape_preserves_behavior_and_write_provenance ... ok
+test machine::tests::undefined_transition_preserves_legacy_reported_halt_state ... ok
+test tests::compress_x_simd_binning ... ok
+test tests::compress_x_simd_sampling ... ok
+test tests::interleave ... ok
+test tests::resample_simd ... ok
+test tests::test_average ... ok
+test tests::test_find_stride ... ok
+test tests::test_log_step ... ok
+test tests::one ... ok
+test tests::frames ... ok
+test image_pyramid::tests::linear_comparison_report ... ok
+test tests::bb5_champ_space_by_time_native ... ok
+test tests::stop_early ... ok
+test image_pyramid::tests::million_step_comparison_report ... ok
+test tests::combo ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.00s
+
+     Running tests/integration_tests.rs (target-nightly/release/deps/integration_tests-60976e201da36e25)
+
+running 14 tests
+test bb_3_3_355317_time ... ok
+test machine_7_135_505 ... ok
+test benchmark_3_3 ... ok
+test bb5_champ_time ... ok
+test bb5_champ_js ... ok
+test bb5_champ ... ok
+test benchmark63 ... ok
+test bb5_champ_space_by_time_js ... ok
+test seconds_bb5_champ_space_by_time_js ... ok
+test shift_to_symbol_2 ... ok
+test bb5_champ_space_by_time_js_shift2 ... ok
+test benchmark1 ... ok
+test benchmark_shift2_1 ... ok
+test benchmark2 ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.70s
+
+   Doc-tests busy_beaver_blaze
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

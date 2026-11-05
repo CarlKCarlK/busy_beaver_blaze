@@ -266,3 +266,22 @@ Guidelines:
 - Prefer shadowing at the smallest reasonable scope so the “new” meaning doesn’t leak too far.
 - Use assertions or checked conversions before shadowing when truncation/overflow is possible.
 - Don’t shadow across long spans if it could confuse readers—shadow near the point of use.
+
+### Experimental time scales
+
+The `image_pyramid` feature (off by default) adds `PyramidMachine` and cumulative
+native `SpaceTimeLayers` checkpoints for Linear B, Square Root, and Logarithmic
+reconstruction. Linear A retains its existing machine and stepping path. The
+isolated browser preview is `docs/time-scale-preview/`; the published
+`docs/v0.2.8/` assets are unchanged. Pyramid runs require Binning/Quality.
+
+Build the preview with:
+
+```bash
+wasm-pack build --release --out-dir docs/time-scale-preview/pkg --target web --features image_pyramid
+```
+
+Run
+`cargo test --release --features image_pyramid image_pyramid -- --nocapture`
+and `node --test tests/wasm/time-scale.test.mjs`; see the preview README for
+feature-matrix, browser, timing, memory, and raw-pixel comparison results.

@@ -14,6 +14,8 @@ mod tests;
 mod compiled_macros;
 #[cfg(target_arch = "x86_64")]
 mod compiled_runner;
+#[cfg(feature = "image_pyramid")]
+mod image_pyramid;
 mod log_step_iterator;
 mod machine;
 mod message0;
@@ -47,6 +49,8 @@ pub use compiled_runner::{
     CompiledFnId, CompiledProgram, Config, ConfigError, RunSummary as CompiledRunSummary,
     RunTermination, Summary, run_compiled_program,
 };
+#[cfg(feature = "image_pyramid")]
+pub use image_pyramid::{ImagePyramid, PyramidMachine, TimeScale};
 pub use log_step_iterator::LogStepIterator;
 pub use machine::Machine;
 pub use pixel::Pixel;

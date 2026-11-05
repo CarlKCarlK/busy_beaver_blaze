@@ -1,0 +1,21 @@
+bb5 128x128 baseline_capture_ms=152.169
+bb5 128x128 capture_ms=162.632 checkpoints=21 retained_bytes=402964
+  linear-b render_png_ms=0.858
+  sqrt render_png_ms=0.860
+  log render_png_ms=0.919
+bb5 360x432 baseline_capture_ms=155.512
+bb5 360x432 capture_ms=167.071 checkpoints=21 retained_bytes=2174794
+  linear-b render_png_ms=4.300
+  sqrt render_png_ms=3.447
+  log render_png_ms=2.812
+26 layers 128x128 baseline_capture_ms=2860.237
+26 layers 128x128 capture_ms=3159.703 checkpoints=21 retained_bytes=13497276
+  linear-b render_png_ms=14.290
+  sqrt render_png_ms=16.296
+  log render_png_ms=15.605
+26 layers 360x432 baseline_capture_ms=2952.581
+26 layers 360x432 capture_ms=3271.374 checkpoints=21 retained_bytes=93928822
+  linear-b render_png_ms=70.205
+  sqrt render_png_ms=75.697
+  log render_png_ms=67.678
+peak_rss_kib=136684

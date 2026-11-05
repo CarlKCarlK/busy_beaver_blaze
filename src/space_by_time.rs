@@ -468,3 +468,23 @@ impl SpaceByTime {
         }
     }
 }
+
+impl SpaceByTime {
+    #[cfg(feature = "image_pyramid")]
+    pub(crate) fn retained_bytes(&self) -> usize {
+        let line_bytes = |line: &Spaceline| line.negative.capacity() + line.nonnegative.capacity();
+        let bytes = core::mem::size_of::<Self>()
+            + self.spacelines.main.capacity() * core::mem::size_of::<Spaceline>()
+            + self.spacelines.buffer0.capacity() * core::mem::size_of::<(Spaceline, PowerOfTwo)>()
+            + self.spacelines.main.iter().map(line_bytes).sum::<usize>()
+            + self
+                .spacelines
+                .buffer0
+                .iter()
+                .map(|(line, _)| line_bytes(line))
+                .sum::<usize>();
+        #[cfg(feature = "diff_row")]
+        let bytes = bytes + self.previous_space_line.as_ref().map_or(0, line_bytes);
+        bytes
+    }
+}
