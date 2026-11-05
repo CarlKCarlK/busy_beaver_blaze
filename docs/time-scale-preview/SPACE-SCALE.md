@@ -9,6 +9,15 @@ The time-only implementation was committed and pushed first as
 [`bb97716`](https://github.com/CarlKCarlK/busy_beaver_blaze/commit/bb97716).
 The spatial extension builds on that checkpoint on `log-images`.
 
+Square and Exponential are also available as outward-stretching alternatives.
+Square uses `sign(x) * x²`. Exponential uses the inverse of the normalized
+logarithmic map: with global extent `M`, its exponent is
+`abs(x) * ln(1 + M) / M`. This stays finite on wide tapes. Both reuse the same
+pixel-overlap renderer and existing history. Hash values are `square` and `exp`;
+Square Root and Logarithmic remain available for comparison.
+Examples with Square Root Y: [Square X](comparisons/x-square-y-sqrt.png) and
+[Exponential X](comparisons/x-exp-y-sqrt.png).
+
 ## Implementation
 
 `SpaceScale` supplies signed forward/inverse functions with a one-cell scale

@@ -302,6 +302,8 @@ impl PyramidMachine {
             SpaceScale::Linear => self.active.to_png(colors),
             SpaceScale::SquareRoot => self.active.to_spatial_png(colors, "sqrt"),
             SpaceScale::Logarithmic => self.active.to_spatial_png(colors, "log"),
+            SpaceScale::Square => self.active.to_spatial_png(colors, "square"),
+            SpaceScale::Exponential => self.active.to_spatial_png(colors, "exp"),
         }
     }
 

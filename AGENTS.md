@@ -272,7 +272,9 @@ Guidelines:
 The `image_pyramid` feature (off by default) adds `PyramidMachine` and cumulative
 native `SpaceTimeLayers` checkpoints for Linear B, Square Root, and Logarithmic
 reconstruction. The same feature also exports `SpaceScale` and enables independent
-signed Square Root/Logarithmic tape-coordinate resampling. Linear A can transform
+signed Square Root/Logarithmic and outward Square/Exponential tape-coordinate
+resampling. Exponential is normalized to the current global tape extent to
+avoid overflow. Linear A can transform
 space in Quality or Speed without creating a pyramid. Nonlinear space uses the
 current global tape extent and horizontal stride; enlarged compressed pixels
 cannot recover discarded sub-bin detail. Linear A retains its existing machine and stepping path. The

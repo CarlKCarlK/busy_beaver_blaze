@@ -3,7 +3,7 @@ use aligned_vec::AVec;
 
 use crate::{ALIGN, PixelPolicy, PowerOfTwo, SpaceByTimeMachine, Spaceline};
 
-/// Independent horizontal coordinate transformation. The unit is one tape cell.
+/// Independent horizontal coordinate transformation; exponential uses a global extent normalization.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SpaceScale {
     /// Keep the reference renderer's horizontal bins exactly.
@@ -13,6 +13,10 @@ pub enum SpaceScale {
     SquareRoot,
     /// Signed ln(1 + distance) from tape zero.
     Logarithmic,
+    /// Signed square: widen tape regions farther from zero.
+    Square,
+    /// Signed exponential, normalized to the global extent when rendering.
+    Exponential,
 }
 
 impl SpaceScale {
@@ -21,6 +25,8 @@ impl SpaceScale {
             "linear" => Ok(Self::Linear),
             "sqrt" => Ok(Self::SquareRoot),
             "log" => Ok(Self::Logarithmic),
+            "square" => Ok(Self::Square),
+            "exp" => Ok(Self::Exponential),
             _ => Err(format!("Unknown space scale: {scale}")),
         }
     }
@@ -34,6 +40,8 @@ impl SpaceScale {
                 Self::Linear => distance,
                 Self::SquareRoot => distance.sqrt(),
                 Self::Logarithmic => distance.ln_1p(),
+                Self::Square => distance * distance,
+                Self::Exponential => distance.exp_m1(),
             }
     }
 
@@ -46,6 +54,8 @@ impl SpaceScale {
                 Self::Linear => distance,
                 Self::SquareRoot => distance * distance,
                 Self::Logarithmic => distance.exp_m1(),
+                Self::Square => distance.sqrt(),
+                Self::Exponential => distance.ln_1p(),
             }
     }
 }
@@ -69,8 +79,16 @@ impl SpatialMap {
         let stride = stride.as_u64() as f64;
         let lower = -(negative_len as f64) * stride;
         let upper = nonnegative_len as f64 * stride;
-        let transformed_lower = scale.forward(lower, 1.0);
-        let transformed_upper = scale.forward(upper, 1.0);
+        // Match the inverse of the normalized logarithmic map. The exponent
+        // stays <= ln(1 + extent), even for tapes too wide for exp(tape_index).
+        let extent = lower.abs().max(upper);
+        let unit = if scale == SpaceScale::Exponential {
+            extent / extent.ln_1p()
+        } else {
+            1.0
+        };
+        let transformed_lower = scale.forward(lower, unit);
+        let transformed_upper = scale.forward(upper, unit);
         let transformed = |position: f64| {
             transformed_lower + (transformed_upper - transformed_lower) * position / width as f64
         };
@@ -80,7 +98,7 @@ impl SpatialMap {
             } else if column == width {
                 upper
             } else {
-                scale.inverse(transformed(column as f64), 1.0)
+                scale.inverse(transformed(column as f64), unit)
             }
         };
         let mut intervals = Vec::with_capacity(width);
@@ -90,7 +108,7 @@ impl SpatialMap {
             let end = boundary(column_index + 1);
             assert!(start.is_finite() && end.is_finite() && end > start);
             intervals.push((start, end));
-            representatives.push(scale.inverse(transformed(column_index as f64 + 0.5), 1.0));
+            representatives.push(scale.inverse(transformed(column_index as f64 + 0.5), unit));
         }
         Self {
             intervals,
@@ -387,6 +405,63 @@ mod tests {
                 assert!(values.contains(&value));
             }
             assert_ne!(output, values);
+        }
+    }
+}
+
+#[cfg(test)]
+mod outward_tests {
+    use super::*;
+
+    #[test]
+    fn square_and_exponential_widen_outer_columns_without_overflow() {
+        assert_eq!(SpaceScale::Square.forward(-3.0, 1.0), -9.0);
+        assert_eq!(SpaceScale::Square.inverse(-9.0, 1.0), -3.0);
+        for scale in [SpaceScale::Square, SpaceScale::Exponential] {
+            for stride in [PowerOfTwo::ONE, PowerOfTwo::from_exp(60)] {
+                let map = SpatialMap::new(scale, 4, 4, stride);
+                for column in 0..8 {
+                    let (start, end) = map.intervals[column];
+                    let (opposite_start, opposite_end) = map.intervals[7 - column];
+                    assert!(start.is_finite() && end.is_finite() && end > start);
+                    assert!((start + opposite_end).abs() <= 1e-12 * start.abs().max(1.0));
+                    assert!((end + opposite_start).abs() <= 1e-12 * end.abs().max(1.0));
+                }
+                let inner = map.intervals[4];
+                let outer = map.intervals[7];
+                assert!(inner.1 - inner.0 > outer.1 - outer.0);
+            }
+        }
+    }
+
+    #[test]
+    fn normalized_inverse_boundaries_match_independent_formulas() {
+        let values = [0, 33, 77, 180, 255, 120, 0, 255];
+        let source = SpatialRow::from_packed(&values, 0, PowerOfTwo::ONE);
+        for scale in [SpaceScale::Square, SpaceScale::Exponential] {
+            let map = SpatialMap::new(scale, 0, 8, PowerOfTwo::ONE);
+            let boundary = |column: usize| {
+                let position = column as f64 / 8.0;
+                match scale {
+                    SpaceScale::Square => 8.0 * position.sqrt(),
+                    SpaceScale::Exponential => 8.0 * (1.0 + 8.0 * position).ln() / 9f64.ln(),
+                    _ => unreachable!(),
+                }
+            };
+            for column in 0..8 {
+                let (start, end) = map.intervals[column];
+                assert!((start - boundary(column)).abs() < 1e-12);
+                assert!((end - boundary(column + 1)).abs() < 1e-12);
+                let area: f64 = values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| {
+                        (end.min(index as f64 + 1.0) - start.max(index as f64)).max(0.0)
+                            * f64::from(*value)
+                    })
+                    .sum();
+                assert!((source.average(start, end) - area / (end - start)).abs() < 1e-10);
+            }
         }
     }
 }

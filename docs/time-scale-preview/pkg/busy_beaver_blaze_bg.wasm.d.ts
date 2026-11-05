@@ -1,6 +1,15 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_spacebytimemachine_free: (a: number, b: number) => void;
+export const spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [number, number, number];
+export const spacebytimemachine_nth: (a: number, b: bigint) => number;
+export const spacebytimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
+export const spacebytimemachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
+export const spacebytimemachine_to_spatial_png: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+export const spacebytimemachine_step_count: (a: number) => bigint;
+export const spacebytimemachine_count_nonblanks: (a: number) => number;
+export const spacebytimemachine_is_halted: (a: number) => number;
 export const __wbg_pyramidmachine_free: (a: number, b: number) => void;
 export const pyramidmachine_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
 export const pyramidmachine_set_time_scale: (a: number, b: number, c: number) => [number, number];
@@ -14,15 +23,6 @@ export const pyramidmachine_count_nonblanks: (a: number) => number;
 export const pyramidmachine_is_halted: (a: number) => number;
 export const pyramidmachine_checkpoint_count: (a: number) => number;
 export const pyramidmachine_retained_bytes: (a: number) => number;
-export const __wbg_spacebytimemachine_free: (a: number, b: number) => void;
-export const spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [number, number, number];
-export const spacebytimemachine_nth: (a: number, b: bigint) => number;
-export const spacebytimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
-export const spacebytimemachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
-export const spacebytimemachine_to_spatial_png: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-export const spacebytimemachine_step_count: (a: number) => bigint;
-export const spacebytimemachine_count_nonblanks: (a: number) => number;
-export const spacebytimemachine_is_halted: (a: number) => number;
 export const __wbg_machine_free: (a: number, b: number) => void;
 export const machine_from_string: (a: number, b: number) => [number, number, number];
 export const machine_step: (a: number) => number;

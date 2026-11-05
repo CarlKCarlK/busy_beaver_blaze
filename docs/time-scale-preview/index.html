@@ -182,6 +182,8 @@
                 Space scale:
                 <select id="spaceScale" aria-label="Space scale">
                     <option value="linear">Linear</option>
+                    <option value="square">Square</option>
+                    <option value="exp">Exponential</option>
                     <option value="sqrt">Square Root</option>
                     <option value="log">Logarithmic</option>
                 </select>
@@ -471,7 +473,7 @@
             }
 
             document.getElementById('timeScale').value = ['linear-b', 'sqrt', 'log'].includes(params.get('timeScale')) ? params.get('timeScale') : 'linear-a';
-            document.getElementById('spaceScale').value = ['sqrt', 'log'].includes(params.get('spaceScale')) ? params.get('spaceScale') : 'linear';
+            document.getElementById('spaceScale').value = ['square', 'exp', 'sqrt', 'log'].includes(params.get('spaceScale')) ? params.get('spaceScale') : 'linear';
             updateTimeScaleAvailability();
             document.getElementById('colorBy').value = params.get('colorBy') === 'state' ? 'state' : 'symbol';
             updateColorModeAvailability();

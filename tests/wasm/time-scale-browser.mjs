@@ -115,6 +115,17 @@ try {
             await page.screenshot({path:new URL(`x-${spaceScale}-y-${timeScale}.png`,output).pathname,fullPage:true});
         }
     }
+    // Outward X mappings reuse the same stopped history.
+    await scale('sqrt');
+    for (const value of ['square','exp']) {
+        await space(value);
+        assert.equal(await page.locator('#stepCount').textContent(),'100,001');
+        assert.equal(await page.locator('#pyramidStats').textContent(),stats);
+        await page.screenshot({path:new URL(`x-${value}-y-sqrt.png`,output).pathname,fullPage:true});
+    }
+    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=1001&timeScale=sqrt&spaceScale=exp&run=true`);
+    await completed('1,001');
+    assert.equal(await page.locator('#spaceScale').inputValue(),'exp');
     assert.deepEqual(errors,[]);
     console.log('Browser checks passed: defaults, restart notice, live scale/palette, stop, halt, state colors, hash, four time screenshots and nine X/Y screenshots.');
 } finally {
