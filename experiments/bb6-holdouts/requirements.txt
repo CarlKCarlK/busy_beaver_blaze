@@ -1,0 +1,4 @@
+# Isolated experiment dependencies; never installed by the main package.
+Pillow>=13.0.0
+numpy>=2.0,<3
+scipy>=1.15,<2
