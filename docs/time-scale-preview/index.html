@@ -154,7 +154,7 @@
         <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E	F
 0	1RB	1RC	1LC	0LE	1LF	0RC
 1	0LD	0RF	1LA	1RH	0RB	0RE</textarea>
-        <p id="timeScaleNotice" role="status">Square Root requires Quality. Switching from a Linear run requires a new run.</p>
+        <p id="timeScaleNotice" role="status"></p>
         <p id="spaceScaleNotice" role="status"></p>
         <div class="controls">
             Size:
@@ -890,9 +890,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
 
                         console.log('[page] start colors (mode=%s): %s', document.getElementById('paletteMode')?.value, formatPalette(colorsBytes));
                         displayedPyramid = document.getElementById('timeScale').value !== 'linear-a';
-                        document.getElementById('timeScaleNotice').textContent = displayedPyramid
-                            ? 'Square Root requires Quality.'
-                            : '';
+                        document.getElementById('timeScaleNotice').textContent = '';
                         displayedColorBy = document.getElementById('colorBy').value;
                         displayedProgram = textarea.value;
                         updateColorNotice();
