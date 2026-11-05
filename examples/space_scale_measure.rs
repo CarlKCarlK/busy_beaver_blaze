@@ -75,7 +75,7 @@ fn main() {
             if time_scale != "linear-a" {
                 machine.set_time_scale(time_scale).unwrap();
             }
-            for space_scale in ["linear", "sqrt", "log"] {
+            for space_scale in ["linear", "row"] {
                 machine.set_space_scale(space_scale).unwrap();
                 let base = LIVE.load(Ordering::Relaxed);
                 PEAK.store(base, Ordering::Relaxed);

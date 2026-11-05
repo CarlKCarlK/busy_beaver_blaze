@@ -20,7 +20,7 @@ test('Linear A identity and all X maps preserve Quality/Speed, time count and pa
         assert.deepEqual(machine.to_spatial_png(palette,'linear'),reference.to_png(palette));
         const count = machine.step_count();
         const referencePng = machine.to_png(palette);
-        for (const spaceScale of ['row','square','exp','sqrt','log','linear']) {
+        for (const spaceScale of ['row','linear']) {
             const png = machine.to_spatial_png(palette,spaceScale);
             assert.equal(machine.step_count(),count);
             assert.equal(png[0],137);
@@ -34,14 +34,14 @@ test('Linear A identity and all X maps preserve Quality/Speed, time count and pa
     }
 });
 
-test('all eighteen pyramid X/Y combinations reuse history and symbol/state colors', () => {
+test('all six pyramid X/Y combinations reuse history and symbol/state colors', () => {
     for (const program of programs) {
         const machine = new PyramidMachine(program,32,16,'linear-b');
         machine.step_for_secs(1,1001n,1n);
         const count = machine.step_count();
         const checkpoints = machine.checkpoint_count();
         const bytes = machine.retained_bytes();
-        for (const timeScale of ['linear-b','sqrt','log']) for (const spaceScale of ['linear','row','square','exp','sqrt','log']) {
+        for (const timeScale of ['linear-b','sqrt','log']) for (const spaceScale of ['linear','row']) {
             machine.set_time_scale(timeScale);
             machine.set_space_scale(spaceScale);
             const png = machine.to_png(palette);
@@ -51,12 +51,12 @@ test('all eighteen pyramid X/Y combinations reuse history and symbol/state color
             assert.equal(machine.retained_bytes(),bytes);
             assert.notDeepEqual(png,machine.to_png(statePalette('dark',5)));
         }
-        assert.throws(() => machine.set_space_scale('perspective'), /Unknown space scale/);
+        for (const removed of ['sqrt','log','square','exp','perspective']) assert.throws(() => machine.set_space_scale(removed), /Unknown space scale/);
         machine.free();
     }
 });
 
-test('worker handles all twenty-four combinations and does not construct a pyramid just for X', async () => {
+test('worker handles all eight combinations and does not construct a pyramid just for X', async () => {
     const source = await readFile(new URL('../../docs/time-scale-preview/worker.js',import.meta.url),'utf8');
     let constructed = 0;
     class TrackedPyramid extends PyramidMachine {
@@ -67,20 +67,20 @@ test('worker handles all twenty-four combinations and does not construct a pyram
     runInNewContext(source.replace(/^import .*;\n/gm,''),{ self, init:async()=>{},SpaceByTimeMachine,PyramidMachine:TrackedPyramid,stateColoredProgram,Uint8Array,setTimeout });
     const send = data => self.onmessage({ data });
     for (const binning of [true,false]) {
-        await send({type:'start',programText:bb5,goal_x:32,goal_y:16,early_stop:1001n,binning,timeScale:'linear-a',spaceScale:'sqrt',colorsBytes:palette});
+        await send({type:'start',programText:bb5,goal_x:32,goal_y:16,early_stop:1001n,binning,timeScale:'linear-a',spaceScale:'row',colorsBytes:palette});
         assert.equal(constructed,0);
         const count = messages.at(-1).step_count;
-        for (const spaceScale of ['row','square','exp','log','linear','sqrt']) {
+        for (const spaceScale of ['row','linear']) {
             await send({type:'space',spaceScale});
             assert.equal(messages.at(-1).step_count,count);
             assert.equal(messages.at(-1).checkpoints,0);
             assert.ok(messages.at(-1).png_data.length);
         }
     }
-    await send({type:'start',programText:bb5,goal_x:32,goal_y:16,early_stop:1001n,binning:true,timeScale:'linear-b',spaceScale:'log',colorsBytes:palette});
+    await send({type:'start',programText:bb5,goal_x:32,goal_y:16,early_stop:1001n,binning:true,timeScale:'linear-b',spaceScale:'row',colorsBytes:palette});
     const count = messages.at(-1).step_count;
     const checkpoints = messages.at(-1).checkpoints;
-    for (const timeScale of ['linear-a','linear-b','sqrt','log']) for (const spaceScale of ['linear','row','square','exp','sqrt','log']) {
+    for (const timeScale of ['linear-a','linear-b','sqrt','log']) for (const spaceScale of ['linear','row']) {
         await send({type:'scale',timeScale});
         await send({type:'space',spaceScale});
         assert.equal(messages.at(-1).step_count,count);
@@ -90,11 +90,11 @@ test('worker handles all twenty-four combinations and does not construct a pyram
     assert.equal(constructed,1);
     await send({type:'stop'});
     assert.equal(messages.at(-1).stopped,true);
-    await send({type:'space',spaceScale:'sqrt'});
+    await send({type:'space',spaceScale:'row'});
     assert.equal(messages.at(-1).step_count,count);
-    await send({type:'start',programText:'1RB1LB_1LA1RH',goal_x:32,goal_y:16,early_stop:1001n,binning:true,timeScale:'linear-b',spaceScale:'log',colorsBytes:palette});
+    await send({type:'start',programText:'1RB1LB_1LA1RH',goal_x:32,goal_y:16,early_stop:1001n,binning:true,timeScale:'linear-b',spaceScale:'row',colorsBytes:palette});
     assert.equal(messages.at(-1).is_halted,true);
     const haltedCount = messages.at(-1).step_count;
-    await send({type:'space',spaceScale:'sqrt'});
+    await send({type:'space',spaceScale:'row'});
     assert.equal(messages.at(-1).step_count,haltedCount);
 });

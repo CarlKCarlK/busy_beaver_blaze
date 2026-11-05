@@ -3,7 +3,7 @@ use aligned_vec::AVec;
 
 use crate::{ALIGN, PixelPolicy, PowerOfTwo, SpaceByTimeMachine, Spaceline};
 
-/// Independent horizontal coordinate transformation; exponential uses a global extent normalization.
+/// Horizontal rendering policy. The public API offers Linear and fitted 1/Y.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SpaceScale {
     /// Keep the reference renderer's horizontal bins exactly.
@@ -25,10 +25,6 @@ impl SpaceScale {
     pub(crate) fn parse(scale: &str) -> Result<Self, String> {
         match scale {
             "linear" => Ok(Self::Linear),
-            "sqrt" => Ok(Self::SquareRoot),
-            "log" => Ok(Self::Logarithmic),
-            "square" => Ok(Self::Square),
-            "exp" => Ok(Self::Exponential),
             "row" => Ok(Self::RowStretch),
             _ => Err(format!("Unknown space scale: {scale}")),
         }
@@ -128,22 +124,18 @@ impl SpatialMap {
         stride: PowerOfTwo,
         row_index: usize,
         height: usize,
+        fit: HorizontalFit,
     ) {
         assert!(height > 0 && row_index < height);
-        // Finite at the top, exactly 1x at the bottom; one-row images stay unchanged.
-        let fraction = if height == 1 {
-            1.0
-        } else {
-            (row_index as f64 / (height - 1) as f64).max(1.0 / height as f64)
-        };
-        let cell_width = stride.as_u64() as f64 * fraction;
+        assert!(fit.scale > 0.0 && fit.scale <= 1.0 && fit.offset.is_finite());
+        let cell_width = stride.as_u64() as f64 * row_fraction(row_index, height) / fit.scale;
         for (column_index, (interval, representative)) in self
             .intervals
             .iter_mut()
             .zip(&mut self.representatives)
             .enumerate()
         {
-            let start = (column_index as f64 - negative_len as f64) * cell_width;
+            let start = (column_index as f64 - negative_len as f64 - fit.offset) * cell_width;
             *interval = (start, start + cell_width);
             *representative = start + 0.5 * cell_width;
         }
@@ -167,6 +159,68 @@ impl SpatialMap {
             };
         }
     }
+}
+
+// The top-row stretch is finite; the un-fitted bottom row has factor 1.
+fn row_fraction(row_index: usize, height: usize) -> f64 {
+    assert!(height > 0 && row_index < height);
+    if height == 1 {
+        1.0
+    } else {
+        (row_index as f64 / (height - 1) as f64).max(1.0 / height as f64)
+    }
+}
+
+/// A single viewport fit for all rows. Offset is in output-bin coordinates;
+/// it moves tape zero by the same amount on every row.
+#[derive(Clone, Copy, Debug)]
+struct HorizontalFit {
+    scale: f64,
+    offset: f64,
+}
+impl HorizontalFit {
+    const IDENTITY: Self = Self {
+        scale: 1.0,
+        offset: 0.0,
+    };
+}
+
+/// Fit the union of stretched nonblank bins and tape zero to the viewport.
+/// Include whole occupied bins: compressed pixels have no sub-bin locations.
+fn row_stretch_fit(
+    layers: &[AVec<u8>],
+    width: usize,
+    height: usize,
+    negative_len: usize,
+) -> HorizontalFit {
+    assert!(width > 0 && height > 0 && negative_len <= width);
+    let lower = -(negative_len as f64);
+    let upper = (width - negative_len) as f64;
+    let mut minimum = 0.0f64;
+    let mut maximum = 0.0f64;
+    for layer in layers {
+        assert_eq!(layer.len(), width * height);
+        for (row_index, row) in layer.chunks_exact(width).enumerate() {
+            let Some(first) = row.iter().position(|pixel| *pixel != 0) else {
+                continue;
+            };
+            let last = row.iter().rposition(|pixel| *pixel != 0).unwrap();
+            let fraction = row_fraction(row_index, height);
+            minimum = minimum.min((first as f64 - negative_len as f64) / fraction);
+            maximum = maximum.max((last as f64 + 1.0 - negative_len as f64) / fraction);
+        }
+    }
+    if minimum >= lower && maximum <= upper {
+        return HorizontalFit::IDENTITY;
+    }
+    let span = maximum - minimum;
+    assert!(span > 0.0);
+    let scale = (width as f64 / span).min(1.0);
+    // A global translation avoids making an asymmetric image tiny merely to
+    // leave the origin at its old pixel column. Zero stays aligned across rows.
+    let offset = (lower + upper - scale * (minimum + maximum)) * 0.5;
+    assert!(scale > 0.0 && scale.is_finite() && offset.is_finite());
+    HorizontalFit { scale, offset }
 }
 
 /// Prefix integrals grow away from zero on each tape half. Keeping the halves
@@ -309,6 +363,7 @@ pub(crate) fn spatial_data(
 ) -> Result<(u32, u32, Vec<AVec<u8>>), String> {
     let first = layers.first();
     let (x_goal, y_goal) = (first.x_goal as usize, first.y_goal as usize);
+    let pixel_policy = first.pixel_policy;
     let stride = Spaceline::find_x_stride(tape_negative_len, tape_nonnegative_len, x_goal);
     let negative_len = stride.div_ceil_into(tape_negative_len);
     let nonnegative_len = stride.div_ceil_into(tape_nonnegative_len);
@@ -331,7 +386,8 @@ pub(crate) fn spatial_data(
     for select in 1..=symbol_count {
         let select = core::num::NonZeroU8::new(select).unwrap();
         let layer = layers.get_mut(select).unwrap();
-        let (actual_width, actual_height, mut packed) = layer
+        assert_eq!(layer.pixel_policy, pixel_policy);
+        let (actual_width, actual_height, packed) = layer
             .to_packed_data(tape_negative_len, tape_nonnegative_len, x_goal, y_goal)
             .map_err(|error| error.to_string())?;
         assert_eq!(actual_width as usize, width);
@@ -339,18 +395,25 @@ pub(crate) fn spatial_data(
             assert_eq!(dimensions, (actual_width, actual_height));
         }
         dimensions = Some((actual_width, actual_height));
-        for (row_index, row) in packed.chunks_exact_mut(width).enumerate() {
-            if scale == SpaceScale::RowStretch {
-                map.stretch_for_row(negative_len, stride, row_index, actual_height as usize);
-            }
-            source.replace_packed(row, negative_len, stride);
-            map.render(&source, layer.pixel_policy, &mut transformed);
-            row.copy_from_slice(&transformed);
-        }
         output.push(packed);
     }
-    let (width, height) = dimensions.expect("symbol layers must exist");
-    Ok((width, height, output))
+    let (actual_width, height) = dimensions.expect("symbol layers must exist");
+    let fit = if scale == SpaceScale::RowStretch {
+        row_stretch_fit(&output, width, height as usize, negative_len)
+    } else {
+        HorizontalFit::IDENTITY
+    };
+    for packed in &mut output {
+        for (row_index, row) in packed.chunks_exact_mut(width).enumerate() {
+            if scale == SpaceScale::RowStretch {
+                map.stretch_for_row(negative_len, stride, row_index, height as usize, fit);
+            }
+            source.replace_packed(row, negative_len, stride);
+            map.render(&source, pixel_policy, &mut transformed);
+            row.copy_from_slice(&transformed);
+        }
+    }
+    Ok((actual_width, height, output))
 }
 
 #[cfg(test)]
@@ -534,7 +597,7 @@ mod row_tests {
     fn row_stretch_is_linear_origin_anchored_and_finite() {
         let mut map = SpatialMap::new(SpaceScale::Linear, 4, 4, PowerOfTwo::ONE);
         for row_index in 0..5 {
-            map.stretch_for_row(4, PowerOfTwo::ONE, row_index, 5);
+            map.stretch_for_row(4, PowerOfTwo::ONE, row_index, 5, HorizontalFit::IDENTITY);
             let width = map.intervals[0].1 - map.intervals[0].0;
             assert!(width > 0.0 && width.is_finite());
             assert_eq!(map.intervals[4].0, 0.0);
@@ -543,7 +606,7 @@ mod row_tests {
             }
         }
         assert_eq!(map.intervals[0], (-4.0, -3.0)); // Bottom row is exactly 1x.
-        map.stretch_for_row(4, PowerOfTwo::ONE, 0, 1);
+        map.stretch_for_row(4, PowerOfTwo::ONE, 0, 1, HorizontalFit::IDENTITY);
         assert_eq!(map.intervals[0], (-4.0, -3.0)); // Single-row images stay unchanged.
     }
 
@@ -556,11 +619,94 @@ mod row_tests {
                     .map(|column| if column < row_index { 255 } else { 0 })
                     .collect();
                 let source = SpatialRow::from_packed(&values, 0, PowerOfTwo::ONE);
-                map.stretch_for_row(0, PowerOfTwo::ONE, row_index, 5);
+                map.stretch_for_row(0, PowerOfTwo::ONE, row_index, 5, HorizontalFit::IDENTITY);
                 let mut output = [0u8; 4];
                 map.render(&source, policy, &mut output);
                 assert_eq!(output, [255; 4]);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod fitting_tests {
+    use super::*;
+    fn layer(pixels: &[u8]) -> AVec<u8> {
+        let mut layer = AVec::with_capacity(ALIGN, pixels.len());
+        layer.extend_from_slice(pixels);
+        layer
+    }
+
+    #[test]
+    fn one_fit_contains_both_sides_and_every_symbol_layer() {
+        let layers = [
+            layer(&[
+                0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
+            layer(&[
+                0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
+        ];
+        let fit = row_stretch_fit(&layers, 8, 3, 4);
+        assert!((fit.scale - 0.4).abs() < 1e-12);
+        let fractions = [1.0 / 3.0, 0.5, 1.0];
+        for layer in &layers {
+            for (row_index, row) in layer.chunks_exact(8).enumerate() {
+                for (column, pixel) in row.iter().enumerate() {
+                    if *pixel == 0 {
+                        continue;
+                    }
+                    let start =
+                        (column as f64 - 4.0) * fit.scale / fractions[row_index] + fit.offset;
+                    let end = (column as f64 - 3.0) * fit.scale / fractions[row_index] + fit.offset;
+                    assert!(start >= -4.0 - 1e-12 && end <= 4.0 + 1e-12);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fit_recovers_the_clipped_outer_pixel_for_quality_and_speed() {
+        let layers = [layer(&[0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0])];
+        let fit = row_stretch_fit(&layers, 4, 3, 0);
+        let source = SpatialRow::from_packed(&layers[0][..4], 0, PowerOfTwo::ONE);
+        for policy in [PixelPolicy::Binning, PixelPolicy::Sampling] {
+            let mut map = SpatialMap::new(SpaceScale::Linear, 0, 4, PowerOfTwo::ONE);
+            let mut output = [0; 4];
+            map.stretch_for_row(0, PowerOfTwo::ONE, 0, 3, HorizontalFit::IDENTITY);
+            map.render(&source, policy, &mut output);
+            assert_eq!(output, [0; 4]);
+            map.stretch_for_row(0, PowerOfTwo::ONE, 0, 3, fit);
+            map.render(&source, policy, &mut output);
+            assert_eq!(output, [0, 0, 0, 255]);
+        }
+    }
+
+    #[test]
+    fn asymmetric_tape_uses_full_width_instead_of_squeezing_around_zero() {
+        let layers = [layer(&[
+            0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0,
+        ])];
+        let fit = row_stretch_fit(&layers, 8, 3, 7);
+        assert!((fit.scale - 0.8).abs() < 1e-12);
+        assert!((fit.offset + 1.4).abs() < 1e-12);
+        assert!((-7.0 * fit.scale + fit.offset + 7.0).abs() < 1e-12);
+        assert!((3.0 * fit.scale + fit.offset - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn blank_and_already_fitting_images_keep_their_scale() {
+        assert_eq!(row_stretch_fit(&[layer(&[0; 12])], 4, 3, 0).scale, 1.0);
+        assert_eq!(
+            row_stretch_fit(
+                &[layer(&[0, 0, 0, 0, 255, 255, 0, 0, 255, 255, 255, 255])],
+                4,
+                3,
+                0
+            )
+            .scale,
+            1.0
+        );
+        assert_eq!(row_stretch_fit(&[layer(&[255; 4])], 4, 1, 2).scale, 1.0);
     }
 }

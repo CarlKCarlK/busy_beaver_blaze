@@ -1,32 +1,42 @@
 # Independent space and time scaling
 
 Use [the experimental preview](http://127.0.0.1:8000/time-scale-preview/).
-The **Space scale** selector sits beside **Time scale**. Its Linear default
-preserves old hashes; nonlinear settings persist as `spaceScale=sqrt` or
-`spaceScale=log`. The published `v0.2.8` app is unchanged.
+The **Space scale** selector offers only **Linear** and **1/Y**. Its Linear
+default preserves old hashes; `spaceScale=row` selects 1/Y. Unsupported old X
+settings fall back to Linear. The published `v0.2.8` app is unchanged.
+
+### Current 1/Y fitting behavior
+
+Each final output row stretches uniformly about tape zero by
+`1/max(row/(height-1), 1/height)`. Before drawing, all nonzero symbol pixels in
+all rows/layers are checked for overflow on both sides. If any would leave the
+viewport, one shared horizontal shrink factor and translation bring the entire
+stretched image back into bounds. The origin remains aligned across rows but
+can move on screen, avoiding severe shrinking on asymmetric tapes. Relative
+1/Y stretches remain intact; rows are never
+fitted independently. The bottom row can therefore shrink too. Blank images
+and already-fitting images keep factor 1; single-row images remain unchanged.
+The fit uses whole occupied bins conservatively, because compressed pixels do
+not retain sub-bin locations. No new history or stored resolution is needed.
+
+[Example: fitted 1/Y X with Square Root Y](comparisons/x-row-y-sqrt.png).
+
+The remaining measurements and coordinate-transform comparisons below record
+the earlier experimental X modes, which are no longer selectable or accepted
+by the public string API.
 
 The time-only implementation was committed and pushed first as
 [`bb97716`](https://github.com/CarlKCarlK/busy_beaver_blaze/commit/bb97716).
 The spatial extension builds on that checkpoint on `log-images`.
 
-Square and Exponential are also available as outward-stretching alternatives.
+Square and Exponential were evaluated as outward-stretching alternatives.
 Square uses `sign(x) * x²`. Exponential uses the inverse of the normalized
 logarithmic map: with global extent `M`, its exponent is
 `abs(x) * ln(1 + M) / M`. This stays finite on wide tapes. Both reuse the same
 pixel-overlap renderer and existing history. Hash values are `square` and `exp`;
-Square Root and Logarithmic remain available for comparison.
+Square Root and Logarithmic were retained for comparison at that stage.
 Examples with Square Root Y: [Square X](comparisons/x-square-y-sqrt.png) and
 [Exponential X](comparisons/x-exp-y-sqrt.png).
-
-**Row stretch (1/Y)** stretches each row uniformly in X, with a factor based on
-its fraction down the final image. With `u = row/(height-1)`, the stretch is
-`1/max(u, 1/height)`: strongest near the top, exactly 1× at the bottom. A
-single-row image is unchanged. Tape zero stays fixed; enlarged content can
-extend beyond the viewport. This option deliberately varies X scale by row,
-while the other spatial options keep their global coordinate mappings.
-Example: [Row stretch with Square Root Y](comparisons/x-row-y-sqrt.png).
-It uses the existing binning/sampling renderer after time packing, adds no
-history storage, and accepts loss of differentiation in enlarged early rows.
 
 ## Implementation
 

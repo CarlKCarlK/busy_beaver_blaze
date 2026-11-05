@@ -34,6 +34,7 @@ try {
     await completed('6');
     assert.equal(await page.locator('#timeScale').inputValue(), 'linear-a');
     assert.equal(await page.locator('#spaceScale').inputValue(), 'linear');
+    assert.deepEqual(await page.locator('#spaceScale option').evaluateAll(options => options.map(option=>option.value)),['linear','row']);
     const oldImage = await image();
     await page.selectOption('#timeScale', 'log');
     assert.match(await page.locator('#timeScaleNotice').textContent(), /Run again/);
@@ -43,7 +44,7 @@ try {
     await completed('6');
     assert.match(await page.locator('#haltedStatus').textContent(), /Halted/);
     await scale('sqrt');
-    await space('log');
+    await space('row');
     assert.equal(await page.locator('#stepCount').textContent(),'6');
     const beforePalette = await image();
     await page.selectOption('#paletteMode', 'dark');
@@ -55,7 +56,7 @@ try {
     await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb6&earlyStop=false&timeScale=sqrt&run=true`);
     await page.waitForSelector('.image-container img');
     await page.selectOption('#timeScale','log');
-    await space('sqrt');
+    await space('row');
     await page.selectOption('#paletteMode','dark');
     await page.click('#runButton');
     await page.waitForFunction(() => document.querySelector('#runButton').textContent === 'Run');
@@ -69,11 +70,11 @@ try {
 
     console.log('Checking writing-state colors');
     // Linear A can transform X while retaining Speed and no checkpoints.
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb6&earlyStop=false&binning=false&spaceScale=sqrt&run=true`);
+    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb6&earlyStop=false&binning=false&spaceScale=row&run=true`);
     await page.waitForSelector('.image-container img');
     assert.equal(await page.locator('#binning').isChecked(),false);
-    assert.equal(await page.locator('#spaceScale').inputValue(),'sqrt');
-    await space('log');
+    assert.equal(await page.locator('#spaceScale').inputValue(),'row');
+    await space('row');
     await page.click('#runButton');
     await page.waitForFunction(() => document.querySelector('#runButton').textContent === 'Run');
     const speedCount = await page.locator('#stepCount').textContent();
@@ -88,7 +89,7 @@ try {
     assert.equal(await page.locator('#binning').isChecked(), true);
     assert.equal(await page.locator('#stateLegend > span').count(), 6);
     await scale('sqrt');
-    await space('log');
+    await space('row');
     await page.selectOption('#paletteMode','dark');
     assert.equal(await page.locator('#stepCount').textContent(),'100,001');
 
@@ -104,10 +105,10 @@ try {
         assert.equal(new URL(page.url()).hash.includes(`timeScale=${value}`), value !== 'linear-a');
         await page.screenshot({ path: new URL(`${value}.png`,output).pathname, fullPage: true });
     }
-    // Nine distinct mathematical X/Y combinations from the same retained run.
+    // Both X modes with every pyramid Y mode, reusing the same history.
     for (const timeScale of ['linear-b','sqrt','log']) {
         await scale(timeScale);
-        for (const spaceScale of ['linear','sqrt','log']) {
+        for (const spaceScale of ['linear','row']) {
             await space(spaceScale);
             assert.equal(await page.locator('#stepCount').textContent(),'100,001');
             assert.equal(await page.locator('#pyramidStats').textContent(),stats);
@@ -115,14 +116,7 @@ try {
             await page.screenshot({path:new URL(`x-${spaceScale}-y-${timeScale}.png`,output).pathname,fullPage:true});
         }
     }
-    // Outward X mappings reuse the same stopped history.
     await scale('sqrt');
-    for (const value of ['square','exp']) {
-        await space(value);
-        assert.equal(await page.locator('#stepCount').textContent(),'100,001');
-        assert.equal(await page.locator('#pyramidStats').textContent(),stats);
-        await page.screenshot({path:new URL(`x-${value}-y-sqrt.png`,output).pathname,fullPage:true});
-    }
     await space('row');
     assert.equal(await page.locator('#stepCount').textContent(),'100,001');
     assert.equal(await page.locator('#pyramidStats').textContent(),stats);
@@ -130,8 +124,11 @@ try {
     await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=1001&timeScale=sqrt&spaceScale=row&run=true`);
     await completed('1,001');
     assert.equal(await page.locator('#spaceScale').inputValue(),'row');
+    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb2&spaceScale=exp&run=true`);
+    await completed('6');
+    assert.equal(await page.locator('#spaceScale').inputValue(),'linear');
     assert.deepEqual(errors,[]);
-    console.log('Browser checks passed: defaults, restart notice, live scale/palette, stop, halt, state colors, hash, four time screenshots and nine X/Y screenshots.');
+    console.log('Browser checks passed: defaults, restart notice, live scale/palette, stop, halt, state colors, hash, Linear/1-Y X modes and all time modes.');
 } finally {
     await browser.close();
 }

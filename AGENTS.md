@@ -271,15 +271,17 @@ Guidelines:
 
 The `image_pyramid` feature (off by default) adds `PyramidMachine` and cumulative
 native `SpaceTimeLayers` checkpoints for Linear B, Square Root, and Logarithmic
-reconstruction. The same feature also exports `SpaceScale` and enables independent
-signed Square Root/Logarithmic and outward Square/Exponential tape-coordinate
-resampling. Exponential is normalized to the current global tape extent to
-avoid overflow. Linear A can transform
-space in Quality or Speed without creating a pyramid. Nonlinear space uses the
-current global tape extent and horizontal stride; enlarged compressed pixels
-cannot recover discarded sub-bin detail. Linear A retains its existing machine and stepping path. The
-isolated browser preview is `docs/time-scale-preview/`; the published
+time reconstruction. Linear A retains its existing stepping/rendering path.
+The isolated browser preview is `docs/time-scale-preview/`; the published
 `docs/v0.2.8/` assets are unchanged. Pyramid runs require Binning/Quality.
+
+X offers only Linear and 1/Y. The `row` mode stretches each final image row
+uniformly around tape zero by `1/max(row/(height-1), 1/height)`, then applies one
+shared horizontal shrink factor and translation to keep all nonblank
+symbol-layer pixels in bounds. Zero remains aligned across rows. The fit includes both tape halves and every row/layer; it preserves
+relative row stretches and never fits rows independently. Single-row images
+stay unchanged. The mode applies after temporal packing, works with Linear A
+Speed, accepts loss of detail near the top, and captures no additional history.
 
 Build the preview with:
 
@@ -287,21 +289,10 @@ Build the preview with:
 wasm-pack build --release --out-dir docs/time-scale-preview/pkg --target web --features image_pyramid
 ```
 
-Run
-`cargo test --release --features image_pyramid image_pyramid -- --nocapture`
-and `node --test tests/wasm/time-scale.test.mjs`; see the preview README for
-feature-matrix, browser, timing, memory, and raw-pixel comparison results.
-
-Spatial checks include `node --test tests/wasm/space-scale.test.mjs`,
-`cargo test --release --features image_pyramid spatial -- --nocapture`, and
-`cargo test --release --features image_pyramid space_scale`. The browser script
-also captures all nine mathematical X/Y combinations. Use
-`cargo run --release --features image_pyramid --example space_scale_measure`
-for rendering times and temporary allocator peaks. See
-`docs/time-scale-preview/SPACE-SCALE.md` for measurements and limitations.
-
-The `row` space-scale option stretches each final image row uniformly around
-tape zero by `1/max(row/(height-1), 1/height)`, with single-row images unchanged.
-It applies after temporal packing, so its Y fraction is the displayed row
-position for every time mode. This intentionally permits row-dependent X
-coordinates and loss of detail near the top; it captures no new history.
+Run `cargo test --release --features image_pyramid image_pyramid -- --nocapture`,
+`cargo test --release --features image_pyramid space_scale`, and
+`node --test tests/wasm/space-scale.test.mjs tests/wasm/time-scale.test.mjs`.
+The browser regression script is `tests/wasm/time-scale-browser.mjs`.
+Use `cargo run --release --features image_pyramid --example space_scale_measure`
+for rendering times and temporary allocator peaks. The preview README and
+`SPACE-SCALE.md` describe the design, fitting policy and measurements.
