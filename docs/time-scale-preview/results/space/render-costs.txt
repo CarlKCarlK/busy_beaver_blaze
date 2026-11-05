@@ -1,0 +1,27 @@
+BB5: checkpoints=21 retained_bytes=2174794
+Y=linear-a X=linear png_ms=1.613 temporary_peak_bytes=1475539 allocations_per_frame=32
+Y=linear-a X=sqrt png_ms=4.154 temporary_peak_bytes=1927377 allocations_per_frame=40
+Y=linear-a X=log png_ms=5.315 temporary_peak_bytes=1938991 allocations_per_frame=40
+Y=linear-b X=linear png_ms=3.881 temporary_peak_bytes=1754900 allocations_per_frame=7582
+Y=linear-b X=sqrt png_ms=11.412 temporary_peak_bytes=2205482 allocations_per_frame=7598
+Y=linear-b X=log png_ms=21.096 temporary_peak_bytes=2213392 allocations_per_frame=7598
+Y=sqrt X=linear png_ms=5.952 temporary_peak_bytes=1578470 allocations_per_frame=9484
+Y=sqrt X=sqrt png_ms=21.943 temporary_peak_bytes=1896322 allocations_per_frame=9500
+Y=sqrt X=log png_ms=15.384 temporary_peak_bytes=2165208 allocations_per_frame=9501
+Y=log X=linear png_ms=3.233 temporary_peak_bytes=1392642 allocations_per_frame=9421
+Y=log X=sqrt png_ms=12.249 temporary_peak_bytes=1550006 allocations_per_frame=9437
+Y=log X=log png_ms=13.815 temporary_peak_bytes=1752236 allocations_per_frame=9438
+26 layers: checkpoints=21 retained_bytes=93928822
+Y=linear-a X=linear png_ms=15.738 temporary_peak_bytes=6971029 allocations_per_frame=153
+Y=linear-a X=sqrt png_ms=67.124 temporary_peak_bytes=7908135 allocations_per_frame=164
+Y=linear-a X=log png_ms=72.581 temporary_peak_bytes=8036193 allocations_per_frame=164
+Y=linear-b X=linear png_ms=100.533 temporary_peak_bytes=14048279 allocations_per_frame=111152
+Y=linear-b X=sqrt png_ms=232.014 temporary_peak_bytes=14985291 allocations_per_frame=111169
+Y=linear-b X=log png_ms=270.927 temporary_peak_bytes=15112447 allocations_per_frame=111169
+Y=sqrt X=linear png_ms=88.546 temporary_peak_bytes=14049261 allocations_per_frame=135982
+Y=sqrt X=sqrt png_ms=292.182 temporary_peak_bytes=14596315 allocations_per_frame=135998
+Y=sqrt X=log png_ms=342.301 temporary_peak_bytes=14920681 allocations_per_frame=135999
+Y=log X=linear png_ms=76.541 temporary_peak_bytes=14045221 allocations_per_frame=136164
+Y=log X=sqrt png_ms=263.265 temporary_peak_bytes=14157557 allocations_per_frame=136178
+Y=log X=log png_ms=308.531 temporary_peak_bytes=14260041 allocations_per_frame=136179
+peak_rss_kib=137492

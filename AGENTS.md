@@ -271,7 +271,11 @@ Guidelines:
 
 The `image_pyramid` feature (off by default) adds `PyramidMachine` and cumulative
 native `SpaceTimeLayers` checkpoints for Linear B, Square Root, and Logarithmic
-reconstruction. Linear A retains its existing machine and stepping path. The
+reconstruction. The same feature also exports `SpaceScale` and enables independent
+signed Square Root/Logarithmic tape-coordinate resampling. Linear A can transform
+space in Quality or Speed without creating a pyramid. Nonlinear space uses the
+current global tape extent and horizontal stride; enlarged compressed pixels
+cannot recover discarded sub-bin detail. Linear A retains its existing machine and stepping path. The
 isolated browser preview is `docs/time-scale-preview/`; the published
 `docs/v0.2.8/` assets are unchanged. Pyramid runs require Binning/Quality.
 
@@ -285,3 +289,11 @@ Run
 `cargo test --release --features image_pyramid image_pyramid -- --nocapture`
 and `node --test tests/wasm/time-scale.test.mjs`; see the preview README for
 feature-matrix, browser, timing, memory, and raw-pixel comparison results.
+
+Spatial checks include `node --test tests/wasm/space-scale.test.mjs`,
+`cargo test --release --features image_pyramid spatial -- --nocapture`, and
+`cargo test --release --features image_pyramid space_scale`. The browser script
+also captures all nine mathematical X/Y combinations. Use
+`cargo run --release --features image_pyramid --example space_scale_measure`
+for rendering times and temporary allocator peaks. See
+`docs/time-scale-preview/SPACE-SCALE.md` for measurements and limitations.

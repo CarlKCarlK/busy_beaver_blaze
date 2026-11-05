@@ -144,6 +144,7 @@
 1	0LD	0RF	1LA	1RH	0RB	0RE</textarea>
         <p id="timeScaleNotice" role="status">Experimental time scales. Pyramid modes require Quality. Switching a Linear A run to a pyramid mode requires a new run.</p>
         <p id="pyramidStats" role="status"></p>
+        <p id="spaceScaleNotice" role="status"></p>
         <div class="controls">
             Size:
             <select id="sizePreset">
@@ -175,6 +176,14 @@
                     <option value="linear-b">Linear B (experimental)</option>
                     <option value="sqrt">Square Root (experimental)</option>
                     <option value="log">Logarithmic (experimental)</option>
+                </select>
+            </label>
+            <label style="margin-left: 0.5em;">
+                Space scale:
+                <select id="spaceScale" aria-label="Space scale">
+                    <option value="linear">Linear</option>
+                    <option value="sqrt">Square Root</option>
+                    <option value="log">Logarithmic</option>
                 </select>
             </label>
             <label style="margin-left: 0.5em;">
@@ -237,11 +246,23 @@
         import { parseProgram, statePalette } from '../v0.2.8/state-color.js';
 
         let displayedPyramid = null;
+        function updateSpaceScaleNotice() {
+            document.getElementById('spaceScaleNotice').textContent = document.getElementById('spaceScale').value === 'linear' ? ''
+                : 'Nonlinear space magnifies the retained tape resolution.' + (document.getElementById('binning').checked ? '' : ' Speed samples transformed column centers.');
+        }
+        function applySpaceScale() {
+            updateSpaceScaleNotice();
+            if (worker && displayedPyramid !== null && colorsMatchDisplay()) {
+                worker.postMessage({ type: 'space', spaceScale: document.getElementById('spaceScale').value });
+            }
+            updateHashFromUI();
+        }
         function updateTimeScaleAvailability() {
             const pyramid = document.getElementById('timeScale').value !== 'linear-a';
             const binning = document.getElementById('binning');
             if (pyramid) binning.checked = true;
             binning.disabled = pyramid;
+            updateSpaceScaleNotice();
         }
         function applyTimeScale() {
             updateTimeScaleAvailability();
@@ -377,6 +398,8 @@
             const stretchImage = document.getElementById('stretchImage');
             if (!stretchImage.checked) params.set('stretch', 'false');
 
+            const spaceScale = document.getElementById('spaceScale').value;
+            if (spaceScale !== 'linear') params.set('spaceScale', spaceScale);
             const timeScale = document.getElementById('timeScale').value;
             if (timeScale !== 'linear-a') params.set('timeScale', timeScale);
             const binning = document.getElementById('binning');
@@ -448,6 +471,7 @@
             }
 
             document.getElementById('timeScale').value = ['linear-b', 'sqrt', 'log'].includes(params.get('timeScale')) ? params.get('timeScale') : 'linear-a';
+            document.getElementById('spaceScale').value = ['sqrt', 'log'].includes(params.get('spaceScale')) ? params.get('spaceScale') : 'linear';
             updateTimeScaleAvailability();
             document.getElementById('colorBy').value = params.get('colorBy') === 'state' ? 'state' : 'symbol';
             updateColorModeAvailability();
@@ -810,6 +834,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                     const controls = document.querySelectorAll('.controls');
                     controls.forEach(c => c.classList.add('disabled'));
                     document.getElementById('timeScale').closest('label').style.pointerEvents = 'auto';
+                    document.getElementById('spaceScale').closest('label').style.pointerEvents = 'auto';
                     document.getElementById('paletteMode').closest('label').style.pointerEvents = 'auto';
                     document.getElementById('colorPickers').classList.remove('disabled');
                     const runButton = document.getElementById('runButton');
@@ -863,6 +888,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         worker.postMessage({
                             type: 'start',
                             timeScale: document.getElementById('timeScale').value,
+                            spaceScale: document.getElementById('spaceScale').value,
                             programText: textarea.value,
                             colorBy: document.getElementById('colorBy').value,
                             goal_x: Number(container.style.width.replace('px','')) || undefined,
@@ -971,9 +997,11 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             }
 
             document.getElementById('timeScale').addEventListener('change', applyTimeScale);
+            document.getElementById('spaceScale').addEventListener('change', applySpaceScale);
 
             // Add event listener for binning control
             document.getElementById('binning').addEventListener('change', () => {
+                updateSpaceScaleNotice();
                 updateHashFromUI();
                 resetImageContainer();
             });
@@ -1065,6 +1093,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
             window.addEventListener('hashchange', () => {
                 applyHashToUI();
                 applyTimeScale();
+                applySpaceScale();
                 updateSize();
                 // Update pickers visibility/state based on palette mode
                 if (paletteMode) {

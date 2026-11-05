@@ -66,6 +66,10 @@ criterion = "0.5.1"
 name = "time_scale_measure"
 required-features = ["image_pyramid"]
 
+[[example]]
+name = "space_scale_measure"
+required-features = ["image_pyramid"]
+
 [[bench]]
 name = "benchmark"
 harness = false

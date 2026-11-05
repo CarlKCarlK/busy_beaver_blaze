@@ -3,6 +3,7 @@ use aligned_vec::AVec;
 use instant::Instant;
 use wasm_bindgen::prelude::wasm_bindgen;
 
+use crate::space_scale::{SpaceScale, SpatialMap, SpatialRow, quantize};
 use crate::space_time_layers::SpaceTimeLayers;
 use crate::{ALIGN, Pixel, PixelPolicy, SpaceByTime, SpaceByTimeMachine, Spaceline};
 
@@ -78,7 +79,17 @@ impl ImagePyramid {
             .map_or(active, |level| &level.layers)
     }
 
+    #[cfg(test)]
     fn reconstruct(&self, active: &SpaceByTimeMachine, scale: TimeScale) -> SpaceTimeLayers {
+        self.reconstruct_with_space(active, scale, SpaceScale::Linear)
+    }
+
+    fn reconstruct_with_space(
+        &self,
+        active: &SpaceByTimeMachine,
+        scale: TimeScale,
+        space_scale: SpaceScale,
+    ) -> SpaceTimeLayers {
         let first = active.space_time_layers.first();
         let tape = active.machine.tape();
         let x_stride = Spaceline::find_x_stride(
@@ -89,6 +100,9 @@ impl ImagePyramid {
         let negative_len = x_stride.div_ceil_into(tape.negative.len());
         let nonnegative_len = x_stride.div_ceil_into(tape.nonnegative.len());
         let width = negative_len + nonnegative_len;
+        let spatial_map = (space_scale != SpaceScale::Linear)
+            .then(|| SpatialMap::new(space_scale, negative_len, nonnegative_len, x_stride));
+        let mut spatial_row = spatial_map.as_ref().map(|_| SpatialRow::default());
         let internal_height = first.spacelines.len();
         let height = if scale == TimeScale::Linear || internal_height < 2 * first.y_goal as usize {
             internal_height
@@ -145,6 +159,14 @@ impl ImagePyramid {
                     line.compress_x_if_needed_simd(x_stride);
                     #[cfg(not(feature = "simd"))]
                     line.compress_x_if_needed_no_simd(x_stride);
+                    if let Some(spatial_map) = &spatial_map {
+                        let spatial_row = spatial_row
+                            .as_mut()
+                            .expect("spatial map must have a row workspace");
+                        spatial_row.replace_line(&line);
+                        spatial_map.accumulate(spatial_row, overlap, &mut sums);
+                        continue;
+                    }
                     for (pixel_index, pixel) in line.negative.iter().enumerate() {
                         sums[negative_len - pixel_index - 1] += f64::from(pixel.as_u8()) * overlap;
                     }
@@ -154,7 +176,13 @@ impl ImagePyramid {
                 }
                 let pixels: Vec<Pixel> = sums
                     .into_iter()
-                    .map(|sum| Pixel::from((sum / (end - start)).floor().clamp(0.0, 255.0) as u8))
+                    .map(|sum| {
+                        Pixel::from(if spatial_map.is_some() {
+                            quantize(sum / (end - start))
+                        } else {
+                            (sum / (end - start)).floor().clamp(0.0, 255.0) as u8
+                        })
+                    })
                     .collect();
                 let mut negative = AVec::with_capacity(ALIGN, negative_len);
                 for pixel in pixels[..negative_len].iter().rev() {
@@ -184,6 +212,7 @@ pub struct PyramidMachine {
     active: SpaceByTimeMachine,
     pyramid: ImagePyramid,
     scale: TimeScale,
+    space_scale: SpaceScale,
 }
 
 #[wasm_bindgen]
@@ -198,6 +227,7 @@ impl PyramidMachine {
             active: SpaceByTimeMachine::from_str(program, x_goal, y_goal, true, 0)?,
             pyramid: ImagePyramid::default(),
             scale: TimeScale::parse(scale)?,
+            space_scale: SpaceScale::Linear,
         };
         machine.pyramid.capture(&machine.active);
         Ok(machine)
@@ -206,6 +236,12 @@ impl PyramidMachine {
     /// Change reconstruction without rerunning the simulation.
     pub fn set_time_scale(&mut self, scale: &str) -> Result<(), String> {
         self.scale = TimeScale::parse(scale)?;
+        Ok(())
+    }
+
+    /// Change the horizontal coordinate map without stepping or capturing history.
+    pub fn set_space_scale(&mut self, scale: &str) -> Result<(), String> {
+        self.space_scale = SpaceScale::parse(scale)?;
         Ok(())
     }
 
@@ -245,7 +281,9 @@ impl PyramidMachine {
         if !remainder.is_empty() || colors.len() < 2 {
             return Err("Provide at least two RGB triplets".into());
         }
-        let mut layers = self.pyramid.reconstruct(&self.active, self.scale);
+        let mut layers =
+            self.pyramid
+                .reconstruct_with_space(&self.active, self.scale, self.space_scale);
         let first = self.active.space_time_layers.first();
         layers
             .png_data_and_packed_data(
@@ -260,7 +298,11 @@ impl PyramidMachine {
 
     /// Render the active reference image while keeping pyramid history available.
     pub fn linear_png(&mut self, colors: &[u8]) -> Result<Vec<u8>, String> {
-        self.active.to_png(colors)
+        match self.space_scale {
+            SpaceScale::Linear => self.active.to_png(colors),
+            SpaceScale::SquareRoot => self.active.to_spatial_png(colors, "sqrt"),
+            SpaceScale::Logarithmic => self.active.to_spatial_png(colors, "log"),
+        }
     }
 
     /// Current sample count, matching the reference API (initial row included).
@@ -566,3 +608,6 @@ mod tests {
         assert_eq!(fresh.checkpoint_count(), 1);
     }
 }
+
+#[cfg(test)]
+mod spatial_tests;

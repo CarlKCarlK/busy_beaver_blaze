@@ -6,13 +6,15 @@ let machine = null;
 let pyramid = false;
 let currentColors = null;
 let scale = 'linear-a';
+let spaceScale = 'linear';
 let runCounter = 0;
 let running = false;
 
 function renderAndPost(intermediate) {
     if (!machine || !currentColors) return;
-    const png = pyramid && scale === 'linear-a'
-        ? machine.linear_png(currentColors) : machine.to_png(currentColors);
+    const png = pyramid
+        ? (scale === 'linear-a' ? machine.linear_png(currentColors) : machine.to_png(currentColors))
+        : (spaceScale === 'linear' ? machine.to_png(currentColors) : machine.to_spatial_png(currentColors, spaceScale));
     self.postMessage({
         success: true, intermediate, png_data: png,
         step_count: machine.step_count(), ones_count: machine.count_nonblanks(),
@@ -31,6 +33,7 @@ self.onmessage = async ({ data: msg }) => {
             if (machine) machine.free();
             machine = null;
             scale = msg.timeScale || 'linear-a';
+            spaceScale = msg.spaceScale || 'linear';
             pyramid = scale !== 'linear-a';
             if (pyramid && !msg.binning) throw new Error('Pyramid modes require Quality (binning).');
             const program = msg.colorBy === 'state' ? stateColoredProgram(msg.programText) : msg.programText;
@@ -38,6 +41,7 @@ self.onmessage = async ({ data: msg }) => {
             machine = pyramid
                 ? new PyramidMachine(program, msg.goal_x, msg.goal_y, scale)
                 : new SpaceByTimeMachine(program, msg.goal_x, msg.goal_y, msg.binning, 0n);
+            if (pyramid) machine.set_space_scale(spaceScale);
             running = true;
             while (running && runId === runCounter) {
                 const continuing = machine.step_for_secs(0.1, msg.early_stop, 10_000n);
@@ -59,6 +63,12 @@ self.onmessage = async ({ data: msg }) => {
         }
         if (msg.type === 'colors') {
             currentColors = new Uint8Array(msg.colorsBytes);
+            renderAndPost(true);
+            return;
+        }
+        if (msg.type === 'space') {
+            spaceScale = msg.spaceScale || 'linear';
+            if (pyramid && machine) machine.set_space_scale(spaceScale);
             renderAndPost(true);
             return;
         }

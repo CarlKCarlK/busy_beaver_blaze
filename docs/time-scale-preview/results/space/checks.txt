@@ -1,0 +1,52 @@
+    Checking busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.27s
+    Checking busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+warning: unused variable: `previous_tape_index`
+  --> src/space_by_time.rs:77:58
+   |
+77 |     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
+   |                                                          ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_previous_tape_index`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: `busy_beaver_blaze` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.24s
+    Checking busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+warning: unused variable: `previous_tape_index`
+  --> src/space_by_time.rs:77:58
+   |
+77 |     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
+   |                                                          ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_previous_tape_index`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: `busy_beaver_blaze` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.28s
+    Checking busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.27s
+    Checking busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.43s
+    Checking busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+warning: unused variable: `previous_tape_index`
+  --> src/space_by_time.rs:77:58
+   |
+77 |     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
+   |                                                          ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_previous_tape_index`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: `busy_beaver_blaze` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+    Checking busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+warning: unused variable: `previous_tape_index`
+  --> src/space_by_time.rs:77:58
+   |
+77 |     pub(crate) fn snapshot(&mut self, machine: &Machine, previous_tape_index: i64) {
+   |                                                          ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_previous_tape_index`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: `busy_beaver_blaze` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.43s
+    Checking busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.42s

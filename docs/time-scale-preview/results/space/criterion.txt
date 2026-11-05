@@ -1,0 +1,12 @@
+   Compiling busy_beaver_blaze v0.2.8 (/home/carlk/programs/busy_beaver_blaze)
+    Finished `bench` profile [optimized + debuginfo] target(s) in 3.20s
+     Running benches/benchmark.rs (target-nightly/release/deps/benchmark-b2ac90634acd8511)
+Benchmarking interpreter/bb5_million_steps
+Benchmarking interpreter/bb5_million_steps: Warming up for 1.0000 s
+Benchmarking interpreter/bb5_million_steps: Collecting 10 samples in estimated 1.1521 s (330 iterations)
+Benchmarking interpreter/bb5_million_steps: Analyzing
+interpreter/bb5_million_steps
+                        time:   [3.5226 ms 3.5560 ms 3.5849 ms]
+                        change: [-18.729% -12.607% -6.7095%] (p = 0.00 < 0.05)
+                        Performance has improved.
+

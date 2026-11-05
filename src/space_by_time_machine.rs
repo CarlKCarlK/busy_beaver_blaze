@@ -213,6 +213,22 @@ impl SpaceByTimeMachine {
         Ok(png_data)
     }
 
+    /// Apply an independent tape-coordinate map to the reference symbol layers.
+    /// Linear space uses the original PNG fast path; nonlinear space needs no pyramid.
+    #[cfg(feature = "image_pyramid")]
+    pub fn to_spatial_png(&mut self, colors: &[u8], space_scale: &str) -> Result<Vec<u8>, String> {
+        let space_scale = crate::SpaceScale::parse(space_scale)?;
+        if space_scale == crate::SpaceScale::Linear {
+            return self.to_png(colors);
+        }
+        let (colors, remainder) = colors.as_chunks::<3>();
+        if !remainder.is_empty() || colors.len() < 2 {
+            return Err("Provide at least two RGB triplets".into());
+        }
+        let (width, height, layers) = crate::space_scale::linear_spatial_data(self, space_scale)?;
+        crate::encode_png(width, height, colors, &layers).map_err(|error| error.to_string())
+    }
+
     // TODO why is it step_count and count_ones. That doesn't make sense.
     #[wasm_bindgen]
     #[cfg_attr(not(target_arch = "wasm32"), inline)]

@@ -1,0 +1,11 @@
+✔ tests/wasm/space-scale.test.mjs (110.995299ms)
+✔ tests/wasm/state-color.test.mjs (124.645886ms)
+✔ tests/wasm/time-scale.test.mjs (101.94245ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 133.974881

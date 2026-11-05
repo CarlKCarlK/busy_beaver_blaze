@@ -35,6 +35,10 @@ export class PyramidMachine {
    */
   set_time_scale(scale: string): void;
   /**
+   * Change the horizontal coordinate map without stepping or capturing history.
+   */
+  set_space_scale(scale: string): void;
+  /**
    * Step in bounded batches, capturing exact checkpoints even inside a batch.
    */
   step_for_secs(seconds: number, early_stop: bigint | null | undefined, loops_per_time_check: bigint): boolean;
@@ -92,6 +96,11 @@ export class SpaceByTimeMachine {
    * Returns an error if the `colors` length is not a multiple of 3 or if PNG packing fails in the underlying layers.
    */
   to_png(colors: Uint8Array): Uint8Array;
+  /**
+   * Apply an independent tape-coordinate map to the reference symbol layers.
+   * Linear space uses the original PNG fast path; nonlinear space needs no pyramid.
+   */
+  to_spatial_png(colors: Uint8Array, space_scale: string): Uint8Array;
   step_count(): bigint;
   count_nonblanks(): number;
   is_halted(): boolean;
@@ -104,6 +113,7 @@ export interface InitOutput {
   readonly __wbg_pyramidmachine_free: (a: number, b: number) => void;
   readonly pyramidmachine_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
   readonly pyramidmachine_set_time_scale: (a: number, b: number, c: number) => [number, number];
+  readonly pyramidmachine_set_space_scale: (a: number, b: number, c: number) => [number, number];
   readonly pyramidmachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
   readonly pyramidmachine_step: (a: number) => number;
   readonly pyramidmachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
@@ -113,6 +123,15 @@ export interface InitOutput {
   readonly pyramidmachine_is_halted: (a: number) => number;
   readonly pyramidmachine_checkpoint_count: (a: number) => number;
   readonly pyramidmachine_retained_bytes: (a: number) => number;
+  readonly __wbg_spacebytimemachine_free: (a: number, b: number) => void;
+  readonly spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [number, number, number];
+  readonly spacebytimemachine_nth: (a: number, b: bigint) => number;
+  readonly spacebytimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
+  readonly spacebytimemachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly spacebytimemachine_to_spatial_png: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+  readonly spacebytimemachine_step_count: (a: number) => bigint;
+  readonly spacebytimemachine_count_nonblanks: (a: number) => number;
+  readonly spacebytimemachine_is_halted: (a: number) => number;
   readonly __wbg_machine_free: (a: number, b: number) => void;
   readonly machine_from_string: (a: number, b: number) => [number, number, number];
   readonly machine_step: (a: number) => number;
@@ -121,14 +140,6 @@ export interface InitOutput {
   readonly machine_count: (a: number, b: number, c: bigint) => bigint;
   readonly machine_state: (a: number) => number;
   readonly machine_tape_index: (a: number) => bigint;
-  readonly __wbg_spacebytimemachine_free: (a: number, b: number) => void;
-  readonly spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [number, number, number];
-  readonly spacebytimemachine_nth: (a: number, b: bigint) => number;
-  readonly spacebytimemachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
-  readonly spacebytimemachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
-  readonly spacebytimemachine_step_count: (a: number) => bigint;
-  readonly spacebytimemachine_count_nonblanks: (a: number) => number;
-  readonly spacebytimemachine_is_halted: (a: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;

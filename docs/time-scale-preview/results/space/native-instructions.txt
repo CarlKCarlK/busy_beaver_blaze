@@ -1,0 +1,4 @@
+Native experiment-enabled binaries, pinned nightly release. Normalize addresses, GOT relocation offsets, and anonymous panic-data identifiers only.
+SpaceByTimeMachine::nth_js: before=182 instructions, after=182, normalized_equal=True
+SpaceByTime::snapshot: before=783 instructions, after=783, normalized_equal=True
+Machine as core::iter::traits::iterator::Iterator>::next: before=115 instructions, after=115, normalized_equal=True

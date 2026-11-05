@@ -27,6 +27,8 @@ mod power_of_two;
 mod snapshot;
 mod space_by_time;
 mod space_by_time_machine;
+#[cfg(feature = "image_pyramid")]
+mod space_scale;
 mod space_time_layers;
 mod spaceline;
 mod spacelines;
@@ -60,6 +62,8 @@ pub use png_data_layers::PngDataLayers;
 pub use power_of_two::PowerOfTwo;
 pub use space_by_time::SpaceByTime;
 pub use space_by_time_machine::SpaceByTimeMachine;
+#[cfg(feature = "image_pyramid")]
+pub use space_scale::SpaceScale;
 pub use spaceline::Spaceline;
 pub use tape::Tape;
 

@@ -321,6 +321,18 @@ export class PyramidMachine {
         }
     }
     /**
+     * Change the horizontal coordinate map without stepping or capturing history.
+     * @param {string} scale
+     */
+    set_space_scale(scale) {
+        const ptr0 = passStringToWasm0(scale, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.pyramidmachine_set_space_scale(this.__wbg_ptr, ptr0, len0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
      * Step in bounded batches, capturing exact checkpoints even inside a batch.
      * @param {number} seconds
      * @param {bigint | null | undefined} early_stop
@@ -491,6 +503,26 @@ export class SpaceByTimeMachine {
         var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         return v2;
+    }
+    /**
+     * Apply an independent tape-coordinate map to the reference symbol layers.
+     * Linear space uses the original PNG fast path; nonlinear space needs no pyramid.
+     * @param {Uint8Array} colors
+     * @param {string} space_scale
+     * @returns {Uint8Array}
+     */
+    to_spatial_png(colors, space_scale) {
+        const ptr0 = passArray8ToWasm0(colors, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(space_scale, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.spacebytimemachine_to_spatial_png(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v3;
     }
     /**
      * @returns {bigint}

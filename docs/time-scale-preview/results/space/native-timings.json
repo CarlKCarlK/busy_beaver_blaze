@@ -1,0 +1,138 @@
+{
+  "after-default": [
+    {
+      "stdout": "binning=true elapsed_ms=152.899\nbinning=true elapsed_ms=157.005\nbinning=true elapsed_ms=159.173\nbinning=true elapsed_ms=156.559\nbinning=true elapsed_ms=157.705\nbinning=false elapsed_ms=8.646\nbinning=false elapsed_ms=9.471\nbinning=false elapsed_ms=8.476\nbinning=false elapsed_ms=8.834\nbinning=false elapsed_ms=9.138\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=151.477\nbinning=true elapsed_ms=151.561\nbinning=true elapsed_ms=151.468\nbinning=true elapsed_ms=150.763\nbinning=true elapsed_ms=149.895\nbinning=false elapsed_ms=8.798\nbinning=false elapsed_ms=8.419\nbinning=false elapsed_ms=8.555\nbinning=false elapsed_ms=8.411\nbinning=false elapsed_ms=8.615\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=151.772\nbinning=true elapsed_ms=153.292\nbinning=true elapsed_ms=153.288\nbinning=true elapsed_ms=151.311\nbinning=true elapsed_ms=153.328\nbinning=false elapsed_ms=8.797\nbinning=false elapsed_ms=8.894\nbinning=false elapsed_ms=8.960\nbinning=false elapsed_ms=8.458\nbinning=false elapsed_ms=8.518\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=156.715\nbinning=true elapsed_ms=152.307\nbinning=true elapsed_ms=153.227\nbinning=true elapsed_ms=157.106\nbinning=true elapsed_ms=156.902\nbinning=false elapsed_ms=8.751\nbinning=false elapsed_ms=8.732\nbinning=false elapsed_ms=8.609\nbinning=false elapsed_ms=8.802\nbinning=false elapsed_ms=8.631\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=156.059\nbinning=true elapsed_ms=159.451\nbinning=true elapsed_ms=155.016\nbinning=true elapsed_ms=152.899\nbinning=true elapsed_ms=158.073\nbinning=false elapsed_ms=8.955\nbinning=false elapsed_ms=8.576\nbinning=false elapsed_ms=9.417\nbinning=false elapsed_ms=9.046\nbinning=false elapsed_ms=8.532\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=154.388\nbinning=true elapsed_ms=152.478\nbinning=true elapsed_ms=153.535\nbinning=true elapsed_ms=155.380\nbinning=true elapsed_ms=151.025\nbinning=false elapsed_ms=8.715\nbinning=false elapsed_ms=8.464\nbinning=false elapsed_ms=8.607\nbinning=false elapsed_ms=8.453\nbinning=false elapsed_ms=9.245\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=151.757\nbinning=true elapsed_ms=152.919\nbinning=true elapsed_ms=150.726\nbinning=true elapsed_ms=150.511\nbinning=true elapsed_ms=165.897\nbinning=false elapsed_ms=8.911\nbinning=false elapsed_ms=8.547\nbinning=false elapsed_ms=9.243\nbinning=false elapsed_ms=8.584\nbinning=false elapsed_ms=9.053\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=160.275\nbinning=true elapsed_ms=159.038\nbinning=true elapsed_ms=158.984\nbinning=true elapsed_ms=157.918\nbinning=true elapsed_ms=154.108\nbinning=false elapsed_ms=9.651\nbinning=false elapsed_ms=8.700\nbinning=false elapsed_ms=9.533\nbinning=false elapsed_ms=8.475\nbinning=false elapsed_ms=8.925\n",
+      "rss": "peak_rss_kib=3424"
+    }
+  ],
+  "before-experiment": [
+    {
+      "stdout": "binning=true elapsed_ms=159.742\nbinning=true elapsed_ms=160.343\nbinning=true elapsed_ms=155.873\nbinning=true elapsed_ms=154.639\nbinning=true elapsed_ms=154.667\nbinning=false elapsed_ms=8.204\nbinning=false elapsed_ms=8.297\nbinning=false elapsed_ms=8.060\nbinning=false elapsed_ms=9.266\nbinning=false elapsed_ms=8.032\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=159.704\nbinning=true elapsed_ms=155.261\nbinning=true elapsed_ms=155.643\nbinning=true elapsed_ms=157.733\nbinning=true elapsed_ms=155.699\nbinning=false elapsed_ms=8.359\nbinning=false elapsed_ms=8.083\nbinning=false elapsed_ms=8.421\nbinning=false elapsed_ms=8.126\nbinning=false elapsed_ms=8.081\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=153.957\nbinning=true elapsed_ms=154.082\nbinning=true elapsed_ms=156.381\nbinning=true elapsed_ms=161.495\nbinning=true elapsed_ms=156.546\nbinning=false elapsed_ms=8.881\nbinning=false elapsed_ms=8.118\nbinning=false elapsed_ms=8.544\nbinning=false elapsed_ms=8.102\nbinning=false elapsed_ms=8.665\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=155.178\nbinning=true elapsed_ms=156.248\nbinning=true elapsed_ms=156.094\nbinning=true elapsed_ms=155.434\nbinning=true elapsed_ms=154.868\nbinning=false elapsed_ms=8.589\nbinning=false elapsed_ms=8.355\nbinning=false elapsed_ms=8.479\nbinning=false elapsed_ms=8.221\nbinning=false elapsed_ms=8.373\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=156.243\nbinning=true elapsed_ms=155.799\nbinning=true elapsed_ms=159.255\nbinning=true elapsed_ms=157.973\nbinning=true elapsed_ms=157.337\nbinning=false elapsed_ms=8.628\nbinning=false elapsed_ms=8.266\nbinning=false elapsed_ms=8.345\nbinning=false elapsed_ms=8.020\nbinning=false elapsed_ms=8.280\n",
+      "rss": "peak_rss_kib=3328"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=154.949\nbinning=true elapsed_ms=154.939\nbinning=true elapsed_ms=154.485\nbinning=true elapsed_ms=155.603\nbinning=true elapsed_ms=153.479\nbinning=false elapsed_ms=8.119\nbinning=false elapsed_ms=8.683\nbinning=false elapsed_ms=8.088\nbinning=false elapsed_ms=8.179\nbinning=false elapsed_ms=8.003\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=154.928\nbinning=true elapsed_ms=154.793\nbinning=true elapsed_ms=154.687\nbinning=true elapsed_ms=158.399\nbinning=true elapsed_ms=154.511\nbinning=false elapsed_ms=8.371\nbinning=false elapsed_ms=8.635\nbinning=false elapsed_ms=8.507\nbinning=false elapsed_ms=8.429\nbinning=false elapsed_ms=8.292\n",
+      "rss": "peak_rss_kib=3328"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=157.800\nbinning=true elapsed_ms=154.401\nbinning=true elapsed_ms=160.078\nbinning=true elapsed_ms=155.920\nbinning=true elapsed_ms=155.943\nbinning=false elapsed_ms=8.245\nbinning=false elapsed_ms=8.305\nbinning=false elapsed_ms=8.093\nbinning=false elapsed_ms=8.173\nbinning=false elapsed_ms=8.059\n",
+      "rss": "peak_rss_kib=3420"
+    }
+  ],
+  "after-experiment": [
+    {
+      "stdout": "binning=true elapsed_ms=157.155\nbinning=true elapsed_ms=154.975\nbinning=true elapsed_ms=157.740\nbinning=true elapsed_ms=160.157\nbinning=true elapsed_ms=162.231\nbinning=false elapsed_ms=8.316\nbinning=false elapsed_ms=9.008\nbinning=false elapsed_ms=8.306\nbinning=false elapsed_ms=9.222\nbinning=false elapsed_ms=8.142\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=155.713\nbinning=true elapsed_ms=155.022\nbinning=true elapsed_ms=163.214\nbinning=true elapsed_ms=156.163\nbinning=true elapsed_ms=154.713\nbinning=false elapsed_ms=8.381\nbinning=false elapsed_ms=8.499\nbinning=false elapsed_ms=8.177\nbinning=false elapsed_ms=8.396\nbinning=false elapsed_ms=8.155\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=156.004\nbinning=true elapsed_ms=156.141\nbinning=true elapsed_ms=158.814\nbinning=true elapsed_ms=158.657\nbinning=true elapsed_ms=155.500\nbinning=false elapsed_ms=8.440\nbinning=false elapsed_ms=8.136\nbinning=false elapsed_ms=8.238\nbinning=false elapsed_ms=8.102\nbinning=false elapsed_ms=8.295\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=157.000\nbinning=true elapsed_ms=151.424\nbinning=true elapsed_ms=156.665\nbinning=true elapsed_ms=157.258\nbinning=true elapsed_ms=158.980\nbinning=false elapsed_ms=8.394\nbinning=false elapsed_ms=8.173\nbinning=false elapsed_ms=9.075\nbinning=false elapsed_ms=8.197\nbinning=false elapsed_ms=9.081\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=154.568\nbinning=true elapsed_ms=154.298\nbinning=true elapsed_ms=155.059\nbinning=true elapsed_ms=153.548\nbinning=true elapsed_ms=153.735\nbinning=false elapsed_ms=8.331\nbinning=false elapsed_ms=8.817\nbinning=false elapsed_ms=8.596\nbinning=false elapsed_ms=8.247\nbinning=false elapsed_ms=8.338\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=154.661\nbinning=true elapsed_ms=155.409\nbinning=true elapsed_ms=154.822\nbinning=true elapsed_ms=153.800\nbinning=true elapsed_ms=153.281\nbinning=false elapsed_ms=8.262\nbinning=false elapsed_ms=8.585\nbinning=false elapsed_ms=8.252\nbinning=false elapsed_ms=9.010\nbinning=false elapsed_ms=8.378\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=157.183\nbinning=true elapsed_ms=153.300\nbinning=true elapsed_ms=155.889\nbinning=true elapsed_ms=160.235\nbinning=true elapsed_ms=160.584\nbinning=false elapsed_ms=8.376\nbinning=false elapsed_ms=8.734\nbinning=false elapsed_ms=8.146\nbinning=false elapsed_ms=8.846\nbinning=false elapsed_ms=8.129\n",
+      "rss": "peak_rss_kib=3508"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=160.933\nbinning=true elapsed_ms=157.766\nbinning=true elapsed_ms=155.624\nbinning=true elapsed_ms=155.542\nbinning=true elapsed_ms=159.805\nbinning=false elapsed_ms=8.393\nbinning=false elapsed_ms=8.731\nbinning=false elapsed_ms=8.237\nbinning=false elapsed_ms=8.470\nbinning=false elapsed_ms=8.316\n",
+      "rss": "peak_rss_kib=3424"
+    }
+  ],
+  "before-default": [
+    {
+      "stdout": "binning=true elapsed_ms=153.533\nbinning=true elapsed_ms=155.923\nbinning=true elapsed_ms=158.541\nbinning=true elapsed_ms=152.018\nbinning=true elapsed_ms=153.411\nbinning=false elapsed_ms=9.060\nbinning=false elapsed_ms=8.522\nbinning=false elapsed_ms=8.832\nbinning=false elapsed_ms=8.808\nbinning=false elapsed_ms=8.555\n",
+      "rss": "peak_rss_kib=3420"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=153.850\nbinning=true elapsed_ms=153.645\nbinning=true elapsed_ms=155.366\nbinning=true elapsed_ms=156.576\nbinning=true elapsed_ms=156.177\nbinning=false elapsed_ms=8.990\nbinning=false elapsed_ms=8.587\nbinning=false elapsed_ms=9.113\nbinning=false elapsed_ms=8.697\nbinning=false elapsed_ms=8.853\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=153.916\nbinning=true elapsed_ms=159.349\nbinning=true elapsed_ms=155.304\nbinning=true elapsed_ms=153.733\nbinning=true elapsed_ms=156.114\nbinning=false elapsed_ms=8.533\nbinning=false elapsed_ms=8.723\nbinning=false elapsed_ms=8.648\nbinning=false elapsed_ms=8.510\nbinning=false elapsed_ms=8.623\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=154.445\nbinning=true elapsed_ms=154.686\nbinning=true elapsed_ms=155.404\nbinning=true elapsed_ms=154.864\nbinning=true elapsed_ms=153.137\nbinning=false elapsed_ms=8.634\nbinning=false elapsed_ms=8.706\nbinning=false elapsed_ms=8.552\nbinning=false elapsed_ms=8.699\nbinning=false elapsed_ms=8.968\n",
+      "rss": "peak_rss_kib=3428"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=154.866\nbinning=true elapsed_ms=155.282\nbinning=true elapsed_ms=163.244\nbinning=true elapsed_ms=164.396\nbinning=true elapsed_ms=152.592\nbinning=false elapsed_ms=9.019\nbinning=false elapsed_ms=8.652\nbinning=false elapsed_ms=8.531\nbinning=false elapsed_ms=8.693\nbinning=false elapsed_ms=8.515\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=159.039\nbinning=true elapsed_ms=155.085\nbinning=true elapsed_ms=152.315\nbinning=true elapsed_ms=150.456\nbinning=true elapsed_ms=153.773\nbinning=false elapsed_ms=8.738\nbinning=false elapsed_ms=9.075\nbinning=false elapsed_ms=9.442\nbinning=false elapsed_ms=8.699\nbinning=false elapsed_ms=8.988\n",
+      "rss": "peak_rss_kib=3500"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=159.768\nbinning=true elapsed_ms=162.077\nbinning=true elapsed_ms=160.868\nbinning=true elapsed_ms=163.167\nbinning=true elapsed_ms=159.704\nbinning=false elapsed_ms=8.698\nbinning=false elapsed_ms=8.755\nbinning=false elapsed_ms=8.566\nbinning=false elapsed_ms=8.681\nbinning=false elapsed_ms=8.456\n",
+      "rss": "peak_rss_kib=3424"
+    },
+    {
+      "stdout": "binning=true elapsed_ms=158.784\nbinning=true elapsed_ms=156.720\nbinning=true elapsed_ms=156.369\nbinning=true elapsed_ms=156.025\nbinning=true elapsed_ms=161.935\nbinning=false elapsed_ms=9.459\nbinning=false elapsed_ms=9.201\nbinning=false elapsed_ms=8.662\nbinning=false elapsed_ms=9.365\nbinning=false elapsed_ms=8.645\n",
+      "rss": "peak_rss_kib=3424"
+    }
+  ]
+}

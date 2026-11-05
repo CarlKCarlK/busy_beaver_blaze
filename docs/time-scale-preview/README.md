@@ -1,6 +1,9 @@
 # Experimental multiresolution time scales
 
 Open [the local preview](http://127.0.0.1:8000/time-scale-preview/).
+The independent spatial extension is documented in [Space scaling](SPACE-SCALE.md),
+including the nine X/Y comparison screenshots.
+
 The published `v0.2.8` page, worker, and WASM assets remain unchanged. This work
 is isolated on `log-images` and has not been merged or published.
 

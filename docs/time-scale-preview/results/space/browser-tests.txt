@@ -1,0 +1,5 @@
+Checking reference defaults and halting
+Checking live controls and stop
+Checking writing-state colors
+Capturing comparisons
+Browser checks passed: defaults, restart notice, live scale/palette, stop, halt, state colors, hash, four time screenshots and nine X/Y screenshots.
