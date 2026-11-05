@@ -276,7 +276,10 @@ Root; Linear B/logarithmic remain internal validation modes. The pyramid size
 and checkpoint readout is not displayed. Linear A retains its existing
 stepping/rendering path.
 The isolated browser preview is `docs/time-scale-preview/`; the published
-`docs/v0.2.8/` assets are unchanged. Pyramid runs require Binning/Quality.
+`docs/v0.2.8/` assets are unchanged. Square Root supports both Quality/Binning
+and Speed/Sampling. Speed selects the stored sample containing the inverse-
+mapped output-row center; it never averages sampled rows. `PyramidMachine.new`
+retains the Quality default, and `PyramidMachine.sampling` creates a Speed run.
 
 X offers only Linear and 1/Y. The `row` mode stretches each final image row
 uniformly around tape zero by `1/max(row/(height-1), 1/height)`, then applies one
@@ -299,3 +302,7 @@ The browser regression script is `tests/wasm/time-scale-browser.mjs`.
 Use `cargo run --release --features image_pyramid --example space_scale_measure`
 for rendering times and temporary allocator peaks. The preview README and
 `SPACE-SCALE.md` describe the design, fitting policy and measurements.
+
+The preview writes both scale selections to the URL (`timeScale=linear|sqrt`,
+`spaceScale=linear|row`) and restores them on load/hash edits. Missing settings
+retain the Linear defaults; `linear-a` remains a supported legacy URL value.

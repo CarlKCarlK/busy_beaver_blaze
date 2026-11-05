@@ -277,6 +277,14 @@ const PyramidMachineFinalization = (typeof FinalizationRegistry === 'undefined')
  */
 export class PyramidMachine {
 
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(PyramidMachine.prototype);
+        obj.__wbg_ptr = ptr;
+        PyramidMachineFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -289,7 +297,7 @@ export class PyramidMachine {
         wasm.__wbg_pyramidmachine_free(ptr, 0);
     }
     /**
-     * Start an experimental Quality run with native multilayer history capture.
+     * Start a Quality run with native multilayer history capture.
      * @param {string} program
      * @param {number} x_goal
      * @param {number} y_goal
@@ -307,6 +315,25 @@ export class PyramidMachine {
         this.__wbg_ptr = ret[0] >>> 0;
         PyramidMachineFinalization.register(this, this.__wbg_ptr, this);
         return this;
+    }
+    /**
+     * Start a Speed run retaining representative samples instead of averages.
+     * @param {string} program
+     * @param {number} x_goal
+     * @param {number} y_goal
+     * @param {string} scale
+     * @returns {PyramidMachine}
+     */
+    static sampling(program, x_goal, y_goal, scale) {
+        const ptr0 = passStringToWasm0(program, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(scale, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.pyramidmachine_sampling(ptr0, len0, x_goal, y_goal, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return PyramidMachine.__wrap(ret[0]);
     }
     /**
      * Change reconstruction without rerunning the simulation.

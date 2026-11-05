@@ -8,6 +8,10 @@
   scaling, and Linear or fitted 1/Y horizontal stretching.
 - Simplified the time selector and removed the pyramid size/debug readout.
 
+- Enabled Speed/Sampling for Square Root time scaling without averaging samples.
+- Tightened program/control spacing and synchronized both scale selections with
+  the URL hash in both directions.
+
 ### Acknowledgments
 
 **Nonlinear time scaling:** Thanks to

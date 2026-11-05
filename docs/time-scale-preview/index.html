@@ -22,6 +22,8 @@
     <meta name="twitter:description" content="Explore Turing Machines and Busy Beavers with this interactive Rust-powered WASM emulator.">
     <meta name="twitter:image" content="https://carlkcarlk.github.io/busy_beaver_blaze/preview.png?v=2">
     <style>
+        #timeScaleNotice, #spaceScaleNotice, #colorNotice { margin: 0.25em 0; }
+        #timeScaleNotice:empty, #spaceScaleNotice:empty, #colorNotice:empty { display: none; }
         /* Toggle Switch for Quality/Speed */
         .quality-toggle {
             display: flex;
@@ -154,8 +156,6 @@
         <textarea id="programInput" aria-label="Turing machine program input">	A	B	C	D	E	F
 0	1RB	1RC	1LC	0LE	1LF	0RC
 1	0LD	0RF	1LA	1RH	0RB	0RE</textarea>
-        <p id="timeScaleNotice" role="status"></p>
-        <p id="spaceScaleNotice" role="status"></p>
         <div class="controls">
             Size:
             <select id="sizePreset">
@@ -217,6 +217,8 @@
                 </select>
             </label>
         </div>
+        <p id="timeScaleNotice" role="status"></p>
+        <p id="spaceScaleNotice" role="status"></p>
         <p id="colorNotice" role="status" aria-live="polite"></p>
         <div id="stateLegend" class="controls" aria-label="Writing state color legend" hidden></div>
         <div id="colorPickers" class="controls" style="display: none; gap: 0.5em; flex-wrap: wrap;">
@@ -273,10 +275,6 @@
             updateHashFromUI();
         }
         function updateTimeScaleAvailability() {
-            const pyramid = document.getElementById('timeScale').value !== 'linear-a';
-            const binning = document.getElementById('binning');
-            if (pyramid) binning.checked = true;
-            binning.disabled = pyramid;
             updateSpaceScaleNotice();
         }
         function applyTimeScale() {
@@ -302,12 +300,13 @@
         const pickerIds = () => Array.from(document.querySelectorAll('#colorPickers input'), input => input.id);
         let displayedColorBy = null;
         let displayedProgram = null;
+        let displayedBinning = null;
         function colorsMatchDisplay() {
-            return displayedColorBy === document.getElementById('colorBy').value && displayedProgram === document.getElementById('programInput').value;
+            return displayedColorBy === document.getElementById('colorBy').value && displayedProgram === document.getElementById('programInput').value && displayedBinning === document.getElementById('binning').checked;
         }
         function updateColorNotice() {
             document.getElementById('colorNotice').textContent = displayedColorBy !== null && !colorsMatchDisplay()
-                ? 'Run to apply the new program or coloring mode.' : '';
+                ? 'Run to apply the changed settings.' : '';
         }
         function updateColorModeAvailability() {
             let binary = false;
@@ -414,9 +413,9 @@
             if (!stretchImage.checked) params.set('stretch', 'false');
 
             const spaceScale = document.getElementById('spaceScale').value;
-            if (spaceScale !== 'linear') params.set('spaceScale', spaceScale);
+            params.set('spaceScale', spaceScale);
             const timeScale = document.getElementById('timeScale').value;
-            if (timeScale !== 'linear-a') params.set('timeScale', timeScale);
+            params.set('timeScale', timeScale === 'linear-a' ? 'linear' : timeScale);
             const binning = document.getElementById('binning');
             if (!binning.checked) params.set('binning', 'false');
 
@@ -893,6 +892,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         document.getElementById('timeScaleNotice').textContent = '';
                         displayedColorBy = document.getElementById('colorBy').value;
                         displayedProgram = textarea.value;
+                        displayedBinning = document.getElementById('binning').checked;
                         updateColorNotice();
                         worker.postMessage({
                             type: 'start',

@@ -47,11 +47,13 @@ try {
     await creditButton.hover();
     assert.equal(await page.locator('#timeScaleCredit').isVisible(),true);
     await page.locator('#programInput').hover();
+    const gap = await page.evaluate(() => document.getElementById('timeScale').closest('.controls').getBoundingClientRect().top - document.getElementById('programInput').getBoundingClientRect().bottom);
+    assert.ok(gap <= 16, `Program/control gap too large: ${gap}`);
     const oldImage = await image();
     await page.selectOption('#timeScale', 'sqrt');
     assert.match(await page.locator('#timeScaleNotice').textContent(), /Run again/);
     assert.equal(await image(), oldImage);
-    assert.equal(await page.locator('#binning').isDisabled(), true);
+    assert.equal(await page.locator('#binning').isDisabled(), false);
     await page.click('#runButton');
     await completed('6');
     assert.match(await page.locator('#haltedStatus').textContent(), /Halted/);
@@ -97,7 +99,7 @@ try {
     // Writing-state colors survive every scale, and a subsequent run starts afresh.
     await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=100001&colorBy=state&timeScale=sqrt&binning=false&run=true`);
     await completed('100,001');
-    assert.equal(await page.locator('#binning').isChecked(), true);
+    assert.equal(await page.locator('#binning').isChecked(), false);
     assert.equal(await page.locator('#stateLegend > span').count(), 6);
     await scale('sqrt');
     await space('row');
@@ -112,7 +114,7 @@ try {
     for (const value of ['linear-a','sqrt']) {
         await scale(value);
         assert.equal(await page.locator('#stepCount').textContent(),'100,001');
-        assert.equal(new URL(page.url()).hash.includes(`timeScale=${value}`), value !== 'linear-a');
+        assert.equal(new URLSearchParams(new URL(page.url()).hash.slice(1)).get('timeScale'),value === 'linear-a' ? 'linear' : value);
         await page.screenshot({ path: new URL(`${value}.png`,output).pathname, fullPage: true });
     }
     // Both X modes with both time modes, reusing the same history.
@@ -121,7 +123,7 @@ try {
         for (const spaceScale of ['linear','row']) {
             await space(spaceScale);
             assert.equal(await page.locator('#stepCount').textContent(),'100,001');
-            assert.equal(new URL(page.url()).hash.includes(`spaceScale=${spaceScale}`),spaceScale!=='linear');
+            assert.equal(new URLSearchParams(new URL(page.url()).hash.slice(1)).get('spaceScale'),spaceScale);
             if (timeScale === 'sqrt') await page.screenshot({path:new URL(`x-${spaceScale}-y-${timeScale}.png`,output).pathname,fullPage:true});
         }
     }
@@ -129,9 +131,18 @@ try {
     await space('row');
     assert.equal(await page.locator('#stepCount').textContent(),'100,001');
     await page.screenshot({path:new URL('x-row-y-sqrt.png',output).pathname,fullPage:true});
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=1001&timeScale=sqrt&spaceScale=row&run=true`);
+    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=1001&timeScale=sqrt&spaceScale=row&binning=false&run=true`);
     await completed('1,001');
     assert.equal(await page.locator('#spaceScale').inputValue(),'row');
+    assert.equal(await page.locator('#binning').isChecked(),false);
+    for (const [timeValue,spaceValue] of [['linear','linear'],['sqrt','row']]) {
+        const previous = await image();
+        await page.evaluate(([timeValue,spaceValue]) => {location.hash = `program=bb5&steps=1001&timeScale=${timeValue}&spaceScale=${spaceValue}&binning=false`;},[timeValue,spaceValue]);
+        await page.waitForFunction(previous => document.querySelector('.image-container img')?.src !== previous && document.querySelector('.image-container img')?.complete,previous);
+        assert.equal(await page.locator('#timeScale').inputValue(),timeValue==='linear'?'linear-a':timeValue);
+        assert.equal(await page.locator('#spaceScale').inputValue(),spaceValue);
+        assert.equal(await page.locator('#stepCount').textContent(),'1,001');
+    }
     await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb2&spaceScale=exp&run=true`);
     await completed('6');
     assert.equal(await page.locator('#spaceScale').inputValue(),'linear');

@@ -44,7 +44,8 @@ arithmetic uses `u128` before conversion, avoiding padded `u64` overflow.
 
 The preview copies the established UI and imports its shared styles and
 state-color transform. Its own worker and WASM package keep the experiment
-separate. Pyramid modes require Quality; Speed is disabled for them. Scale and
+separate. Pyramid modes support Quality and Speed. Speed picks the stored sample
+containing the inverse-mapped output-row center, without averaging samples. Scale and
 palette messages rerender retained data, including after stopping or halting.
 A pyramid run can also show its active Linear A image. A Linear A run needs a
 new Run to collect history; the page explains this. Old hashes default to
@@ -207,7 +208,8 @@ prototype. Floating-point time endpoints lose unit precision above 2^53, while
 remaining finite and monotone; huge-time checks exercise arithmetic, not a
 literal near-`u64::MAX` simulation. Memory grows with layers and log time;
 large images with many writing-state layers can exceed browser budgets.
-There is no sampling reconstruction for pyramid modes.
+Sampling reconstruction selects representative stored rows and cannot recover
+details discarded by sampling.
 
 The new core is `src/image_pyramid.rs`. Existing Rust changes are restricted to
 module exports, the off-by-default feature, retained-byte accounting in

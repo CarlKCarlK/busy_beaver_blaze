@@ -35,8 +35,8 @@ test('Linear A identity and all X maps preserve Quality/Speed, time count and pa
 });
 
 test('all six pyramid X/Y combinations reuse history and symbol/state colors', () => {
-    for (const program of programs) {
-        const machine = new PyramidMachine(program,32,16,'linear-b');
+    for (const sampling of [false,true]) for (const program of programs) {
+        const machine = sampling ? PyramidMachine.sampling(program,32,16,'linear-b') : new PyramidMachine(program,32,16,'linear-b');
         machine.step_for_secs(1,1001n,1n);
         const count = machine.step_count();
         const checkpoints = machine.checkpoint_count();

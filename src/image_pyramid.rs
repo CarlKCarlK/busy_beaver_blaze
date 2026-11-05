@@ -91,6 +91,14 @@ impl ImagePyramid {
         space_scale: SpaceScale,
     ) -> SpaceTimeLayers {
         let first = active.space_time_layers.first();
+        if first.pixel_policy == PixelPolicy::Sampling {
+            assert_eq!(
+                space_scale,
+                SpaceScale::Linear,
+                "row stretch is applied after temporal reconstruction"
+            );
+            return self.reconstruct_samples(active, scale);
+        }
         let tape = active.machine.tape();
         let x_stride = Spaceline::find_x_stride(
             tape.negative.len(),
@@ -204,6 +212,86 @@ impl ImagePyramid {
         }
         output
     }
+    /// Pick the source sample containing the inverse-mapped screen-row center.
+    /// Linear validation instead uses the reference renderer's bin starts.
+    fn reconstruct_samples(
+        &self,
+        active: &SpaceByTimeMachine,
+        scale: TimeScale,
+    ) -> SpaceTimeLayers {
+        let first = active.space_time_layers.first();
+        let tape = active.machine.tape();
+        let x_stride = Spaceline::find_x_stride(
+            tape.negative.len(),
+            tape.nonnegative.len(),
+            first.x_goal as usize,
+        );
+        let negative_len = x_stride.div_ceil_into(tape.negative.len());
+        let nonnegative_len = x_stride.div_ceil_into(tape.nonnegative.len());
+        let internal_height = first.spacelines.len();
+        let height = if scale == TimeScale::Linear || internal_height < 2 * first.y_goal as usize {
+            internal_height
+        } else {
+            first.y_goal as usize
+        };
+        let mut output = SpaceTimeLayers::default();
+        for (select, layer) in &active.space_time_layers {
+            assert_eq!(layer.pixel_policy, PixelPolicy::Sampling);
+            let mut reconstructed =
+                SpaceByTime::new0(*select, layer.x_goal, layer.y_goal, PixelPolicy::Sampling);
+            reconstructed.spacelines.main.clear();
+            for row_index in 0..height {
+                let time = if scale == TimeScale::Linear {
+                    u64::try_from(row_index as u128 * u128::from(layer.y_stride.as_u64()))
+                        .expect("sample time must fit u64")
+                } else {
+                    scale
+                        .boundary(
+                            (row_index as f64 + 0.5) / height as f64,
+                            active.step_count() as f64,
+                            1.0,
+                        )
+                        .floor() as u64
+                };
+                assert!(time < active.step_count());
+                let source = &self
+                    .levels
+                    .iter()
+                    .find(|level| level.sample_count > time)
+                    .map_or(&active.space_time_layers, |level| &level.layers)[*select];
+                assert_eq!(source.pixel_policy, PixelPolicy::Sampling);
+                let count = source
+                    .spacelines
+                    .main
+                    .partition_point(|line| line.time <= time);
+                assert!(count > 0, "initial sample must cover time zero");
+                let mut line = &source.spacelines.main[count - 1];
+                for (buffered, _) in &source.spacelines.buffer0 {
+                    if buffered.time > time {
+                        break;
+                    }
+                    line = buffered;
+                }
+                let mut line = line.clone();
+                assert!(line.x_stride <= x_stride);
+                #[cfg(feature = "simd")]
+                line.compress_x_if_needed_simd(x_stride);
+                #[cfg(not(feature = "simd"))]
+                line.compress_x_if_needed_no_simd(x_stride);
+                assert!(
+                    line.negative.len() <= negative_len
+                        && line.nonnegative.len() <= nonnegative_len
+                );
+                line.negative.resize(negative_len, Pixel::WHITE);
+                line.nonnegative.resize(nonnegative_len, Pixel::WHITE);
+                line.time = row_index as u64;
+                reconstructed.spacelines.main.push(line);
+            }
+            reconstructed.vis_step = height as u64 - 1;
+            output.insert(*select, reconstructed);
+        }
+        output
+    }
 }
 
 /// Separate experimental stepping path: the reference machine has no history checks.
@@ -217,20 +305,15 @@ pub struct PyramidMachine {
 
 #[wasm_bindgen]
 impl PyramidMachine {
-    /// Start an experimental Quality run with native multilayer history capture.
+    /// Start a Quality run with native multilayer history capture.
     #[wasm_bindgen(constructor)]
     pub fn new(program: &str, x_goal: u32, y_goal: u32, scale: &str) -> Result<Self, String> {
-        if x_goal < 2 || y_goal == 0 {
-            return Err("Image goals must be width >= 2 and height >= 1".into());
-        }
-        let mut machine = Self {
-            active: SpaceByTimeMachine::from_str(program, x_goal, y_goal, true, 0)?,
-            pyramid: ImagePyramid::default(),
-            scale: TimeScale::parse(scale)?,
-            space_scale: SpaceScale::Linear,
-        };
-        machine.pyramid.capture(&machine.active);
-        Ok(machine)
+        Self::from_policy(program, x_goal, y_goal, scale, true)
+    }
+
+    /// Start a Speed run retaining representative samples instead of averages.
+    pub fn sampling(program: &str, x_goal: u32, y_goal: u32, scale: &str) -> Result<Self, String> {
+        Self::from_policy(program, x_goal, y_goal, scale, false)
     }
 
     /// Change reconstruction without rerunning the simulation.
@@ -629,3 +712,102 @@ mod tests {
 
 #[cfg(test)]
 mod spatial_tests;
+
+impl PyramidMachine {
+    fn from_policy(
+        program: &str,
+        x_goal: u32,
+        y_goal: u32,
+        scale: &str,
+        binning: bool,
+    ) -> Result<Self, String> {
+        if x_goal < 2 || y_goal == 0 {
+            return Err("Image goals must be width >= 2 and height >= 1".into());
+        }
+        let mut machine = Self {
+            active: SpaceByTimeMachine::from_str(program, x_goal, y_goal, binning, 0)?,
+            pyramid: ImagePyramid::default(),
+            scale: TimeScale::parse(scale)?,
+            space_scale: SpaceScale::Linear,
+        };
+        machine.pyramid.capture(&machine.active);
+        Ok(machine)
+    }
+}
+
+#[cfg(test)]
+mod sampling_tests {
+    use super::*;
+    use crate::{BB5_CHAMP, BB6_CONTENDER};
+
+    fn packed(machine: &PyramidMachine, scale: TimeScale) -> (u32, u32, Vec<AVec<u8>>) {
+        let mut layers = machine.pyramid.reconstruct_samples(&machine.active, scale);
+        let first = machine.active.space_time_layers.first();
+        let (_, width, height, pixels) = layers
+            .png_data_and_packed_data(
+                &[[255, 255, 255], [255, 0, 0], [0, 255, 0], [0, 0, 255]],
+                machine.active.machine.tape.negative.len(),
+                machine.active.machine.tape.nonnegative.len(),
+                (first.x_goal as usize, first.y_goal as usize),
+            )
+            .unwrap();
+        (width, height, pixels)
+    }
+
+    #[test]
+    fn sqrt_speed_uses_inverse_mapped_row_centers_without_averaging() {
+        let mut machine = PyramidMachine::sampling("1RA1RA", 16, 4, "sqrt").unwrap();
+        for _step in 0..3 {
+            assert!(machine.step());
+        }
+        let (width, height, pixels) = packed(&machine, TimeScale::SquareRoot);
+        assert_eq!((width, height), (3, 4));
+        // T=4, centers u=[1/8,3/8,5/8,7/8], sample times floor(T*u²)=[0,0,1,3].
+        assert_eq!(
+            pixels[0].as_slice(),
+            &[0, 0, 0, 0, 0, 0, 255, 0, 0, 255, 255, 255]
+        );
+    }
+
+    #[test]
+    fn sampling_linear_validation_and_multisymbol_stride_transitions() {
+        for program in [BB5_CHAMP, BB6_CONTENDER, "1RB2LA3RA0LB_3LA2RB1LB0RA"] {
+            for (width, height) in [(4, 3), (16, 9)] {
+                let mut machine = PyramidMachine::sampling(program, width, height, "sqrt").unwrap();
+                let mut reference =
+                    SpaceByTimeMachine::from_str(program, width, height, false, 0).unwrap();
+                for step_index in 0u64..1025 {
+                    if step_index < 10
+                        || step_index.is_power_of_two()
+                        || (step_index + 1).is_power_of_two()
+                        || step_index % 127 == 0
+                    {
+                        let (_, width, height, expected) = reference.png_data_and_packed_data(&[
+                            [255, 255, 255],
+                            [255, 0, 0],
+                            [0, 255, 0],
+                            [0, 0, 255],
+                        ]);
+                        let (actual_width, actual_height, actual) =
+                            packed(&machine, TimeScale::Linear);
+                        assert_eq!((width, height), (actual_width, actual_height));
+                        assert_eq!(actual.len(), expected.len());
+                        for (actual, expected) in actual.iter().zip(expected) {
+                            assert_eq!(actual.as_slice(), expected.as_slice());
+                        }
+                        for scale in [TimeScale::SquareRoot, TimeScale::Logarithmic] {
+                            let (_, _, actual) = packed(&machine, scale);
+                            assert!(actual.iter().all(|layer| {
+                                layer.iter().all(|pixel| *pixel == 0 || *pixel == 255)
+                            }));
+                        }
+                    }
+                    if !machine.step() {
+                        break;
+                    }
+                    assert!(reference.next().is_some());
+                }
+            }
+        }
+    }
+}

@@ -2,7 +2,11 @@
 
 Use [the experimental preview](http://127.0.0.1:8000/time-scale-preview/).
 The **Time scale** selector offers only **Linear** and **Square Root**.
-Pyramid size/checkpoint debug information is not displayed.
+Pyramid size/checkpoint debug information is not displayed. Both time modes
+support Quality and Speed. Square Root Speed samples at
+`floor(T*((row+0.5)/height)^2)`, using the containing stored temporal bin.
+It uses the same pyramid/history but never averages sampled rows. Both scale
+selections are written explicitly to the URL and restored on load or hash edits.
 The **Space scale** selector offers only **Linear** and **1/Y**. Its Linear
 default preserves old hashes; `spaceScale=row` selects 1/Y. Unsupported old X
 settings fall back to Linear. The published `v0.2.8` app is unchanged.
@@ -84,8 +88,8 @@ Color composition occurs only in the existing PNG encoder. Stored pyramid
 levels and their resolutions are unchanged. Switching X uses a worker message,
 rerenders running/stopped/halted data, and adds no checkpoints or persistent
 transformed copies. The preview preserves size, Stretch, state coloring,
-custom programs, palettes, Stop and Restart. Pyramid Y still requires Quality;
-all three X settings also work with Linear A Speed.
+custom programs, palettes, Stop and Restart. Quality and Speed are both supported for pyramid Y; the current Linear and
+1/Y X settings work with either policy.
 
 ## Numerical comparisons
 

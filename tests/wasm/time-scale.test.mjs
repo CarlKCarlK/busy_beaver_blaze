@@ -94,6 +94,7 @@ test('worker keeps history for scale/color messages and releases replaced machin
     assert.equal(freed,1);
     assert.equal(messages.at(-1).step_count,10n);
     await send({type:'start',programText:bb5,goal_x:64,goal_y:32,early_stop:10n,binning:false,timeScale:'sqrt',colorsBytes:palette});
-    assert.match(messages.at(-1).error,/Quality/);
+    assert.equal(messages.at(-1).success,true);
+    assert.equal(messages.at(-1).step_count,10n);
     assert.equal(freed,2);
 });

@@ -35,11 +35,11 @@ self.onmessage = async ({ data: msg }) => {
             scale = msg.timeScale || 'linear-a';
             spaceScale = msg.spaceScale || 'linear';
             pyramid = scale !== 'linear-a';
-            if (pyramid && !msg.binning) throw new Error('Pyramid modes require Quality (binning).');
             const program = msg.colorBy === 'state' ? stateColoredProgram(msg.programText) : msg.programText;
             currentColors = new Uint8Array(msg.colorsBytes);
             machine = pyramid
-                ? new PyramidMachine(program, msg.goal_x, msg.goal_y, scale)
+                ? (msg.binning ? new PyramidMachine(program, msg.goal_x, msg.goal_y, scale)
+                    : PyramidMachine.sampling(program, msg.goal_x, msg.goal_y, scale))
                 : new SpaceByTimeMachine(program, msg.goal_x, msg.goal_y, msg.binning, 0n);
             if (pyramid) machine.set_space_scale(spaceScale);
             running = true;
