@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { parseProgram, stateColoredProgram, statePalette, SYMBOL_ALPHABET } from '../../docs/v0.2.8/state-color.js';
-import init, { Machine, SpaceByTimeMachine } from '../../docs/v0.2.8/pkg/busy_beaver_blaze.js';
+import { parseProgram, stateColoredProgram, statePalette, SYMBOL_ALPHABET } from '../../docs/v0.2.9/state-color.js';
+import init, { Machine, SpaceByTimeMachine } from '../../docs/v0.2.9/pkg/busy_beaver_blaze.js';
 
-await init({ module_or_path: await readFile(new URL('../../docs/v0.2.8/pkg/busy_beaver_blaze_bg.wasm', import.meta.url)) });
+await init({ module_or_path: await readFile(new URL('../../docs/v0.2.9/pkg/busy_beaver_blaze_bg.wasm', import.meta.url)) });
 
 const champion = '1RB1LB_1LA1RH';
 const bb10 = '1RB0RA_1LC1LF_1RD0LB_1RA1LE_1LI0LC_0RG1LD_1RH1LG_1LC0RG_0LJ0LI_1RZ0LC';
@@ -66,7 +66,7 @@ test('unsupported and malformed programs report actionable errors', () => {
 
 
 test('every menu preset parses in WASM and binary presets precede multisymbol presets', async () => {
-    const page = await readFile(new URL('../../docs/v0.2.8/index.html', import.meta.url), 'utf8');
+    const page = await readFile(new URL('../../docs/v0.2.9/index.html', import.meta.url), 'utf8');
     const presets = runInNewContext('(' + page.match(/const PROGRAMS = (\{[\s\S]*?\n            \});/)[1] + ')');
     const menu = page.split('<select id="programSelect">')[1].split('</select>')[0];
     let reachedMultisymbol = false;

@@ -22,6 +22,27 @@ try {
         await page.waitForFunction(previous => document.querySelector('.image-container img')?.src !== previous && document.querySelector('.image-container img')?.complete, previous);
     };
 
+    console.log('Checking release redirects and self-contained assets');
+    const releaseRequests = [];
+    page.on('request', request => releaseRequests.push(request.url()));
+    for (const entry of ['/', '/time-scale-preview/']) {
+        const query = '?release=0.2.9';
+        const hash = '#program=bb2&timeScale=sqrt&spaceScale=row&binning=false&run=true';
+        await page.goto(`${base}${entry}${query}${hash}`);
+        await completed('6');
+        const destination = new URL(page.url());
+        assert.equal(destination.pathname, '/v0.2.9/index.html');
+        assert.equal(destination.search, query);
+        assert.equal(await page.locator('#timeScale').inputValue(), 'sqrt');
+        assert.equal(await page.locator('#spaceScale').inputValue(), 'row');
+        assert.equal(await page.locator('#binning').isChecked(), false);
+        assert.equal(await page.title(), 'Busy Beaver Blaze — v0.2.9');
+    }
+    assert.ok(releaseRequests.some(url => url.endsWith('/v0.2.9/styles.css')));
+    assert.ok(releaseRequests.some(url => url.endsWith('/v0.2.9/worker.js')));
+    assert.ok(releaseRequests.some(url => url.endsWith('/v0.2.9/pkg/busy_beaver_blaze_bg.wasm')));
+    assert.ok(!releaseRequests.some(url => url.includes('/v0.2.8/')));
+
     console.log('Checking reference defaults and halting');
     const space = async value => {
         const previous = await image();
@@ -30,7 +51,7 @@ try {
     };
 
     // Old URLs default to Linear, and the current run can be promoted on demand.
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb2&run=true`);
+    await page.goto(`${base}/v0.2.9/index.html?case=${Math.random()}#program=bb2&run=true`);
     await completed('6');
     assert.equal(await page.locator('#timeScale').inputValue(), 'linear-a');
     assert.equal(await page.locator('#spaceScale').inputValue(), 'linear');
@@ -74,7 +95,7 @@ try {
 
     console.log('Checking live controls and stop');
     // Live scale/palette controls, cancellation, then recoloring and rescaling stopped data.
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb6&earlyStop=false&timeScale=sqrt&run=true`);
+    await page.goto(`${base}/v0.2.9/index.html?case=${Math.random()}#program=bb6&earlyStop=false&timeScale=sqrt&run=true`);
     await page.waitForSelector('.image-container img');
     await page.selectOption('#timeScale','linear-a');
     await space('row');
@@ -91,7 +112,7 @@ try {
 
     console.log('Checking writing-state colors');
     // Linear A can transform X while retaining Speed and no checkpoints.
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb6&earlyStop=false&binning=false&spaceScale=row&run=true`);
+    await page.goto(`${base}/v0.2.9/index.html?case=${Math.random()}#program=bb6&earlyStop=false&binning=false&spaceScale=row&run=true`);
     await page.waitForSelector('.image-container img');
     assert.equal(await page.locator('#binning').isChecked(),false);
     assert.equal(await page.locator('#spaceScale').inputValue(),'row');
@@ -104,7 +125,7 @@ try {
     assert.equal(await page.locator('#binning').isChecked(),false);
 
     // Writing-state colors survive every scale, and a subsequent run starts afresh.
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=100001&colorBy=state&timeScale=sqrt&binning=false&run=true`);
+    await page.goto(`${base}/v0.2.9/index.html?case=${Math.random()}#program=bb5&steps=100001&colorBy=state&timeScale=sqrt&binning=false&run=true`);
     await completed('100,001');
     assert.equal(await page.locator('#binning').isChecked(), false);
     assert.equal(await page.locator('#stateLegend > span').count(), 6);
@@ -115,7 +136,7 @@ try {
 
     console.log('Capturing comparisons');
     // Capture both time views of exactly the same machine/history at 100,000 transitions.
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=100001&timeScale=sqrt&run=true`);
+    await page.goto(`${base}/v0.2.9/index.html?case=${Math.random()}#program=bb5&steps=100001&timeScale=sqrt&run=true`);
     await completed('100,001');
     assert.equal(await page.locator('#pyramidStats').count(),0);
     for (const value of ['linear-a','sqrt']) {
@@ -138,7 +159,7 @@ try {
     await space('row');
     assert.equal(await page.locator('#stepCount').textContent(),'100,001');
     await page.screenshot({path:new URL('x-row-y-sqrt.png',output).pathname,fullPage:true});
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb5&steps=1001&timeScale=sqrt&spaceScale=row&binning=false&run=true`);
+    await page.goto(`${base}/v0.2.9/index.html?case=${Math.random()}#program=bb5&steps=1001&timeScale=sqrt&spaceScale=row&binning=false&run=true`);
     await completed('1,001');
     assert.equal(await page.locator('#spaceScale').inputValue(),'row');
     assert.equal(await page.locator('#binning').isChecked(),false);
@@ -150,10 +171,10 @@ try {
         assert.equal(await page.locator('#spaceScale').inputValue(),spaceValue);
         assert.equal(await page.locator('#stepCount').textContent(),'1,001');
     }
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb2&spaceScale=exp&run=true`);
+    await page.goto(`${base}/v0.2.9/index.html?case=${Math.random()}#program=bb2&spaceScale=exp&run=true`);
     await completed('6');
     assert.equal(await page.locator('#spaceScale').inputValue(),'linear');
-    await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb2&timeScale=log&run=true`);
+    await page.goto(`${base}/v0.2.9/index.html?case=${Math.random()}#program=bb2&timeScale=log&run=true`);
     await completed('6');
     assert.equal(await page.locator('#timeScale').inputValue(),'linear-a');
     assert.deepEqual(errors,[]);

@@ -114,10 +114,10 @@ cargo test --release -- --nocapture
 cargo run --example movie --release bb5_champ 2K true
 
 # WebAssembly build
-wasm-pack build --release --out-dir docs/v0.2.8/pkg --target web
-wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.8/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.8/pkg/busy_beaver_blaze_bg.wasm
+wasm-pack build --release --out-dir docs/v0.2.9/pkg --target web --features image_pyramid
+wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.9/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.9/pkg/busy_beaver_blaze_bg.wasm
 
-# Local WASM preview (open http://localhost:8000/v0.2.8/)
+# Local WASM preview (open http://localhost:8000/v0.2.9/)
 python3 -m http.server 8000 --directory docs
 
 # WASM state-color transformation and rendering checks (after building)
@@ -181,8 +181,8 @@ pub fn step_count(&self) -> u64 { /* return step count */ }
 - Web Worker: `docs/*/worker.js` handles heavy computation off main thread
 - Three Parsing Formats: Symbol Major, State Major, BB Challenge Standard Format. The extended alphabet uses `0–9a–z` for symbols 0–35 while state names remain uppercase A–Z; transitions stay three characters. Table symbol labels accept decimal numbers or lowercase base-36 letters. Transition tables are boxed slices, and offsets use `usize` to avoid overflow for large alphabets. `---` preserves the historical reported halt state 25 for programs with up to 25 states; 26-state programs use sentinel 255 so Z can be a working state.
 - Color Customization: `normalize_colors()` cycles through palettes for multi-symbol visualization
-- Writing State Colors (web v0.2.8): `docs/v0.2.8/state-color.js` rewrites binary programs into multisymbol programs when `colorBy=state`. Nonzero symbols identify the state performing the last write; zero clears provenance. The original program remains in the editor. Supports up to 26 states with base-36 symbols (`0–9a–z`); palettes and legends include blank plus one entry per state. Changing the coloring mode requires a new run; palette edits recolor live.
-- Web presets list binary programs first and omit `,2` in their names. Selecting a nonbinary program switches to Symbol coloring and disables Writing state without adding explanatory text above the image. Named preset transition tables have source links in `docs/v0.2.8/index.html`.
+- Writing State Colors (web v0.2.9): `docs/v0.2.9/state-color.js` rewrites binary programs into multisymbol programs when `colorBy=state`. Nonzero symbols identify the state performing the last write; zero clears provenance. The original program remains in the editor. Supports up to 26 states with base-36 symbols (`0–9a–z`); palettes and legends include blank plus one entry per state. Changing the coloring mode requires a new run; palette edits recolor live.
+- Web presets list binary programs first and omit `,2` in their names. Selecting a nonbinary program switches to Symbol coloring and disables Writing state without adding explanatory text above the image. Named preset transition tables have source links in `docs/v0.2.9/index.html`.
 - URL State: Web app supports hash fragments like `#program=bb5&earlyStop=false&run=true`
 
 Reference `src/code_notes.md` for sampling vs binning implementation locations across the codebase.
@@ -267,7 +267,7 @@ Guidelines:
 - Use assertions or checked conversions before shadowing when truncation/overflow is possible.
 - Don’t shadow across long spans if it could confuse readers—shadow near the point of use.
 
-### Experimental time scales
+### Web v0.2.9 time and space scales
 
 The `image_pyramid` feature (off by default) adds `PyramidMachine` and cumulative
 native `SpaceTimeLayers` checkpoints for Linear B, Square Root, and Logarithmic
@@ -275,8 +275,10 @@ time reconstruction. The preview time selector offers only Linear and Square
 Root; Linear B/logarithmic remain internal validation modes. The pyramid size
 and checkpoint readout is not displayed. Linear A retains its existing
 stepping/rendering path.
-The isolated browser preview is `docs/time-scale-preview/`; the published
-`docs/v0.2.8/` assets are unchanged. Square Root supports both Quality/Binning
+The current web app is self-contained in `docs/v0.2.9/`. The site root and
+`docs/time-scale-preview/` redirect to it, preserving query parameters and hashes.
+GitHub Pages publishes `main:/docs`. Older version directories remain unchanged.
+The web version is independent of the Rust/Python package version. Square Root supports both Quality/Binning
 and Speed/Sampling. Speed selects the stored sample containing the inverse-
 mapped output-row center; it never averages sampled rows. `PyramidMachine.new`
 retains the Quality default, and `PyramidMachine.sampling` creates a Speed run.
@@ -289,10 +291,10 @@ relative row stretches and never fits rows independently. Single-row images
 stay unchanged. The mode applies after temporal packing, works with Linear A
 Speed, accepts loss of detail near the top, and captures no additional history.
 
-Build the preview with:
+Build the current web app with:
 
 ```bash
-wasm-pack build --release --out-dir docs/time-scale-preview/pkg --target web --features image_pyramid
+wasm-pack build --release --out-dir docs/v0.2.9/pkg --target web --features image_pyramid
 ```
 
 Run `cargo test --release --features image_pyramid image_pyramid -- --nocapture`,

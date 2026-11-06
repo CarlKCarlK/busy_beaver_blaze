@@ -1,11 +1,14 @@
-# Experimental multiresolution time scales
+# Multiresolution time scales — development notes
 
-Open [the local preview](http://127.0.0.1:8000/time-scale-preview/).
+Open [web v0.2.9 locally](http://127.0.0.1:8000/v0.2.9/).
+The former preview URL redirects to this release.
 The independent spatial extension is documented in [Space scaling](SPACE-SCALE.md),
 including the nine X/Y comparison screenshots.
 
-The published `v0.2.8` page, worker, and WASM assets remain unchanged. This work
-is isolated on `log-images` and has not been merged or published.
+The current web app lives in `docs/v0.2.9/`, with its own styles, state-color
+transform, worker, and WASM package. The site root redirects there. Older web
+versions remain available for existing links. These notes and measurements
+record development of the time/space scaling feature.
 
 ## Architecture
 
@@ -42,16 +45,16 @@ Linear B instead uses the reference's actual power-of-two time bins, blank
 final padding, output dimensions, and final pairwise compression. Endpoint
 arithmetic uses `u128` before conversion, avoiding padded `u64` overflow.
 
-The preview copies the established UI and imports its shared styles and
-state-color transform. Its own worker and WASM package keep the experiment
-separate. Pyramid modes support Quality and Speed. Speed picks the stored sample
+Web v0.2.9 includes the established UI, styles, state-color transform, worker,
+and WASM package in its own release directory. Pyramid modes support Quality and Speed. Speed picks the stored sample
 containing the inverse-mapped output-row center, without averaging samples. Scale and
 palette messages rerender retained data, including after stopping or halting.
 A pyramid run can also show its active Linear A image. A Linear run can switch immediately using its current retained image;
 previously discarded early detail cannot be recovered. Future checkpoints
 are retained after switching. Old hashes default to
-Linear A, and experimental selections are stored as `timeScale=linear-b`,
-`timeScale=sqrt`, or `timeScale=log`.
+Linear, and the current selections are stored as `timeScale=linear|sqrt` and
+`spaceScale=linear|row`. Linear B and logarithmic modes remain internal
+validation modes; historical results below include those experiments.
 
 ## Raw-pixel comparison
 
@@ -164,7 +167,7 @@ cargo test --release --no-default-features --features image_pyramid,simd image_p
 cargo test --release --no-default-features --features image_pyramid,diff_row image_pyramid
 cargo run --release --example time_scale_baseline
 cargo run --release --features image_pyramid --example time_scale_measure
-wasm-pack build --release --out-dir docs/time-scale-preview/pkg --target web --features image_pyramid
+wasm-pack build --release --out-dir docs/v0.2.9/pkg --target web --features image_pyramid
 node --test tests/wasm/time-scale.test.mjs tests/wasm/state-color.test.mjs
 node tests/wasm/time-scale-benchmark.mjs
 python3 -m http.server 8000 --bind 127.0.0.1 --directory docs
@@ -185,8 +188,8 @@ create its tool cache, the equivalent build is:
 
 ```bash
 cargo build --target wasm32-unknown-unknown --release --features image_pyramid
-wasm-bindgen --target web --out-dir docs/time-scale-preview/pkg target-nightly/wasm32-unknown-unknown/release/busy_beaver_blaze.wasm
-wasm-opt -Oz --strip-debug --strip-dwarf -o docs/time-scale-preview/pkg/busy_beaver_blaze_bg.wasm docs/time-scale-preview/pkg/busy_beaver_blaze_bg.wasm
+wasm-bindgen --target web --out-dir docs/v0.2.9/pkg target-nightly/wasm32-unknown-unknown/release/busy_beaver_blaze.wasm
+wasm-opt -Oz --strip-debug --strip-dwarf -o docs/v0.2.9/pkg/busy_beaver_blaze_bg.wasm docs/v0.2.9/pkg/busy_beaver_blaze_bg.wasm
 ```
 
 All eight `cargo check` combinations (with/without `image_pyramid`, across the

@@ -2,9 +2,9 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import beforeInit, { SpaceByTimeMachine as Before } from '../../docs/v0.2.8/pkg/busy_beaver_blaze.js';
-import afterInit, { SpaceByTimeMachine as After } from '../../docs/time-scale-preview/pkg/busy_beaver_blaze.js';
+import afterInit, { SpaceByTimeMachine as After } from '../../docs/v0.2.9/pkg/busy_beaver_blaze.js';
 await beforeInit({ module_or_path: await readFile(new URL('../../docs/v0.2.8/pkg/busy_beaver_blaze_bg.wasm',import.meta.url)) });
-await afterInit({ module_or_path: await readFile(new URL('../../docs/time-scale-preview/pkg/busy_beaver_blaze_bg.wasm',import.meta.url)) });
+await afterInit({ module_or_path: await readFile(new URL('../../docs/v0.2.9/pkg/busy_beaver_blaze_bg.wasm',import.meta.url)) });
 const program = '1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RH0LA';
 const results = {};
 for (let trial = 0; trial < 10; trial++) {

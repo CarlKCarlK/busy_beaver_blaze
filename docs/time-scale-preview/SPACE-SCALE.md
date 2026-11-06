@@ -9,7 +9,7 @@ It uses the same pyramid/history but never averages sampled rows. Both scale
 selections are written explicitly to the URL and restored on load or hash edits.
 The **Space scale** selector offers only **Linear** and **1/Y**. Its Linear
 default preserves old hashes; `spaceScale=row` selects 1/Y. Unsupported old X
-settings fall back to Linear. The published `v0.2.8` app is unchanged.
+settings fall back to Linear. The current web app is `v0.2.9`; older version directories are unchanged.
 
 ### Current 1/Y fitting behavior
 

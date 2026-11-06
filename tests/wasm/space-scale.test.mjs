@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
-import init, { PyramidMachine, SpaceByTimeMachine } from '../../docs/time-scale-preview/pkg/busy_beaver_blaze.js';
+import init, { PyramidMachine, SpaceByTimeMachine } from '../../docs/v0.2.9/pkg/busy_beaver_blaze.js';
 import referenceInit, { SpaceByTimeMachine as ReferenceMachine } from '../../docs/v0.2.8/pkg/busy_beaver_blaze.js';
-import { stateColoredProgram, statePalette } from '../../docs/v0.2.8/state-color.js';
-await init({ module_or_path: await readFile(new URL('../../docs/time-scale-preview/pkg/busy_beaver_blaze_bg.wasm',import.meta.url)) });
+import { stateColoredProgram, statePalette } from '../../docs/v0.2.9/state-color.js';
+await init({ module_or_path: await readFile(new URL('../../docs/v0.2.9/pkg/busy_beaver_blaze_bg.wasm',import.meta.url)) });
 await referenceInit({ module_or_path: await readFile(new URL('../../docs/v0.2.8/pkg/busy_beaver_blaze_bg.wasm',import.meta.url)) });
 const bb5 = '1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RH0LA';
 const palette = statePalette('light',5);
@@ -57,7 +57,7 @@ test('all six pyramid X/Y combinations reuse history and symbol/state colors', (
 });
 
 test('worker handles all eight combinations and does not construct a pyramid just for X', async () => {
-    const source = await readFile(new URL('../../docs/time-scale-preview/worker.js',import.meta.url),'utf8');
+    const source = await readFile(new URL('../../docs/v0.2.9/worker.js',import.meta.url),'utf8');
     let constructed = 0;
     class TrackedPyramid extends PyramidMachine {
         constructor(...args) { super(...args); constructed++; }

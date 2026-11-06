@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased
+## Web v0.2.9
 
 ### Visualization
 
-- Added an experimental multiresolution preview with Linear and Square Root time
+- Made v0.2.9 the default web app; the former preview URL redirects to it.
+
+- Added multiresolution visualization with Linear and Square Root time
   scaling, and Linear or fitted 1/Y horizontal stretching.
 - Simplified the time selector and removed the pyramid size/debug readout.
 

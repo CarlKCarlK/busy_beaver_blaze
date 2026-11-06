@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import init, { SpaceByTimeMachine as After } from '../../docs/time-scale-preview/pkg/busy_beaver_blaze.js';
+import init, { SpaceByTimeMachine as After } from '../../docs/v0.2.9/pkg/busy_beaver_blaze.js';
 const temporary = await mkdtemp(join(tmpdir(),'space-scale-baseline-'));
 try {
     for (const artifact of ['busy_beaver_blaze.js','busy_beaver_blaze_bg.wasm','package.json']) {
@@ -13,7 +13,7 @@ try {
     }
     const {default:beforeInit,SpaceByTimeMachine:Before} = await import(pathToFileURL(join(temporary,'busy_beaver_blaze.js')));
     await beforeInit({module_or_path:await readFile(join(temporary,'busy_beaver_blaze_bg.wasm'))});
-    await init({module_or_path:await readFile(new URL('../../docs/time-scale-preview/pkg/busy_beaver_blaze_bg.wasm',import.meta.url))});
+    await init({module_or_path:await readFile(new URL('../../docs/v0.2.9/pkg/busy_beaver_blaze_bg.wasm',import.meta.url))});
     const results = {};
     for (let trial=0;trial<10;trial++) for (const binning of [true,false]) {
         for (const [name,Class] of [['before',Before],['after',After]]) {

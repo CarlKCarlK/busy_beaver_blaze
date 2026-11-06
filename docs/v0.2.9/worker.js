@@ -1,4 +1,4 @@
-import { stateColoredProgram } from '../v0.2.8/state-color.js';
+import { stateColoredProgram } from './state-color.js';
 import init, { SpaceByTimeMachine, PyramidMachine } from './pkg/busy_beaver_blaze.js';
 
 const wasmReady = init();
