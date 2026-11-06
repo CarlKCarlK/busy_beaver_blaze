@@ -4,7 +4,7 @@ import pytest
 from PIL import Image
 
 from busy_beaver_blaze import add_sqrt_step_axis
-from busy_beaver_blaze.movie_axis import _sqrt_step_ticks, _step_label
+from busy_beaver_blaze.movie_axis import _fading_ticks, _sqrt_step_ticks, _step_label
 
 
 def test_square_root_mapping():
@@ -43,7 +43,8 @@ def test_tick_intervals_change_at_decades(step_count, interval):
 def test_million_labels():
     ticks = _sqrt_step_ticks(100_000_000, 1001)
     assert [_step_label(step) for step, _ in ticks] == [
-        "0", "10M", "20M", "30M", "40M", "50M", "60M", "70M", "80M", "90M", "100M",
+        "0", "10,000,000", "20,000,000", "30,000,000", "40,000,000", "50,000,000",
+        "60,000,000", "70,000,000", "80,000,000", "90,000,000", "100,000,000",
     ]
 
 
@@ -56,7 +57,21 @@ def test_axis_preserves_resolution_input_and_plot_content(size):
     assert frame.tobytes() == before
     assert annotated.getpixel((size[0] // 2, size[1] // 2)) == (255, 165, 0)
     assert annotated.getpixel((0, 0)) == (255, 255, 255)
-    assert annotated.crop((0, 0, size[0] // 4, size[1])).getextrema()[0][0] < 100
+    assert annotated.crop((size[0] * 7 // 8, 0, size[0], size[1])).getextrema()[0][0] < 100
+    assert annotated.getpixel((0, size[1] // 2)) == (255, 255, 255)
+
+
+@pytest.mark.parametrize("boundary", [10, 100, 1_000_000, 10_000_000])
+def test_old_grid_fades_as_new_decade_begins(boundary):
+    early_ticks, early_opacity = _fading_ticks(boundary + 1, 1001)
+    later_ticks, later_opacity = _fading_ticks(boundary * 12 // 10, 1001)
+    assert [step for step, _ in early_ticks] == list(range(boundary // 10, boundary, boundary // 10))
+    assert 0 < later_opacity < early_opacity < 1
+    assert len(later_ticks) == 9
+    assert _fading_ticks(boundary * 13 // 10, 1001) == ([], 0.0)
+    assert not set(step for step, _ in early_ticks) & set(
+        step for step, _ in _sqrt_step_ticks(boundary + 1, 1001)
+    )
 
 
 def test_rejects_invalid_inputs():

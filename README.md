@@ -130,14 +130,16 @@ It supports `pixel_policy="binning"` (default) and `"sampling"`, plus hex `color
 Frame timing remains independent of the Square Root vertical axis.
 See `example_python/movie_sqrt.py` for a command-line script that saves numbered
 frames in a fresh output directory for subsequent video encoding.
-The script adds a left-side Machine steps axis in Python post-processing.
+The script adds a right-side Machine steps axis in Python post-processing.
 `add_sqrt_step_axis(frame, step_index)` also works on saved frames without
 rerunning the machine. It preserves the final resolution and fits the diagram
 into a fixed inset. Tick positions follow the renderer's Square Root mapping,
 including its initial blank sample, rather than assuming a linear vertical axis.
 Ticks use equal machine-step intervals (1–10, then 10–100, and so on), placed
-at uneven Square Root screen positions. Large labels use K/M/B suffixes;
-the final 100-million-step frame shows 10M, 20M, ..., 100M.
+at uneven Square Root screen positions. Labels use full numbers with commas;
+the final frame shows 10,000,000, 20,000,000, ..., 100,000,000.
+At each new decade, the previous intermediate ticks fade out over the first
+tenth of that logarithmic decade (up to about 1.26 times its boundary).
 To encode old frames with the new axis, `example_python/post_sqrt_movie.py`
 accepts `--source`, `--source-count`, `--steps`, `--frames`, `--fps`, and `--out`.
 It streams annotated frames directly into FFmpeg, leaving the saved PNGs intact

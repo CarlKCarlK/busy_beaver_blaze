@@ -18,7 +18,7 @@ This is a high-performance Turing machine interpreter and space-time visualizer 
 - `SpaceByTimeMachine` (`src/space_by_time_machine.rs`): WebAssembly-exposed API combining machine + visualization
 - `PngDataIterator` (`src/png_data_iterator.rs`): Multithreaded frame generator exposed to Python via PyO3
 - `SqrtPngDataIterator` (`src/sqrt_png_data_iterator.rs`): Sequential Square Root frame generator, available with `image_pyramid` and included in Python builds. Yields `(step_index, png_bytes)` for sorted zero-based visualization indices; zero is the initial blank tape. Stops at the last request or before an unreachable step on halt. No parallel workers or Linear option. Example: `example_python/movie_sqrt.py`.
-- `add_sqrt_step_axis` (`busy_beaver_blaze/movie_axis.py`): Python post-processing adds a Machine steps axis to a Square Root frame, preserving final dimensions. Equal step intervals (1–10, then 10–100, etc.; K/M/B suffixes) map to uneven screen positions with `(step_index + 1) * vertical_fraction²`, including the initial blank sample. The movie example enables it; saved frames can be annotated without rerunning Rust.
+- `add_sqrt_step_axis` (`busy_beaver_blaze/movie_axis.py`): Python post-processing adds a right-side Machine steps axis to a Square Root frame, preserving final dimensions. Equal step intervals (1–10, then 10–100, etc.; full comma-separated labels) map to uneven screen positions with `(step_index + 1) * vertical_fraction²`, including the initial blank sample. Old intermediate ticks fade over the first tenth of each new log decade. The movie example enables it; saved frames can be annotated without rerunning Rust.
 
 ### Python Integration (PyO3)
 
