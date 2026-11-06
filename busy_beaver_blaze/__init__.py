@@ -169,6 +169,7 @@ class Machine:
 try:
     from ._busy_beaver_blaze import (
         PyPngDataIterator as PngDataIterator,
+        SqrtPngDataIterator,
         PySpaceByTimeMachine,
         run_machine_steps as _rust_run_machine_steps,
         BB5_CHAMP,
@@ -246,6 +247,8 @@ from .frames import (  # noqa: E402
     RESOLUTION_8K,
 )
 
+from .movie_axis import add_linear_step_axis, add_sqrt_step_axis, linear_time_extent  # noqa: E402
+
 # Import interactive utilities (IPython is a core dependency via jupyter)
 from .interactive import (  # noqa: E402
     LiveVisualizer,
@@ -260,6 +263,7 @@ __all__ = [
     "Action",
     # Rust bindings (if available)
     "PngDataIterator",
+    "SqrtPngDataIterator",
     "Visualizer",
     "SpaceByTimeMachine",
     "run_machine_steps",
@@ -268,6 +272,9 @@ __all__ = [
     # Frame utilities (if PIL available)
     "log_step_iterator",
     "create_frame",
+    "add_sqrt_step_axis",
+    "add_linear_step_axis",
+    "linear_time_extent",
     "blend_images",
     "resize_png",
     "RESOLUTION_TINY",

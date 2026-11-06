@@ -23,7 +23,7 @@ use crate::compiled_runner::{CompiledProgram, run_compiled_program};
 use crate::machine::Program;
 use crate::{
     BB5_CHAMP, BB6_CONTENDER, Machine, PixelPolicy, PngDataIterator as RustPngDataIterator,
-    SpaceByTimeMachine as RustSpaceByTimeMachine,
+    SpaceByTimeMachine as RustSpaceByTimeMachine, SqrtPngDataIterator as RustSqrtPngDataIterator,
 };
 
 /// Parse a hex color string to RGB tuple
@@ -287,6 +287,50 @@ impl PyPngDataIterator {
     }
 }
 
+/// Sequential Square Root time-scale frames, yielding `(step_index, png_bytes)`.
+///
+/// Steps are zero-based visualization indices (zero is the initial blank tape).
+/// Repeated steps are allowed. Stops before any unreachable step if the machine
+/// halts. PNG dimensions adapt to retained data; use `create_frame` for video size.
+#[pyclass(name = "SqrtPngDataIterator")]
+struct PySqrtPngDataIterator {
+    inner: RustSqrtPngDataIterator,
+}
+
+#[pymethods]
+impl PySqrtPngDataIterator {
+    #[new]
+    #[pyo3(signature = (frame_steps, *, program, resolution=(1920, 1080), pixel_policy="binning", colors=vec![]))]
+    fn new(
+        frame_steps: Vec<u64>,
+        program: &str,
+        resolution: (u32, u32),
+        pixel_policy: &str,
+        colors: Vec<String>,
+    ) -> PyResult<Self> {
+        let pixel_policy = parse_pixel_policy(pixel_policy)?;
+        let colors: Result<Vec<_>, _> = colors.iter().map(|color| parse_hex_color(color)).collect();
+        let colors = colors.map_err(PyValueError::new_err)?;
+        let inner =
+            RustSqrtPngDataIterator::new(frame_steps, program, resolution, pixel_policy, &colors)
+                .map_err(PyValueError::new_err)?;
+        Ok(Self { inner })
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<(u64, Py<PyBytes>)>> {
+        // All simulation and PNG encoding runs on this thread with the GIL released.
+        let result = py.detach(|| self.inner.next());
+        result
+            .transpose()
+            .map(|frame| frame.map(|(step_index, png)| (step_index, PyBytes::new(py, &png).into())))
+            .map_err(pyo3::exceptions::PyRuntimeError::new_err)
+    }
+}
+
 /// Interactive Turing machine with space-time visualization (mirrors WebAssembly API).
 ///
 /// This class provides the same API as the JavaScript/WASM interface, allowing
@@ -449,6 +493,7 @@ impl PySpaceByTimeMachine {
 fn _busy_beaver_blaze(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_machine_steps, m)?)?;
     m.add_class::<PyPngDataIterator>()?;
+    m.add_class::<PySqrtPngDataIterator>()?;
     m.add_class::<PySpaceByTimeMachine>()?;
 
     // Export most commonly used program constants

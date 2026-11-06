@@ -32,6 +32,8 @@ mod space_scale;
 mod space_time_layers;
 mod spaceline;
 mod spacelines;
+#[cfg(feature = "image_pyramid")]
+mod sqrt_png_data_iterator;
 mod symbol;
 mod tape;
 
@@ -65,6 +67,8 @@ pub use space_by_time_machine::SpaceByTimeMachine;
 #[cfg(feature = "image_pyramid")]
 pub use space_scale::SpaceScale;
 pub use spaceline::Spaceline;
+#[cfg(feature = "image_pyramid")]
+pub use sqrt_png_data_iterator::SqrtPngDataIterator;
 pub use tape::Tape;
 
 pub const ALIGN: usize = 64;

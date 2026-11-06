@@ -103,6 +103,107 @@ Python 3.11 or newer is required. Clone the repository and use [uv](https://gith
 
    **Note for WSL users:** The browser may not open automatically. Copy the URL from the terminal output (e.g., `http://localhost:8888/lab?token=...`) and paste it into your Windows browser.
 
+## Square Root movie frames
+
+Generate Square Root movie frames sequentially with the same renderer used by
+the web visualizer. Python builds include the required `image_pyramid` feature:
+
+```python
+from busy_beaver_blaze import (
+    BB5_CHAMP, SqrtPngDataIterator, log_step_iterator,
+)
+from pathlib import Path
+
+frames = SqrtPngDataIterator(
+    log_step_iterator(10_000, 20),
+    program=BB5_CHAMP,
+    resolution=(1920, 1080),
+)
+for frame_index, (step_index, png_bytes) in enumerate(frames):
+    Path(f"frame_{frame_index:07d}.png").write_bytes(png_bytes)
+```
+
+`frame_steps` must be nonempty and nondecreasing; duplicates are allowed. Index
+zero is the initial blank tape. The iterator runs lazily on one thread, stopping
+at the final requested index or before an unreachable index if the machine halts.
+It supports `pixel_policy="binning"` (default) and `"sampling"`, plus hex `colors`.
+Frame timing remains independent of the Square Root vertical axis.
+See `example_python/movie_sqrt.py` for a command-line script that saves exact
+native PNG bytes in a fresh output directory, before any resizing, text or
+filters. Both movie generators also save `manifest.json` with the program,
+rendering settings and exact step index of every frame. Keep these raw caches
+so layout, text and filtering experiments never need to rerun a TM.
+Post-processing adds a right-side Machine steps axis.
+Muted gray labels sit to the left of the scale, overlapping the diagram;
+the plot uses the space previously reserved for labels on the right.
+`add_sqrt_step_axis(frame, step_index)` also works on saved frames without
+rerunning the machine. It preserves the final resolution and fits the diagram
+into a fixed inset. Tick positions follow the renderer's Square Root mapping,
+including its initial blank sample, rather than assuming a linear vertical axis.
+Ticks use equal machine-step intervals (1–10, then 10–100, and so on), placed
+at uneven Square Root screen positions. Labels use full numbers with commas;
+the final frame shows 10,000,000, 20,000,000, ..., 100,000,000.
+At each new decade, the previous intermediate ticks fade out over the first
+tenth of that logarithmic decade (up to about 1.26 times its boundary).
+To encode old frames with the new axis, `example_python/post_sqrt_movie.py`
+accepts `--source`, `--source-count`, `--steps`, `--frames`, `--fps`, and `--out`.
+It adds a three-second final-frame hold by default (`--hold-seconds 0` disables
+it). This extends the movie duration: 1,800 frames at 30 fps plus the hold is
+63 seconds.
+It streams annotated frames directly into FFmpeg, leaving the saved PNGs intact
+and creating no additional frame files.
+
+For the original Linear renderer, `example_python/movie_linear.py` saves raw
+native PNGs with `PngDataIterator` and configurable `--workers` (default 8).
+Then run `post_sqrt_movie.py --time-scale linear` with the same step count and
+source frame count. Linear uses the same fading overlaid labels and final hold,
+but its ticks are evenly spaced. The axis accounts for partially filled native
+rows using `linear_time_extent` before resizing; output defaults to 1920×1080.
+Movie frames still use logarithmic spacing between frames; this is independent
+of the Linear vertical axis inside each frame.
+
+`example_python/compare_movie.py` produces a stretched 3840×2160 comparison
+with Linear on the left and Square Root on the right. It reads `--linear-source`
+and `--sqrt-source` PNG directories and validates their manifests, including
+matching programs, policies, rendering goals and every step index. It contains
+no simulation path. For example, after generating both caches:
+
+```bash
+uv run python example_python/compare_movie.py \
+  --linear-source /mnt/c/deldir/linear-100m-steps-1800-raw-frames \
+  --sqrt-source /mnt/c/deldir/sqrt-100m-steps-1800-raw-frames \
+  --frames 1800 --fps 30 --hold-seconds 3 \
+  --out /mnt/c/deldir/comparison.mp4
+```
+
+Diagrams stretch to tall panels; axes, headings and counters are drawn afterward
+at the final resolution, preserving text proportions. It also adds the final
+three-second hold and can save a final-frame `--preview`.
+Enlargement uses nearest-neighbor to preserve sharp cells and their colors;
+area averaging is applied only to shrinking axes. No Gaussian blur or Lanczos
+smoothing is applied to enlarged diagrams. Binning shades already present in
+the raw PNGs remain intact.
+
+Both encoding scripts support `--encoder auto|cpu|nvenc`, `--workers` (Python
+frame-preparation processes), and `--cpu-threads` (CPU encoder threads).
+The default is up to eight preparation processes and half the available CPU
+threads. `auto` probes NVIDIA NVENC and uses it when available, with CPU x264
+as the fallback. Explicit `nvenc` fails if unavailable. Worker output uses a
+bounded shared-memory ring, so raw 4K frames are neither pickled between
+processes nor accumulated without a limit. Output frame order is preserved.
+NVENC CQ 18 and CPU CRF 18 are separate quality controls, not identical quality
+or file-size guarantees.
+On the RTX 3060 / 32-logical-processor workstation, preparing and NVENC-encoding
+the same 120 late 4K frames from the Windows PNG caches took 27.7 seconds with
+one Python process, 13.6 seconds with eight, and 13.2 seconds with sixteen.
+These include process/encoder startup and filesystem I/O. Eight remains the
+default because sixteen provided little additional benefit on that test.
+
+`compare_movie.py --start-frame N --limit-frames M --hold-seconds 0` renders a
+short range for benchmarking or checking appearance. `--resampling adaptive`
+tests anti-aliasing for modest enlargements of dense patterns, while preserving
+nearest-neighbor for large early cells. The default `cells` mode remains sharp.
+
 ## License
 
 This project is dual-licensed under either:

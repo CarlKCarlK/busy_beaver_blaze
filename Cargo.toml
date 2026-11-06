@@ -11,7 +11,7 @@ default = ["simd", "diff_row"]
 simd = []
 diff_row = []
 image_pyramid = []
-python = ["pyo3/extension-module"]
+python = ["pyo3/extension-module", "image_pyramid"]
 
 [dependencies]
 aligned-vec = "0.6.2"
