@@ -103,6 +103,46 @@ Python 3.11 or newer is required. Clone the repository and use [uv](https://gith
 
    **Note for WSL users:** The browser may not open automatically. Copy the URL from the terminal output (e.g., `http://localhost:8888/lab?token=...`) and paste it into your Windows browser.
 
+## Square Root movie frames
+
+Generate Square Root movie frames sequentially with the same renderer used by
+the web visualizer. Python builds include the required `image_pyramid` feature:
+
+```python
+from busy_beaver_blaze import (
+    BB5_CHAMP, SqrtPngDataIterator, add_sqrt_step_axis, create_frame, log_step_iterator,
+)
+
+frames = SqrtPngDataIterator(
+    log_step_iterator(10_000, 20),
+    program=BB5_CHAMP,
+    resolution=(1920, 1080),
+)
+for frame_index, (step_index, png_bytes) in enumerate(frames):
+    frame = create_frame(png_bytes, "", step_index, (1920, 1080))
+    add_sqrt_step_axis(frame, step_index).save(f"frame_{frame_index:07d}.png")
+```
+
+`frame_steps` must be nonempty and nondecreasing; duplicates are allowed. Index
+zero is the initial blank tape. The iterator runs lazily on one thread, stopping
+at the final requested index or before an unreachable index if the machine halts.
+It supports `pixel_policy="binning"` (default) and `"sampling"`, plus hex `colors`.
+Frame timing remains independent of the Square Root vertical axis.
+See `example_python/movie_sqrt.py` for a command-line script that saves numbered
+frames in a fresh output directory for subsequent video encoding.
+The script adds a left-side Machine steps axis in Python post-processing.
+`add_sqrt_step_axis(frame, step_index)` also works on saved frames without
+rerunning the machine. It preserves the final resolution and fits the diagram
+into a fixed inset. Tick positions follow the renderer's Square Root mapping,
+including its initial blank sample, rather than assuming a linear vertical axis.
+Ticks use equal machine-step intervals (1–10, then 10–100, and so on), placed
+at uneven Square Root screen positions. Large labels use K/M/B suffixes;
+the final 100-million-step frame shows 10M, 20M, ..., 100M.
+To encode old frames with the new axis, `example_python/post_sqrt_movie.py`
+accepts `--source`, `--source-count`, `--steps`, `--frames`, `--fps`, and `--out`.
+It streams annotated frames directly into FFmpeg, leaving the saved PNGs intact
+and creating no additional frame files.
+
 ## License
 
 This project is dual-licensed under either:

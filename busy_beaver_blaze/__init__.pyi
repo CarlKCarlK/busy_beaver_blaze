@@ -129,6 +129,26 @@ class PngDataIterator:
     def __iter__(self) -> "PngDataIterator": ...
     def __next__(self) -> bytes: ...
 
+class SqrtPngDataIterator:
+    """Sequential Square Root frames at sorted zero-based visualization indices.
+
+    Zero is the blank initial tape. Duplicates are allowed; iteration stops
+    when the machine halts or the last requested frame has been yielded.
+    """
+
+    def __init__(
+        self,
+        frame_steps: list[int],
+        *,
+        program: str,
+        resolution: Tuple[int, int] = (1920, 1080),
+        pixel_policy: str = "binning",
+        colors: list[str] = ...,
+    ) -> None: ...
+
+    def __iter__(self) -> "SqrtPngDataIterator": ...
+    def __next__(self) -> Tuple[int, bytes]: ...
+
 def run_machine_steps(
     program: str,
     max_steps: int,
