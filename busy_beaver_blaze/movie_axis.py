@@ -61,6 +61,8 @@ def add_sqrt_step_axis(frame: Image.Image, step_index: int) -> Image.Image:
     decade (up to about 1.26 times the boundary), while new ticks stay solid.
     This deterministic fade works on saved frames without previous-frame state.
     The caption retains the exact current count when it falls between ticks.
+    Labels sit to the left of the right-side scale, over the diagram, in muted
+    gray. Fading uses transparency so the diagram remains visible underneath.
 
     The diagram is resized into a fixed inset so it does not move as labels
     acquire more digits. This is purely image post-processing; no history or
@@ -83,36 +85,34 @@ def add_sqrt_step_axis(frame: Image.Image, step_index: int) -> Image.Image:
         else ImageFont.load_default(size=font_size)
     )
     padding = max(6, round(12 * height / 1080))
-    margin = max(round(width * 0.14), font_size * 8)
-    plot_top = font_size * 3 + padding
+    plot_top = font_size * 2 + padding
     plot_bottom = height - padding - font_size
     plot_height = plot_bottom - plot_top + 1
-    plot_width = width - margin - padding
+    plot_width = width - 3 * padding
     assert plot_height > 1 and plot_width > 0
 
     output = Image.new("RGB", frame.size, "white")
     plot = frame.convert("RGB").resize((plot_width, plot_height), Image.Resampling.LANCZOS)
     output.paste(plot, (padding, plot_top))
     draw = ImageDraw.Draw(output)
-    ink = (65, 65, 65)
+    ink = (110, 110, 110)
     axis_x = padding + plot_width + padding
-    draw.multiline_text(
-        (axis_x + padding, padding), "Machine\nsteps", font=font, fill=ink, spacing=2,
+    draw.text(
+        (axis_x, padding), "Machine steps", font=font, fill=ink, anchor="rt",
     )
     draw.line((axis_x, plot_top, axis_x, plot_bottom), fill=ink)
     ticks = _sqrt_step_ticks(step_index + 1, plot_height)
     fading_ticks, opacity = _fading_ticks(step_index + 1, plot_height)
-    fade_red, fade_green, fade_blue = (
-        round(255 + (channel - 255) * opacity) for channel in ink
-    )
-    fade_ink = (fade_red, fade_green, fade_blue)
-    for layer_ticks, layer_ink in [(fading_ticks, fade_ink), (ticks, ink)]:
+    labels = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(labels)
+    for layer_ticks, alpha in [(fading_ticks, round(255 * opacity)), (ticks, 255)]:
+        layer_ink = (*ink, alpha)
         previous_label_y = -height
         has_bottom_tick = bool(layer_ticks) and layer_ticks[-1][0] == step_index + 1
         for step, pixel_y in layer_ticks:
             label_y = plot_top + pixel_y
             tick_length = max(4, padding // 2)
-            draw.line((axis_x, label_y, axis_x + tick_length, label_y), fill=layer_ink)
+            draw.line((axis_x - tick_length, label_y, axis_x, label_y), fill=layer_ink)
             # Preserve endpoints while avoiding overlapping labels in small frames.
             if step not in (0, step_index + 1) and (
                 label_y - previous_label_y < font_size * 2
@@ -124,15 +124,16 @@ def add_sqrt_step_axis(frame: Image.Image, step_index: int) -> Image.Image:
                 continue
             label = _step_label(step)
             label_font = font
-            label_x = axis_x + tick_length + padding
-            available_width = width - label_x - padding
+            label_x = axis_x - tick_length - padding
+            available_width = label_x - padding
             if draw.textlength(label, font=label_font) > available_width:
                 label_font = ImageFont.load_default(size=max(
                     6, int(font_size * available_width / draw.textlength(label, font=font)),
                 ))
+            anchor = "rb" if step == 0 else "rt" if step == step_index + 1 else "rm"
             draw.text(
                 (label_x, label_y), label,
-                font=label_font, fill=layer_ink, anchor="lm",
+                font=label_font, fill=layer_ink, anchor=anchor,
             )
             previous_label_y = label_y
-    return output
+    return Image.alpha_composite(output.convert("RGBA"), labels).convert("RGB")

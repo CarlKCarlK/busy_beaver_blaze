@@ -131,6 +131,8 @@ Frame timing remains independent of the Square Root vertical axis.
 See `example_python/movie_sqrt.py` for a command-line script that saves numbered
 frames in a fresh output directory for subsequent video encoding.
 The script adds a right-side Machine steps axis in Python post-processing.
+Muted gray labels sit to the left of the scale, overlapping the diagram;
+the plot uses the space previously reserved for labels on the right.
 `add_sqrt_step_axis(frame, step_index)` also works on saved frames without
 rerunning the machine. It preserves the final resolution and fits the diagram
 into a fixed inset. Tick positions follow the renderer's Square Root mapping,
@@ -142,6 +144,9 @@ At each new decade, the previous intermediate ticks fade out over the first
 tenth of that logarithmic decade (up to about 1.26 times its boundary).
 To encode old frames with the new axis, `example_python/post_sqrt_movie.py`
 accepts `--source`, `--source-count`, `--steps`, `--frames`, `--fps`, and `--out`.
+It adds a three-second final-frame hold by default (`--hold-seconds 0` disables
+it). This extends the movie duration: 1,800 frames at 30 fps plus the hold is
+63 seconds.
 It streams annotated frames directly into FFmpeg, leaving the saved PNGs intact
 and creating no additional frame files.
 

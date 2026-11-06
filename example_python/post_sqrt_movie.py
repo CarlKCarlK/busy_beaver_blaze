@@ -21,10 +21,13 @@ def main():
     parser.add_argument("--steps", type=int, required=True)
     parser.add_argument("--frames", type=int, required=True)
     parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument("--hold-seconds", type=int, default=3)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     if min(args.source_count, args.steps, args.frames, args.fps) < 1:
         parser.error("counts, steps, and fps must be positive")
+    if args.hold_seconds < 0:
+        parser.error("--hold-seconds must be nonnegative")
     if args.out.exists():
         parser.error("--out must be a new file")
 
@@ -35,11 +38,12 @@ def main():
     if width % 2 or height % 2:
         parser.error("H.264 output requires even image dimensions")
 
+    hold_frames = args.hold_seconds * args.fps
     command = [
         "ffmpeg", "-hide_banner", "-loglevel", "warning", "-n",
         "-f", "rawvideo", "-pixel_format", "rgb24",
         "-video_size", f"{width}x{height}", "-framerate", str(args.fps),
-        "-i", "pipe:0", "-frames:v", str(args.frames),
+        "-i", "pipe:0", "-frames:v", str(args.frames + hold_frames),
         "-c:v", "libx264", "-preset", "medium", "-crf", "18",
         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(args.out),
     ]
@@ -56,9 +60,14 @@ def main():
             with Image.open(args.source / f"frame_{source_index:07d}.png") as frame:
                 assert frame.size == resolution, "source frames must have identical dimensions"
                 annotated = add_sqrt_step_axis(frame, steps[source_index])
-            encoder.stdin.write(annotated.tobytes())
+            frame_bytes = annotated.tobytes()
+            encoder.stdin.write(frame_bytes)
             if (frame_index + 1) % 60 == 0 or frame_index + 1 == args.frames:
                 print(f"Encoded {frame_index + 1}/{args.frames} frames", flush=True)
+        for _ in range(hold_frames):
+            encoder.stdin.write(frame_bytes)
+        if hold_frames:
+            print(f"Added {args.hold_seconds}-second final hold ({hold_frames} frames)", flush=True)
         encoder.stdin.close()
         if encoder.wait() != 0:
             raise SystemExit("FFmpeg encoding failed")

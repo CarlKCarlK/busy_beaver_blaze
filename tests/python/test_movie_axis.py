@@ -57,8 +57,9 @@ def test_axis_preserves_resolution_input_and_plot_content(size):
     assert frame.tobytes() == before
     assert annotated.getpixel((size[0] // 2, size[1] // 2)) == (255, 165, 0)
     assert annotated.getpixel((0, 0)) == (255, 255, 255)
-    assert annotated.crop((size[0] * 7 // 8, 0, size[0], size[1])).getextrema()[0][0] < 100
+    assert annotated.crop((size[0] * 7 // 8, 0, size[0], size[1])).getextrema()[0][0] < 150
     assert annotated.getpixel((0, size[1] // 2)) == (255, 255, 255)
+    assert annotated.getpixel((size[0] * 9 // 10, size[1] // 2)) == (255, 165, 0)
 
 
 @pytest.mark.parametrize("boundary", [10, 100, 1_000_000, 10_000_000])
@@ -79,3 +80,18 @@ def test_rejects_invalid_inputs():
         add_sqrt_step_axis(Image.new("RGB", (320, 180)), -1)
     with pytest.raises(ValueError, match="160x90"):
         add_sqrt_step_axis(Image.new("RGB", (16, 8)), 0)
+
+
+def test_fading_labels_blend_with_tape_color():
+    frame = Image.new("RGB", (1920, 1080), "orange")
+    annotated = add_sqrt_step_axis(frame, 109)
+    # The old 10-step label is around this location at a 110-sample frame.
+    # Its solid glyph pixels should be muted orange/gray, not an opaque gray
+    # or white mask painted over the tape.
+    crop = annotated.crop((1750, 340, 1895, 375))
+    colors = crop.getcolors(crop.width * crop.height)
+    assert colors is not None
+    assert any(
+        count > 5 and 160 <= red <= 180 and 125 <= green <= 140 and 55 <= blue <= 75
+        for count, (red, green, blue) in colors
+    )
