@@ -316,6 +316,17 @@ impl PyramidMachine {
         Self::from_policy(program, x_goal, y_goal, scale, false)
     }
 
+    /// Continue an existing Linear run without restarting or copying its machine.
+    /// Previously discarded early detail cannot be recovered; future checkpoints add levels.
+    pub fn from_linear(active: SpaceByTimeMachine) -> Self {
+        Self {
+            active,
+            pyramid: ImagePyramid::default(),
+            scale: TimeScale::SquareRoot,
+            space_scale: SpaceScale::Linear,
+        }
+    }
+
     /// Change reconstruction without rerunning the simulation.
     pub fn set_time_scale(&mut self, scale: &str) -> Result<(), String> {
         self.scale = TimeScale::parse(scale)?;
@@ -808,6 +819,33 @@ mod sampling_tests {
                     assert!(reference.next().is_some());
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod promotion_tests {
+    use super::*;
+    use crate::BB5_CHAMP;
+
+    #[test]
+    fn linear_history_can_switch_without_restart_in_both_policies() {
+        for binning in [true, false] {
+            let mut active = SpaceByTimeMachine::from_str(BB5_CHAMP, 16, 9, binning, 0).unwrap();
+            assert!(active.nth_js(128));
+            let count = active.step_count();
+            let palette = &[255, 255, 255, 255, 165, 0];
+            let original = active.to_png(palette).unwrap();
+            let mut pyramid = PyramidMachine::from_linear(active);
+            assert_eq!(pyramid.step_count(), count);
+            assert_eq!(pyramid.linear_png(palette).unwrap(), original);
+            for space in ["linear", "row"] {
+                pyramid.set_space_scale(space).unwrap();
+                assert!(!pyramid.to_png(palette).unwrap().is_empty());
+                assert_eq!(pyramid.step_count(), count);
+            }
+            assert!(pyramid.step());
+            assert_eq!(pyramid.step_count(), count + 1);
         }
     }
 }

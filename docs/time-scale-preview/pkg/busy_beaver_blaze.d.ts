@@ -35,6 +35,11 @@ export class PyramidMachine {
    */
   static sampling(program: string, x_goal: number, y_goal: number, scale: string): PyramidMachine;
   /**
+   * Continue an existing Linear run without restarting or copying its machine.
+   * Earlier history keeps its current resolution; future checkpoints add levels.
+   */
+  static from_linear(active: SpaceByTimeMachine): PyramidMachine;
+  /**
    * Change reconstruction without rerunning the simulation.
    */
   set_time_scale(scale: string): void;
@@ -114,6 +119,21 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly __wbg_pyramidmachine_free: (a: number, b: number) => void;
+  readonly pyramidmachine_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+  readonly pyramidmachine_sampling: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+  readonly pyramidmachine_from_linear: (a: number) => number;
+  readonly pyramidmachine_set_time_scale: (a: number, b: number, c: number) => [number, number];
+  readonly pyramidmachine_set_space_scale: (a: number, b: number, c: number) => [number, number];
+  readonly pyramidmachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
+  readonly pyramidmachine_step: (a: number) => number;
+  readonly pyramidmachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly pyramidmachine_linear_png: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly pyramidmachine_step_count: (a: number) => bigint;
+  readonly pyramidmachine_count_nonblanks: (a: number) => number;
+  readonly pyramidmachine_is_halted: (a: number) => number;
+  readonly pyramidmachine_checkpoint_count: (a: number) => number;
+  readonly pyramidmachine_retained_bytes: (a: number) => number;
   readonly __wbg_spacebytimemachine_free: (a: number, b: number) => void;
   readonly spacebytimemachine_from_str: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [number, number, number];
   readonly spacebytimemachine_nth: (a: number, b: bigint) => number;
@@ -131,20 +151,6 @@ export interface InitOutput {
   readonly machine_count: (a: number, b: number, c: bigint) => bigint;
   readonly machine_state: (a: number) => number;
   readonly machine_tape_index: (a: number) => bigint;
-  readonly __wbg_pyramidmachine_free: (a: number, b: number) => void;
-  readonly pyramidmachine_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
-  readonly pyramidmachine_sampling: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
-  readonly pyramidmachine_set_time_scale: (a: number, b: number, c: number) => [number, number];
-  readonly pyramidmachine_set_space_scale: (a: number, b: number, c: number) => [number, number];
-  readonly pyramidmachine_step_for_secs: (a: number, b: number, c: number, d: bigint, e: bigint) => number;
-  readonly pyramidmachine_step: (a: number) => number;
-  readonly pyramidmachine_to_png: (a: number, b: number, c: number) => [number, number, number, number];
-  readonly pyramidmachine_linear_png: (a: number, b: number, c: number) => [number, number, number, number];
-  readonly pyramidmachine_step_count: (a: number) => bigint;
-  readonly pyramidmachine_count_nonblanks: (a: number) => number;
-  readonly pyramidmachine_is_halted: (a: number) => number;
-  readonly pyramidmachine_checkpoint_count: (a: number) => number;
-  readonly pyramidmachine_retained_bytes: (a: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_export_2: WebAssembly.Table;

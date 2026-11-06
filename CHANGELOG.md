@@ -12,6 +12,9 @@
 - Tightened program/control spacing and synchronized both scale selections with
   the URL hash in both directions.
 
+- Restored immediate switching between Linear and Square Root, including runs
+  initially started in Linear, without restarting the machine.
+
 ### Acknowledgments
 
 **Nonlinear time scaling:** Thanks to

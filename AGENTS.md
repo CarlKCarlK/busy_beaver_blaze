@@ -306,3 +306,9 @@ for rendering times and temporary allocator peaks. The preview README and
 The preview writes both scale selections to the URL (`timeScale=linear|sqrt`,
 `spaceScale=linear|row`) and restores them on load/hash edits. Missing settings
 retain the Linear defaults; `linear-a` remains a supported legacy URL value.
+
+Switching a Linear preview run to Square Root moves the existing native machine
+into `PyramidMachine::from_linear` and immediately renders its retained rows.
+It does not restart or clone the tape. Earlier detail discarded by the Linear
+run stays discarded; future power-of-two checkpoints are captured normally.
+Scale controls act on the current run even when next-run form settings differ.

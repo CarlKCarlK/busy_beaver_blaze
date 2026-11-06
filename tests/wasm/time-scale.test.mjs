@@ -98,3 +98,21 @@ test('worker keeps history for scale/color messages and releases replaced machin
     assert.equal(messages.at(-1).step_count,10n);
     assert.equal(freed,2);
 });
+
+test('worker promotes a Linear run without restarting or losing its current policy', async () => {
+    const source = await readFile(new URL('../../docs/time-scale-preview/worker.js',import.meta.url),'utf8');
+    const messages=[];
+    const self={postMessage(message){messages.push(message);}};
+    runInNewContext(source.replace(/^import .*;\n/gm,''),{self,init:async()=>{},SpaceByTimeMachine,PyramidMachine,stateColoredProgram,Uint8Array,setTimeout});
+    const send=data=>self.onmessage({data});
+    for(const binning of [true,false]) {
+        await send({type:'start',programText:bb5,goal_x:32,goal_y:16,early_stop:1001n,binning,timeScale:'linear-a',spaceScale:'row',colorsBytes:palette});
+        const original=messages.at(-1).png_data;
+        for(const timeScale of ['sqrt','linear-a','sqrt','linear-a']) {
+            await send({type:'scale',timeScale});
+            assert.equal(messages.at(-1).success,true);
+            assert.equal(messages.at(-1).step_count,1001n);
+            if(timeScale==='linear-a') assert.deepEqual(messages.at(-1).png_data,original);
+        }
+    }
+});

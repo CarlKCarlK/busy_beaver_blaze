@@ -261,7 +261,7 @@
     <script type="module">
         import { parseProgram, statePalette } from '../v0.2.8/state-color.js';
 
-        let displayedPyramid = null;
+        let hasRun = false;
         function updateSpaceScaleNotice() {
             document.getElementById('spaceScaleNotice').textContent = document.getElementById('spaceScale').value === 'linear' ? ''
                 : document.getElementById('spaceScale').value === 'row' ? 'Rows stretch by 1/Y, then scale together to keep all symbols in bounds.'
@@ -269,7 +269,7 @@
         }
         function applySpaceScale() {
             updateSpaceScaleNotice();
-            if (worker && displayedPyramid !== null && colorsMatchDisplay()) {
+            if (worker && hasRun) {
                 worker.postMessage({ type: 'space', spaceScale: document.getElementById('spaceScale').value });
             }
             updateHashFromUI();
@@ -281,13 +281,9 @@
             updateTimeScaleAvailability();
             const scale = document.getElementById('timeScale').value;
             const notice = document.getElementById('timeScaleNotice');
-            if (worker && displayedPyramid !== null && colorsMatchDisplay()) {
-                if (displayedPyramid) {
-                    worker.postMessage({ type: 'scale', timeScale: scale });
-                    notice.textContent = '';
-                } else if (scale !== 'linear-a') {
-                    notice.textContent = 'Run again to apply Square Root. This Linear run did not retain the required history.';
-                }
+            if (worker && hasRun) {
+                worker.postMessage({ type: 'scale', timeScale: scale });
+                notice.textContent = '';
             }
             updateHashFromUI();
         }
@@ -888,7 +884,7 @@ bb6_no_name1: `1RB0RA_0RC0RB_1LD---_1LE0LD_1RF0LE_1LD1RA`,
                         })();
 
                         console.log('[page] start colors (mode=%s): %s', document.getElementById('paletteMode')?.value, formatPalette(colorsBytes));
-                        displayedPyramid = document.getElementById('timeScale').value !== 'linear-a';
+                        hasRun = true;
                         document.getElementById('timeScaleNotice').textContent = '';
                         displayedColorBy = document.getElementById('colorBy').value;
                         displayedProgram = textarea.value;

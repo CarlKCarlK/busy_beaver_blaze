@@ -47,8 +47,9 @@ state-color transform. Its own worker and WASM package keep the experiment
 separate. Pyramid modes support Quality and Speed. Speed picks the stored sample
 containing the inverse-mapped output-row center, without averaging samples. Scale and
 palette messages rerender retained data, including after stopping or halting.
-A pyramid run can also show its active Linear A image. A Linear A run needs a
-new Run to collect history; the page explains this. Old hashes default to
+A pyramid run can also show its active Linear A image. A Linear run can switch immediately using its current retained image;
+previously discarded early detail cannot be recovered. Future checkpoints
+are retained after switching. Old hashes default to
 Linear A, and experimental selections are stored as `timeScale=linear-b`,
 `timeScale=sqrt`, or `timeScale=log`.
 
@@ -177,7 +178,7 @@ node tests/wasm/time-scale-browser.mjs
 
 `PLAYWRIGHT_MODULE` can point to an existing Playwright `index.mjs` instead of
 installing a project dependency. `PREVIEW_URL` overrides the local server URL.
-The browser test covers default URLs, the restart notice, live controls,
+The browser test covers default URLs, instant switching, live controls,
 cancellation, halting, state coloring, Quality enforcement, hash updates and
 all four screenshots. For a restricted environment where wasm-pack cannot
 create its tool cache, the equivalent build is:

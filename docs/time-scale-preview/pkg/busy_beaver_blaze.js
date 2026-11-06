@@ -173,6 +173,12 @@ function takeFromExternrefTable0(idx) {
     return value;
 }
 
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
+}
+
 function passArray8ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 1, 1) >>> 0;
     getUint8ArrayMemory0().set(arg, ptr / 1);
@@ -334,6 +340,18 @@ export class PyramidMachine {
             throw takeFromExternrefTable0(ret[1]);
         }
         return PyramidMachine.__wrap(ret[0]);
+    }
+    /**
+     * Continue an existing Linear run without restarting or copying its machine.
+     * Earlier history keeps its current resolution; future checkpoints add levels.
+     * @param {SpaceByTimeMachine} active
+     * @returns {PyramidMachine}
+     */
+    static from_linear(active) {
+        _assertClass(active, SpaceByTimeMachine);
+        var ptr0 = active.__destroy_into_raw();
+        const ret = wasm.pyramidmachine_from_linear(ptr0);
+        return PyramidMachine.__wrap(ret);
     }
     /**
      * Change reconstruction without rerunning the simulation.

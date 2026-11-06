@@ -75,7 +75,12 @@ self.onmessage = async ({ data: msg }) => {
         if (msg.type === 'scale') {
             if (!machine) return;
             const nextScale = msg.timeScale;
-            if (!pyramid && nextScale !== 'linear-a') throw new Error('Run again to enable pyramid history.');
+            if (!['linear-a','linear-b','sqrt','log'].includes(nextScale)) throw new Error(`Unknown time scale: ${nextScale}`);
+            if (!pyramid && nextScale !== 'linear-a') {
+                machine = PyramidMachine.from_linear(machine);
+                pyramid = true;
+                machine.set_space_scale(spaceScale);
+            }
             if (pyramid && nextScale !== 'linear-a') machine.set_time_scale(nextScale);
             scale = nextScale;
             renderAndPost(true);

@@ -15,7 +15,7 @@ try {
         document.querySelector('#stepCount').textContent === expected &&
         document.querySelector('#runButton').textContent === 'Run' &&
         document.querySelector('.image-container img')?.complete, count);
-    const image = () => page.locator('.image-container img').getAttribute('src');
+    const image = () => page.locator('.image-container img').evaluateAll(images => images[0]?.getAttribute('src') ?? null);
     const scale = async value => {
         const previous = await image();
         await page.selectOption('#timeScale', value);
@@ -29,7 +29,7 @@ try {
         await page.waitForFunction(previous => document.querySelector('.image-container img')?.src !== previous && document.querySelector('.image-container img')?.complete, previous);
     };
 
-    // Old URLs default to Linear A. Switching from a reference run asks for a new run.
+    // Old URLs default to Linear, and the current run can be promoted on demand.
     await page.goto(`${base}/time-scale-preview/index.html?case=${Math.random()}#program=bb2&run=true`);
     await completed('6');
     assert.equal(await page.locator('#timeScale').inputValue(), 'linear-a');
@@ -49,17 +49,24 @@ try {
     await page.locator('#programInput').hover();
     const gap = await page.evaluate(() => document.getElementById('timeScale').closest('.controls').getBoundingClientRect().top - document.getElementById('programInput').getBoundingClientRect().bottom);
     assert.ok(gap <= 16, `Program/control gap too large: ${gap}`);
-    const oldImage = await image();
-    await page.selectOption('#timeScale', 'sqrt');
-    assert.match(await page.locator('#timeScaleNotice').textContent(), /Run again/);
-    assert.equal(await image(), oldImage);
-    assert.equal(await page.locator('#binning').isDisabled(), false);
-    await page.click('#runButton');
-    await completed('6');
-    assert.match(await page.locator('#haltedStatus').textContent(), /Halted/);
+    // A fresh Linear run must switch immediately without another Run.
+    await scale('sqrt');
+    assert.equal(await page.locator('#timeScaleNotice').textContent(),'');
+    assert.equal(await page.locator('#stepCount').textContent(),'6');
+    assert.equal(await page.locator('#runButton').textContent(),'Run');
     await scale('sqrt');
     await space('row');
     assert.equal(await page.locator('#stepCount').textContent(),'6');
+    // Pending policy changes must not block scale changes on the displayed run.
+    await page.locator('.quality-toggle .slider').click();
+    assert.equal(await page.locator('#binning').isChecked(),false);
+    await scale('linear-a');
+    assert.equal(await page.locator('#stepCount').textContent(),'6');
+    await scale('sqrt');
+    assert.equal(await page.locator('#stepCount').textContent(),'6');
+    await page.locator('.quality-toggle .slider').click();
+    assert.equal(await page.locator('#binning').isChecked(),true);
+    await scale('sqrt');
     const beforePalette = await image();
     await page.selectOption('#paletteMode', 'dark');
     await page.waitForFunction(previous => document.querySelector('.image-container img')?.src !== previous, beforePalette);
@@ -150,7 +157,7 @@ try {
     await completed('6');
     assert.equal(await page.locator('#timeScale').inputValue(),'linear-a');
     assert.deepEqual(errors,[]);
-    console.log('Browser checks passed: defaults, restart notice, live scale/palette, stop, halt, state colors, hash, Linear/1-Y X modes and all time modes.');
+    console.log('Browser checks passed: defaults, instant scale changes, live scale/palette, stop, halt, state colors, hash, Linear/1-Y X modes and all time modes.');
 } finally {
     await browser.close();
 }
