@@ -247,7 +247,7 @@ from .frames import (  # noqa: E402
     RESOLUTION_8K,
 )
 
-from .movie_axis import add_sqrt_step_axis  # noqa: E402
+from .movie_axis import add_linear_step_axis, add_sqrt_step_axis, linear_time_extent  # noqa: E402
 
 # Import interactive utilities (IPython is a core dependency via jupyter)
 from .interactive import (  # noqa: E402
@@ -273,6 +273,8 @@ __all__ = [
     "log_step_iterator",
     "create_frame",
     "add_sqrt_step_axis",
+    "add_linear_step_axis",
+    "linear_time_extent",
     "blend_images",
     "resize_png",
     "RESOLUTION_TINY",

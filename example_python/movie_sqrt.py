@@ -1,17 +1,16 @@
-"""Save sequential Square Root frames for video encoding.
+"""Save raw sequential Square Root PNGs for reusable movie post-processing.
 
 Run from the project root:
     uv run python example_python/movie_sqrt.py --steps 10000 --frames 20
 """
 
 import argparse
+import json
 from pathlib import Path
 
 from busy_beaver_blaze import (
     BB5_CHAMP,
     SqrtPngDataIterator,
-    add_sqrt_step_axis,
-    create_frame,
     log_step_iterator,
 )
 
@@ -30,20 +29,30 @@ def main():
         parser.error("--steps and --frames must be positive")
 
     resolution = (args.width, args.height)
+    frame_steps = log_step_iterator(args.steps, args.frames)
     frames = SqrtPngDataIterator(
-        log_step_iterator(args.steps, args.frames),
+        frame_steps,
         program=args.program,
         resolution=resolution,
         pixel_policy=args.pixel_policy,
     )
     # A fresh directory prevents mixing frames from different runs.
     args.out.mkdir(parents=True, exist_ok=False)
+    count = 0
     for frame_index, (step_index, png_bytes) in enumerate(frames):
-        frame = add_sqrt_step_axis(
-            create_frame(png_bytes, "", step_index, resolution), step_index,
-        )
-        frame.save(args.out / f"frame_{frame_index:07d}.png")
-        print(f"Frame {frame_index}: {step_index + 1:,} samples")
+        assert step_index == frame_steps[frame_index]
+        # Save the exact encoder output before any filters, resizing or text.
+        (args.out / f"frame_{frame_index:07d}.png").write_bytes(png_bytes)
+        count += 1
+        if count % 60 == 0 or count == args.frames:
+            print(f"Saved {count}/{args.frames}: {step_index + 1:,} samples", flush=True)
+    assert count == args.frames, "machine halted before all requested frames"
+    manifest = {
+        "format_version": 1, "raw": True, "time_scale": "sqrt",
+        "program": args.program, "resolution": list(resolution),
+        "pixel_policy": args.pixel_policy, "frame_steps": frame_steps,
+    }
+    (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
 
 if __name__ == "__main__":

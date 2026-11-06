@@ -3,8 +3,10 @@
 import pytest
 from PIL import Image
 
-from busy_beaver_blaze import add_sqrt_step_axis
-from busy_beaver_blaze.movie_axis import _fading_ticks, _sqrt_step_ticks, _step_label
+from busy_beaver_blaze import add_linear_step_axis, add_sqrt_step_axis, linear_time_extent
+from busy_beaver_blaze.movie_axis import (
+    _fading_ticks, _resize_diagram, _sqrt_step_ticks, _step_label, _step_ticks,
+)
 
 
 def test_square_root_mapping():
@@ -14,6 +16,42 @@ def test_square_root_mapping():
         (70_000_000, 837), (80_000_000, 894), (90_000_000, 949),
         (100_000_000, 1000),
     ]
+
+
+def test_linear_ticks_are_equally_spaced():
+    assert _step_ticks(100_000_000, 1001, "linear", 100_000_000) == [
+        (step * 10_000_000, step * 100) for step in range(11)
+    ]
+    # The last of five 8-step rows is only partly filled at sample 33.
+    assert linear_time_extent(33, 5) == 40
+    assert _step_ticks(33, 1001, "linear", 40) == [
+        (0, 0), (10, 250), (20, 500), (30, 750),
+    ]
+
+
+@pytest.mark.parametrize("samples, source_height, expected", [
+    (1, 1, 1), (7, 7, 7), (31, 4, 32), (32, 4, 32), (33, 5, 40),
+    (100_000_000, 1526, 100_007_936),
+])
+def test_linear_native_row_extent(samples, source_height, expected):
+    assert linear_time_extent(samples, source_height) == expected
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_linear_axis_with_real_native_frames(workers):
+    from io import BytesIO
+    from busy_beaver_blaze import PngDataIterator
+
+    frames = PngDataIterator(
+        [0, 30, 31, 32], program="1RA1RA", early_stop=34,
+        resolution=(16, 4), part_count=workers,
+    )
+    for step_index, png in frames:
+        with Image.open(BytesIO(png)) as source:
+            extent = linear_time_extent(step_index + 1, source.height)
+        assert extent == {0: 1, 30: 32, 31: 32, 32: 40}[step_index]
+        annotated = add_linear_step_axis(Image.new("RGB", (320, 180)), step_index, time_extent=extent)
+        assert annotated.size == (320, 180)
 
 
 @pytest.mark.parametrize("step_count", [1, 2, 3, 4, 17, 1_000_000])
@@ -95,3 +133,51 @@ def test_fading_labels_blend_with_tape_color():
         count > 5 and 160 <= red <= 180 and 125 <= green <= 140 and 55 <= blue <= 75
         for count, (red, green, blue) in colors
     )
+
+
+@pytest.mark.parametrize("axis", [add_linear_step_axis, add_sqrt_step_axis])
+def test_final_resolution_draws_text_after_stretching(axis):
+    native = Image.new("RGB", (16, 8), "orange")
+    # The result must be identical to an already stretched, unlabelled diagram:
+    # stretching a labelled frame would distort the glyphs and fail this check.
+    expected = axis(Image.new("RGB", (320, 360), "orange"), 99)
+    actual = axis(native, 99, resolution=(320, 360))
+    assert actual.size == (320, 360)
+    assert actual.tobytes() == expected.tobytes()
+    assert native.size == (16, 8)
+
+
+def test_enlargement_preserves_sharp_cells_and_source_colors():
+    source = Image.new("RGB", (2, 2), "white")
+    source.putpixel((0, 0), (255, 165, 0))
+    enlarged = _resize_diagram(source, (200, 200))
+    assert set(enlarged.get_flattened_data()) == {(255, 255, 255), (255, 165, 0)}
+    assert enlarged.getpixel((99, 99)) == (255, 165, 0)
+    assert enlarged.getpixel((100, 99)) == (255, 255, 255)
+
+
+def test_mixed_resize_averages_only_the_shrinking_axis():
+    source = Image.new("RGB", (2, 2), "white")
+    source.putpixel((0, 0), (0, 0, 0))
+    resized = _resize_diagram(source, (1, 100))
+    assert set(resized.get_flattened_data()) == {(128, 128, 128), (255, 255, 255)}
+    assert resized.getpixel((0, 49)) == (128, 128, 128)
+    assert resized.getpixel((0, 50)) == (255, 255, 255)
+
+
+def test_adaptive_filter_keeps_large_early_cells_sharp():
+    source = Image.new("RGB", (2, 2), "white")
+    source.putpixel((0, 0), (255, 165, 0))
+    assert _resize_diagram(source, (200, 200), "adaptive").tobytes() == (
+        _resize_diagram(source, (200, 200), "cells").tobytes()
+    )
+
+
+def test_adaptive_filter_interpolates_dense_stripes_only():
+    source = Image.new("RGB", (32, 32), "white")
+    for column in range(0, 32, 2):
+        for row in range(32):
+            source.putpixel((column, row), (0, 0, 0))
+    adaptive = _resize_diagram(source, (48, 48), "adaptive")
+    assert len(set(adaptive.get_flattened_data())) > 2
+    assert len(set(_resize_diagram(source, (48, 48)).get_flattened_data())) == 2
